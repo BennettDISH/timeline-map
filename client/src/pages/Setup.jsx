@@ -51,7 +51,25 @@ function Setup() {
       
     } catch (error) {
       console.error('Setup error:', error)
-      setError(error.response?.data?.message || 'Setup failed. Please try again.')
+      const errorData = error.response?.data
+      
+      let errorMessage = errorData?.message || 'Setup failed. Please try again.'
+      
+      // Check for JWT_SECRET error and redirect to setup page
+      if (errorData?.message?.includes('JWT_SECRET')) {
+        navigate('/env-setup')
+        return
+      }
+      
+      // Add helpful instructions for common errors
+      if (errorData?.instructions) {
+        errorMessage += '\n\n' + errorData.instructions
+        if (errorData?.example) {
+          errorMessage += '\n\nExample: ' + errorData.example
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

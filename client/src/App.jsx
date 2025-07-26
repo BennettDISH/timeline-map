@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import MapView from './pages/MapView'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
+import EnvSetup from './pages/EnvSetup'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -36,6 +37,10 @@ function AppRoutes() {
         <Route 
           path="/setup" 
           element={<Setup />} 
+        />
+        <Route 
+          path="/env-setup" 
+          element={<EnvSetup />} 
         />
         <Route 
           path="/login" 

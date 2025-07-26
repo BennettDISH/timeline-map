@@ -6,12 +6,31 @@ const router = express.Router();
 
 // Generate JWT token
 const generateToken = (userId) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is not set. Please set it in Railway dashboard.');
+  }
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
 // POST /api/setup/init-admin - Create first admin user and run migration
 router.post('/init-admin', async (req, res) => {
   try {
+    // Check for required environment variables first
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        message: 'Server configuration error: JWT_SECRET is not set.',
+        instructions: 'Please set the JWT_SECRET environment variable in Railway dashboard with a random 32+ character string.',
+        example: 'JWT_SECRET=sk_abc123xyz789_your_very_long_random_string_here'
+      });
+    }
+
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({
+        message: 'Server configuration error: DATABASE_URL is not set.',
+        instructions: 'Please add a PostgreSQL database addon in Railway dashboard.'
+      });
+    }
+
     const { username, email, password } = req.body;
 
     // Validation

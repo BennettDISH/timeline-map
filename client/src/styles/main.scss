@@ -54,8 +54,10 @@ body {
   border-radius: 4px;
   margin-bottom: 1rem;
   border: 1px solid #fcc;
-  text-align: center;
+  text-align: left;
   font-size: 0.9rem;
+  white-space: pre-line;
+  font-family: 'Consolas', 'Monaco', monospace;
 }
 
 .login-form {
@@ -663,5 +665,203 @@ body {
 
   p {
     color: #666;
+  }
+}
+
+// Environment setup page styles
+.env-setup-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+}
+
+.env-setup-container {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 800px;
+}
+
+.setup-steps {
+  margin: 2rem 0;
+}
+
+.step {
+  background: #f8f9fa;
+  border-left: 4px solid #667eea;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0 6px 6px 0;
+
+  h3 {
+    color: #333;
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+  }
+
+  p {
+    color: #666;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+  }
+
+  ul, ol {
+    margin: 0.75rem 0;
+    padding-left: 1.5rem;
+
+    li {
+      margin-bottom: 0.5rem;
+      color: #555;
+    }
+  }
+}
+
+.env-var {
+  background: #2d3748;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  font-family: 'Consolas', 'Monaco', monospace;
+
+  .env-line {
+    margin-bottom: 0.5rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    strong {
+      color: #4fd1c7;
+    }
+
+    code {
+      background: #1a202c;
+      padding: 0.25rem 0.5rem;
+      border-radius: 3px;
+      color: #f7fafc;
+    }
+  }
+}
+
+.secret-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+
+  .secret-value {
+    flex: 1;
+    background: #1a202c;
+    padding: 0.5rem;
+    border-radius: 4px;
+    color: #68d391;
+    word-break: break-all;
+    font-size: 0.9rem;
+  }
+
+  .copy-button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+
+    &:hover {
+      background: #5a6fd8;
+    }
+  }
+}
+
+.note {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.env-actions {
+  display: flex;
+  gap: 1rem;
+  margin: 2rem 0;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  .retry-button, .refresh-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-size: 1rem;
+    transition: all 0.2s;
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  .retry-button {
+    background: #28a745;
+    color: white;
+
+    &:hover {
+      background: #218838;
+    }
+  }
+
+  .refresh-button {
+    background: #6c757d;
+    color: white;
+
+    &:hover {
+      background: #5a6268;
+    }
+  }
+}
+
+.troubleshooting {
+  background: #e8f4fd;
+  border-left: 4px solid #0066cc;
+  padding: 1.5rem;
+  border-radius: 0 6px 6px 0;
+  margin-top: 2rem;
+
+  h3 {
+    color: #0066cc;
+    margin-bottom: 1rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.5rem;
+
+    li {
+      margin-bottom: 0.75rem;
+      color: #333;
+
+      strong {
+        color: #0066cc;
+      }
+
+      code {
+        background: #f1f3f4;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-family: 'Consolas', 'Monaco', monospace;
+      }
+    }
   }
 }
