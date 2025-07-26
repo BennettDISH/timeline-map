@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import MapView from './pages/MapView'
+import AdminPanel from './pages/AdminPanel'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -52,6 +53,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <MapView />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute>
+              <AdminPanel />
             </ProtectedRoute>
           } 
         />
