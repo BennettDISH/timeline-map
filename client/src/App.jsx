@@ -7,6 +7,7 @@ import MapView from './pages/MapView'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
 import EnvSetup from './pages/EnvSetup'
+import ImageManager from './pages/ImageManager'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -71,6 +72,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <AdminPanel />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/images" 
+          element={
+            <ProtectedRoute>
+              <ImageManager />
             </ProtectedRoute>
           } 
         />

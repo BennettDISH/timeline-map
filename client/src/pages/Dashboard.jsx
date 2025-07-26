@@ -44,10 +44,10 @@ function Dashboard() {
               <h3>Browse Maps</h3>
               <p>View existing maps</p>
             </button>
-            <button className="action-card">
+            <Link to="/images" className="action-card">
               <h3>Upload Images</h3>
               <p>Add map images</p>
-            </button>
+            </Link>
           </div>
         </div>
         
