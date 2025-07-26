@@ -17,7 +17,11 @@ function Login() {
       await login(credentials.username, credentials.password)
       navigate('/dashboard')
     } catch (error) {
-      // Error is handled by context
+      // Check if database needs setup
+      if (error.code === 'DB_NOT_INITIALIZED') {
+        navigate('/setup')
+      }
+      // Other errors are handled by context
     }
   }
 
@@ -33,7 +37,11 @@ function Login() {
       await register(formData.username, formData.email, formData.password)
       navigate('/dashboard')
     } catch (error) {
-      // Error is handled by context
+      // Check if database needs setup
+      if (error.code === 'DB_NOT_INITIALIZED') {
+        navigate('/setup')
+      }
+      // Other errors are handled by context
     }
   }
 

@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import MapView from './pages/MapView'
 import AdminPanel from './pages/AdminPanel'
+import Setup from './pages/Setup'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -32,6 +33,10 @@ function AppRoutes() {
   return (
     <div className="app">
       <Routes>
+        <Route 
+          path="/setup" 
+          element={<Setup />} 
+        />
         <Route 
           path="/login" 
           element={

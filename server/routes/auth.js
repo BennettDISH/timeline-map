@@ -24,6 +24,19 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
+    // Check if database is set up
+    try {
+      await pool.query('SELECT 1 FROM users LIMIT 1');
+    } catch (dbError) {
+      if (dbError.code === '42P01') { // Table does not exist
+        return res.status(503).json({ 
+          message: 'Database not initialized. Please contact an administrator to run the migration.',
+          code: 'DB_NOT_INITIALIZED'
+        });
+      }
+      throw dbError; // Re-throw other database errors
+    }
+
     // Check if user already exists
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE username = $1 OR email = $2',
@@ -72,6 +85,19 @@ router.post('/login', async (req, res) => {
 
     if (!username || !password) {
       return res.status(400).json({ message: 'Username and password are required' });
+    }
+
+    // Check if database is set up
+    try {
+      await pool.query('SELECT 1 FROM users LIMIT 1');
+    } catch (dbError) {
+      if (dbError.code === '42P01') { // Table does not exist
+        return res.status(503).json({ 
+          message: 'Database not initialized. Please contact an administrator to run the migration.',
+          code: 'DB_NOT_INITIALIZED'
+        });
+      }
+      throw dbError; // Re-throw other database errors
     }
 
     // Find user (allow login with username or email)
