@@ -108,10 +108,31 @@ function MapViewer() {
       const mouseX = e.clientX - imageRect.left
       const mouseY = e.clientY - imageRect.top
       
-      // Convert to percentage of image size (accounting for transform scale)
-      // Temporary fix: halve the X coordinate if it's being doubled
-      const imageX = ((mouseX / imageRect.width) * 100) / 2
-      const imageY = (mouseY / imageRect.height) * 100
+      // Calculate actual displayed image area within the element
+      // The image element might be larger than the actual displayed image due to object-fit
+      let actualImageWidth, actualImageHeight, offsetX, offsetY
+      
+      if (naturalAspect > elementAspect) {
+        // Image is wider than container - image fills width, empty space top/bottom
+        actualImageWidth = elementWidth
+        actualImageHeight = elementWidth / naturalAspect
+        offsetX = 0
+        offsetY = (elementHeight - actualImageHeight) / 2
+      } else {
+        // Image is taller than container - image fills height, empty space left/right
+        actualImageHeight = elementHeight
+        actualImageWidth = elementHeight * naturalAspect
+        offsetY = 0
+        offsetX = (elementWidth - actualImageWidth) / 2
+      }
+      
+      // Adjust mouse position to be relative to actual image area
+      const adjustedMouseX = mouseX - offsetX
+      const adjustedMouseY = mouseY - offsetY
+      
+      // Convert to percentage of actual image area
+      const imageX = (adjustedMouseX / actualImageWidth) * 100
+      const imageY = (adjustedMouseY / actualImageHeight) * 100
       
       // Get image natural dimensions to understand letterboxing
       const img = imageRef.current
@@ -131,10 +152,10 @@ function MapViewer() {
       console.log('Image dimensions debug:', {
         natural: { width: naturalWidth, height: naturalHeight, aspect: naturalAspect },
         element: { width: elementWidth, height: elementHeight, aspect: elementAspect },
-        css: { objectFit, objectPosition, maxWidth: computedStyle.maxWidth },
-        mousePos: { mouseX, mouseY },
-        calculatedPercent: { imageX, imageY },
-        doubleCheck: { halfImageX: imageX * 2, isDoubling: imageX * 2 }
+        actualImage: { width: actualImageWidth, height: actualImageHeight },
+        offset: { x: offsetX, y: offsetY },
+        mousePos: { original: { mouseX, mouseY }, adjusted: { adjustedMouseX, adjustedMouseY } },
+        calculatedPercent: { imageX, imageY }
       })
       
       // Keep within bounds
@@ -203,17 +224,47 @@ function MapViewer() {
     const mouseX = e.clientX - imageRect.left
     const mouseY = e.clientY - imageRect.top
     
-    // Convert to percentage of image size
-    // Temporary fix: halve the X coordinate if it's being doubled  
-    const imageX = ((mouseX / imageRect.width) * 100) / 2
-    const imageY = (mouseY / imageRect.height) * 100
+    // Calculate actual displayed image area within the element
+    const img = imageRef.current
+    const naturalWidth = img.naturalWidth
+    const naturalHeight = img.naturalHeight
+    const naturalAspect = naturalWidth / naturalHeight
+    
+    const elementWidth = imageRect.width
+    const elementHeight = imageRect.height
+    const elementAspect = elementWidth / elementHeight
+    
+    let actualImageWidth, actualImageHeight, offsetX, offsetY
+    
+    if (naturalAspect > elementAspect) {
+      // Image is wider than container - image fills width, empty space top/bottom
+      actualImageWidth = elementWidth
+      actualImageHeight = elementWidth / naturalAspect
+      offsetX = 0
+      offsetY = (elementHeight - actualImageHeight) / 2
+    } else {
+      // Image is taller than container - image fills height, empty space left/right
+      actualImageHeight = elementHeight
+      actualImageWidth = elementHeight * naturalAspect
+      offsetY = 0
+      offsetX = (elementWidth - actualImageWidth) / 2
+    }
+    
+    // Adjust mouse position to be relative to actual image area
+    const adjustedMouseX = mouseX - offsetX
+    const adjustedMouseY = mouseY - offsetY
+    
+    // Convert to percentage of actual image area
+    const imageX = (adjustedMouseX / actualImageWidth) * 100
+    const imageY = (adjustedMouseY / actualImageHeight) * 100
     
     // Debug logging for placement
-    const img = imageRef.current
     console.log('Click placement debug:', {
-      natural: { width: img.naturalWidth, height: img.naturalHeight, aspect: img.naturalWidth / img.naturalHeight },
-      element: { width: imageRect.width, height: imageRect.height, aspect: imageRect.width / imageRect.height },
-      mousePos: { mouseX, mouseY },
+      natural: { width: naturalWidth, height: naturalHeight, aspect: naturalAspect },
+      element: { width: elementWidth, height: elementHeight, aspect: elementAspect },
+      actualImage: { width: actualImageWidth, height: actualImageHeight },
+      offset: { x: offsetX, y: offsetY },
+      mousePos: { original: { mouseX, mouseY }, adjusted: { adjustedMouseX, adjustedMouseY } },
       calculatedPercent: { imageX, imageY }
     })
     
