@@ -131,7 +131,8 @@ function MapViewer() {
       const adjustedMouseY = mouseY - offsetY
       
       // Convert to percentage of actual image area
-      const imageX = (adjustedMouseX / actualImageWidth) * 100
+      // Empirical fix: double the X coordinate to compensate for apparent scaling issue
+      const imageX = ((adjustedMouseX / actualImageWidth) * 100) * 2
       const imageY = (adjustedMouseY / actualImageHeight) * 100
       
       // Get image natural dimensions to understand letterboxing
@@ -255,17 +256,28 @@ function MapViewer() {
     const adjustedMouseY = mouseY - offsetY
     
     // Convert to percentage of actual image area
-    const imageX = (adjustedMouseX / actualImageWidth) * 100
+    // Empirical fix: double the X coordinate to compensate for apparent scaling issue
+    const imageX = ((adjustedMouseX / actualImageWidth) * 100) * 2
     const imageY = (adjustedMouseY / actualImageHeight) * 100
     
     // Debug logging for placement
+    // Check what CSS is actually being applied
+    const computedStyle = window.getComputedStyle(img)
+    
     console.log('Click placement debug:', {
       natural: { width: naturalWidth, height: naturalHeight, aspect: naturalAspect },
       element: { width: elementWidth, height: elementHeight, aspect: elementAspect },
       actualImage: { width: actualImageWidth, height: actualImageHeight },
       offset: { x: offsetX, y: offsetY },
       mousePos: { original: { mouseX, mouseY }, adjusted: { adjustedMouseX, adjustedMouseY } },
-      calculatedPercent: { imageX, imageY }
+      calculatedPercent: { imageX, imageY },
+      css: {
+        width: computedStyle.width,
+        height: computedStyle.height,
+        maxWidth: computedStyle.maxWidth,
+        objectFit: computedStyle.objectFit,
+        transform: computedStyle.transform
+      }
     })
     
     // Ensure coordinates are within bounds
