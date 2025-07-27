@@ -98,45 +98,32 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging
+      // Node dragging - use the same logic as handleMapClick for consistency
       if (!imageRef.current) return
       
+      // Calculate click position relative to the image (same as in handleMapClick)
+      const rect = imageRef.current.getBoundingClientRect()
       const containerRect = containerRef.current.getBoundingClientRect()
-      const imageRect = imageRef.current.getBoundingClientRect()
       
-      // Get mouse position relative to container
-      const mouseX = e.clientX - containerRect.left - dragOffset.x
-      const mouseY = e.clientY - containerRect.top - dragOffset.y
+      const clickX = e.clientX - containerRect.left
+      const clickY = e.clientY - containerRect.top
       
-      // Convert to image space by removing transform effects
-      // First, remove the pan offset
-      const imagePosX = mouseX - position.x
-      const imagePosY = mouseY - position.y
+      // Convert to image coordinates (percentage) - exact same logic as handleMapClick
+      const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
+      const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
       
-      // Then, remove the scale effect
-      const unscaledX = imagePosX / scale
-      const unscaledY = imagePosY / scale
-      
-      // Convert to percentage of image dimensions
-      const imageWidth = imageRect.width / scale
-      const imageHeight = imageRect.height / scale
-      
-      const percentX = (unscaledX / imageWidth) * 100
-      const percentY = (unscaledY / imageHeight) * 100
-      
-      // Keep within bounds
-      const boundedX = Math.max(0, Math.min(100, percentX))
-      const boundedY = Math.max(0, Math.min(100, percentY))
-      
-      // Update node position locally (don't save yet)
-      setNodes(nodes.map(node => 
-        node.id === draggingNode.id 
-          ? { ...node, x: boundedX, y: boundedY }
-          : node
-      ))
-      
-      // Update dragging node reference
-      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
+      // Ensure coordinates are within bounds
+      if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
+        // Update node position locally (don't save yet)
+        setNodes(nodes.map(node => 
+          node.id === draggingNode.id 
+            ? { ...node, x: imageX, y: imageY }
+            : node
+        ))
+        
+        // Update dragging node reference
+        setDraggingNode({ ...draggingNode, x: imageX, y: imageY })
+      }
     }
   }
 
@@ -234,19 +221,8 @@ function MapViewer() {
     setIsDraggingNode(true)
     setDraggingNode(node)
     
-    // Calculate offset from mouse to node center relative to container
-    const containerRect = containerRef.current.getBoundingClientRect()
-    const nodeRect = e.currentTarget.getBoundingClientRect()
-    
-    const mouseX = e.clientX - containerRect.left
-    const mouseY = e.clientY - containerRect.top
-    const nodeX = nodeRect.left + nodeRect.width / 2 - containerRect.left
-    const nodeY = nodeRect.top + nodeRect.height / 2 - containerRect.top
-    
-    setDragOffset({
-      x: mouseX - nodeX,
-      y: mouseY - nodeY
-    })
+    // Don't calculate any offset - we'll handle positioning directly
+    setDragOffset({ x: 0, y: 0 })
   }
 
   const resetView = () => {
