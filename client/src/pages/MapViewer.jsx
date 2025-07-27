@@ -17,6 +17,9 @@ function MapViewer() {
   const [saveError, setSaveError] = useState('')
   const [availableMaps, setAvailableMaps] = useState([])
   const [loadingMaps, setLoadingMaps] = useState(false)
+  const [interactionMode, setInteractionMode] = useState('view') // 'view' or 'edit'
+  const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [infoPanelNode, setInfoPanelNode] = useState(null)
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -244,11 +247,33 @@ function MapViewer() {
   const handleNodeMouseDown = (e, node) => {
     e.stopPropagation() // Prevent map dragging
     
-    setIsDraggingNode(true)
-    setDraggingNode(node)
+    // Only allow dragging in edit mode
+    if (interactionMode === 'edit') {
+      setIsDraggingNode(true)
+      setDraggingNode(node)
+      setDragOffset({ x: 0, y: 0 })
+    }
+  }
+
+  const handleNodeClick = (e, node) => {
+    e.stopPropagation()
     
-    // Don't calculate any offset - we'll handle positioning directly
-    setDragOffset({ x: 0, y: 0 })
+    if (interactionMode === 'view') {
+      // View mode behavior
+      if (node.eventType === 'standard') {
+        // Info node - show info panel
+        setInfoPanelNode(node)
+        setShowInfoPanel(true)
+      } else if (node.eventType === 'map_link' && node.linkToMapId) {
+        // Map node - navigate to linked map
+        navigate(`/map/${node.linkToMapId}`)
+      }
+    } else {
+      // Edit mode behavior - select node for editing
+      setSelectedNode(node)
+      // Close info panel if open
+      setShowInfoPanel(false)
+    }
   }
 
   const resetView = () => {
@@ -350,29 +375,49 @@ function MapViewer() {
           <span className="zoom-level">
             Zoom: {Math.round(scale * 100)}%
           </span>
+          <button 
+            onClick={() => {
+              const newMode = interactionMode === 'view' ? 'edit' : 'view'
+              setInteractionMode(newMode)
+              
+              // Clean up UI state when switching modes
+              if (newMode === 'view') {
+                setSelectedNode(null)
+                setIsAddingNode(false)
+              } else {
+                setShowInfoPanel(false)
+              }
+            }}
+            className={`mode-toggle ${interactionMode}`}
+            title={`Switch to ${interactionMode === 'view' ? 'edit' : 'view'} mode`}
+          >
+            {interactionMode === 'view' ? '👁️ View Mode' : '✏️ Edit Mode'}
+          </button>
         </div>
         
-        <div className="node-controls">
-          <label>
-            Node Type:
-            <select 
-              value={nodeType} 
-              onChange={(e) => setNodeType(e.target.value)}
-              disabled={isAddingNode || saving}
+        {interactionMode === 'edit' && (
+          <div className="node-controls">
+            <label>
+              Node Type:
+              <select 
+                value={nodeType} 
+                onChange={(e) => setNodeType(e.target.value)}
+                disabled={isAddingNode || saving}
+              >
+                <option value="standard">Info Node</option>
+                <option value="map_link">Map Node</option>
+              </select>
+            </label>
+            <button 
+              className={`add-node-button ${isAddingNode ? 'active' : ''}`}
+              onClick={() => setIsAddingNode(!isAddingNode)}
+              disabled={saving}
             >
-              <option value="standard">Info Node</option>
-              <option value="map_link">Map Node</option>
-            </select>
-          </label>
-          <button 
-            className={`add-node-button ${isAddingNode ? 'active' : ''}`}
-            onClick={() => setIsAddingNode(!isAddingNode)}
-            disabled={saving}
-          >
-            {isAddingNode ? '✕ Cancel' : `+ Add ${nodeType === 'standard' ? 'Info' : 'Map'} Node`}
-          </button>
-          {saving && <span className="saving-indicator">💾 Saving...</span>}
-        </div>
+              {isAddingNode ? '✕ Cancel' : `+ Add ${nodeType === 'standard' ? 'Info' : 'Map'} Node`}
+            </button>
+            {saving && <span className="saving-indicator">💾 Saving...</span>}
+          </div>
+        )}
       </div>
 
       <div 
@@ -415,21 +460,23 @@ function MapViewer() {
               style={{
                 left: `${node.x}%`,
                 top: `${node.y}%`,
-                cursor: isDraggingNode && draggingNode?.id === node.id ? 'grabbing' : 'grab'
+                cursor: isDraggingNode && draggingNode?.id === node.id 
+                  ? 'grabbing' 
+                  : interactionMode === 'edit' 
+                    ? 'grab' 
+                    : 'pointer'
               }}
               onMouseDown={(e) => handleNodeMouseDown(e, node)}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (!isDraggingNode) {
-                  if (node.eventType === 'map_link' && node.linkToMapId) {
-                    // Navigate to linked map
-                    navigate(`/map/${node.linkToMapId}`)
-                  } else {
-                    setSelectedNode(node)
-                  }
-                }
-              }}
-              title={node.eventType === 'map_link' && node.linkToMapId ? 'Click to navigate to linked map' : 'Click to edit node'}
+              onClick={(e) => handleNodeClick(e, node)}
+              title={
+                interactionMode === 'view'
+                  ? node.eventType === 'standard' 
+                    ? 'Click to view info'
+                    : node.linkToMapId 
+                      ? 'Click to navigate to linked map'
+                      : 'Map node (no link set)'
+                  : 'Click to edit node'
+              }
             >
               <div className="node-marker">
                 {node.eventType === 'standard' ? 'ℹ️' : node.linkToMapId ? '🗺️' : '📍'}
@@ -526,6 +573,49 @@ function MapViewer() {
             >
               Delete Node
             </button>
+          </div>
+        </div>
+      )}
+
+      {showInfoPanel && infoPanelNode && (
+        <div className="info-panel">
+          <div className="info-panel-header">
+            <h3>{infoPanelNode.title}</h3>
+            <button 
+              onClick={() => setShowInfoPanel(false)}
+              className="close-button"
+              title="Close info panel"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="info-panel-content">
+            {infoPanelNode.description && (
+              <div className="info-section">
+                <h4>Description</h4>
+                <p>{infoPanelNode.description}</p>
+              </div>
+            )}
+            {infoPanelNode.content && (
+              <div className="info-section">
+                <h4>Details</h4>
+                <div className="content-text">{infoPanelNode.content}</div>
+              </div>
+            )}
+            {interactionMode === 'view' && (
+              <div className="info-panel-actions">
+                <button 
+                  onClick={() => {
+                    setInteractionMode('edit')
+                    setSelectedNode(infoPanelNode)
+                    setShowInfoPanel(false)
+                  }}
+                  className="edit-button"
+                >
+                  ✏️ Edit This Node
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
