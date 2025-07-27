@@ -21,6 +21,11 @@ function MapViewer() {
   const [isDragging, setIsDragging] = useState(false)
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
   
+  // Node dragging state
+  const [isDraggingNode, setIsDraggingNode] = useState(false)
+  const [draggingNode, setDraggingNode] = useState(null)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  
   const containerRef = useRef(null)
   const imageRef = useRef(null)
 
@@ -50,7 +55,7 @@ function MapViewer() {
   }
 
   const handleMouseDown = (e) => {
-    if (isAddingNode) return // Don't drag when adding nodes
+    if (isAddingNode || isDraggingNode) return // Don't drag map when adding nodes or dragging nodes
     
     setIsDragging(true)
     setLastMousePos({ x: e.clientX, y: e.clientY })
@@ -58,20 +63,62 @@ function MapViewer() {
   }
 
   const handleMouseMove = (e) => {
-    if (!isDragging) return
-    
-    const deltaX = e.clientX - lastMousePos.x
-    const deltaY = e.clientY - lastMousePos.y
-    
-    setPosition(prev => ({
-      x: prev.x + deltaX,
-      y: prev.y + deltaY
-    }))
-    
-    setLastMousePos({ x: e.clientX, y: e.clientY })
+    if (isDragging && !isDraggingNode) {
+      // Map dragging
+      const deltaX = e.clientX - lastMousePos.x
+      const deltaY = e.clientY - lastMousePos.y
+      
+      setPosition(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }))
+      
+      setLastMousePos({ x: e.clientX, y: e.clientY })
+    } else if (isDraggingNode && draggingNode) {
+      // Node dragging
+      const rect = containerRef.current.getBoundingClientRect()
+      const imageRect = imageRef.current.getBoundingClientRect()
+      
+      // Calculate mouse position relative to the image
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      // Convert to image coordinates (percentage)
+      const imageX = ((mouseX - position.x) / scale - (imageRect.left - rect.left)) / (imageRect.width / scale) * 100
+      const imageY = ((mouseY - position.y) / scale - (imageRect.top - rect.top)) / (imageRect.height / scale) * 100
+      
+      // Keep within bounds
+      const boundedX = Math.max(0, Math.min(100, imageX))
+      const boundedY = Math.max(0, Math.min(100, imageY))
+      
+      // Update node position locally (don't save yet)
+      setNodes(nodes.map(node => 
+        node.id === draggingNode.id 
+          ? { ...node, x: boundedX, y: boundedY }
+          : node
+      ))
+      
+      // Update dragging node reference
+      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
+    }
   }
 
-  const handleMouseUp = () => {
+  const handleMouseUp = async () => {
+    if (isDraggingNode && draggingNode) {
+      // Save the final position to database
+      try {
+        await handleNodeUpdate(draggingNode, {
+          x_position: draggingNode.x,
+          y_position: draggingNode.y
+        })
+      } catch (err) {
+        console.error('Failed to save node position:', err)
+      }
+      
+      setIsDraggingNode(false)
+      setDraggingNode(null)
+    }
+    
     setIsDragging(false)
   }
 
@@ -142,6 +189,25 @@ function MapViewer() {
         setSaving(false)
       }
     }
+  }
+
+  const handleNodeMouseDown = (e, node) => {
+    e.stopPropagation() // Prevent map dragging
+    
+    setIsDraggingNode(true)
+    setDraggingNode(node)
+    
+    // Calculate offset from mouse to node center
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    const nodeX = rect.left + rect.width / 2
+    const nodeY = rect.top + rect.height / 2
+    
+    setDragOffset({
+      x: mouseX - nodeX,
+      y: mouseY - nodeY
+    })
   }
 
   const resetView = () => {
@@ -269,7 +335,7 @@ function MapViewer() {
       </div>
 
       <div 
-        className={`map-container ${isAddingNode ? 'adding-node' : ''} ${isDragging ? 'dragging' : ''}`}
+        className={`map-container ${isAddingNode ? 'adding-node' : ''} ${isDragging ? 'dragging' : ''} ${isDraggingNode ? 'dragging-node' : ''}`}
         ref={containerRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -304,14 +370,18 @@ function MapViewer() {
           {nodes.map(node => (
             <div
               key={node.id}
-              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''}`}
+              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${draggingNode?.id === node.id ? 'dragging' : ''}`}
               style={{
                 left: `${node.x}%`,
-                top: `${node.y}%`
+                top: `${node.y}%`,
+                cursor: isDraggingNode && draggingNode?.id === node.id ? 'grabbing' : 'grab'
               }}
+              onMouseDown={(e) => handleNodeMouseDown(e, node)}
               onClick={(e) => {
                 e.stopPropagation()
-                setSelectedNode(node)
+                if (!isDraggingNode) {
+                  setSelectedNode(node)
+                }
               }}
             >
               <div className="node-marker">

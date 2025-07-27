@@ -385,6 +385,10 @@
       cursor: grabbing;
     }
 
+    &.dragging-node {
+      cursor: default;
+    }
+
     .map-content {
       position: relative;
       cursor: grab;
@@ -420,8 +424,23 @@
   .map-node {
     position: absolute;
     transform: translate(-50%, -50%);
-    cursor: pointer;
+    cursor: grab;
     z-index: 10;
+    user-select: none;
+
+    &.dragging {
+      cursor: grabbing;
+      z-index: 20;
+      
+      .node-marker {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      .node-tooltip {
+        opacity: 0;
+      }
+    }
 
     .node-marker {
       width: 30px;
@@ -433,7 +452,7 @@
       align-items: center;
       justify-content: center;
       font-size: 16px;
-      transition: transform 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s;
 
       &:hover {
         transform: scale(1.1);
