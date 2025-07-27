@@ -35,9 +35,9 @@ router.post('/migrate', async (req, res) => {
       
       console.log('🔄 Starting database migration...');
       
-      // Read and execute schema file
-      const schemaPath = path.join(__dirname, '../config/schema.sql');
-      const schema = fs.readFileSync(schemaPath, 'utf8');
+      // Read and execute migration file
+      const migrationPath = path.join(__dirname, '../config/migration_v2.sql');
+      const schema = fs.readFileSync(migrationPath, 'utf8');
       
       // Split by semicolon and execute each statement
       const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
@@ -50,7 +50,7 @@ router.post('/migrate', async (req, res) => {
       }
       
       console.log('✅ Database migration completed successfully!');
-      console.log('📊 Tables created: users, worlds, images, maps, events, timeline_settings, user_sessions');
+      console.log('📊 Migration added: worlds table, world_id columns, default world for existing data');
       
       // Test connection
       const result = await pool.query('SELECT COUNT(*) FROM users');
