@@ -102,13 +102,14 @@ function MapViewer() {
       const rect = containerRef.current.getBoundingClientRect()
       const imageRect = imageRef.current.getBoundingClientRect()
       
-      // Calculate mouse position relative to the image
-      const mouseX = e.clientX - rect.left
-      const mouseY = e.clientY - rect.top
+      // Calculate mouse position relative to the container, accounting for drag offset
+      const mouseX = e.clientX - rect.left - dragOffset.x
+      const mouseY = e.clientY - rect.top - dragOffset.y
       
       // Convert to image coordinates (percentage)
-      const imageX = ((mouseX - position.x) / scale - (imageRect.left - rect.left)) / (imageRect.width / scale) * 100
-      const imageY = ((mouseY - position.y) / scale - (imageRect.top - rect.top)) / (imageRect.height / scale) * 100
+      // Account for pan position and scale when converting to image coordinates
+      const imageX = ((mouseX - position.x) / scale - (imageRect.left - rect.left) / scale) / (imageRect.width / scale) * 100
+      const imageY = ((mouseY - position.y) / scale - (imageRect.top - rect.top) / scale) / (imageRect.height / scale) * 100
       
       // Keep within bounds
       const boundedX = Math.max(0, Math.min(100, imageX))
@@ -220,12 +221,14 @@ function MapViewer() {
     setIsDraggingNode(true)
     setDraggingNode(node)
     
-    // Calculate offset from mouse to node center
-    const rect = e.currentTarget.getBoundingClientRect()
-    const mouseX = e.clientX
-    const mouseY = e.clientY
-    const nodeX = rect.left + rect.width / 2
-    const nodeY = rect.top + rect.height / 2
+    // Calculate offset from mouse to node center relative to container
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const nodeRect = e.currentTarget.getBoundingClientRect()
+    
+    const mouseX = e.clientX - containerRect.left
+    const mouseY = e.clientY - containerRect.top
+    const nodeX = nodeRect.left + nodeRect.width / 2 - containerRect.left
+    const nodeY = nodeRect.top + nodeRect.height / 2 - containerRect.top
     
     setDragOffset({
       x: mouseX - nodeX,
