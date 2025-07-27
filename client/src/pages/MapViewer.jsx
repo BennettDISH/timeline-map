@@ -98,40 +98,68 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging - simplified coordinate calculation
+      // Node dragging - account for image aspect ratio within container
       if (!imageRef.current) return
       
-      // Get the transformed image element's current position and size
-      const imageRect = imageRef.current.getBoundingClientRect()
+      const img = imageRef.current
+      const imageRect = img.getBoundingClientRect()
       
-      // Calculate mouse position relative to the transformed image
-      const mouseX = e.clientX - imageRect.left
-      const mouseY = e.clientY - imageRect.top
+      // Get the actual image dimensions and calculate aspect ratios
+      const naturalWidth = img.naturalWidth
+      const naturalHeight = img.naturalHeight
+      const naturalAspect = naturalWidth / naturalHeight
       
-      // Convert to percentage of the actual displayed image size
-      const percentX = (mouseX / imageRect.width) * 100
-      const percentY = (mouseY / imageRect.height) * 100
+      const containerWidth = imageRect.width
+      const containerHeight = imageRect.height
+      const containerAspect = containerWidth / containerHeight
       
-      // Keep within reasonable bounds
+      // Calculate actual image display area (accounting for letterboxing)
+      let actualImageWidth, actualImageHeight, offsetX, offsetY
+      
+      if (naturalAspect > containerAspect) {
+        // Image is wider - letterboxed top/bottom
+        actualImageWidth = containerWidth
+        actualImageHeight = containerWidth / naturalAspect
+        offsetX = 0
+        offsetY = (containerHeight - actualImageHeight) / 2
+      } else {
+        // Image is taller - letterboxed left/right
+        actualImageHeight = containerHeight
+        actualImageWidth = containerHeight * naturalAspect
+        offsetY = 0
+        offsetX = (containerWidth - actualImageWidth) / 2
+      }
+      
+      // Calculate mouse position relative to actual image content area
+      const mouseX = e.clientX - imageRect.left - offsetX
+      const mouseY = e.clientY - imageRect.top - offsetY
+      
+      // Convert to percentage of actual image area
+      const percentX = (mouseX / actualImageWidth) * 100
+      const percentY = (mouseY / actualImageHeight) * 100
+      
+      // Keep within bounds
       const boundedX = Math.max(0, Math.min(100, percentX))
       const boundedY = Math.max(0, Math.min(100, percentY))
       
       console.log('Dragging coordinates:', { 
-        mouseX, mouseY, 
-        imageRect: { width: imageRect.width, height: imageRect.height },
-        percentX, percentY, 
-        boundedX, boundedY 
+        mouseX, mouseY, offsetX, offsetY,
+        actualImageWidth, actualImageHeight,
+        percentX, percentY, boundedX, boundedY 
       })
       
-      // Update node position locally (don't save yet)
-      setNodes(nodes.map(node => 
-        node.id === draggingNode.id 
-          ? { ...node, x: boundedX, y: boundedY }
-          : node
-      ))
-      
-      // Update dragging node reference
-      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
+      // Only update if mouse is within actual image area
+      if (mouseX >= 0 && mouseX <= actualImageWidth && mouseY >= 0 && mouseY <= actualImageHeight) {
+        // Update node position locally (don't save yet)
+        setNodes(nodes.map(node => 
+          node.id === draggingNode.id 
+            ? { ...node, x: boundedX, y: boundedY }
+            : node
+        ))
+        
+        // Update dragging node reference
+        setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
+      }
     }
   }
 
