@@ -35,18 +35,76 @@ router.post('/migrate', async (req, res) => {
       
       console.log('🔄 Starting database migration...');
       
-      // Read and execute migration file
-      const migrationPath = path.join(__dirname, '../config/migration_v2.sql');
-      const schema = fs.readFileSync(migrationPath, 'utf8');
+      // Step 1: Create worlds table
+      console.log('Creating worlds table...');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS worlds (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_active BOOLEAN DEFAULT true,
+          settings JSONB DEFAULT '{}'
+        )
+      `);
       
-      // Split by semicolon and execute each statement
-      const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
+      // Step 2: Add world_id columns to existing tables
+      console.log('Adding world_id column to images table...');
+      try {
+        await pool.query('ALTER TABLE images ADD COLUMN world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE');
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('world_id column already exists in images table');
+        } else throw err;
+      }
       
-      for (const statement of statements) {
-        if (statement.trim()) {
-          console.log('Executing:', statement.substring(0, 50) + '...');
-          await pool.query(statement);
-        }
+      console.log('Adding world_id column to maps table...');
+      try {
+        await pool.query('ALTER TABLE maps ADD COLUMN world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE');
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('world_id column already exists in maps table');
+        } else throw err;
+      }
+      
+      console.log('Adding world_id column to timeline_settings table...');
+      try {
+        await pool.query('ALTER TABLE timeline_settings ADD COLUMN world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE');
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('world_id column already exists in timeline_settings table');
+        } else throw err;
+      }
+      
+      // Step 3: Create indexes
+      console.log('Creating indexes...');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_worlds_created_by ON worlds(created_by)');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_images_world ON images(world_id)');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id)');
+      
+      // Step 4: Create default world and assign existing data
+      console.log('Creating default world...');
+      const defaultWorldResult = await pool.query(`
+        INSERT INTO worlds (name, description, created_by, settings)
+        SELECT 'Default World', 'Automatically created for existing data', 1, '{}'::jsonb
+        WHERE NOT EXISTS (SELECT 1 FROM worlds WHERE name = 'Default World')
+        AND EXISTS (SELECT 1 FROM users WHERE id = 1)
+        RETURNING id
+      `);
+      
+      if (defaultWorldResult.rows.length > 0) {
+        const defaultWorldId = defaultWorldResult.rows[0].id;
+        console.log(`Created default world with ID: ${defaultWorldId}`);
+        
+        // Update existing data
+        await pool.query('UPDATE images SET world_id = $1 WHERE world_id IS NULL', [defaultWorldId]);
+        await pool.query('UPDATE maps SET world_id = $1 WHERE world_id IS NULL', [defaultWorldId]);
+        await pool.query('UPDATE timeline_settings SET world_id = $1 WHERE world_id IS NULL', [defaultWorldId]);
+        console.log('Assigned existing data to default world');
+      } else {
+        console.log('Default world already exists or no admin user found');
       }
       
       console.log('✅ Database migration completed successfully!');
