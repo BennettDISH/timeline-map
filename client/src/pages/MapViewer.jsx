@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
 import eventService from '../services/eventService'
 
 function MapViewer() {
   const { mapId } = useParams()
+  const navigate = useNavigate()
   const [map, setMap] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -14,6 +15,8 @@ function MapViewer() {
   const [nodeType, setNodeType] = useState('standard') // 'standard' or 'map_link'
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [availableMaps, setAvailableMaps] = useState([])
+  const [loadingMaps, setLoadingMaps] = useState(false)
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -35,6 +38,12 @@ function MapViewer() {
     }
   }, [mapId])
 
+  useEffect(() => {
+    if (map?.worldId) {
+      loadAvailableMaps()
+    }
+  }, [map?.worldId])
+
   const loadMap = async () => {
     try {
       setLoading(true)
@@ -51,6 +60,20 @@ function MapViewer() {
       setError(err.message || 'Failed to load map')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAvailableMaps = async () => {
+    try {
+      setLoadingMaps(true)
+      const result = await mapService.getMaps(map.worldId)
+      // Filter out current map from available options
+      const filteredMaps = result.maps.filter(m => m.id !== parseInt(mapId))
+      setAvailableMaps(filteredMaps)
+    } catch (err) {
+      console.error('Failed to load available maps:', err)
+    } finally {
+      setLoadingMaps(false)
     }
   }
 
@@ -380,12 +403,18 @@ function MapViewer() {
               onClick={(e) => {
                 e.stopPropagation()
                 if (!isDraggingNode) {
-                  setSelectedNode(node)
+                  if (node.eventType === 'map_link' && node.linkToMapId) {
+                    // Navigate to linked map
+                    navigate(`/map/${node.linkToMapId}`)
+                  } else {
+                    setSelectedNode(node)
+                  }
                 }
               }}
+              title={node.eventType === 'map_link' && node.linkToMapId ? 'Click to navigate to linked map' : 'Click to edit node'}
             >
               <div className="node-marker">
-                {node.eventType === 'standard' ? 'ℹ️' : '🗺️'}
+                {node.eventType === 'standard' ? 'ℹ️' : node.linkToMapId ? '🗺️' : '📍'}
               </div>
               <div className="node-tooltip">
                 <strong>{node.title}</strong>
@@ -447,6 +476,27 @@ function MapViewer() {
               disabled={saving}
             />
           </div>
+          {selectedNode.eventType === 'map_link' && (
+            <div className="form-group">
+              <label>Linked Map:</label>
+              <select
+                value={selectedNode.linkToMapId || ''}
+                onChange={(e) => {
+                  const newMapId = e.target.value ? parseInt(e.target.value) : null
+                  handleNodeUpdate(selectedNode, { link_to_map_id: newMapId })
+                }}
+                disabled={saving || loadingMaps}
+              >
+                <option value="">Select a map...</option>
+                {availableMaps.map(map => (
+                  <option key={map.id} value={map.id}>
+                    {map.title}
+                  </option>
+                ))}
+              </select>
+              {loadingMaps && <small>Loading maps...</small>}
+            </div>
+          )}
           <div className="form-actions">
             <button onClick={() => setSelectedNode(null)} disabled={saving}>
               Close
