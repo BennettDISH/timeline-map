@@ -50,7 +50,7 @@ router.post('/migrate', async (req, res) => {
       }
       
       console.log('✅ Database migration completed successfully!');
-      console.log('📊 Tables created: users, images, maps, events, timeline_settings, user_sessions');
+      console.log('📊 Tables created: users, worlds, images, maps, events, timeline_settings, user_sessions');
       
       // Test connection
       const result = await pool.query('SELECT COUNT(*) FROM users');
@@ -100,7 +100,7 @@ router.get('/db-status', async (req, res) => {
     `);
     
     const tables = tablesResult.rows.map(row => row.table_name);
-    const expectedTables = ['users', 'images', 'maps', 'events', 'timeline_settings', 'user_sessions'];
+    const expectedTables = ['users', 'worlds', 'images', 'maps', 'events', 'timeline_settings', 'user_sessions'];
     const missingTables = expectedTables.filter(table => !tables.includes(table));
     
     // Get user count
