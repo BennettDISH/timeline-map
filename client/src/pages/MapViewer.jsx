@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import mapService from '../services/mapService'
+import eventService from '../services/eventService'
 
 function MapViewer() {
   const { mapId } = useParams()
@@ -10,7 +11,9 @@ function MapViewer() {
   const [nodes, setNodes] = useState([])
   const [isAddingNode, setIsAddingNode] = useState(false)
   const [selectedNode, setSelectedNode] = useState(null)
-  const [nodeType, setNodeType] = useState('info') // 'info' or 'map'
+  const [nodeType, setNodeType] = useState('standard') // 'standard' or 'map_link'
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -30,12 +33,14 @@ function MapViewer() {
   const loadMap = async () => {
     try {
       setLoading(true)
-      const result = await mapService.getMap(mapId)
-      setMap(result.map)
-      setError('')
+      const [mapResult, eventsResult] = await Promise.all([
+        mapService.getMap(mapId),
+        eventService.getEvents(mapId)
+      ])
       
-      // TODO: Load nodes/events for this map
-      setNodes([])
+      setMap(mapResult.map)
+      setNodes(eventsResult.events)
+      setError('')
     } catch (err) {
       console.error('Failed to load map:', err)
       setError(err.message || 'Failed to load map')
@@ -92,7 +97,7 @@ function MapViewer() {
     setScale(newScale)
   }
 
-  const handleMapClick = (e) => {
+  const handleMapClick = async (e) => {
     if (!isAddingNode) return
     
     // Calculate click position relative to the image
@@ -108,24 +113,89 @@ function MapViewer() {
     
     // Ensure coordinates are within bounds
     if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
-      const newNode = {
-        id: Date.now(), // Temporary ID
-        type: nodeType,
-        x: imageX,
-        y: imageY,
-        title: `New ${nodeType} node`,
-        content: 'Click to edit this node'
-      }
+      setSaving(true)
+      setSaveError('')
       
-      setNodes([...nodes, newNode])
-      setSelectedNode(newNode)
-      setIsAddingNode(false)
+      try {
+        const newNodeData = {
+          title: `New ${nodeType === 'standard' ? 'Info' : 'Map'} Node`,
+          description: '',
+          content: 'Click to edit this node',
+          map_id: parseInt(mapId),
+          x_position: imageX,
+          y_position: imageY,
+          event_type: nodeType,
+          start_time: 0,
+          end_time: 100
+        }
+        
+        const result = await eventService.createEvent(newNodeData)
+        const newNode = result.event
+        
+        setNodes([...nodes, newNode])
+        setSelectedNode(newNode)
+        setIsAddingNode(false)
+      } catch (err) {
+        console.error('Failed to create node:', err)
+        setSaveError(err.message || 'Failed to create node')
+      } finally {
+        setSaving(false)
+      }
     }
   }
 
   const resetView = () => {
     setScale(1)
     setPosition({ x: 0, y: 0 })
+  }
+
+  const handleNodeUpdate = async (node, updates) => {
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const result = await eventService.updateEvent(node.id, updates)
+      const updatedNode = result.event
+      
+      // Update the node in the local state
+      setNodes(nodes.map(n => n.id === node.id ? updatedNode : n))
+      
+      // Update selected node if it's the one being updated
+      if (selectedNode && selectedNode.id === node.id) {
+        setSelectedNode(updatedNode)
+      }
+    } catch (err) {
+      console.error('Failed to update node:', err)
+      setSaveError(err.message || 'Failed to update node')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleNodeDelete = async (node) => {
+    if (!confirm(`Are you sure you want to delete "${node.title}"?`)) {
+      return
+    }
+    
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      await eventService.deleteEvent(node.id)
+      
+      // Remove the node from local state
+      setNodes(nodes.filter(n => n.id !== node.id))
+      
+      // Clear selection if the deleted node was selected
+      if (selectedNode && selectedNode.id === node.id) {
+        setSelectedNode(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete node:', err)
+      setSaveError(err.message || 'Failed to delete node')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -181,18 +251,20 @@ function MapViewer() {
             <select 
               value={nodeType} 
               onChange={(e) => setNodeType(e.target.value)}
-              disabled={isAddingNode}
+              disabled={isAddingNode || saving}
             >
-              <option value="info">Info Node</option>
-              <option value="map">Map Node</option>
+              <option value="standard">Info Node</option>
+              <option value="map_link">Map Node</option>
             </select>
           </label>
           <button 
             className={`add-node-button ${isAddingNode ? 'active' : ''}`}
             onClick={() => setIsAddingNode(!isAddingNode)}
+            disabled={saving}
           >
-            {isAddingNode ? '✕ Cancel' : `+ Add ${nodeType === 'info' ? 'Info' : 'Map'} Node`}
+            {isAddingNode ? '✕ Cancel' : `+ Add ${nodeType === 'standard' ? 'Info' : 'Map'} Node`}
           </button>
+          {saving && <span className="saving-indicator">💾 Saving...</span>}
         </div>
       </div>
 
@@ -232,7 +304,7 @@ function MapViewer() {
           {nodes.map(node => (
             <div
               key={node.id}
-              className={`map-node ${node.type} ${selectedNode?.id === node.id ? 'selected' : ''}`}
+              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''}`}
               style={{
                 left: `${node.x}%`,
                 top: `${node.y}%`
@@ -243,11 +315,11 @@ function MapViewer() {
               }}
             >
               <div className="node-marker">
-                {node.type === 'info' ? 'ℹ️' : '🗺️'}
+                {node.eventType === 'standard' ? 'ℹ️' : '🗺️'}
               </div>
               <div className="node-tooltip">
                 <strong>{node.title}</strong>
-                <p>{node.content}</p>
+                <p>{node.content || node.description}</p>
               </div>
             </div>
           ))}
@@ -256,45 +328,63 @@ function MapViewer() {
 
       {isAddingNode && (
         <div className="adding-node-help">
-          Click on the map to place a new {nodeType === 'info' ? 'info' : 'map'} node
+          Click on the map to place a new {nodeType === 'standard' ? 'info' : 'map'} node
+        </div>
+      )}
+
+      {saveError && (
+        <div className="save-error">
+          ❌ {saveError}
         </div>
       )}
 
       {selectedNode && (
         <div className="node-editor">
-          <h3>Edit {selectedNode.type === 'info' ? 'Info' : 'Map'} Node</h3>
+          <h3>Edit {selectedNode.eventType === 'standard' ? 'Info' : 'Map'} Node</h3>
           <div className="form-group">
             <label>Title:</label>
             <input
               type="text"
               value={selectedNode.title}
               onChange={(e) => {
-                const updated = { ...selectedNode, title: e.target.value }
-                setSelectedNode(updated)
-                setNodes(nodes.map(n => n.id === updated.id ? updated : n))
+                const newTitle = e.target.value
+                handleNodeUpdate(selectedNode, { title: newTitle })
               }}
+              disabled={saving}
+            />
+          </div>
+          <div className="form-group">
+            <label>Description:</label>
+            <textarea
+              value={selectedNode.description || ''}
+              onChange={(e) => {
+                const newDescription = e.target.value
+                handleNodeUpdate(selectedNode, { description: newDescription })
+              }}
+              rows={2}
+              disabled={saving}
             />
           </div>
           <div className="form-group">
             <label>Content:</label>
             <textarea
-              value={selectedNode.content}
+              value={selectedNode.content || ''}
               onChange={(e) => {
-                const updated = { ...selectedNode, content: e.target.value }
-                setSelectedNode(updated)
-                setNodes(nodes.map(n => n.id === updated.id ? updated : n))
+                const newContent = e.target.value
+                handleNodeUpdate(selectedNode, { content: newContent })
               }}
               rows={4}
+              disabled={saving}
             />
           </div>
           <div className="form-actions">
-            <button onClick={() => setSelectedNode(null)}>Close</button>
+            <button onClick={() => setSelectedNode(null)} disabled={saving}>
+              Close
+            </button>
             <button 
-              onClick={() => {
-                setNodes(nodes.filter(n => n.id !== selectedNode.id))
-                setSelectedNode(null)
-              }}
+              onClick={() => handleNodeDelete(selectedNode)}
               className="delete-button"
+              disabled={saving}
             >
               Delete Node
             </button>
