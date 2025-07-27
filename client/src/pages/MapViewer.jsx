@@ -101,23 +101,20 @@ function MapViewer() {
       // Node dragging - let's go back to basics and use the working click logic
       if (!imageRef.current) return
       
-      // Use the exact same logic as handleMapClick since that works perfectly
-      const rect = imageRef.current.getBoundingClientRect()
-      const containerRect = containerRef.current.getBoundingClientRect()
+      // Simplified approach - get mouse position relative to the image directly
+      const imageRect = imageRef.current.getBoundingClientRect()
       
-      const clickX = e.clientX - containerRect.left
-      const clickY = e.clientY - containerRect.top
+      // Mouse position relative to the image element
+      const mouseX = e.clientX - imageRect.left
+      const mouseY = e.clientY - imageRect.top
       
-      // Convert to image coordinates (percentage) - exact same logic as handleMapClick
-      const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
-      const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
+      // Convert to percentage of image size (accounting for transform scale)
+      const imageX = (mouseX / imageRect.width) * 100
+      const imageY = (mouseY / imageRect.height) * 100
       
       console.log('Dragging debug:', {
-        clickX, clickY,
-        position, scale,
-        rectLeft: rect.left, rectTop: rect.top,
-        containerLeft: containerRect.left, containerTop: containerRect.top,
-        rectWidth: rect.width, rectHeight: rect.height,
+        mouseX, mouseY,
+        imageRect: { left: imageRect.left, top: imageRect.top, width: imageRect.width, height: imageRect.height },
         imageX, imageY
       })
       
@@ -181,16 +178,15 @@ function MapViewer() {
   const handleMapClick = async (e) => {
     if (!isAddingNode) return
     
-    // Calculate click position relative to the image
-    const rect = imageRef.current.getBoundingClientRect()
-    const containerRect = containerRef.current.getBoundingClientRect()
+    // Use simplified approach - mouse position relative to image directly
+    const imageRect = imageRef.current.getBoundingClientRect()
     
-    const clickX = e.clientX - containerRect.left
-    const clickY = e.clientY - containerRect.top
+    const mouseX = e.clientX - imageRect.left
+    const mouseY = e.clientY - imageRect.top
     
-    // Convert to image coordinates (percentage)
-    const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
-    const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
+    // Convert to percentage of image size
+    const imageX = (mouseX / imageRect.width) * 100
+    const imageY = (mouseY / imageRect.height) * 100
     
     // Ensure coordinates are within bounds
     if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
