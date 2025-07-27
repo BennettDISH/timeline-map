@@ -3,11 +3,8 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
-// All image routes require authentication
-router.use(authenticateToken);
-
-// POST /api/images-base64/upload - Upload image as base64
-router.post('/upload', async (req, res) => {
+// POST /api/images-base64/upload - Upload image as base64 (requires auth)
+router.post('/upload', authenticateToken, async (req, res) => {
   try {
     const { imageData, originalName, world_id, alt_text, tags } = req.body;
 
@@ -103,7 +100,7 @@ router.post('/upload', async (req, res) => {
   }
 });
 
-// GET /api/images-base64/serve/:filename - Serve image from base64 data
+// GET /api/images-base64/serve/:filename - Serve image from base64 data (PUBLIC - no auth required)
 router.get('/serve/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
