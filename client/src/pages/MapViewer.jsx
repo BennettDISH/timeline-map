@@ -98,25 +98,30 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging - use the same logic as handleMapClick for consistency
+      // Node dragging - simplified coordinate calculation
       if (!imageRef.current) return
       
-      // Calculate click position relative to the image (same as in handleMapClick)
-      const rect = imageRef.current.getBoundingClientRect()
-      const containerRect = containerRef.current.getBoundingClientRect()
+      // Get the transformed image element's current position and size
+      const imageRect = imageRef.current.getBoundingClientRect()
       
-      const clickX = e.clientX - containerRect.left
-      const clickY = e.clientY - containerRect.top
+      // Calculate mouse position relative to the transformed image
+      const mouseX = e.clientX - imageRect.left
+      const mouseY = e.clientY - imageRect.top
       
-      // Convert to image coordinates (percentage) - exact same logic as handleMapClick
-      const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
-      const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
+      // Convert to percentage of the actual displayed image size
+      const percentX = (mouseX / imageRect.width) * 100
+      const percentY = (mouseY / imageRect.height) * 100
       
-      // Keep within bounds but don't prevent all movement
-      const boundedX = Math.max(-10, Math.min(110, imageX))
-      const boundedY = Math.max(-10, Math.min(110, imageY))
+      // Keep within reasonable bounds
+      const boundedX = Math.max(0, Math.min(100, percentX))
+      const boundedY = Math.max(0, Math.min(100, percentY))
       
-      console.log('Dragging coordinates:', { imageX, imageY, boundedX, boundedY, scale, position })
+      console.log('Dragging coordinates:', { 
+        mouseX, mouseY, 
+        imageRect: { width: imageRect.width, height: imageRect.height },
+        percentX, percentY, 
+        boundedX, boundedY 
+      })
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
