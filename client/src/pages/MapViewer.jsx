@@ -112,18 +112,21 @@ function MapViewer() {
       const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
       const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
       
-      // Ensure coordinates are within bounds
-      if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
-        // Update node position locally (don't save yet)
-        setNodes(nodes.map(node => 
-          node.id === draggingNode.id 
-            ? { ...node, x: imageX, y: imageY }
-            : node
-        ))
-        
-        // Update dragging node reference
-        setDraggingNode({ ...draggingNode, x: imageX, y: imageY })
-      }
+      // Keep within bounds but don't prevent all movement
+      const boundedX = Math.max(-10, Math.min(110, imageX))
+      const boundedY = Math.max(-10, Math.min(110, imageY))
+      
+      console.log('Dragging coordinates:', { imageX, imageY, boundedX, boundedY, scale, position })
+      
+      // Update node position locally (don't save yet)
+      setNodes(nodes.map(node => 
+        node.id === draggingNode.id 
+          ? { ...node, x: boundedX, y: boundedY }
+          : node
+      ))
+      
+      // Update dragging node reference
+      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
     }
   }
 
