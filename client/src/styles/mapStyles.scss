@@ -397,6 +397,10 @@
         display: block;
         max-width: none;
         user-select: none;
+        width: auto;
+        height: auto;
+        max-height: 100vh;
+        object-fit: contain;
       }
 
       .no-map-image {
