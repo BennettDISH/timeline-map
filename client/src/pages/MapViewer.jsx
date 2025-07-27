@@ -99,21 +99,34 @@ function MapViewer() {
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
       // Node dragging
-      const rect = containerRef.current.getBoundingClientRect()
+      if (!imageRef.current) return
+      
+      const containerRect = containerRef.current.getBoundingClientRect()
       const imageRect = imageRef.current.getBoundingClientRect()
       
-      // Calculate mouse position relative to the container, accounting for drag offset
-      const mouseX = e.clientX - rect.left - dragOffset.x
-      const mouseY = e.clientY - rect.top - dragOffset.y
+      // Get mouse position relative to container
+      const mouseX = e.clientX - containerRect.left - dragOffset.x
+      const mouseY = e.clientY - containerRect.top - dragOffset.y
       
-      // Convert to image coordinates (percentage)
-      // Account for pan position and scale when converting to image coordinates
-      const imageX = ((mouseX - position.x) / scale - (imageRect.left - rect.left) / scale) / (imageRect.width / scale) * 100
-      const imageY = ((mouseY - position.y) / scale - (imageRect.top - rect.top) / scale) / (imageRect.height / scale) * 100
+      // Convert to image space by removing transform effects
+      // First, remove the pan offset
+      const imagePosX = mouseX - position.x
+      const imagePosY = mouseY - position.y
+      
+      // Then, remove the scale effect
+      const unscaledX = imagePosX / scale
+      const unscaledY = imagePosY / scale
+      
+      // Convert to percentage of image dimensions
+      const imageWidth = imageRect.width / scale
+      const imageHeight = imageRect.height / scale
+      
+      const percentX = (unscaledX / imageWidth) * 100
+      const percentY = (unscaledY / imageHeight) * 100
       
       // Keep within bounds
-      const boundedX = Math.max(0, Math.min(100, imageX))
-      const boundedY = Math.max(0, Math.min(100, imageY))
+      const boundedX = Math.max(0, Math.min(100, percentX))
+      const boundedY = Math.max(0, Math.min(100, percentY))
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
