@@ -109,7 +109,8 @@ function MapViewer() {
       const mouseY = e.clientY - imageRect.top
       
       // Convert to percentage of image size (accounting for transform scale)
-      const imageX = (mouseX / imageRect.width) * 100
+      // Temporary fix: halve the X coordinate if it's being doubled
+      const imageX = ((mouseX / imageRect.width) * 100) / 2
       const imageY = (mouseY / imageRect.height) * 100
       
       // Get image natural dimensions to understand letterboxing
@@ -122,11 +123,18 @@ function MapViewer() {
       const elementHeight = imageRect.height
       const elementAspect = elementWidth / elementHeight
       
+      // Check CSS styles that might be affecting the image display
+      const computedStyle = window.getComputedStyle(img)
+      const objectFit = computedStyle.objectFit
+      const objectPosition = computedStyle.objectPosition
+      
       console.log('Image dimensions debug:', {
         natural: { width: naturalWidth, height: naturalHeight, aspect: naturalAspect },
         element: { width: elementWidth, height: elementHeight, aspect: elementAspect },
+        css: { objectFit, objectPosition, maxWidth: computedStyle.maxWidth },
         mousePos: { mouseX, mouseY },
-        calculatedPercent: { imageX, imageY }
+        calculatedPercent: { imageX, imageY },
+        doubleCheck: { halfImageX: imageX * 2, isDoubling: imageX * 2 }
       })
       
       // Keep within bounds
@@ -196,7 +204,8 @@ function MapViewer() {
     const mouseY = e.clientY - imageRect.top
     
     // Convert to percentage of image size
-    const imageX = (mouseX / imageRect.width) * 100
+    // Temporary fix: halve the X coordinate if it's being doubled  
+    const imageX = ((mouseX / imageRect.width) * 100) / 2
     const imageY = (mouseY / imageRect.height) * 100
     
     // Debug logging for placement
