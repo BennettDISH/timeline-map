@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import imageService from '../services/imageService'
 
-function ImageGallery({ onImageSelect, selectedImageId = null, showUpload = false }) {
+function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -10,12 +10,13 @@ function ImageGallery({ onImageSelect, selectedImageId = null, showUpload = fals
 
   useEffect(() => {
     loadImages()
-  }, [search, selectedTags])
+  }, [worldId, search, selectedTags])
 
   const loadImages = async () => {
     try {
       setLoading(true)
       const result = await imageService.getImages({
+        worldId: worldId || undefined,
         search: search || undefined,
         tags: selectedTags || undefined,
         limit: 50

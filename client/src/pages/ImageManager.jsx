@@ -1,13 +1,42 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import ImageUpload from '../components/ImageUpload'
 import ImageGallery from '../components/ImageGallery'
+import WorldSelector from '../components/WorldSelector'
+import worldService from '../services/worldService'
 
 function ImageManager() {
+  const [searchParams] = useSearchParams()
   const [selectedImage, setSelectedImage] = useState(null)
   const [uploadSuccess, setUploadSuccess] = useState('')
   const [uploadError, setUploadError] = useState('')
   const [refreshGallery, setRefreshGallery] = useState(0)
+  const [currentWorld, setCurrentWorld] = useState(null)
+
+  useEffect(() => {
+    // Check for world ID in URL params or localStorage
+    const worldIdFromUrl = searchParams.get('world')
+    const worldFromStorage = worldService.getCurrentWorld()
+    
+    if (worldIdFromUrl) {
+      // If world ID in URL, try to load that world
+      loadWorldById(worldIdFromUrl)
+    } else if (worldFromStorage) {
+      setCurrentWorld(worldFromStorage)
+    }
+  }, [searchParams])
+
+  const loadWorldById = async (worldId) => {
+    try {
+      const result = await worldService.getWorld(worldId)
+      setCurrentWorld(result.world)
+      worldService.setCurrentWorld(result.world)
+    } catch (error) {
+      console.error('Failed to load world:', error)
+      // Fallback to stored world or none
+      setCurrentWorld(worldService.getCurrentWorld())
+    }
+  }
 
   const handleUploadSuccess = (image) => {
     setUploadSuccess(`Successfully uploaded: ${image.originalName}`)
@@ -21,6 +50,12 @@ function ImageManager() {
   const handleUploadError = (error) => {
     setUploadError(error)
     setUploadSuccess('')
+  }
+
+  const handleWorldSelect = (world) => {
+    setCurrentWorld(world)
+    setSelectedImage(null) // Clear selection when switching worlds
+    setRefreshGallery(prev => prev + 1) // Refresh gallery
   }
 
   const handleImageSelect = (image) => {
@@ -44,35 +79,53 @@ function ImageManager() {
       </div>
 
       <div className="manager-content">
-        <div className="upload-section">
-          <h2>Upload Images</h2>
-          <ImageUpload 
-            onUploadSuccess={handleUploadSuccess}
-            onUploadError={handleUploadError}
+        <div className="world-section">
+          <WorldSelector 
+            onWorldSelect={handleWorldSelect}
+            currentWorldId={currentWorld?.id}
           />
-          
-          {uploadSuccess && (
-            <div className="success-message">
-              ✅ {uploadSuccess}
-            </div>
-          )}
-          
-          {uploadError && (
-            <div className="error-message">
-              ❌ {uploadError}
-            </div>
-          )}
         </div>
 
-        <div className="gallery-section">
-          <h2>Image Gallery</h2>
-          <ImageGallery 
-            key={refreshGallery} // Force refresh when key changes
-            onImageSelect={handleImageSelect}
-            selectedImageId={selectedImage?.id}
-            showUpload={true}
-          />
-        </div>
+        {currentWorld ? (
+          <>
+            <div className="upload-section">
+              <h2>Upload Images to {currentWorld.name}</h2>
+              <ImageUpload 
+                worldId={currentWorld.id}
+                onUploadSuccess={handleUploadSuccess}
+                onUploadError={handleUploadError}
+              />
+              
+              {uploadSuccess && (
+                <div className="success-message">
+                  ✅ {uploadSuccess}
+                </div>
+              )}
+              
+              {uploadError && (
+                <div className="error-message">
+                  ❌ {uploadError}
+                </div>
+              )}
+            </div>
+
+            <div className="gallery-section">
+              <h2>Images in {currentWorld.name}</h2>
+              <ImageGallery 
+                key={`${refreshGallery}-${currentWorld.id}`} // Force refresh when key changes
+                worldId={currentWorld.id}
+                onImageSelect={handleImageSelect}
+                selectedImageId={selectedImage?.id}
+                showUpload={true}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="no-world-selected">
+            <h2>No World Selected</h2>
+            <p>Please select a world to manage images, or create a new world to get started.</p>
+          </div>
+        )}
 
         {selectedImage && (
           <div className="image-details">

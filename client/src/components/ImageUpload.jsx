@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import imageService from '../services/imageService'
 
-function ImageUpload({ onUploadSuccess, onUploadError, multiple = false, accept = "image/*" }) {
+function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false, accept = "image/*" }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
@@ -28,6 +28,7 @@ function ImageUpload({ onUploadSuccess, onUploadError, multiple = false, accept 
     try {
       const result = await imageService.uploadImage(
         file, 
+        worldId,
         '', // altText - can be added later
         '', // tags - can be added later
         (progressPercent) => setProgress(progressPercent)

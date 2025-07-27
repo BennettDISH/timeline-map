@@ -15,11 +15,12 @@ const createAuthAPI = () => {
 
 const imageService = {
   // Upload image with progress tracking
-  async uploadImage(file, altText = '', tags = '', onProgress = null) {
+  async uploadImage(file, worldId, altText = '', tags = '', onProgress = null) {
     try {
       const api = createAuthAPI()
       const formData = new FormData()
       formData.append('image', file)
+      if (worldId) formData.append('world_id', worldId)
       if (altText) formData.append('alt_text', altText)
       if (tags) formData.append('tags', tags)
 
@@ -46,9 +47,10 @@ const imageService = {
   async getImages(options = {}) {
     try {
       const api = createAuthAPI()
-      const { tags, search, limit = 50, offset = 0 } = options
+      const { worldId, tags, search, limit = 50, offset = 0 } = options
       
       const params = new URLSearchParams()
+      if (worldId) params.append('world_id', worldId)
       if (tags) params.append('tags', tags)
       if (search) params.append('search', search)
       params.append('limit', limit)

@@ -9,6 +9,18 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Worlds table for organizing campaigns/projects
+CREATE TABLE IF NOT EXISTS worlds (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    settings JSONB DEFAULT '{}'
+);
+
 -- Images table for centralized image management
 CREATE TABLE IF NOT EXISTS images (
     id SERIAL PRIMARY KEY,
@@ -17,6 +29,7 @@ CREATE TABLE IF NOT EXISTS images (
     file_path VARCHAR(500) NOT NULL,
     file_size INTEGER NOT NULL,
     mime_type VARCHAR(100) NOT NULL,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE,
     uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     alt_text TEXT,
@@ -28,6 +41,7 @@ CREATE TABLE IF NOT EXISTS maps (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE,
     image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
     parent_map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -62,6 +76,7 @@ CREATE TABLE IF NOT EXISTS events (
 -- Timeline settings table
 CREATE TABLE IF NOT EXISTS timeline_settings (
     id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE,
     map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
     min_time INTEGER NOT NULL DEFAULT 0,
     max_time INTEGER NOT NULL DEFAULT 100,
@@ -81,11 +96,14 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_worlds_created_by ON worlds(created_by);
+CREATE INDEX IF NOT EXISTS idx_images_world ON images(world_id);
+CREATE INDEX IF NOT EXISTS idx_images_uploaded_by ON images(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id);
 CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
 CREATE INDEX IF NOT EXISTS idx_events_map ON events(map_id);
 CREATE INDEX IF NOT EXISTS idx_events_time ON events(start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_events_position ON events(x_position, y_position);
-CREATE INDEX IF NOT EXISTS idx_images_uploaded_by ON images(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash);
 

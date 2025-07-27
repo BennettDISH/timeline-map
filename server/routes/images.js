@@ -57,12 +57,26 @@ router.post('/upload', upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const { alt_text, tags } = req.body;
+    const { alt_text, tags, world_id } = req.body;
+
+    if (!world_id) {
+      return res.status(400).json({ message: 'World ID is required' });
+    }
+
+    // Verify user owns the world
+    const worldCheck = await pool.query(
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      [world_id, req.user.id]
+    );
+
+    if (worldCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'World not found or access denied' });
+    }
 
     // Save file info to database
     const result = await pool.query(`
-      INSERT INTO images (filename, original_name, file_path, file_size, mime_type, uploaded_by, alt_text, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
       req.file.filename,
@@ -70,6 +84,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
       `/uploads/${req.file.filename}`,
       req.file.size,
       req.file.mimetype,
+      world_id,
       req.user.id,
       alt_text || null,
       tags ? tags.split(',').map(tag => tag.trim()) : null
@@ -112,16 +127,30 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 // GET /api/images
 router.get('/', async (req, res) => {
   try {
-    const { tags, search, limit = 50, offset = 0 } = req.query;
+    const { tags, search, limit = 50, offset = 0, world_id } = req.query;
+
+    if (!world_id) {
+      return res.status(400).json({ message: 'World ID is required' });
+    }
+
+    // Verify user owns the world
+    const worldCheck = await pool.query(
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      [world_id, req.user.id]
+    );
+
+    if (worldCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'World not found or access denied' });
+    }
     
     let query = `
       SELECT i.*, u.username as uploaded_by_username
       FROM images i
       LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE 1=1
+      WHERE i.world_id = $1
     `;
-    const params = [];
-    let paramCount = 0;
+    const params = [world_id];
+    let paramCount = 1;
 
     // Filter by tags if provided
     if (tags) {
