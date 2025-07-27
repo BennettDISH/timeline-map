@@ -627,6 +627,20 @@
           }
         }
 
+        &.save-button {
+          background: #48bb78;
+          color: white;
+
+          &:hover:not(:disabled) {
+            background: #38a169;
+          }
+
+          &:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+          }
+        }
+
         &.delete-button {
           background: #f56565;
           color: white;
@@ -642,6 +656,20 @@
       color: #a0aec0;
       font-size: 12px;
       margin-left: 5px;
+    }
+
+    .unsaved-changes-notice {
+      margin-top: 10px;
+      padding: 8px;
+      background: #2d3748;
+      border: 1px solid #f6ad55;
+      border-radius: 4px;
+      text-align: center;
+
+      small {
+        color: #f6ad55;
+        margin: 0;
+      }
     }
   }
 

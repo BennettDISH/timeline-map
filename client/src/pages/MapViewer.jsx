@@ -20,6 +20,13 @@ function MapViewer() {
   const [interactionMode, setInteractionMode] = useState('view') // 'view' or 'edit'
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [infoPanelNode, setInfoPanelNode] = useState(null)
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    content: '',
+    linkToMapId: null
+  })
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -271,6 +278,14 @@ function MapViewer() {
     } else {
       // Edit mode behavior - select node for editing
       setSelectedNode(node)
+      // Populate form data
+      setEditFormData({
+        title: node.title || '',
+        description: node.description || '',
+        content: node.content || '',
+        linkToMapId: node.linkToMapId || null
+      })
+      setHasUnsavedChanges(false)
       // Close info panel if open
       setShowInfoPanel(false)
     }
@@ -321,10 +336,54 @@ function MapViewer() {
       // Clear selection if the deleted node was selected
       if (selectedNode && selectedNode.id === node.id) {
         setSelectedNode(null)
+        setHasUnsavedChanges(false)
       }
     } catch (err) {
       console.error('Failed to delete node:', err)
       setSaveError(err.message || 'Failed to delete node')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleFormChange = (field, value) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+    setHasUnsavedChanges(true)
+  }
+
+  const handleSaveChanges = async () => {
+    if (!selectedNode || !hasUnsavedChanges) return
+    
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const updates = {
+        title: editFormData.title,
+        description: editFormData.description,
+        content: editFormData.content
+      }
+      
+      // Add link_to_map_id for map_link nodes
+      if (selectedNode.eventType === 'map_link') {
+        updates.link_to_map_id = editFormData.linkToMapId
+      }
+      
+      const result = await eventService.updateEvent(selectedNode.id, updates)
+      const updatedNode = result.event
+      
+      // Update the node in the local state
+      setNodes(nodes.map(n => n.id === selectedNode.id ? updatedNode : n))
+      
+      // Update selected node
+      setSelectedNode(updatedNode)
+      setHasUnsavedChanges(false)
+    } catch (err) {
+      console.error('Failed to save node:', err)
+      setSaveError(err.message || 'Failed to save node')
     } finally {
       setSaving(false)
     }
@@ -509,22 +568,16 @@ function MapViewer() {
             <label>Title:</label>
             <input
               type="text"
-              value={selectedNode.title}
-              onChange={(e) => {
-                const newTitle = e.target.value
-                handleNodeUpdate(selectedNode, { title: newTitle })
-              }}
+              value={editFormData.title}
+              onChange={(e) => handleFormChange('title', e.target.value)}
               disabled={saving}
             />
           </div>
           <div className="form-group">
             <label>Description:</label>
             <textarea
-              value={selectedNode.description || ''}
-              onChange={(e) => {
-                const newDescription = e.target.value
-                handleNodeUpdate(selectedNode, { description: newDescription })
-              }}
+              value={editFormData.description}
+              onChange={(e) => handleFormChange('description', e.target.value)}
               rows={2}
               disabled={saving}
             />
@@ -532,11 +585,8 @@ function MapViewer() {
           <div className="form-group">
             <label>Content:</label>
             <textarea
-              value={selectedNode.content || ''}
-              onChange={(e) => {
-                const newContent = e.target.value
-                handleNodeUpdate(selectedNode, { content: newContent })
-              }}
+              value={editFormData.content}
+              onChange={(e) => handleFormChange('content', e.target.value)}
               rows={4}
               disabled={saving}
             />
@@ -545,10 +595,10 @@ function MapViewer() {
             <div className="form-group">
               <label>Linked Map:</label>
               <select
-                value={selectedNode.linkToMapId || ''}
+                value={editFormData.linkToMapId || ''}
                 onChange={(e) => {
                   const newMapId = e.target.value ? parseInt(e.target.value) : null
-                  handleNodeUpdate(selectedNode, { link_to_map_id: newMapId })
+                  handleFormChange('linkToMapId', newMapId)
                 }}
                 disabled={saving || loadingMaps}
               >
@@ -563,6 +613,13 @@ function MapViewer() {
             </div>
           )}
           <div className="form-actions">
+            <button 
+              onClick={handleSaveChanges}
+              className="save-button"
+              disabled={saving || !hasUnsavedChanges}
+            >
+              {saving ? '💾 Saving...' : hasUnsavedChanges ? '💾 Save Changes' : '✅ Saved'}
+            </button>
             <button onClick={() => setSelectedNode(null)} disabled={saving}>
               Close
             </button>
@@ -574,6 +631,11 @@ function MapViewer() {
               Delete Node
             </button>
           </div>
+          {hasUnsavedChanges && (
+            <div className="unsaved-changes-notice">
+              <small>⚠️ You have unsaved changes</small>
+            </div>
+          )}
         </div>
       )}
 
@@ -608,6 +670,14 @@ function MapViewer() {
                   onClick={() => {
                     setInteractionMode('edit')
                     setSelectedNode(infoPanelNode)
+                    // Populate form data for editing
+                    setEditFormData({
+                      title: infoPanelNode.title || '',
+                      description: infoPanelNode.description || '',
+                      content: infoPanelNode.content || '',
+                      linkToMapId: infoPanelNode.linkToMapId || null
+                    })
+                    setHasUnsavedChanges(false)
                     setShowInfoPanel(false)
                   }}
                   className="edit-button"
