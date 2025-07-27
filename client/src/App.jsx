@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './utils/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import MapView from './pages/MapView'
+import MapManager from './pages/MapManager'
+import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
 import EnvSetup from './pages/EnvSetup'
@@ -64,6 +66,22 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <MapView />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/maps" 
+          element={
+            <ProtectedRoute>
+              <MapManager />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/map/:mapId" 
+          element={
+            <ProtectedRoute>
+              <MapViewer />
             </ProtectedRoute>
           } 
         />

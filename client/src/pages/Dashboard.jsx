@@ -58,14 +58,13 @@ function Dashboard() {
               <div className="quick-actions">
                 <h3>Quick Actions</h3>
                 <div className="action-grid">
-                  <button className="action-card">
-                    <h4>Create New Map</h4>
-                    <p>Start a new map for this world</p>
-                  </button>
-                  <button className="action-card">
-                    <h4>Browse Maps</h4>
-                    <p>View existing maps in this world</p>
-                  </button>
+                  <Link 
+                    to={`/maps?world=${currentWorld.id}`} 
+                    className="action-card"
+                  >
+                    <h4>Manage Maps</h4>
+                    <p>Create and edit maps for this world</p>
+                  </Link>
                   <Link 
                     to={`/images?world=${currentWorld.id}`} 
                     className="action-card"
@@ -73,6 +72,10 @@ function Dashboard() {
                     <h4>Manage Images</h4>
                     <p>Upload and organize images</p>
                   </Link>
+                  <button className="action-card" disabled>
+                    <h4>Timeline Events</h4>
+                    <p>Coming soon - manage timeline events</p>
+                  </button>
                 </div>
               </div>
               

@@ -16,6 +16,10 @@ body {
   min-height: 100vh;
 }
 
+// Import component styles
+@import './imageStyles.scss';
+@import './mapStyles.scss';
+
 // Login page styles
 .login-page {
   display: flex;
