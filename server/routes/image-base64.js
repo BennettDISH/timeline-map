@@ -11,6 +11,14 @@ router.post('/upload', async (req, res) => {
   try {
     const { imageData, originalName, world_id, alt_text, tags } = req.body;
 
+    console.log('Base64 upload request:', {
+      hasImageData: !!imageData,
+      originalName,
+      world_id,
+      imageDataLength: imageData ? imageData.length : 0,
+      imageDataPrefix: imageData ? imageData.substring(0, 50) : 'none'
+    });
+
     if (!imageData || !originalName || !world_id) {
       return res.status(400).json({ message: 'Image data, original name, and world ID are required' });
     }
@@ -66,6 +74,13 @@ router.post('/upload', async (req, res) => {
     const imageRecord = result.rows[0];
     const imageUrl = `${req.protocol}://${req.get('host')}/api/images-base64/serve/${filename}`;
 
+    console.log('Base64 upload successful:', {
+      id: imageRecord.id,
+      filename: imageRecord.filename,
+      url: imageUrl,
+      hasBase64Data: !!imageRecord.base64_data
+    });
+
     res.json({ 
       message: 'File uploaded successfully',
       image: {
@@ -93,13 +108,23 @@ router.get('/serve/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
     
+    console.log('Serving image:', filename);
+    
     const result = await pool.query('SELECT base64_data, mime_type FROM images WHERE filename = $1', [filename]);
     
     if (result.rows.length === 0) {
+      console.log('Image not found in database:', filename);
       return res.status(404).json({ message: 'Image not found' });
     }
 
     const { base64_data, mime_type } = result.rows[0];
+    
+    console.log('Found image:', {
+      filename,
+      mime_type,
+      hasBase64Data: !!base64_data,
+      base64Length: base64_data ? base64_data.length : 0
+    });
     
     if (!base64_data) {
       return res.status(404).json({ message: 'Image data not found' });
