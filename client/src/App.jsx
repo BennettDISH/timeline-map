@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './utils/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import MapView from './pages/MapView'
 import MapManager from './pages/MapManager'
 import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
@@ -58,14 +57,6 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/map/:mapId?" 
-          element={
-            <ProtectedRoute>
-              <MapView />
             </ProtectedRoute>
           } 
         />
