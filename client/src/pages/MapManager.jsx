@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
 import mapService from '../services/mapService'
-import imageService from '../services/imageService'
+import imageServiceBase64 from '../services/imageServiceBase64'
 
 function MapManager() {
   const [searchParams] = useSearchParams()
@@ -66,7 +66,7 @@ function MapManager() {
 
   const loadImages = async () => {
     try {
-      const result = await imageService.getImages({ worldId: currentWorld.id })
+      const result = await imageServiceBase64.getImages({ worldId: currentWorld.id })
       setImages(result.images)
     } catch (err) {
       console.error('Failed to load images:', err)

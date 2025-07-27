@@ -92,6 +92,16 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 
     const imageRecord = result.rows[0];
 
+    const imageUrl = `${req.protocol}://${req.get('host')}${imageRecord.file_path}`;
+    
+    console.log('Image uploaded successfully:', {
+      filename: imageRecord.filename,
+      filePath: imageRecord.file_path,
+      fullPath: path.join(__dirname, '../uploads', imageRecord.filename),
+      url: imageUrl,
+      fileExists: require('fs').existsSync(path.join(__dirname, '../uploads', imageRecord.filename))
+    });
+
     res.json({ 
       message: 'File uploaded successfully',
       image: {
@@ -104,7 +114,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
         altText: imageRecord.alt_text,
         tags: imageRecord.tags,
         uploadedAt: imageRecord.created_at,
-        url: `${req.protocol}://${req.get('host')}${imageRecord.file_path}`
+        url: imageUrl
       }
     });
 

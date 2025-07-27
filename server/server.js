@@ -34,8 +34,45 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static file serving for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static file serving for uploads with proper headers
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path, stat) => {
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
+      'Cache-Control': 'public, max-age=86400' // Cache for 1 day
+    });
+  }
+}));
+
+// Debug route to list uploaded files
+app.get('/api/debug/uploads', (req, res) => {
+  const fs = require('fs');
+  const uploadsDir = path.join(__dirname, 'uploads');
+  
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      return res.json({ 
+        message: 'Uploads directory does not exist',
+        path: uploadsDir 
+      });
+    }
+    
+    const files = fs.readdirSync(uploadsDir);
+    res.json({ 
+      message: 'Uploads directory contents',
+      path: uploadsDir,
+      files: files,
+      count: files.length
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Error reading uploads directory',
+      error: error.message,
+      path: uploadsDir
+    });
+  }
+});
 
 // API Routes
 app.use('/api/setup', require('./routes/setup'));
@@ -45,6 +82,7 @@ app.use('/api/worlds', require('./routes/worlds'));
 app.use('/api/maps', require('./routes/maps'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/images', require('./routes/images'));
+app.use('/api/images-base64', require('./routes/image-base64'));
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {

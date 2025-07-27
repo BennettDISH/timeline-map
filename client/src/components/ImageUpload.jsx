@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import imageService from '../services/imageService'
+import imageServiceBase64 from '../services/imageServiceBase64'
 
 function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false, accept = "image/*" }) {
   const [uploading, setUploading] = useState(false)
@@ -16,7 +16,7 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false
 
   const uploadFile = async (file) => {
     // Validate file
-    const validation = imageService.validateImage(file)
+    const validation = imageServiceBase64.validateImage(file)
     if (!validation.valid) {
       if (onUploadError) onUploadError(validation.error)
       return
@@ -26,7 +26,7 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false
     setProgress(0)
 
     try {
-      const result = await imageService.uploadImage(
+      const result = await imageServiceBase64.uploadImage(
         file, 
         worldId,
         '', // altText - can be added later

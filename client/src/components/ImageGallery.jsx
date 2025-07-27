@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import imageService from '../services/imageService'
+import imageServiceBase64 from '../services/imageServiceBase64'
 
 function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false }) {
   const [images, setImages] = useState([])
@@ -15,7 +15,7 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
   const loadImages = async () => {
     try {
       setLoading(true)
-      const result = await imageService.getImages({
+      const result = await imageServiceBase64.getImages({
         worldId: worldId || undefined,
         search: search || undefined,
         tags: selectedTags || undefined,
@@ -45,7 +45,7 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
     }
 
     try {
-      await imageService.deleteImage(imageId)
+      await imageServiceBase64.deleteImage(imageId)
       setImages(images.filter(img => img.id !== imageId))
     } catch (err) {
       console.error('Failed to delete image:', err)
@@ -120,7 +120,7 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                   {image.originalName}
                 </div>
                 <div className="image-meta">
-                  {imageService.formatFileSize(image.fileSize)}
+                  {imageServiceBase64.formatFileSize(image.fileSize)}
                   {image.tags && image.tags.length > 0 && (
                     <div className="image-tags">
                       {image.tags.map(tag => (

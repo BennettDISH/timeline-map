@@ -84,7 +84,17 @@ router.post('/migrate', async (req, res) => {
       await pool.query('CREATE INDEX IF NOT EXISTS idx_images_world ON images(world_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id)');
       
-      // Step 4: Create default world and assign existing data
+      // Step 4: Add base64_data column to images table for Railway compatibility
+      console.log('Adding base64_data column to images table...')
+      try {
+        await pool.query('ALTER TABLE images ADD COLUMN base64_data TEXT')
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('base64_data column already exists in images table')
+        } else throw err
+      }
+
+      // Step 5: Create default world and assign existing data
       console.log('Creating default world...');
       const defaultWorldResult = await pool.query(`
         INSERT INTO worlds (name, description, created_by, settings)
