@@ -194,6 +194,7 @@ function MapViewer() {
     
     // Debug logging for placement
     // Check what CSS is actually being applied
+    const img = imageRef.current
     const computedStyle = window.getComputedStyle(img)
     
     console.log('Click placement debug (simplified):', {
