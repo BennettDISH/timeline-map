@@ -112,10 +112,21 @@ function MapViewer() {
       const imageX = (mouseX / imageRect.width) * 100
       const imageY = (mouseY / imageRect.height) * 100
       
-      console.log('Dragging debug:', {
-        mouseX, mouseY,
-        imageRect: { left: imageRect.left, top: imageRect.top, width: imageRect.width, height: imageRect.height },
-        imageX, imageY
+      // Get image natural dimensions to understand letterboxing
+      const img = imageRef.current
+      const naturalWidth = img.naturalWidth
+      const naturalHeight = img.naturalHeight
+      const naturalAspect = naturalWidth / naturalHeight
+      
+      const elementWidth = imageRect.width
+      const elementHeight = imageRect.height
+      const elementAspect = elementWidth / elementHeight
+      
+      console.log('Image dimensions debug:', {
+        natural: { width: naturalWidth, height: naturalHeight, aspect: naturalAspect },
+        element: { width: elementWidth, height: elementHeight, aspect: elementAspect },
+        mousePos: { mouseX, mouseY },
+        calculatedPercent: { imageX, imageY }
       })
       
       // Keep within bounds
@@ -187,6 +198,15 @@ function MapViewer() {
     // Convert to percentage of image size
     const imageX = (mouseX / imageRect.width) * 100
     const imageY = (mouseY / imageRect.height) * 100
+    
+    // Debug logging for placement
+    const img = imageRef.current
+    console.log('Click placement debug:', {
+      natural: { width: img.naturalWidth, height: img.naturalHeight, aspect: img.naturalWidth / img.naturalHeight },
+      element: { width: imageRect.width, height: imageRect.height, aspect: imageRect.width / imageRect.height },
+      mousePos: { mouseX, mouseY },
+      calculatedPercent: { imageX, imageY }
+    })
     
     // Ensure coordinates are within bounds
     if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
