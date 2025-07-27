@@ -82,7 +82,7 @@ function MapViewer() {
     
     setIsDragging(true)
     setLastMousePos({ x: e.clientX, y: e.clientY })
-    e.preventDefault()
+    // Remove preventDefault to avoid passive event listener issues
   }
 
   const handleMouseMove = (e) => {
@@ -98,68 +98,42 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging - account for image aspect ratio within container
+      // Node dragging - let's go back to basics and use the working click logic
       if (!imageRef.current) return
       
-      const img = imageRef.current
-      const imageRect = img.getBoundingClientRect()
+      // Use the exact same logic as handleMapClick since that works perfectly
+      const rect = imageRef.current.getBoundingClientRect()
+      const containerRect = containerRef.current.getBoundingClientRect()
       
-      // Get the actual image dimensions and calculate aspect ratios
-      const naturalWidth = img.naturalWidth
-      const naturalHeight = img.naturalHeight
-      const naturalAspect = naturalWidth / naturalHeight
+      const clickX = e.clientX - containerRect.left
+      const clickY = e.clientY - containerRect.top
       
-      const containerWidth = imageRect.width
-      const containerHeight = imageRect.height
-      const containerAspect = containerWidth / containerHeight
+      // Convert to image coordinates (percentage) - exact same logic as handleMapClick
+      const imageX = ((clickX - position.x) / scale - (rect.left - containerRect.left)) / (rect.width / scale) * 100
+      const imageY = ((clickY - position.y) / scale - (rect.top - containerRect.top)) / (rect.height / scale) * 100
       
-      // Calculate actual image display area (accounting for letterboxing)
-      let actualImageWidth, actualImageHeight, offsetX, offsetY
-      
-      if (naturalAspect > containerAspect) {
-        // Image is wider - letterboxed top/bottom
-        actualImageWidth = containerWidth
-        actualImageHeight = containerWidth / naturalAspect
-        offsetX = 0
-        offsetY = (containerHeight - actualImageHeight) / 2
-      } else {
-        // Image is taller - letterboxed left/right
-        actualImageHeight = containerHeight
-        actualImageWidth = containerHeight * naturalAspect
-        offsetY = 0
-        offsetX = (containerWidth - actualImageWidth) / 2
-      }
-      
-      // Calculate mouse position relative to actual image content area
-      const mouseX = e.clientX - imageRect.left - offsetX
-      const mouseY = e.clientY - imageRect.top - offsetY
-      
-      // Convert to percentage of actual image area
-      const percentX = (mouseX / actualImageWidth) * 100
-      const percentY = (mouseY / actualImageHeight) * 100
-      
-      // Keep within bounds
-      const boundedX = Math.max(0, Math.min(100, percentX))
-      const boundedY = Math.max(0, Math.min(100, percentY))
-      
-      console.log('Dragging coordinates:', { 
-        mouseX, mouseY, offsetX, offsetY,
-        actualImageWidth, actualImageHeight,
-        percentX, percentY, boundedX, boundedY 
+      console.log('Dragging debug:', {
+        clickX, clickY,
+        position, scale,
+        rectLeft: rect.left, rectTop: rect.top,
+        containerLeft: containerRect.left, containerTop: containerRect.top,
+        rectWidth: rect.width, rectHeight: rect.height,
+        imageX, imageY
       })
       
-      // Only update if mouse is within actual image area
-      if (mouseX >= 0 && mouseX <= actualImageWidth && mouseY >= 0 && mouseY <= actualImageHeight) {
-        // Update node position locally (don't save yet)
-        setNodes(nodes.map(node => 
-          node.id === draggingNode.id 
-            ? { ...node, x: boundedX, y: boundedY }
-            : node
-        ))
-        
-        // Update dragging node reference
-        setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
-      }
+      // Keep within bounds
+      const boundedX = Math.max(0, Math.min(100, imageX))
+      const boundedY = Math.max(0, Math.min(100, imageY))
+      
+      // Update node position locally (don't save yet)
+      setNodes(nodes.map(node => 
+        node.id === draggingNode.id 
+          ? { ...node, x: boundedX, y: boundedY }
+          : node
+      ))
+      
+      // Update dragging node reference
+      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
     }
   }
 
