@@ -4,6 +4,7 @@ import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
 import mapService from '../services/mapService'
 import imageServiceBase64 from '../services/imageServiceBase64'
+import '../styles/mapManager.scss'
 
 function MapManager() {
   const [searchParams] = useSearchParams()

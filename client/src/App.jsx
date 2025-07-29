@@ -68,6 +68,14 @@ function AppRoutes() {
           } 
         />
         <Route 
+          path="/worlds/:worldId/maps" 
+          element={
+            <ProtectedRoute>
+              <MapManager />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
           path="/maps" 
           element={
             <ProtectedRoute>
@@ -104,6 +112,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <AdminPanel />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/worlds/:worldId/images" 
+          element={
+            <ProtectedRoute>
+              <ImageManager />
             </ProtectedRoute>
           } 
         />

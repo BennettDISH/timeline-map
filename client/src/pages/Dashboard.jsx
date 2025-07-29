@@ -3,6 +3,7 @@ import { useAuth } from '../utils/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
+import '../styles/dashboard.scss'
 
 function Dashboard() {
   const { user, logout } = useAuth()
@@ -59,14 +60,14 @@ function Dashboard() {
                 <h3>Quick Actions</h3>
                 <div className="action-grid">
                   <Link 
-                    to={`/maps?world=${currentWorld.id}`} 
+                    to={`/worlds/${currentWorld.id}/maps`} 
                     className="action-card"
                   >
                     <h4>Manage Maps</h4>
                     <p>Create and edit maps for this world</p>
                   </Link>
                   <Link 
-                    to={`/images?world=${currentWorld.id}`} 
+                    to={`/worlds/${currentWorld.id}/images`} 
                     className="action-card"
                   >
                     <h4>Manage Images</h4>

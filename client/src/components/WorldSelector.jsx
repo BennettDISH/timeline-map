@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import worldService from '../services/worldService'
+import '../styles/worldSelector.scss'
 
 function WorldSelector({ onWorldSelect, currentWorldId = null }) {
   const [worlds, setWorlds] = useState([])
