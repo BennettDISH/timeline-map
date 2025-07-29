@@ -28,7 +28,8 @@ function MapViewer() {
     content: '',
     linkToMapId: null,
     startTime: 0,
-    endTime: 100
+    endTime: 100,
+    timelineEnabled: false
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
@@ -266,7 +267,8 @@ function MapViewer() {
           y_position: imageY,
           event_type: nodeType,
           start_time: 0,
-          end_time: 100
+          end_time: 100,
+          timeline_enabled: false
         }
         
         const result = await eventService.createEvent(newNodeData)
@@ -318,7 +320,8 @@ function MapViewer() {
         content: node.content || '',
         linkToMapId: node.linkToMapId || null,
         startTime: node.startTime || 0,
-        endTime: node.endTime || 100
+        endTime: node.endTime || 100,
+        timelineEnabled: node.timelineEnabled || false
       })
       setHasUnsavedChanges(false)
       // Close info panel if open
@@ -405,11 +408,19 @@ function MapViewer() {
 
   // Filter nodes based on current time if timeline is enabled
   const getVisibleNodes = () => {
+    // Show all nodes by default
     if (!map?.timelineEnabled) {
       return nodes
     }
     
+    // Only filter nodes that have timeline enabled
     return nodes.filter(node => {
+      // If node doesn't have timeline enabled, always show it
+      if (!node.timelineEnabled) {
+        return true
+      }
+      
+      // If node has timeline enabled, check if it's within time range
       const nodeStart = node.startTime || 0
       const nodeEnd = node.endTime || 100
       return currentTime >= nodeStart && currentTime <= nodeEnd
@@ -461,11 +472,12 @@ function MapViewer() {
       const updates = {
         title: editFormData.title,
         description: editFormData.description,
-        content: editFormData.content
+        content: editFormData.content,
+        timeline_enabled: editFormData.timelineEnabled
       }
       
-      // Add timeline fields if timeline is enabled
-      if (map?.timelineEnabled) {
+      // Add timeline fields if node has timeline enabled
+      if (editFormData.timelineEnabled) {
         updates.start_time = editFormData.startTime
         updates.end_time = editFormData.endTime
       }
@@ -537,24 +549,29 @@ function MapViewer() {
           <span className="zoom-level">
             Zoom: {Math.round(scale * 100)}%
           </span>
-          <button 
-            onClick={() => {
-              const newMode = interactionMode === 'view' ? 'edit' : 'view'
-              setInteractionMode(newMode)
-              
-              // Clean up UI state when switching modes
-              if (newMode === 'view') {
-                setSelectedNode(null)
-                setIsAddingNode(false)
-              } else {
-                setShowInfoPanel(false)
-              }
-            }}
-            className={`mode-toggle ${interactionMode}`}
-            title={`Switch to ${interactionMode === 'view' ? 'edit' : 'view'} mode`}
-          >
-            {interactionMode === 'view' ? '👁️ View Mode' : '✏️ Edit Mode'}
-          </button>
+          <div className="mode-toggle-container">
+            <span className="mode-label">👁️ View</span>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={interactionMode === 'edit'}
+                onChange={() => {
+                  const newMode = interactionMode === 'view' ? 'edit' : 'view'
+                  setInteractionMode(newMode)
+                  
+                  // Clean up UI state when switching modes
+                  if (newMode === 'view') {
+                    setSelectedNode(null)
+                    setIsAddingNode(false)
+                  } else {
+                    setShowInfoPanel(false)
+                  }
+                }}
+              />
+              <span className="slider"></span>
+            </label>
+            <span className="mode-label">✏️ Edit</span>
+          </div>
           
           {interactionMode === 'edit' && (
             <button 
@@ -708,27 +725,43 @@ function MapViewer() {
           {map?.timelineEnabled && (
             <>
               <div className="form-group">
-                <label>Start Time:</label>
-                <input
-                  type="number"
-                  value={editFormData.startTime}
-                  onChange={(e) => handleFormChange('startTime', parseInt(e.target.value) || 0)}
-                  min={timelineSettings.minTime}
-                  max={timelineSettings.maxTime}
-                  disabled={saving}
-                />
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={editFormData.timelineEnabled}
+                    onChange={(e) => handleFormChange('timelineEnabled', e.target.checked)}
+                    disabled={saving}
+                  />
+                  Show during timeline
+                </label>
               </div>
-              <div className="form-group">
-                <label>End Time:</label>
-                <input
-                  type="number"
-                  value={editFormData.endTime}
-                  onChange={(e) => handleFormChange('endTime', parseInt(e.target.value) || 100)}
-                  min={timelineSettings.minTime}
-                  max={timelineSettings.maxTime}
-                  disabled={saving}
-                />
-              </div>
+              
+              {editFormData.timelineEnabled && (
+                <>
+                  <div className="form-group">
+                    <label>Start Time:</label>
+                    <input
+                      type="number"
+                      value={editFormData.startTime}
+                      onChange={(e) => handleFormChange('startTime', parseInt(e.target.value) || 0)}
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      disabled={saving}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>End Time:</label>
+                    <input
+                      type="number"
+                      value={editFormData.endTime}
+                      onChange={(e) => handleFormChange('endTime', parseInt(e.target.value) || 100)}
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      disabled={saving}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
           {selectedNode.eventType === 'map_link' && (

@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS events (
     is_active BOOLEAN DEFAULT true,
     tooltip_text VARCHAR(255),
     link_to_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL,
-    event_type VARCHAR(50) DEFAULT 'standard' CHECK (event_type IN ('standard', 'map_link', 'character', 'location'))
+    event_type VARCHAR(50) DEFAULT 'standard' CHECK (event_type IN ('standard', 'map_link', 'character', 'location')),
+    timeline_enabled BOOLEAN DEFAULT false
 );
 
 -- Timeline settings table

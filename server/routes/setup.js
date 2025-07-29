@@ -206,6 +206,19 @@ router.post('/migrate', async (req, res) => {
       console.log('ℹ️ Map timeline migration completed or not needed');
     }
     
+    // Add timeline_enabled to events table for individual node timeline control
+    try {
+      await pool.query('ALTER TABLE events ADD COLUMN timeline_enabled BOOLEAN DEFAULT false');
+      console.log('✅ Added timeline_enabled column to events table');
+    } catch (error) {
+      if (error.code === '42701') { // Column already exists
+        console.log('ℹ️ timeline_enabled column already exists in events table');
+      } else {
+        console.error('Failed to add timeline_enabled to events table:', error);
+        throw error;
+      }
+    }
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 
