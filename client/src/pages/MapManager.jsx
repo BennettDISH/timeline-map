@@ -151,12 +151,21 @@ function MapManager() {
           <>
             <div className="maps-header">
               <h2>Maps in {currentWorld.name}</h2>
-              <button 
-                className="create-map-button"
-                onClick={() => setShowCreateForm(!showCreateForm)}
-              >
-                {showCreateForm ? '✕ Cancel' : '+ New Map'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <Link 
+                  to={`/world/${currentWorld.id}/settings`}
+                  className="create-map-button"
+                  style={{ textDecoration: 'none', display: 'inline-block' }}
+                >
+                  ⚙️ World Settings
+                </Link>
+                <button 
+                  className="create-map-button"
+                  onClick={() => setShowCreateForm(!showCreateForm)}
+                >
+                  {showCreateForm ? '✕ Cancel' : '+ New Map'}
+                </button>
+              </div>
             </div>
 
             {error && (

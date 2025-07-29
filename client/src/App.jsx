@@ -9,6 +9,7 @@ import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
 import EnvSetup from './pages/EnvSetup'
 import Migration from './pages/Migration'
+import WorldSettings from './pages/WorldSettings'
 import ImageManager from './pages/ImageManager'
 
 // Protected Route component
@@ -78,6 +79,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <MapViewer />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/world/:worldId/settings" 
+          element={
+            <ProtectedRoute>
+              <WorldSettings />
             </ProtectedRoute>
           } 
         />

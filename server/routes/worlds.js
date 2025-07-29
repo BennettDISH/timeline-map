@@ -29,7 +29,14 @@ router.get('/', async (req, res) => {
       updatedAt: row.updated_at,
       settings: row.settings,
       mapCount: parseInt(row.map_count),
-      imageCount: parseInt(row.image_count)
+      imageCount: parseInt(row.image_count),
+      timelineEnabled: row.timeline_enabled,
+      timelineSettings: {
+        minTime: row.timeline_min_time,
+        maxTime: row.timeline_max_time,
+        currentTime: row.timeline_current_time,
+        timeUnit: row.timeline_time_unit
+      }
     }));
 
     res.json({ worlds });
@@ -68,7 +75,14 @@ router.get('/:id', async (req, res) => {
       updatedAt: row.updated_at,
       settings: row.settings,
       mapCount: parseInt(row.map_count),
-      imageCount: parseInt(row.image_count)
+      imageCount: parseInt(row.image_count),
+      timelineEnabled: row.timeline_enabled,
+      timelineSettings: {
+        minTime: row.timeline_min_time,
+        maxTime: row.timeline_max_time,
+        currentTime: row.timeline_current_time,
+        timeUnit: row.timeline_time_unit
+      }
     };
 
     res.json({ world });
@@ -274,4 +288,5 @@ router.post('/:id/duplicate', async (req, res) => {
   }
 });
 
-module.exports = router;
+// PUT /api/worlds/:id/timeline - Update world timeline settings
+router.put('/:id/timeline', async (req, res) => {\n  try {\n    const { id } = req.params;\n    const { \n      timeline_enabled = false, \n      timeline_min_time = 0, \n      timeline_max_time = 100, \n      timeline_current_time = 50, \n      timeline_time_unit = 'years' \n    } = req.body;\n\n    // Check if world exists and user owns it\n    const worldCheck = await pool.query(\n      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',\n      [id, req.user.id]\n    );\n\n    if (worldCheck.rows.length === 0) {\n      return res.status(404).json({ message: 'World not found' });\n    }\n\n    // Validate timeline settings\n    if (timeline_min_time >= timeline_max_time) {\n      return res.status(400).json({ message: 'Minimum time must be less than maximum time' });\n    }\n\n    if (timeline_current_time < timeline_min_time || timeline_current_time > timeline_max_time) {\n      return res.status(400).json({ message: 'Current time must be between minimum and maximum time' });\n    }\n\n    const result = await pool.query(`\n      UPDATE worlds \n      SET timeline_enabled = $1, \n          timeline_min_time = $2, \n          timeline_max_time = $3, \n          timeline_current_time = $4, \n          timeline_time_unit = $5,\n          updated_at = CURRENT_TIMESTAMP\n      WHERE id = $6 AND created_by = $7\n      RETURNING *\n    `, [timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, id, req.user.id]);\n\n    const world = result.rows[0];\n    \n    res.json({\n      message: 'Timeline settings updated successfully',\n      world: {\n        id: world.id,\n        name: world.name,\n        timelineEnabled: world.timeline_enabled,\n        timelineSettings: {\n          minTime: world.timeline_min_time,\n          maxTime: world.timeline_max_time,\n          currentTime: world.timeline_current_time,\n          timeUnit: world.timeline_time_unit\n        }\n      }\n    });\n  } catch (error) {\n    console.error('Update timeline settings error:', error);\n    res.status(500).json({ message: 'Server error: ' + error.message });\n  }\n});\n\n// POST /api/worlds/:id/timeline/time - Update only current timeline time (for scrubber)\nrouter.post('/:id/timeline/time', async (req, res) => {\n  try {\n    const { id } = req.params;\n    const { current_time } = req.body;\n\n    if (current_time === undefined || typeof current_time !== 'number') {\n      return res.status(400).json({ message: 'Current time is required and must be a number' });\n    }\n\n    // Check if world exists and user owns it\n    const worldCheck = await pool.query(\n      'SELECT timeline_min_time, timeline_max_time FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',\n      [id, req.user.id]\n    );\n\n    if (worldCheck.rows.length === 0) {\n      return res.status(404).json({ message: 'World not found' });\n    }\n\n    const { timeline_min_time, timeline_max_time } = worldCheck.rows[0];\n\n    // Validate current time is within bounds\n    if (current_time < timeline_min_time || current_time > timeline_max_time) {\n      return res.status(400).json({ \n        message: `Current time must be between ${timeline_min_time} and ${timeline_max_time}` \n      });\n    }\n\n    await pool.query(\n      'UPDATE worlds SET timeline_current_time = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',\n      [current_time, id]\n    );\n    \n    res.json({\n      message: 'Timeline position updated successfully',\n      currentTime: current_time\n    });\n  } catch (error) {\n    console.error('Update timeline position error:', error);\n    res.status(500).json({ message: 'Server error: ' + error.message });\n  }\n});\n\nmodule.exports = router;
