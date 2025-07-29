@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
-import eventService from '../services/eventService'\nimport '../styles/timelineStyles.scss'
+import eventService from '../services/eventService'
+import '../styles/timelineStyles.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
