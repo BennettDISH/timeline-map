@@ -20,6 +20,15 @@ function MapSettings() {
     title: '',
     description: ''
   })
+  
+  // Timeline image form state
+  const [selectedImageId, setSelectedImageId] = useState('')
+  const [timelineFormData, setTimelineFormData] = useState({
+    startTime: 0,
+    endTime: 100,
+    isDefault: false
+  })
+  const [showTimelineForm, setShowTimelineForm] = useState(false)
 
   useEffect(() => {
     if (mapId) {
@@ -91,38 +100,100 @@ function MapSettings() {
     }
   }
 
-  const addTimelineImage = async (imageId, startTime, endTime, isDefault = false) => {
+  const addTimelineImage = async (e) => {
+    e.preventDefault()
+    
+    if (!selectedImageId) {
+      setError('Please select an image')
+      return
+    }
+    
+    setSaving(true)
+    setError('')
+    
     try {
       const api = createAuthAPI()
       await api.post(`/maps/${mapId}/timeline-images`, {
-        image_id: imageId,
-        start_time: startTime,
-        end_time: endTime,
-        is_default: isDefault
+        image_id: selectedImageId,
+        start_time: timelineFormData.startTime,
+        end_time: timelineFormData.endTime,
+        is_default: timelineFormData.isDefault
       })
       setSuccess('Timeline image added successfully!')
       setTimeout(() => setSuccess(''), 3000)
+      
+      // Reset form
+      setSelectedImageId('')
+      setTimelineFormData({
+        startTime: 0,
+        endTime: 100,
+        isDefault: false
+      })
+      setShowTimelineForm(false)
+      
       loadMapData() // Reload to get updated timeline images
     } catch (err) {
       console.error('Failed to add timeline image:', err)
       setError(err.response?.data?.message || 'Failed to add timeline image')
+    } finally {
+      setSaving(false)
     }
   }
+  
+  const handleTimelineRangeChange = (e) => {
+    const value = parseInt(e.target.value)
+    const isStart = e.target.name === 'startTime'
+    
+    setTimelineFormData(prev => {
+      if (isStart) {
+        return {
+          ...prev,
+          startTime: Math.min(value, prev.endTime - 1)
+        }
+      } else {
+        return {
+          ...prev,
+          endTime: Math.max(value, prev.startTime + 1)
+        }
+      }
+    })
+  }
 
-  const removeTimelineImage = async (timelineImageId) => {
-    if (!confirm('Are you sure you want to remove this timeline image?')) {
-      return
-    }
+  const removeTimelineImage = async (timelineImageId, imageName) => {
+    setSaving(true)
+    setError('')
     
     try {
       const api = createAuthAPI()
       await api.delete(`/maps/${mapId}/timeline-images/${timelineImageId}`)
-      setSuccess('Timeline image removed successfully!')
+      setSuccess(`Timeline image "${imageName}" removed successfully!`)
       setTimeout(() => setSuccess(''), 3000)
       loadMapData() // Reload to get updated timeline images
     } catch (err) {
       console.error('Failed to remove timeline image:', err)
       setError(err.response?.data?.message || 'Failed to remove timeline image')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleDefaultImage = async (timelineImageId, currentDefault) => {
+    setSaving(true)
+    setError('')
+    
+    try {
+      const api = createAuthAPI()
+      await api.put(`/maps/${mapId}/timeline-images/${timelineImageId}`, {
+        is_default: !currentDefault
+      })
+      setSuccess(`Timeline image ${!currentDefault ? 'set as' : 'removed from'} default!`)
+      setTimeout(() => setSuccess(''), 3000)
+      loadMapData() // Reload to get updated timeline images
+    } catch (err) {
+      console.error('Failed to update timeline image:', err)
+      setError(err.response?.data?.message || 'Failed to update timeline image')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -235,9 +306,18 @@ function MapSettings() {
                       </div>
                       <div className="image-actions">
                         <button
-                          onClick={() => removeTimelineImage(img.id)}
+                          onClick={() => toggleDefaultImage(img.id, img.isDefault)}
+                          className={`default-button ${img.isDefault ? 'is-default' : ''}`}
+                          title={img.isDefault ? 'Remove as default image' : 'Set as default image'}
+                          disabled={saving}
+                        >
+                          ⭐ {img.isDefault ? 'Default' : 'Set Default'}
+                        </button>
+                        <button
+                          onClick={() => removeTimelineImage(img.id, img.imageName)}
                           className="remove-button"
                           title="Remove this timeline image"
+                          disabled={saving}
                         >
                           🗑️ Remove
                         </button>
@@ -249,36 +329,172 @@ function MapSettings() {
               
               {/* Add Timeline Image Form */}
               <div className="add-timeline-image">
-                <h3>Add Timeline Image</h3>
-                <div className="available-images">
-                  {availableImages.map((image) => (
-                    <div key={image.id} className="image-option">
-                      <img src={image.url} alt={image.filename} />
-                      <div className="image-details">
-                        <p>{image.filename}</p>
-                        <button
-                          onClick={() => {
-                            const startTime = prompt(`Start time (${world.timelineSettings.timeUnit}):`, '0')
-                            const endTime = prompt(`End time (${world.timelineSettings.timeUnit}):`, '100')
-                            if (startTime !== null && endTime !== null) {
-                              addTimelineImage(image.id, parseInt(startTime), parseInt(endTime))
-                            }
-                          }}
-                          className="add-image-button"
-                        >
-                          + Add to Timeline
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="add-timeline-header">
+                  <h3>Add Timeline Image</h3>
+                  <button
+                    onClick={() => setShowTimelineForm(!showTimelineForm)}
+                    className="toggle-form-button"
+                    disabled={availableImages.length === 0}
+                  >
+                    {showTimelineForm ? '✕ Cancel' : '+ Add Timeline Image'}
+                  </button>
                 </div>
                 
-                {availableImages.length === 0 && (
+                {showTimelineForm && (
+                  <form onSubmit={addTimelineImage} className="timeline-image-form">
+                    <div className="form-group">
+                      <label htmlFor="image-select">Select Image:</label>
+                      <select
+                        id="image-select"
+                        value={selectedImageId}
+                        onChange={(e) => setSelectedImageId(e.target.value)}
+                        required
+                        disabled={saving}
+                      >
+                        <option value="">Choose an image...</option>
+                        {availableImages.map((image) => (
+                          <option key={image.id} value={image.id}>
+                            {image.filename}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {selectedImageId && (
+                      <div className="selected-image-preview">
+                        <img 
+                          src={availableImages.find(img => img.id === parseInt(selectedImageId))?.url} 
+                          alt="Selected image preview" 
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="timeline-controls">
+                      <label>Timeline Range ({world.timelineSettings.timeUnit}):</label>
+                      
+                      <div className="timeline-slider-container">
+                        <div className="timeline-track">
+                          <div 
+                            className="timeline-range-fill"
+                            style={{
+                              left: `${(timelineFormData.startTime / (world.timelineSettings.maxTime - world.timelineSettings.minTime)) * 100}%`,
+                              width: `${((timelineFormData.endTime - timelineFormData.startTime) / (world.timelineSettings.maxTime - world.timelineSettings.minTime)) * 100}%`
+                            }}
+                          ></div>
+                          <input
+                            type="range"
+                            name="startTime"
+                            min={world.timelineSettings.minTime}
+                            max={world.timelineSettings.maxTime}
+                            value={timelineFormData.startTime}
+                            onChange={handleTimelineRangeChange}
+                            className="timeline-slider start-slider"
+                            disabled={saving}
+                          />
+                          <input
+                            type="range"
+                            name="endTime"
+                            min={world.timelineSettings.minTime}
+                            max={world.timelineSettings.maxTime}
+                            value={timelineFormData.endTime}
+                            onChange={handleTimelineRangeChange}
+                            className="timeline-slider end-slider"
+                            disabled={saving}
+                          />
+                        </div>
+                        
+                        <div className="timeline-labels">
+                          <span>{world.timelineSettings.minTime}</span>
+                          <span>{world.timelineSettings.maxTime}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="time-inputs">
+                        <div className="input-group">
+                          <label>Start Time:</label>
+                          <input
+                            type="number"
+                            min={world.timelineSettings.minTime}
+                            max={world.timelineSettings.maxTime}
+                            value={timelineFormData.startTime}
+                            onChange={(e) => setTimelineFormData(prev => ({
+                              ...prev,
+                              startTime: Math.min(parseInt(e.target.value) || 0, prev.endTime - 1)
+                            }))}
+                            disabled={saving}
+                          />
+                        </div>
+                        
+                        <div className="input-group">
+                          <label>End Time:</label>
+                          <input
+                            type="number"
+                            min={world.timelineSettings.minTime}
+                            max={world.timelineSettings.maxTime}
+                            value={timelineFormData.endTime}
+                            onChange={(e) => setTimelineFormData(prev => ({
+                              ...prev,
+                              endTime: Math.max(parseInt(e.target.value) || 100, prev.startTime + 1)
+                            }))}
+                            disabled={saving}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="form-group checkbox-group">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={timelineFormData.isDefault}
+                          onChange={(e) => setTimelineFormData(prev => ({
+                            ...prev,
+                            isDefault: e.target.checked
+                          }))}
+                          disabled={saving}
+                        />
+                        <span className="checkmark"></span>
+                        Set as default image (shown when no other image matches the current time)
+                      </label>
+                    </div>
+                    
+                    <div className="form-actions">
+                      <button type="submit" disabled={saving || !selectedImageId} className="add-button">
+                        {saving ? '⏳ Adding...' : '+ Add to Timeline'}
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setShowTimelineForm(false)
+                          setSelectedImageId('')
+                          setTimelineFormData({
+                            startTime: 0,
+                            endTime: 100,
+                            isDefault: false
+                          })
+                        }}
+                        className="cancel-button"
+                        disabled={saving}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+                
+                {!showTimelineForm && availableImages.length === 0 && (
                   <div className="empty-state">
                     <p>No images available. Upload images first in the Image Manager.</p>
                     <Link to={`/worlds/${map.worldId}/images`} className="button">
                       📁 Manage Images
                     </Link>
+                  </div>
+                )}
+                
+                {!showTimelineForm && availableImages.length > 0 && (
+                  <div className="available-images-hint">
+                    <p>📸 {availableImages.length} images available</p>
+                    <p>Click "Add Timeline Image" above to configure timeline-based backgrounds.</p>
                   </div>
                 )}
               </div>
