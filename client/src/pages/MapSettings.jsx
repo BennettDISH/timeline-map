@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import ImageSelector from '../components/ImageSelector'
 import '../styles/mapSettings.scss'
 
 function MapSettings() {
@@ -344,63 +345,32 @@ function MapSettings() {
                   <form onSubmit={addTimelineImage} className="timeline-image-form">
                     <div className="form-group">
                       <label htmlFor="image-select">Select Image:</label>
-                      <select
-                        id="image-select"
-                        value={selectedImageId}
-                        onChange={(e) => setSelectedImageId(e.target.value)}
-                        required
+                      <ImageSelector
+                        images={availableImages}
+                        selectedImageId={selectedImageId}
+                        onImageSelect={setSelectedImageId}
                         disabled={saving}
-                      >
-                        <option value="">Choose an image...</option>
-                        {availableImages.map((image) => (
-                          <option key={image.id} value={image.id}>
-                            {image.filename}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Choose an image..."
+                        showPreview={true}
+                      />
                     </div>
-                    
-                    {selectedImageId && (
-                      <div className="selected-image-preview">
-                        <img 
-                          src={availableImages.find(img => img.id === parseInt(selectedImageId))?.url} 
-                          alt="Selected image preview" 
-                        />
-                      </div>
-                    )}
                     
                     <div className="timeline-controls">
                       <label>Timeline Range ({world.timelineSettings.timeUnit}):</label>
                       
-                      <div className="timeline-slider-container">
-                        <div className="timeline-track">
+                      <div className="timeline-visual">
+                        <div className="timeline-bar">
                           <div 
-                            className="timeline-range-fill"
+                            className="timeline-range-indicator"
                             style={{
-                              left: `${(timelineFormData.startTime / (world.timelineSettings.maxTime - world.timelineSettings.minTime)) * 100}%`,
+                              left: `${((timelineFormData.startTime - world.timelineSettings.minTime) / (world.timelineSettings.maxTime - world.timelineSettings.minTime)) * 100}%`,
                               width: `${((timelineFormData.endTime - timelineFormData.startTime) / (world.timelineSettings.maxTime - world.timelineSettings.minTime)) * 100}%`
                             }}
-                          ></div>
-                          <input
-                            type="range"
-                            name="startTime"
-                            min={world.timelineSettings.minTime}
-                            max={world.timelineSettings.maxTime}
-                            value={timelineFormData.startTime}
-                            onChange={handleTimelineRangeChange}
-                            className="timeline-slider start-slider"
-                            disabled={saving}
-                          />
-                          <input
-                            type="range"
-                            name="endTime"
-                            min={world.timelineSettings.minTime}
-                            max={world.timelineSettings.maxTime}
-                            value={timelineFormData.endTime}
-                            onChange={handleTimelineRangeChange}
-                            className="timeline-slider end-slider"
-                            disabled={saving}
-                          />
+                          >
+                            <span className="range-label">
+                              {timelineFormData.startTime} - {timelineFormData.endTime}
+                            </span>
+                          </div>
                         </div>
                         
                         <div className="timeline-labels">

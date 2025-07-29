@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
+import ImageSelector from '../components/ImageSelector'
 import worldService from '../services/worldService'
 import mapService from '../services/mapService'
 import imageServiceBase64 from '../services/imageServiceBase64'
@@ -202,19 +203,14 @@ function MapManager() {
                   </div>
                   <div className="form-group">
                     <label htmlFor="map-image">Background Image (optional)</label>
-                    <select
-                      id="map-image"
-                      value={newMapData.image_id}
-                      onChange={(e) => setNewMapData({...newMapData, image_id: e.target.value})}
+                    <ImageSelector
+                      images={images}
+                      selectedImageId={newMapData.image_id}
+                      onImageSelect={(imageId) => setNewMapData({...newMapData, image_id: imageId})}
                       disabled={creating}
-                    >
-                      <option value="">No background image</option>
-                      {images.map(image => (
-                        <option key={image.id} value={image.id}>
-                          {image.originalName}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="No background image"
+                      showPreview={false}
+                    />
                   </div>
                   <div className="form-actions">
                     <button type="submit" disabled={creating}>
