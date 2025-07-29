@@ -33,8 +33,9 @@ function Migration() {
         <div className="setup-info">
           <h3>What this migration adds:</h3>
           <ul>
-            <li>✅ Timeline functionality for maps</li>
-            <li>✅ timeline_enabled column to maps table</li>
+            <li>✅ Timeline functionality for worlds</li>
+            <li>✅ timeline_enabled column to worlds table</li>
+            <li>✅ World-level timeline settings and time scrubbing</li>
             <li>✅ Support for temporal events and node filtering</li>
           </ul>
         </div>

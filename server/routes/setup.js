@@ -163,13 +163,16 @@ router.post('/migrate', async (req, res) => {
     for (const field of worldTimelineFields) {
       try {
         const columnName = field.split(' ')[0];
+        console.log(`Attempting to add column: ${columnName}`);
         await pool.query(`ALTER TABLE worlds ADD COLUMN ${field}`);
         console.log(`✅ Added ${columnName} column to worlds table`);
       } catch (error) {
+        console.log(`Error adding ${field.split(' ')[0]}:`, error.message, error.code);
         if (error.code === '42701') { // Column already exists
           const columnName = field.split(' ')[0];
           console.log(`ℹ️ ${columnName} column already exists`);
         } else {
+          console.error(`Failed to add column ${field.split(' ')[0]}:`, error);
           throw error;
         }
       }
