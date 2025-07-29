@@ -153,7 +153,7 @@ router.post('/migrate', async (req, res) => {
     
     // Add timeline fields to worlds table
     const worldTimelineFields = [
-      'timeline_enabled BOOLEAN DEFAULT false',
+      'timeline_enabled BOOLEAN DEFAULT true',
       'timeline_min_time INTEGER DEFAULT 0', 
       'timeline_max_time INTEGER DEFAULT 100',
       'timeline_current_time INTEGER DEFAULT 50',

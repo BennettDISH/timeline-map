@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS worlds (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true,
     settings JSONB DEFAULT '{}',
-    timeline_enabled BOOLEAN DEFAULT false,
+    timeline_enabled BOOLEAN DEFAULT true,
     timeline_min_time INTEGER DEFAULT 0,
     timeline_max_time INTEGER DEFAULT 100,
     timeline_current_time INTEGER DEFAULT 50,
