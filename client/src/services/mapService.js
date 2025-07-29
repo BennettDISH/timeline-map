@@ -66,6 +66,18 @@ const mapService = {
     }
   },
 
+  // Update map timeline settings
+  async updateMapTimeline(id, timelineEnabled) {
+    try {
+      const api = createAuthAPI()
+      const response = await api.put(`/${id}`, { timeline_enabled: timelineEnabled })
+      return response.data
+    } catch (error) {
+      console.error('Update map timeline error:', error)
+      throw error.response?.data || { message: 'Failed to update map timeline settings' }
+    }
+  },
+
   // Delete map
   async deleteMap(id) {
     try {

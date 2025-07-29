@@ -58,7 +58,8 @@ router.get('/', async (req, res) => {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       zoomLevel: row.zoom_level,
-      mapOrder: row.map_order
+      mapOrder: row.map_order,
+      timelineEnabled: row.timeline_enabled
     }));
 
     res.json({ 
@@ -113,7 +114,8 @@ router.get('/:id', async (req, res) => {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       zoomLevel: row.zoom_level,
-      mapOrder: row.map_order
+      mapOrder: row.map_order,
+      timelineEnabled: row.timeline_enabled
     };
 
     res.json({ map });
@@ -127,7 +129,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/maps - Create new map
 router.post('/', async (req, res) => {
   try {
-    const { title, description, world_id, image_id, parent_map_id, zoom_level = 1, map_order = 0 } = req.body;
+    const { title, description, world_id, image_id, parent_map_id, zoom_level = 1, map_order = 0, timeline_enabled = false } = req.body;
     
     if (!title || !world_id) {
       return res.status(400).json({ message: 'Title and world ID are required' });
@@ -156,10 +158,10 @@ router.post('/', async (req, res) => {
     }
     
     const result = await pool.query(`
-      INSERT INTO maps (title, description, world_id, image_id, parent_map_id, created_by, zoom_level, map_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO maps (title, description, world_id, image_id, parent_map_id, created_by, zoom_level, map_order, timeline_enabled)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [title, description, world_id, image_id || null, parent_map_id || null, req.user.id, zoom_level, map_order]);
+    `, [title, description, world_id, image_id || null, parent_map_id || null, req.user.id, zoom_level, map_order, timeline_enabled]);
 
     const newMap = result.rows[0];
     
@@ -175,7 +177,8 @@ router.post('/', async (req, res) => {
         createdAt: newMap.created_at,
         updatedAt: newMap.updated_at,
         zoomLevel: newMap.zoom_level,
-        mapOrder: newMap.map_order
+        mapOrder: newMap.map_order,
+        timelineEnabled: newMap.timeline_enabled
       }
     });
     
@@ -189,7 +192,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, image_id, zoom_level, map_order } = req.body;
+    const { title, description, image_id, zoom_level, map_order, timeline_enabled } = req.body;
     
     // Get current map to verify ownership
     const currentMap = await pool.query('SELECT * FROM maps WHERE id = $1', [id]);
@@ -229,10 +232,11 @@ router.put('/:id', async (req, res) => {
           image_id = COALESCE($3, image_id),
           zoom_level = COALESCE($4, zoom_level),
           map_order = COALESCE($5, map_order),
+          timeline_enabled = COALESCE($6, timeline_enabled),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $7
       RETURNING *
-    `, [title, description, image_id, zoom_level, map_order, id]);
+    `, [title, description, image_id, zoom_level, map_order, timeline_enabled, id]);
 
     const updatedMap = result.rows[0];
     
@@ -248,7 +252,8 @@ router.put('/:id', async (req, res) => {
         createdAt: updatedMap.created_at,
         updatedAt: updatedMap.updated_at,
         zoomLevel: updatedMap.zoom_level,
-        mapOrder: updatedMap.map_order
+        mapOrder: updatedMap.map_order,
+        timelineEnabled: updatedMap.timeline_enabled
       }
     });
     

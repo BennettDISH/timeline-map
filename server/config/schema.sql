@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS maps (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true,
     zoom_level INTEGER DEFAULT 1,
-    map_order INTEGER DEFAULT 0
+    map_order INTEGER DEFAULT 0,
+    timeline_enabled BOOLEAN DEFAULT false
 );
 
 -- Events table

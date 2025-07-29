@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
-import eventService from '../services/eventService'
+import eventService from '../services/eventService'\nimport '../styles/timelineStyles.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
@@ -24,9 +24,19 @@ function MapViewer() {
     title: '',
     description: '',
     content: '',
-    linkToMapId: null
+    linkToMapId: null,
+    startTime: 0,
+    endTime: 100
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
+  // Timeline state
+  const [currentTime, setCurrentTime] = useState(50) // Current timeline position (0-100)
+  const [timelineSettings, setTimelineSettings] = useState({
+    minTime: 0,
+    maxTime: 100,
+    timeUnit: 'years'
+  })
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -65,6 +75,11 @@ function MapViewer() {
       setMap(mapResult.map)
       setNodes(eventsResult.events)
       setError('')
+      
+      // Set initial timeline time to middle if timeline is enabled
+      if (mapResult.map.timelineEnabled) {
+        setCurrentTime(50)
+      }
     } catch (err) {
       console.error('Failed to load map:', err)
       setError(err.message || 'Failed to load map')
@@ -283,7 +298,9 @@ function MapViewer() {
         title: node.title || '',
         description: node.description || '',
         content: node.content || '',
-        linkToMapId: node.linkToMapId || null
+        linkToMapId: node.linkToMapId || null,
+        startTime: node.startTime || 0,
+        endTime: node.endTime || 100
       })
       setHasUnsavedChanges(false)
       // Close info panel if open
@@ -317,6 +334,42 @@ function MapViewer() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleTimelineToggle = async () => {
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const newTimelineEnabled = !map.timelineEnabled
+      const result = await mapService.updateMapTimeline(map.id, newTimelineEnabled)
+      
+      // Update local map state
+      setMap(prev => ({ ...prev, timelineEnabled: newTimelineEnabled }))
+      
+      // Reset timeline position when enabling
+      if (newTimelineEnabled) {
+        setCurrentTime(50)
+      }
+    } catch (err) {
+      console.error('Failed to toggle timeline:', err)
+      setSaveError(err.message || 'Failed to update timeline settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Filter nodes based on current time if timeline is enabled
+  const getVisibleNodes = () => {
+    if (!map?.timelineEnabled) {
+      return nodes
+    }
+    
+    return nodes.filter(node => {
+      const nodeStart = node.startTime || 0
+      const nodeEnd = node.endTime || 100
+      return currentTime >= nodeStart && currentTime <= nodeEnd
+    })
   }
 
   const handleNodeDelete = async (node) => {
@@ -365,6 +418,12 @@ function MapViewer() {
         title: editFormData.title,
         description: editFormData.description,
         content: editFormData.content
+      }
+      
+      // Add timeline fields if timeline is enabled
+      if (map?.timelineEnabled) {
+        updates.start_time = editFormData.startTime
+        updates.end_time = editFormData.endTime
       }
       
       // Add link_to_map_id for map_link nodes
@@ -452,6 +511,17 @@ function MapViewer() {
           >
             {interactionMode === 'view' ? '👁️ View Mode' : '✏️ Edit Mode'}
           </button>
+          
+          {interactionMode === 'edit' && (
+            <button 
+              onClick={handleTimelineToggle}
+              className={`timeline-toggle ${map?.timelineEnabled ? 'enabled' : 'disabled'}`}
+              title={`${map?.timelineEnabled ? 'Disable' : 'Enable'} timeline for this map`}
+              disabled={saving}
+            >
+              {map?.timelineEnabled ? '🕒 Timeline ON' : '🕒 Timeline OFF'}
+            </button>
+          )}
         </div>
         
         {interactionMode === 'edit' && (
@@ -512,7 +582,7 @@ function MapViewer() {
           )}
           
           {/* Render nodes */}
-          {nodes.map(node => (
+          {getVisibleNodes().map(node => (
             <div
               key={node.id}
               className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${draggingNode?.id === node.id ? 'dragging' : ''}`}
@@ -591,6 +661,32 @@ function MapViewer() {
               disabled={saving}
             />
           </div>
+          {map?.timelineEnabled && (
+            <>
+              <div className="form-group">
+                <label>Start Time:</label>
+                <input
+                  type="number"
+                  value={editFormData.startTime}
+                  onChange={(e) => handleFormChange('startTime', parseInt(e.target.value) || 0)}
+                  min={timelineSettings.minTime}
+                  max={timelineSettings.maxTime}
+                  disabled={saving}
+                />
+              </div>
+              <div className="form-group">
+                <label>End Time:</label>
+                <input
+                  type="number"
+                  value={editFormData.endTime}
+                  onChange={(e) => handleFormChange('endTime', parseInt(e.target.value) || 100)}
+                  min={timelineSettings.minTime}
+                  max={timelineSettings.maxTime}
+                  disabled={saving}
+                />
+              </div>
+            </>
+          )}
           {selectedNode.eventType === 'map_link' && (
             <div className="form-group">
               <label>Linked Map:</label>
@@ -675,7 +771,9 @@ function MapViewer() {
                       title: infoPanelNode.title || '',
                       description: infoPanelNode.description || '',
                       content: infoPanelNode.content || '',
-                      linkToMapId: infoPanelNode.linkToMapId || null
+                      linkToMapId: infoPanelNode.linkToMapId || null,
+                      startTime: infoPanelNode.startTime || 0,
+                      endTime: infoPanelNode.endTime || 100
                     })
                     setHasUnsavedChanges(false)
                     setShowInfoPanel(false)
@@ -686,6 +784,31 @@ function MapViewer() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      
+      {/* Timeline scrubber */}
+      {map?.timelineEnabled && (
+        <div className="timeline-scrubber">
+          <div className="timeline-controls">
+            <div className="timeline-label">
+              <span>Timeline: {currentTime} {timelineSettings.timeUnit}</span>
+            </div>
+            <div className="timeline-slider">
+              <input
+                type="range"
+                min={timelineSettings.minTime}
+                max={timelineSettings.maxTime}
+                value={currentTime}
+                onChange={(e) => setCurrentTime(parseInt(e.target.value))}
+                className="timeline-range"
+              />
+            </div>
+            <div className="timeline-bounds">
+              <span>{timelineSettings.minTime}</span>
+              <span>{timelineSettings.maxTime}</span>
+            </div>
           </div>
         </div>
       )}
