@@ -7,7 +7,7 @@ import MapManager from './pages/MapManager'
 import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
-import EnvSetup from './pages/EnvSetup'
+import EnvSetup from './pages/EnvSetup'\nimport Migration from './pages/Migration'
 import ImageManager from './pages/ImageManager'
 
 // Protected Route component
@@ -43,6 +43,10 @@ function AppRoutes() {
         <Route 
           path="/env-setup" 
           element={<EnvSetup />} 
+        />
+        <Route 
+          path="/migration" 
+          element={<Migration />} 
         />
         <Route 
           path="/login" 

@@ -146,4 +146,45 @@ router.get('/status', async (req, res) => {
   }
 });
 
+// POST /api/setup/migrate - Run specific migrations for existing databases
+router.post('/migrate', async (req, res) => {
+  try {
+    console.log('🔄 Running database migrations...');
+    
+    // Add timeline_enabled column if it doesn't exist
+    try {
+      await pool.query('ALTER TABLE maps ADD COLUMN timeline_enabled BOOLEAN DEFAULT false');
+      console.log('✅ Added timeline_enabled column to maps table');
+    } catch (error) {
+      if (error.code === '42701') { // Column already exists
+        console.log('ℹ️ timeline_enabled column already exists');
+      } else {
+        throw error;
+      }
+    }
+    
+    // Check table counts for response
+    const tablesResult = await pool.query(`
+      SELECT COUNT(*) as table_count 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+    `);
+    
+    res.json({
+      message: 'Database migrations completed successfully',
+      tablesFound: parseInt(tablesResult.rows[0].table_count),
+      migrationsRun: [
+        'timeline_enabled column added to maps table'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ 
+      message: 'Failed to run migrations: ' + error.message 
+    });
+  }
+});
+
 module.exports = router;

@@ -7,6 +7,9 @@ function Setup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checkingStatus, setCheckingStatus] = useState(true)
+  const [migrating, setMigrating] = useState(false)
+  const [showMigration, setShowMigration] = useState(false)
+  const [migrationSuccess, setMigrationSuccess] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
