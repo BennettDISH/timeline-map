@@ -66,6 +66,15 @@ function MapViewer() {
     }
   }, [map?.worldId])
 
+  // Cleanup timeline update timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timelineUpdateTimeoutRef.current) {
+        clearTimeout(timelineUpdateTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const loadMap = async () => {
     try {
       setLoading(true)
@@ -345,17 +354,24 @@ function MapViewer() {
     }
   }
 
-  const handleTimelineChange = async (newTime) => {
+  const timelineUpdateTimeoutRef = useRef(null)
+
+  const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
     setCurrentTime(timeValue)
     
-    // Update world timeline position
-    try {
-      await worldService.updateTimelinePosition(map.worldId, timeValue)
-    } catch (err) {
-      console.error('Failed to update timeline position:', err)
-      // Continue silently - don't disrupt user interaction
+    // Debounce the API call - only save after user stops dragging for 500ms
+    if (timelineUpdateTimeoutRef.current) {
+      clearTimeout(timelineUpdateTimeoutRef.current)
     }
+    
+    timelineUpdateTimeoutRef.current = setTimeout(async () => {
+      try {
+        await worldService.updateTimelinePosition(map.worldId, timeValue)
+      } catch (err) {
+        console.error('Failed to update timeline position:', err)
+      }
+    }, 500)
   }
 
   const handleTimelineToggle = async () => {
