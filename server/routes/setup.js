@@ -219,6 +219,31 @@ router.post('/migrate', async (req, res) => {
       }
     }
     
+    // Create map_timeline_images table for timeline-based map backgrounds
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS map_timeline_images (
+          id SERIAL PRIMARY KEY,
+          map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+          image_id INTEGER REFERENCES images(id) ON DELETE CASCADE,
+          start_time INTEGER NOT NULL DEFAULT 0,
+          end_time INTEGER NOT NULL DEFAULT 100,
+          is_default BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(map_id, image_id)
+        )
+      `);
+      console.log('✅ Created map_timeline_images table');
+    } catch (error) {
+      if (error.code === '42P07') { // Table already exists
+        console.log('ℹ️ map_timeline_images table already exists');
+      } else {
+        console.error('Failed to create map_timeline_images table:', error);
+        throw error;
+      }
+    }
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 

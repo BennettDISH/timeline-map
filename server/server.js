@@ -81,6 +81,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/worlds', require('./routes/worlds'));
 app.use('/api/worlds', require('./routes/worldTimeline'));
 app.use('/api/maps', require('./routes/maps'));
+app.use('/api/maps', require('./routes/mapTimelineImages'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));

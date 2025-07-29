@@ -91,6 +91,19 @@ CREATE TABLE IF NOT EXISTS timeline_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Map timeline images table for time-based map backgrounds
+CREATE TABLE IF NOT EXISTS map_timeline_images (
+    id SERIAL PRIMARY KEY,
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+    image_id INTEGER REFERENCES images(id) ON DELETE CASCADE,
+    start_time INTEGER NOT NULL DEFAULT 0,
+    end_time INTEGER NOT NULL DEFAULT 100,
+    is_default BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(map_id, image_id)
+);
+
 -- User sessions table (for better session management)
 CREATE TABLE IF NOT EXISTS user_sessions (
     id SERIAL PRIMARY KEY,

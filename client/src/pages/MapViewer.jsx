@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
+import axios from 'axios'
 import '../styles/timelineStyles.scss'
 
 function MapViewer() {
@@ -40,6 +41,7 @@ function MapViewer() {
     maxTime: 100,
     timeUnit: 'years'
   })
+  const [timelineImages, setTimelineImages] = useState([]) // Timeline-based background images
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -87,6 +89,24 @@ function MapViewer() {
       // Load world data to get timeline settings
       const worldResult = await worldService.getWorld(mapResult.map.worldId)
       
+      // Load timeline images for this map if timeline is enabled
+      let timelineImagesData = []
+      if (worldResult.world.timelineEnabled) {
+        try {
+          const api = axios.create({
+            baseURL: '/api',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            }
+          })
+          const timelineImagesResult = await api.get(`/maps/${mapId}/timeline-images`)
+          timelineImagesData = timelineImagesResult.data.images || []
+        } catch (err) {
+          console.error('Failed to load timeline images:', err)
+          // Continue without timeline images - not critical
+        }
+      }
+      
       // Merge world timeline settings into map object
       const mapWithTimeline = {
         ...mapResult.map,
@@ -98,6 +118,7 @@ function MapViewer() {
       setNodes(eventsResult.events)
       setTimelineSettings(worldResult.world.timelineSettings)
       setCurrentTime(worldResult.world.timelineSettings.currentTime)
+      setTimelineImages(timelineImagesData)
       setError('')
     } catch (err) {
       console.error('Failed to load map:', err)
@@ -406,6 +427,32 @@ function MapViewer() {
     }
   }
 
+  // Get the appropriate background image based on current timeline position
+  const getCurrentBackgroundImage = () => {
+    if (!map?.timelineEnabled || timelineImages.length === 0) {
+      // Return the original map image if timeline is disabled or no timeline images
+      return map?.imageUrl
+    }
+    
+    // Find the image that should be displayed at the current time
+    const activeImage = timelineImages.find(img => {
+      return currentTime >= img.startTime && currentTime <= img.endTime
+    })
+    
+    if (activeImage) {
+      return activeImage.imageUrl
+    }
+    
+    // Fall back to default image if one exists
+    const defaultImage = timelineImages.find(img => img.isDefault)
+    if (defaultImage) {
+      return defaultImage.imageUrl
+    }
+    
+    // Fall back to original map image
+    return map?.imageUrl
+  }
+
   // Filter nodes based on current time if timeline is enabled
   const getVisibleNodes = () => {
     // Show all nodes by default
@@ -533,6 +580,7 @@ function MapViewer() {
         <div className="header-content">
           <h1>{map.title}</h1>
           <div className="header-actions">
+            <Link to={`/map/${mapId}/settings`} className="settings-link">⚙️ Map Settings</Link>
             <Link to="/maps" className="back-link">← Back to Maps</Link>
           </div>
         </div>
@@ -627,10 +675,10 @@ function MapViewer() {
             transformOrigin: '0 0'
           }}
         >
-          {map.imageUrl ? (
+          {getCurrentBackgroundImage() ? (
             <img 
               ref={imageRef}
-              src={map.imageUrl} 
+              src={getCurrentBackgroundImage()} 
               alt={map.title}
               className="map-image"
               draggable={false}

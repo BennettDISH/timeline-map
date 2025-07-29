@@ -10,6 +10,7 @@ import Setup from './pages/Setup'
 import EnvSetup from './pages/EnvSetup'
 import Migration from './pages/Migration'
 import WorldSettings from './pages/WorldSettings'
+import MapSettings from './pages/MapSettings'
 import ImageManager from './pages/ImageManager'
 
 // Protected Route component
@@ -79,6 +80,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <MapViewer />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/map/:mapId/settings" 
+          element={
+            <ProtectedRoute>
+              <MapSettings />
             </ProtectedRoute>
           } 
         />
