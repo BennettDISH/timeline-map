@@ -151,16 +151,56 @@ router.post('/migrate', async (req, res) => {
   try {
     console.log('🔄 Running database migrations...');
     
-    // Add timeline_enabled column if it doesn't exist
-    try {
-      await pool.query('ALTER TABLE maps ADD COLUMN timeline_enabled BOOLEAN DEFAULT false');
-      console.log('✅ Added timeline_enabled column to maps table');
-    } catch (error) {
-      if (error.code === '42701') { // Column already exists
-        console.log('ℹ️ timeline_enabled column already exists');
-      } else {
-        throw error;
+    // Add timeline fields to worlds table
+    const worldTimelineFields = [
+      'timeline_enabled BOOLEAN DEFAULT false',
+      'timeline_min_time INTEGER DEFAULT 0', 
+      'timeline_max_time INTEGER DEFAULT 100',
+      'timeline_current_time INTEGER DEFAULT 50',
+      'timeline_time_unit VARCHAR(50) DEFAULT \'years\''
+    ];
+    
+    for (const field of worldTimelineFields) {
+      try {
+        const columnName = field.split(' ')[0];
+        await pool.query(`ALTER TABLE worlds ADD COLUMN ${field}`);
+        console.log(`✅ Added ${columnName} column to worlds table`);
+      } catch (error) {
+        if (error.code === '42701') { // Column already exists
+          const columnName = field.split(' ')[0];
+          console.log(`ℹ️ ${columnName} column already exists`);
+        } else {
+          throw error;
+        }
       }
+    }
+    
+    // Migrate timeline_enabled from maps to worlds (if maps table has it)
+    try {
+      const mapTimelineCheck = await pool.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'maps' AND column_name = 'timeline_enabled'
+      `);
+      
+      if (mapTimelineCheck.rows.length > 0) {
+        // Copy timeline settings from maps to their worlds
+        await pool.query(`
+          UPDATE worlds 
+          SET timeline_enabled = true 
+          WHERE id IN (
+            SELECT DISTINCT world_id 
+            FROM maps 
+            WHERE timeline_enabled = true
+          )
+        `);
+        console.log('✅ Migrated timeline settings from maps to worlds');
+        
+        // Remove timeline_enabled from maps table
+        await pool.query('ALTER TABLE maps DROP COLUMN timeline_enabled');
+        console.log('✅ Removed timeline_enabled column from maps table');
+      }
+    } catch (error) {
+      console.log('ℹ️ Map timeline migration completed or not needed');
     }
     
     // Check table counts for response
@@ -175,7 +215,9 @@ router.post('/migrate', async (req, res) => {
       message: 'Database migrations completed successfully',
       tablesFound: parseInt(tablesResult.rows[0].table_count),
       migrationsRun: [
-        'timeline_enabled column added to maps table'
+        'Timeline fields added to worlds table',
+        'Timeline settings migrated from maps to worlds',
+        'World-level timeline system enabled'
       ]
     });
     

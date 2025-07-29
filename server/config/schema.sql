@@ -18,7 +18,12 @@ CREATE TABLE IF NOT EXISTS worlds (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true,
-    settings JSONB DEFAULT '{}'
+    settings JSONB DEFAULT '{}',
+    timeline_enabled BOOLEAN DEFAULT false,
+    timeline_min_time INTEGER DEFAULT 0,
+    timeline_max_time INTEGER DEFAULT 100,
+    timeline_current_time INTEGER DEFAULT 50,
+    timeline_time_unit VARCHAR(50) DEFAULT 'years'
 );
 
 -- Images table for centralized image management
@@ -49,8 +54,7 @@ CREATE TABLE IF NOT EXISTS maps (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true,
     zoom_level INTEGER DEFAULT 1,
-    map_order INTEGER DEFAULT 0,
-    timeline_enabled BOOLEAN DEFAULT false
+    map_order INTEGER DEFAULT 0
 );
 
 -- Events table
