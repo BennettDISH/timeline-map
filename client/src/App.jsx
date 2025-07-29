@@ -7,7 +7,8 @@ import MapManager from './pages/MapManager'
 import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
-import EnvSetup from './pages/EnvSetup'\nimport Migration from './pages/Migration'
+import EnvSetup from './pages/EnvSetup'
+import Migration from './pages/Migration'
 import ImageManager from './pages/ImageManager'
 
 // Protected Route component
