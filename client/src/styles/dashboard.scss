@@ -1,6 +1,6 @@
 .dashboard-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
 
   .dashboard-header {
     background: rgba(255, 255, 255, 0.95);
@@ -23,7 +23,7 @@
           color: #2d3748;
           margin: 0;
           font-weight: 700;
-          background: linear-gradient(135deg, #667eea, #764ba2);
+          background: linear-gradient(135deg, #2d3748, #4a5568);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -76,14 +76,14 @@
   }
 
   .dashboard-content {
-    max-width: 1200px;
-    margin: 0 auto;
     padding: 0 20px;
 
     .dashboard-grid {
       display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 30px;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
 
       @media (max-width: 768px) {
         grid-template-columns: 1fr;

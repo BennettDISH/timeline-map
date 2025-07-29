@@ -293,6 +293,41 @@ body {
   color: white;
   padding: 1rem;
   flex-shrink: 0;
+
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+
+      .settings-button, .back-link {
+        background: #4a5568;
+        color: white;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+
+        &:hover {
+          background: #2d3748;
+          transform: translateY(-1px);
+        }
+      }
+
+      .settings-button {
+        background: #2d3748;
+        
+        &:hover {
+          background: #1a202c;
+        }
+      }
+    }
+  }
 }
 
 .timeline-container {

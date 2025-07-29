@@ -580,7 +580,7 @@ function MapViewer() {
         <div className="header-content">
           <h1>{map.title}</h1>
           <div className="header-actions">
-            <Link to={`/map/${mapId}/settings`} className="settings-link">⚙️ Map Settings</Link>
+            <Link to={`/map/${mapId}/settings`} className="settings-button">⚙️ Settings</Link>
             <Link to="/maps" className="back-link">← Back to Maps</Link>
           </div>
         </div>

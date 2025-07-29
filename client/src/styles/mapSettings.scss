@@ -1,6 +1,6 @@
 .settings-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
   padding: 20px;
 
   .settings-header {
@@ -56,11 +56,11 @@
         }
 
         .view-button {
-          background: #4299e1;
+          background: #2d3748;
           color: white;
           
           &:hover {
-            background: #3182ce;
+            background: #1a202c;
             transform: translateY(-1px);
           }
         }
@@ -99,7 +99,7 @@
       overflow: hidden;
 
       h2 {
-        background: linear-gradient(135deg, #4299e1, #3182ce);
+        background: linear-gradient(135deg, #2d3748, #4a5568);
         color: white;
         padding: 20px 30px;
         margin: 0;

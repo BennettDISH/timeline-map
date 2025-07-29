@@ -5,7 +5,7 @@
   overflow: hidden;
 
   .world-selector-header {
-    background: linear-gradient(135deg, #4299e1, #3182ce);
+    background: linear-gradient(135deg, #2d3748, #4a5568);
     padding: 20px;
     display: flex;
     justify-content: space-between;
@@ -145,8 +145,8 @@
       }
 
       &.selected {
-        background: linear-gradient(135deg, rgba(66, 153, 225, 0.1), rgba(49, 130, 206, 0.1));
-        border-left: 4px solid #4299e1;
+        background: linear-gradient(135deg, rgba(45, 55, 72, 0.1), rgba(74, 85, 104, 0.1));
+        border-left: 4px solid #2d3748;
       }
 
       &:last-child {

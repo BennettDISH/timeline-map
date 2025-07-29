@@ -152,11 +152,10 @@ function MapManager() {
           <>
             <div className="maps-header">
               <h2>Maps in {currentWorld.name}</h2>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="header-actions">
                 <Link 
                   to={`/world/${currentWorld.id}/settings`}
                   className="create-map-button"
-                  style={{ textDecoration: 'none', display: 'inline-block' }}
                 >
                   ⚙️ World Settings
                 </Link>
