@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
 import eventService from '../services/eventService'
+import worldService from '../services/worldService'
 import '../styles/timelineStyles.scss'
 
 function MapViewer() {
@@ -73,14 +74,21 @@ function MapViewer() {
         eventService.getEvents(mapId)
       ])
       
-      setMap(mapResult.map)
-      setNodes(eventsResult.events)
-      setError('')
+      // Load world data to get timeline settings
+      const worldResult = await worldService.getWorld(mapResult.map.worldId)
       
-      // Set initial timeline time to middle if timeline is enabled
-      if (mapResult.map.timelineEnabled) {
-        setCurrentTime(50)
+      // Merge world timeline settings into map object
+      const mapWithTimeline = {
+        ...mapResult.map,
+        timelineEnabled: worldResult.world.timelineEnabled,
+        timelineSettings: worldResult.world.timelineSettings
       }
+      
+      setMap(mapWithTimeline)
+      setNodes(eventsResult.events)
+      setTimelineSettings(worldResult.world.timelineSettings)
+      setCurrentTime(worldResult.world.timelineSettings.currentTime)
+      setError('')
     } catch (err) {
       console.error('Failed to load map:', err)
       setError(err.message || 'Failed to load map')
@@ -337,13 +345,32 @@ function MapViewer() {
     }
   }
 
+  const handleTimelineChange = async (newTime) => {
+    const timeValue = parseInt(newTime)
+    setCurrentTime(timeValue)
+    
+    // Update world timeline position
+    try {
+      await worldService.updateTimelinePosition(map.worldId, timeValue)
+    } catch (err) {
+      console.error('Failed to update timeline position:', err)
+      // Continue silently - don't disrupt user interaction
+    }
+  }
+
   const handleTimelineToggle = async () => {
     setSaving(true)
     setSaveError('')
     
     try {
       const newTimelineEnabled = !map.timelineEnabled
-      const result = await mapService.updateMapTimeline(map.id, newTimelineEnabled)
+      const result = await worldService.updateWorldTimeline(map.worldId, {
+        timeline_enabled: newTimelineEnabled,
+        timeline_min_time: timelineSettings.minTime,
+        timeline_max_time: timelineSettings.maxTime,
+        timeline_current_time: newTimelineEnabled ? 50 : currentTime,
+        timeline_time_unit: timelineSettings.timeUnit
+      })
       
       // Update local map state
       setMap(prev => ({ ...prev, timelineEnabled: newTimelineEnabled }))
@@ -802,7 +829,7 @@ function MapViewer() {
                 min={timelineSettings.minTime}
                 max={timelineSettings.maxTime}
                 value={currentTime}
-                onChange={(e) => setCurrentTime(parseInt(e.target.value))}
+                onChange={(e) => handleTimelineChange(e.target.value)}
                 className="timeline-range"
               />
             </div>

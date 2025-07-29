@@ -86,6 +86,30 @@ const worldService = {
     }
   },
 
+  // Update world timeline settings
+  async updateWorldTimeline(id, timelineData) {
+    try {
+      const api = createAuthAPI()
+      const response = await api.put(`/${id}/timeline`, timelineData)
+      return response.data
+    } catch (error) {
+      console.error('Update world timeline error:', error)
+      throw error.response?.data || { message: 'Failed to update world timeline settings' }
+    }
+  },
+
+  // Update world timeline position
+  async updateTimelinePosition(id, currentTime) {
+    try {
+      const api = createAuthAPI()
+      const response = await api.post(`/${id}/timeline/time`, { current_time: currentTime })
+      return response.data
+    } catch (error) {
+      console.error('Update timeline position error:', error)
+      throw error.response?.data || { message: 'Failed to update timeline position' }
+    }
+  },
+
   // Get/Set current world from localStorage
   getCurrentWorldId() {
     return localStorage.getItem('current_world_id')
