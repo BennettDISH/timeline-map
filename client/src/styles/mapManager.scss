@@ -62,6 +62,12 @@
       // WorldSelector styles already defined
     }
 
+    .maps-section {
+      display: flex;
+      flex-direction: column;
+      min-height: 0; /* Allow shrinking */
+    }
+
     .maps-header {
       display: flex;
       justify-content: space-between;
@@ -141,8 +147,8 @@
 
           &:focus {
             outline: none;
-            border-color: #4299e1;
-            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+            border-color: #2d3748;
+            box-shadow: 0 0 0 3px rgba(45, 55, 72, 0.1);
           }
 
           &:disabled {
@@ -159,7 +165,7 @@
 
       .form-actions {
         button {
-          background: linear-gradient(135deg, #4299e1, #3182ce);
+          background: linear-gradient(135deg, #2d3748, #4a5568);
           color: white;
           border: none;
           padding: 14px 28px;
@@ -171,7 +177,7 @@
 
           &:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+            box-shadow: 0 4px 12px rgba(45, 55, 72, 0.3);
           }
 
           &:disabled {
@@ -187,6 +193,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 16px;
+      width: 100%;
 
       .maps-loading {
         background: white;
@@ -204,7 +211,7 @@
           width: 20px;
           height: 20px;
           border: 2px solid #e2e8f0;
-          border-top: 2px solid #4299e1;
+          border-top: 2px solid #2d3748;
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin-right: 10px;
@@ -305,7 +312,7 @@
           align-items: center;
 
           .view-map-button {
-            background: linear-gradient(135deg, #4299e1, #3182ce);
+            background: linear-gradient(135deg, #2d3748, #4a5568);
             color: white;
             text-decoration: none;
             padding: 10px 16px;
@@ -316,7 +323,7 @@
 
             &:hover {
               transform: translateY(-1px);
-              box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+              box-shadow: 0 4px 12px rgba(45, 55, 72, 0.3);
             }
           }
 

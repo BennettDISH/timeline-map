@@ -149,7 +149,7 @@ function MapManager() {
         </div>
 
         {currentWorld ? (
-          <>
+          <div className="maps-section">
             <div className="maps-header">
               <h2>Maps in {currentWorld.name}</h2>
               <div className="header-actions">
@@ -271,7 +271,7 @@ function MapManager() {
                 ))
               )}
             </div>
-          </>
+          </div>
         ) : (
           <div className="no-world-selected">
             <h2>No World Selected</h2>
