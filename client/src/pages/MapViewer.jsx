@@ -429,6 +429,12 @@ function MapViewer() {
 
   // Get the appropriate background image based on current timeline position
   const getCurrentBackgroundImage = () => {
+    console.log('getCurrentBackgroundImage called:', {
+      timelineEnabled: map?.timelineEnabled,
+      timelineImagesCount: timelineImages.length,
+      currentTime: currentTime
+    })
+    
     if (!map?.timelineEnabled || timelineImages.length === 0) {
       // Return the original map image if timeline is disabled or no timeline images
       return { url: map?.imageUrl, positioning: null }
@@ -436,10 +442,19 @@ function MapViewer() {
     
     // Find the image that should be displayed at the current time
     const activeImage = timelineImages.find(img => {
-      return currentTime >= img.startTime && currentTime <= img.endTime
+      const matches = currentTime >= img.startTime && currentTime <= img.endTime
+      console.log(`Checking timeline image ${img.id}:`, {
+        startTime: img.startTime,
+        endTime: img.endTime,
+        currentTime: currentTime,
+        matches: matches,
+        hasPositioning: !!(img.positionX || img.positionY || img.scale !== 1.0)
+      })
+      return matches
     })
     
     if (activeImage) {
+      console.log('Found active timeline image:', activeImage)
       return {
         url: activeImage.imageUrl,
         positioning: {
@@ -704,7 +719,18 @@ function MapViewer() {
             
             // Debug logging for positioning
             if (backgroundData.positioning) {
-              console.log('MapViewer: Applying positioning', backgroundData.positioning)
+              console.log('MapViewer: Timeline image found with positioning:', {
+                positionX: backgroundData.positioning.positionX,
+                positionY: backgroundData.positioning.positionY,
+                scale: backgroundData.positioning.scale,
+                url: backgroundData.url
+              })
+            } else {
+              console.log('MapViewer: Using regular map image (no positioning)', {
+                url: backgroundData.url,
+                timelineImagesCount: timelineImages.length,
+                currentTime: currentTime
+              })
             }
             
             // Apply positioning styles if available
