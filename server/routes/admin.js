@@ -119,15 +119,38 @@ router.post('/migrate', async (req, res) => {
       
       // Step 7: Add positioning columns to map_timeline_images table
       console.log('Adding positioning columns to map_timeline_images table...')
-      try {
-        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS position_x DECIMAL(5,2) DEFAULT 0.0')
-        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS position_y DECIMAL(5,2) DEFAULT 0.0')
-        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS scale DECIMAL(3,2) DEFAULT 1.0')
-        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS object_fit VARCHAR(20) DEFAULT \'cover\'')
-        console.log('✅ Positioning columns added to map_timeline_images table')
-      } catch (err) {
-        console.log('Note: Error adding positioning columns (may already exist):', err.message)
+      
+      // Check current table structure
+      const tableInfo = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'map_timeline_images'
+      `)
+      const existingColumns = tableInfo.rows.map(row => row.column_name)
+      console.log('Current map_timeline_images columns:', existingColumns)
+      
+      const columnsToAdd = [
+        { name: 'position_x', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
+        { name: 'position_y', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
+        { name: 'scale', definition: 'DECIMAL(3,2) DEFAULT 1.0' },
+        { name: 'object_fit', definition: 'VARCHAR(20) DEFAULT \'cover\'' }
+      ]
+      
+      for (const column of columnsToAdd) {
+        if (!existingColumns.includes(column.name)) {
+          try {
+            await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN ${column.name} ${column.definition}`)
+            console.log(`✅ Added column: ${column.name}`)
+          } catch (err) {
+            console.log(`❌ Failed to add column ${column.name}:`, err.message)
+            throw err // Re-throw to see the actual error
+          }
+        } else {
+          console.log(`⏭️ Column ${column.name} already exists`)
+        }
       }
+      
+      console.log('✅ All positioning columns processed successfully')
 
       console.log('✅ Database migration completed successfully!');
       console.log('📊 Migration added: worlds table, world_id columns, default world for existing data, image positioning');
