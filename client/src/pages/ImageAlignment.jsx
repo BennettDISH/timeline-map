@@ -169,8 +169,8 @@ function ImageAlignment() {
   const handleWheel = (e) => {
     e.preventDefault()
     
-    if (e.ctrlKey || e.metaKey) {
-      // Viewport zoom (Ctrl/Cmd + wheel)
+    if (e.shiftKey) {
+      // Viewport zoom (Shift + wheel)
       const delta = e.deltaY > 0 ? -0.1 : 0.1
       const newViewportScale = Math.max(0.1, Math.min(3.0, viewportScale + delta))
       setViewportScale(newViewportScale)
@@ -255,7 +255,7 @@ function ImageAlignment() {
       <div className="alignment-header">
         <div className="header-content">
           <h1>🎯 Align Timeline Image</h1>
-          <p>Drag the new image to align it with the reference. The reference image is shown at 30% opacity.</p>
+          <p>Drag the new image to align it with the reference. Shift + scroll wheel to zoom viewport. Drag background to pan.</p>
         </div>
         <div className="header-actions">
           <button onClick={resetViewport} className="reset-button">
