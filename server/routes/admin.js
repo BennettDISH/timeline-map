@@ -142,7 +142,7 @@ router.post('/migrate', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Database migration completed successfully!',
+        message: 'Database migration completed successfully! Added worlds table, world_id columns, default world, and image positioning support.',
         output: output.join('\n'),
         userCount: result.rows[0].count
       });

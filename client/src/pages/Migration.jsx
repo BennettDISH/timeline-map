@@ -13,7 +13,7 @@ function Migration() {
 
     try {
       const response = await axios.post('/api/setup/migrate')
-      setSuccess(response.data.message + ' - You can now create maps with timeline features!')
+      setSuccess(response.data.message + ' - You can now create maps with timeline features and use image alignment!')
     } catch (error) {
       console.error('Migration error:', error)
       setError(error.response?.data?.message || 'Migration failed. Please try again.')
@@ -37,6 +37,8 @@ function Migration() {
             <li>✅ timeline_enabled column to worlds table</li>
             <li>✅ World-level timeline settings and time scrubbing</li>
             <li>✅ Support for temporal events and node filtering</li>
+            <li>✅ Image positioning columns for timeline image alignment</li>
+            <li>✅ Visual alignment tools for background images</li>
           </ul>
         </div>
 
