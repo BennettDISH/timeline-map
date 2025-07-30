@@ -147,7 +147,14 @@ function ImageAlignment() {
       }, 1500)
     } catch (err) {
       console.error('Failed to save alignment:', err)
-      setError(err.response?.data?.message || 'Failed to save alignment')
+      const errorMessage = err.response?.data?.message || 'Failed to save alignment'
+      
+      // Check if it's a missing column error (needs migration)
+      if (errorMessage.includes('column "position_x" does not exist') || errorMessage.includes('position_x')) {
+        setError('Database migration required. Please run the migration from /migration to add positioning support.')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setSaving(false)
     }
