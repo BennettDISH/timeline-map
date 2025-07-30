@@ -94,14 +94,20 @@ function ImageAlignment() {
       const containerWidth = 1200 // Standard container width
       const containerHeight = 800 // Standard container height
       
-      const existingGridPos = percentToGrid(
-        targetImage.positionX || 0,
-        targetImage.positionY || 0,
-        containerWidth,
-        containerHeight
-      )
-      
-      setGridPosition(existingGridPos)
+      try {
+        const existingGridPos = percentToGrid(
+          targetImage.positionX || 0,
+          targetImage.positionY || 0,
+          containerWidth,
+          containerHeight
+        )
+        
+        setGridPosition(existingGridPos)
+      } catch (err) {
+        console.error('Error converting position to grid:', err)
+        // Fallback to default position
+        setGridPosition({ x: 0, y: 0 })
+      }
       setScale(targetImage.scale || 1.0)
       
       // Determine base image (reference for alignment)
@@ -127,8 +133,8 @@ function ImageAlignment() {
       y: e.clientY - rect.top
     })
     setDragOffset({
-      x: gridPosition.x,
-      y: gridPosition.y
+      x: gridPosition?.x || 0,
+      y: gridPosition?.y || 0
     })
   }
 
@@ -300,7 +306,7 @@ function ImageAlignment() {
           />
         </div>
         <div className="position-info">
-          Position: {gridToCoordinate(gridPosition.x, gridPosition.y)} ({gridPosition.x.toFixed(1)}, {gridPosition.y.toFixed(1)})
+          Position: {gridPosition ? `${gridToCoordinate(gridPosition.x, gridPosition.y)} (${gridPosition.x.toFixed(1)}, ${gridPosition.y.toFixed(1)})` : 'Loading...'}
         </div>
       </div>
 
@@ -326,7 +332,7 @@ function ImageAlignment() {
         )}
         
         {/* New Image Being Aligned */}
-        {timelineImage && (
+        {timelineImage && gridPosition && (
           <img
             ref={newImageRef}
             src={timelineImage.imageUrl}
