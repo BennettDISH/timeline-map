@@ -244,6 +244,41 @@ router.post('/migrate', async (req, res) => {
       }
     }
     
+    // Add positioning columns to map_timeline_images table for image alignment
+    console.log('Adding positioning columns to map_timeline_images table...')
+    
+    // Check current table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'map_timeline_images'
+    `)
+    const existingColumns = tableInfo.rows.map(row => row.column_name)
+    console.log('Current map_timeline_images columns:', existingColumns)
+    
+    const columnsToAdd = [
+      { name: 'position_x', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
+      { name: 'position_y', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
+      { name: 'scale', definition: 'DECIMAL(3,2) DEFAULT 1.0' },
+      { name: 'object_fit', definition: 'VARCHAR(20) DEFAULT \'cover\'' }
+    ]
+    
+    for (const column of columnsToAdd) {
+      if (!existingColumns.includes(column.name)) {
+        try {
+          await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN ${column.name} ${column.definition}`)
+          console.log(`✅ Added column: ${column.name}`)
+        } catch (err) {
+          console.log(`❌ Failed to add column ${column.name}:`, err.message)
+          throw err // Re-throw to see the actual error
+        }
+      } else {
+        console.log(`⏭️ Column ${column.name} already exists`)
+      }
+    }
+    
+    console.log('✅ All positioning columns processed successfully')
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 
@@ -253,12 +288,14 @@ router.post('/migrate', async (req, res) => {
     `);
     
     res.json({
-      message: 'Database migrations completed successfully',
+      message: 'Database migrations completed successfully! Added worlds table, world_id columns, default world, and image positioning support.',
       tablesFound: parseInt(tablesResult.rows[0].table_count),
       migrationsRun: [
         'Timeline fields added to worlds table',
-        'Timeline settings migrated from maps to worlds',
-        'World-level timeline system enabled'
+        'Timeline settings migrated from maps to worlds', 
+        'World-level timeline system enabled',
+        'Image positioning columns added to map_timeline_images table',
+        'Visual alignment tools for background images'
       ]
     });
     
