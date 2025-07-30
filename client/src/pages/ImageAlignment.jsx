@@ -301,7 +301,7 @@ function ImageAlignment() {
 
       <div className="alignment-controls">
         <div className="scale-control">
-          <label>Scale: {scale.toFixed(2)}x</label>
+          <label>Scale: {scale ? scale.toFixed(2) : '1.00'}x</label>
           <input
             type="range"
             min="0.1"
