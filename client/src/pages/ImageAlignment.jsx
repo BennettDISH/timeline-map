@@ -22,6 +22,12 @@ function ImageAlignment() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   
+  // Viewport controls (like map viewer)
+  const [viewportScale, setViewportScale] = useState(1)
+  const [viewportPosition, setViewportPosition] = useState({ x: 0, y: 0 })
+  const [isViewportDragging, setIsViewportDragging] = useState(false)
+  const [viewportDragStart, setViewportDragStart] = useState({ x: 0, y: 0 })
+  
   const containerRef = useRef(null)
   const newImageRef = useRef(null)
 
@@ -86,42 +92,74 @@ function ImageAlignment() {
   }
 
   const handleMouseDown = (e) => {
-    if (!newImageRef.current) return
-    
-    setIsDragging(true)
-    const rect = containerRef.current.getBoundingClientRect()
-    setDragStart({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    })
-    setDragOffset({
-      x: position.x,
-      y: position.y
-    })
+    if (e.target === newImageRef.current) {
+      // Dragging the alignment image
+      e.stopPropagation()
+      setIsDragging(true)
+      const rect = containerRef.current.getBoundingClientRect()
+      setDragStart({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      })
+      setDragOffset({
+        x: position.x,
+        y: position.y
+      })
+    }
+  }
+
+  const handleViewportMouseDown = (e) => {
+    // Dragging the viewport (background)
+    if (e.target === containerRef.current || e.target.classList.contains('base-image')) {
+      setIsViewportDragging(true)
+      setViewportDragStart({
+        x: e.clientX,
+        y: e.clientY
+      })
+    }
   }
 
   const handleMouseMove = (e) => {
-    if (!isDragging || !containerRef.current) return
+    if (isDragging && containerRef.current) {
+      // Image dragging
+      const rect = containerRef.current.getBoundingClientRect()
+      const currentX = e.clientX - rect.left
+      const currentY = e.clientY - rect.top
+      
+      const deltaX = currentX - dragStart.x
+      const deltaY = currentY - dragStart.y
+      
+      // Convert pixel movement to percentage relative to actual image size
+      const imageRect = newImageRef.current.getBoundingClientRect()
+      const percentX = (deltaX / imageRect.width) * 100
+      const percentY = (deltaY / imageRect.height) * 100
+      
+      setPosition({
+        x: dragOffset.x + percentX,
+        y: dragOffset.y + percentY
+      })
+    }
     
-    const rect = containerRef.current.getBoundingClientRect()
-    const currentX = e.clientX - rect.left
-    const currentY = e.clientY - rect.top
-    
-    const deltaX = currentX - dragStart.x
-    const deltaY = currentY - dragStart.y
-    
-    // Convert pixel movement to percentage
-    const percentX = (deltaX / rect.width) * 100
-    const percentY = (deltaY / rect.height) * 100
-    
-    setPosition({
-      x: dragOffset.x + percentX,
-      y: dragOffset.y + percentY
-    })
+    if (isViewportDragging) {
+      // Viewport panning
+      const deltaX = e.clientX - viewportDragStart.x
+      const deltaY = e.clientY - viewportDragStart.y
+      
+      setViewportPosition({
+        x: viewportPosition.x + deltaX,
+        y: viewportPosition.y + deltaY
+      })
+      
+      setViewportDragStart({
+        x: e.clientX,
+        y: e.clientY
+      })
+    }
   }
 
   const handleMouseUp = () => {
     setIsDragging(false)
+    setIsViewportDragging(false)
   }
 
   const handleScaleChange = (newScale) => {
@@ -130,14 +168,28 @@ function ImageAlignment() {
 
   const handleWheel = (e) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1 // Zoom out/in by 10% per wheel step
-    const newScale = scale + delta
-    handleScaleChange(newScale)
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Viewport zoom (Ctrl/Cmd + wheel)
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      const newViewportScale = Math.max(0.1, Math.min(3.0, viewportScale + delta))
+      setViewportScale(newViewportScale)
+    } else {
+      // Image scale (regular wheel)
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      const newScale = scale + delta
+      handleScaleChange(newScale)
+    }
   }
 
   const resetPosition = () => {
     setPosition({ x: 0, y: 0 })
     setScale(1.0)
+  }
+
+  const resetViewport = () => {
+    setViewportScale(1.0)
+    setViewportPosition({ x: 0, y: 0 })
   }
 
   const saveAlignment = async () => {
@@ -206,6 +258,9 @@ function ImageAlignment() {
           <p>Drag the new image to align it with the reference. The reference image is shown at 30% opacity.</p>
         </div>
         <div className="header-actions">
+          <button onClick={resetViewport} className="reset-button">
+            🔍 Reset View
+          </button>
           <button onClick={resetPosition} className="reset-button">
             🔄 Reset Position
           </button>
@@ -243,7 +298,7 @@ function ImageAlignment() {
           />
         </div>
         <div className="position-info">
-          Position: {position.x.toFixed(1)}%, {position.y.toFixed(1)}%
+          Position: {position.x.toFixed(1)}%, {position.y.toFixed(1)}% | View: {(viewportScale * 100).toFixed(0)}%
         </div>
       </div>
 
@@ -254,33 +309,43 @@ function ImageAlignment() {
         onMouseUp={handleMouseUp}  
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        onMouseDown={handleViewportMouseDown}
+        style={{
+          cursor: isViewportDragging ? 'grabbing' : 'grab'
+        }}
       >
-        {/* Grid background for reference */}
-
-        {/* Base/Reference Image */}
-        {baseImage && (
-          <img 
-            src={baseImage} 
-            alt="Reference image"
-            className="base-image"
-          />
-        )}
-        
-        {/* New Image Being Aligned */}
-        {timelineImage && (
-          <img
-            ref={newImageRef}
-            src={timelineImage.imageUrl}
-            alt="Image being aligned"
-            className={`alignment-image ${isDragging ? 'dragging' : ''}`}
-            style={{
-              transform: `translate(${position.x}%, ${position.y}%) scale(${scale})`,
-              cursor: isDragging ? 'grabbing' : 'grab'
-            }}
-            onMouseDown={handleMouseDown}
-            draggable={false}
-          />
-        )}
+        <div 
+          className="alignment-content"
+          style={{
+            transform: `translate(${viewportPosition.x}px, ${viewportPosition.y}px) scale(${viewportScale})`,
+            transformOrigin: '0 0'
+          }}
+        >
+          {/* Base/Reference Image */}
+          {baseImage && (
+            <img 
+              src={baseImage} 
+              alt="Reference image"
+              className="base-image"
+            />
+          )}
+          
+          {/* New Image Being Aligned */}
+          {timelineImage && (
+            <img
+              ref={newImageRef}
+              src={timelineImage.imageUrl}
+              alt="Image being aligned"
+              className={`alignment-image ${isDragging ? 'dragging' : ''}`}
+              style={{
+                transform: `translate(${position.x}%, ${position.y}%) scale(${scale})`,
+                cursor: isDragging ? 'grabbing' : 'grab'
+              }}
+              onMouseDown={handleMouseDown}
+              draggable={false}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
