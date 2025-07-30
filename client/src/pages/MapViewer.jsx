@@ -704,7 +704,14 @@ function MapViewer() {
             
             // Apply positioning styles if available
             const imageStyle = backgroundData.positioning ? {
-              transform: `translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              maxWidth: '90%',
+              maxHeight: '90%',
+              width: 'auto',
+              height: 'auto',
+              transform: `translate(-50%, -50%) translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
               objectFit: backgroundData.positioning.objectFit
             } : {}
             

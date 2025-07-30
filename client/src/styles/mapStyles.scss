@@ -415,6 +415,7 @@
     .map-content {
       position: relative;
       cursor: grab;
+      min-height: 400px; // Ensure container has height for absolutely positioned images
 
       .map-image {
         display: block;
@@ -423,6 +424,12 @@
         width: 100%;
         height: auto;
         object-fit: contain;
+        
+        // When positioned (timeline images with alignment data)
+        &[style*="position: absolute"] {
+          width: auto;
+          height: auto;
+        }
       }
 
       .no-map-image {
