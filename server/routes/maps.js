@@ -230,7 +230,7 @@ router.put('/:id', async (req, res) => {
           zoom_level = COALESCE($4, zoom_level),
           map_order = COALESCE($5, map_order),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $6
       RETURNING *
     `, [title, description, image_id, zoom_level, map_order, id]);
 
