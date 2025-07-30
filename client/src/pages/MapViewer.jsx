@@ -746,6 +746,11 @@ function MapViewer() {
               height: 'auto'
             }
             
+            // Debug the actual transform being applied
+            if (backgroundData.positioning) {
+              console.log('MapViewer: Applied transform:', imageStyle.transform)
+            }
+            
             return (
               <img 
                 ref={imageRef}

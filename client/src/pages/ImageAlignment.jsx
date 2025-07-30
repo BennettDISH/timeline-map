@@ -129,10 +129,9 @@ function ImageAlignment() {
       const deltaX = currentX - dragStart.x
       const deltaY = currentY - dragStart.y
       
-      // Convert pixel movement to percentage relative to actual image size
-      const imageRect = newImageRef.current.getBoundingClientRect()
-      const percentX = (deltaX / imageRect.width) * 100
-      const percentY = (deltaY / imageRect.height) * 100
+      // Convert pixel movement to percentage relative to container size (like map viewer)
+      const percentX = (deltaX / rect.width) * 100
+      const percentY = (deltaY / rect.height) * 100
       
       setPosition({
         x: dragOffset.x + percentX,
