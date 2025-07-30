@@ -125,7 +125,14 @@ function ImageAlignment() {
   }
 
   const handleScaleChange = (newScale) => {
-    setScale(Math.max(0.1, Math.min(3.0, newScale)))
+    setScale(Math.max(0.05, Math.min(5.0, newScale))) // Allow smaller zoom out (5%) and larger zoom in (500%)
+  }
+
+  const handleWheel = (e) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.1 : 0.1 // Zoom out/in by 10% per wheel step
+    const newScale = scale + delta
+    handleScaleChange(newScale)
   }
 
   const resetPosition = () => {
@@ -228,9 +235,9 @@ function ImageAlignment() {
           <label>Scale: {scale ? scale.toFixed(2) : '1.00'}x</label>
           <input
             type="range"
-            min="0.1"
-            max="3.0"
-            step="0.1"
+            min="0.05"
+            max="5.0"
+            step="0.05"
             value={scale}
             onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
           />
@@ -246,6 +253,7 @@ function ImageAlignment() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}  
         onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
       >
         {/* Grid background for reference */}
 
