@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { 
+  pixelsToGrid, 
+  gridToPixels, 
+  gridToCoordinate, 
+  generateGridLabels,
+  percentToGrid,
+  gridToPercent 
+} from '../utils/gridCoordinates'
 import '../styles/imageAlignment.scss'
 
 function ImageAlignment() {
@@ -15,12 +23,12 @@ function ImageAlignment() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
-  // Alignment state
-  const [position, setPosition] = useState({ x: 0, y: 0 })
+  // Alignment state - now using grid coordinates
+  const [gridPosition, setGridPosition] = useState({ x: 0, y: 0 }) // Grid units (can be decimal)
   const [scale, setScale] = useState(1.0)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 }) // Pixel coordinates for drag calculation
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }) // Grid coordinates at drag start
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
   
   const containerRef = useRef(null)
@@ -81,8 +89,19 @@ function ImageAlignment() {
       setMap(mapData)
       setTimelineImage(targetImage)
       
-      // Set initial position from existing data
-      setPosition({ x: targetImage.positionX || 0, y: targetImage.positionY || 0 })
+      // Convert existing percentage-based position to grid coordinates
+      // For now, assume a standard container size for conversion
+      const containerWidth = 1200 // Standard container width
+      const containerHeight = 800 // Standard container height
+      
+      const existingGridPos = percentToGrid(
+        targetImage.positionX || 0,
+        targetImage.positionY || 0,
+        containerWidth,
+        containerHeight
+      )
+      
+      setGridPosition(existingGridPos)
       setScale(targetImage.scale || 1.0)
       
       // Determine base image (reference for alignment)
@@ -108,8 +127,8 @@ function ImageAlignment() {
       y: e.clientY - rect.top
     })
     setDragOffset({
-      x: position.x,
-      y: position.y
+      x: gridPosition.x,
+      y: gridPosition.y
     })
   }
 
@@ -123,13 +142,13 @@ function ImageAlignment() {
     const deltaX = currentX - dragStart.x
     const deltaY = currentY - dragStart.y
     
-    // Convert pixel movement to percentage
-    const percentX = (deltaX / rect.width) * 100
-    const percentY = (deltaY / rect.height) * 100
+    // Convert pixel movement to grid units
+    const gridDeltaX = deltaX / 50 // 50px per grid unit
+    const gridDeltaY = deltaY / 50
     
-    setPosition({
-      x: dragOffset.x + percentX,
-      y: dragOffset.y + percentY
+    setGridPosition({
+      x: dragOffset.x + gridDeltaX,
+      y: dragOffset.y + gridDeltaY
     })
   }
 
@@ -142,7 +161,7 @@ function ImageAlignment() {
   }
 
   const resetPosition = () => {
-    setPosition({ x: 0, y: 0 })
+    setGridPosition({ x: 0, y: 0 })
     setScale(1.0)
   }
 
@@ -152,9 +171,22 @@ function ImageAlignment() {
     
     try {
       const api = createAuthAPI()
+      
+      // Convert grid coordinates back to percentages for storage (for now)
+      // TODO: Eventually migrate database to store grid coordinates directly
+      const containerWidth = containerDimensions.width || 1200
+      const containerHeight = containerDimensions.height || 800
+      
+      const percentPos = gridToPercent(
+        gridPosition.x,
+        gridPosition.y,
+        containerWidth,
+        containerHeight
+      )
+      
       await api.put(`/maps/${mapId}/timeline-images/${timelineImageId}`, {
-        position_x: position.x,
-        position_y: position.y,
+        position_x: percentPos.percentX,
+        position_y: percentPos.percentY,
         scale: scale
       })
       
@@ -181,49 +213,25 @@ function ImageAlignment() {
     navigate(`/map/${mapId}/settings`)
   }
 
-  // Generate grid labels
-  const generateGridLabels = () => {
-    const labels = []
+  // Generate grid labels using utility function
+  const getGridLabels = () => {
     const { width: containerWidth, height: containerHeight } = containerDimensions
-    const gridSize = 50
-
     if (!containerWidth || !containerHeight) return []
 
-    // Column labels (A, B, C, etc.)
-    for (let i = 0; i < Math.floor(containerWidth / gridSize); i++) {
-      const letter = String.fromCharCode(65 + (i % 26)) // A-Z, then AA, AB, etc.
-      const x = (i + 0.5) * gridSize
-      if (x < containerWidth) {
-        labels.push(
-          <span 
-            key={`col-${i}`}
-            className="grid-label column-label"
-            style={{ left: `${x}px` }}
-          >
-            {letter}
-          </span>
-        )
-      }
-    }
-
-    // Row labels (1, 2, 3, etc.)
-    for (let i = 0; i < Math.floor(containerHeight / gridSize); i++) {
-      const number = i + 1
-      const y = (i + 0.5) * gridSize
-      if (y < containerHeight) {
-        labels.push(
-          <span 
-            key={`row-${i}`}
-            className="grid-label row-label"
-            style={{ top: `${y}px` }}
-          >
-            {number}
-          </span>
-        )
-      }
-    }
-
-    return labels
+    const labels = generateGridLabels(containerWidth, containerHeight)
+    
+    return labels.map((label, index) => (
+      <span 
+        key={`${label.type}-${index}`}
+        className={`grid-label ${label.type}-label`}
+        style={{ 
+          left: label.type === 'column' ? `${label.x}px` : `${label.x}px`,
+          top: label.type === 'row' ? `${label.y}px` : `${label.y}px`
+        }}
+      >
+        {label.text}
+      </span>
+    ))
   }
 
   if (loading) {
@@ -292,7 +300,7 @@ function ImageAlignment() {
           />
         </div>
         <div className="position-info">
-          Position: {position.x.toFixed(1)}%, {position.y.toFixed(1)}%
+          Position: {gridToCoordinate(gridPosition.x, gridPosition.y)} ({gridPosition.x.toFixed(1)}, {gridPosition.y.toFixed(1)})
         </div>
       </div>
 
@@ -305,7 +313,7 @@ function ImageAlignment() {
       >
         {/* Grid Labels */}
         <div className="grid-labels">
-          {generateGridLabels()}
+          {getGridLabels()}
         </div>
 
         {/* Base/Reference Image */}
@@ -325,7 +333,7 @@ function ImageAlignment() {
             alt="Image being aligned"
             className={`alignment-image ${isDragging ? 'dragging' : ''}`}
             style={{
-              transform: `translate(${position.x}%, ${position.y}%) scale(${scale})`,
+              transform: `translate(${gridPosition.x * 50}px, ${gridPosition.y * 50}px) scale(${scale})`,
               cursor: isDragging ? 'grabbing' : 'grab'
             }}
             onMouseDown={handleMouseDown}
