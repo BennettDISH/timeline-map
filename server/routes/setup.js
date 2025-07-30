@@ -219,7 +219,10 @@ router.post('/migrate', async (req, res) => {
       }
     }
     
-    // Create map_timeline_images table for timeline-based map backgrounds
+    // Create or update map_timeline_images table for timeline-based map backgrounds WITH positioning
+    console.log('🔄 Setting up map_timeline_images table with positioning support...')
+    
+    // First, try to create the full table with positioning columns
     try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS map_timeline_images (
@@ -229,55 +232,57 @@ router.post('/migrate', async (req, res) => {
           start_time INTEGER NOT NULL DEFAULT 0,
           end_time INTEGER NOT NULL DEFAULT 100,
           is_default BOOLEAN DEFAULT false,
+          position_x DECIMAL(5,2) DEFAULT 0.0,
+          position_y DECIMAL(5,2) DEFAULT 0.0,
+          scale DECIMAL(3,2) DEFAULT 1.0,
+          object_fit VARCHAR(20) DEFAULT 'cover',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(map_id, image_id)
         )
       `);
-      console.log('✅ Created map_timeline_images table');
+      console.log('✅ Created map_timeline_images table with positioning columns');
     } catch (error) {
-      if (error.code === '42P07') { // Table already exists
-        console.log('ℹ️ map_timeline_images table already exists');
+      if (error.code === '42P07') {
+        console.log('ℹ️ map_timeline_images table already exists - checking for positioning columns');
       } else {
         console.error('Failed to create map_timeline_images table:', error);
         throw error;
       }
     }
     
-    // Add positioning columns to map_timeline_images table for image alignment
-    console.log('Adding positioning columns to map_timeline_images table...')
-    
-    // Check current table structure
-    const tableInfo = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'map_timeline_images'
-    `)
-    const existingColumns = tableInfo.rows.map(row => row.column_name)
-    console.log('Current map_timeline_images columns:', existingColumns)
+    // Always try to add positioning columns (in case table existed without them)
+    console.log('🔄 Ensuring positioning columns exist...')
     
     const columnsToAdd = [
-      { name: 'position_x', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
-      { name: 'position_y', definition: 'DECIMAL(5,2) DEFAULT 0.0' },
-      { name: 'scale', definition: 'DECIMAL(3,2) DEFAULT 1.0' },
-      { name: 'object_fit', definition: 'VARCHAR(20) DEFAULT \'cover\'' }
+      'position_x DECIMAL(5,2) DEFAULT 0.0',
+      'position_y DECIMAL(5,2) DEFAULT 0.0',
+      'scale DECIMAL(3,2) DEFAULT 1.0',
+      'object_fit VARCHAR(20) DEFAULT \'cover\''
     ]
     
-    for (const column of columnsToAdd) {
-      if (!existingColumns.includes(column.name)) {
+    for (const columnDef of columnsToAdd) {
+      const columnName = columnDef.split(' ')[0]
+      try {
+        await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS ${columnDef}`)
+        console.log(`✅ Ensured column exists: ${columnName}`)
+      } catch (err) {
+        // PostgreSQL doesn't support IF NOT EXISTS for ADD COLUMN, so try the old way
         try {
-          await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN ${column.name} ${column.definition}`)
-          console.log(`✅ Added column: ${column.name}`)
-        } catch (err) {
-          console.log(`❌ Failed to add column ${column.name}:`, err.message)
-          throw err // Re-throw to see the actual error
+          await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN ${columnDef}`)
+          console.log(`✅ Added column: ${columnName}`)
+        } catch (err2) {
+          if (err2.code === '42701') { // Column already exists
+            console.log(`⏭️ Column ${columnName} already exists`)
+          } else {
+            console.log(`❌ Failed to add column ${columnName}:`, err2.message)
+            throw err2
+          }
         }
-      } else {
-        console.log(`⏭️ Column ${column.name} already exists`)
       }
     }
     
-    console.log('✅ All positioning columns processed successfully')
+    console.log('✅ Map timeline images table ready with positioning support')
     
     // Check table counts for response
     const tablesResult = await pool.query(`

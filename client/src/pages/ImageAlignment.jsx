@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { 
-  pixelsToGrid, 
-  gridToPixels, 
-  gridToCoordinate, 
-  generateGridLabels,
-  percentToGrid,
-  gridToPercent 
-} from '../utils/gridCoordinates'
 import '../styles/imageAlignment.scss'
 
 function ImageAlignment() {
@@ -23,13 +15,12 @@ function ImageAlignment() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
-  // Alignment state - now using grid coordinates
-  const [gridPosition, setGridPosition] = useState({ x: 0, y: 0 }) // Grid units (can be decimal)
+  // Alignment state - using simple percentage positioning
+  const [position, setPosition] = useState({ x: 0, y: 0 }) // Percentage coordinates
   const [scale, setScale] = useState(1.0)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 }) // Pixel coordinates for drag calculation
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }) // Grid coordinates at drag start
-  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   
   const containerRef = useRef(null)
   const newImageRef = useRef(null)
@@ -40,21 +31,6 @@ function ImageAlignment() {
     }
   }, [mapId, timelineImageId])
 
-  // Update container dimensions for grid labels
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        setContainerDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
-        })
-      }
-    }
-
-    updateDimensions()
-    window.addEventListener('resize', updateDimensions)
-    return () => window.removeEventListener('resize', updateDimensions)
-  }, [loading])
 
   const createAuthAPI = () => {
     const token = localStorage.getItem('auth_token')
@@ -89,31 +65,11 @@ function ImageAlignment() {
       setMap(mapData)
       setTimelineImage(targetImage)
       
-      // Convert existing percentage-based position to grid coordinates
-      // For now, assume a standard container size for conversion
-      const containerWidth = 1200 // Standard container width
-      const containerHeight = 800 // Standard container height
-      
-      // Check if positioning data exists (requires database migration)
-      if (targetImage.positionX !== undefined && targetImage.positionY !== undefined) {
-        try {
-          const existingGridPos = percentToGrid(
-            targetImage.positionX || 0,
-            targetImage.positionY || 0,
-            containerWidth,
-            containerHeight
-          )
-          
-          setGridPosition(existingGridPos)
-        } catch (err) {
-          console.error('Error converting position to grid:', err)
-          setGridPosition({ x: 0, y: 0 })
-        }
-      } else {
-        // No positioning data - start at origin
-        console.log('No positioning data found - using default position')
-        setGridPosition({ x: 0, y: 0 })
-      }
+      // Set initial position from existing data (if available)
+      setPosition({ 
+        x: targetImage.positionX || 0, 
+        y: targetImage.positionY || 0 
+      })
       setScale(targetImage.scale || 1.0)
       
       // Determine base image (reference for alignment)
@@ -139,8 +95,8 @@ function ImageAlignment() {
       y: e.clientY - rect.top
     })
     setDragOffset({
-      x: gridPosition?.x || 0,
-      y: gridPosition?.y || 0
+      x: position.x,
+      y: position.y
     })
   }
 
@@ -154,13 +110,13 @@ function ImageAlignment() {
     const deltaX = currentX - dragStart.x
     const deltaY = currentY - dragStart.y
     
-    // Convert pixel movement to grid units
-    const gridDeltaX = deltaX / 50 // 50px per grid unit
-    const gridDeltaY = deltaY / 50
+    // Convert pixel movement to percentage
+    const percentX = (deltaX / rect.width) * 100
+    const percentY = (deltaY / rect.height) * 100
     
-    setGridPosition({
-      x: dragOffset.x + gridDeltaX,
-      y: dragOffset.y + gridDeltaY
+    setPosition({
+      x: dragOffset.x + percentX,
+      y: dragOffset.y + percentY
     })
   }
 
@@ -173,7 +129,7 @@ function ImageAlignment() {
   }
 
   const resetPosition = () => {
-    setGridPosition({ x: 0, y: 0 })
+    setPosition({ x: 0, y: 0 })
     setScale(1.0)
   }
 
@@ -184,21 +140,9 @@ function ImageAlignment() {
     try {
       const api = createAuthAPI()
       
-      // Convert grid coordinates back to percentages for storage (for now)
-      // TODO: Eventually migrate database to store grid coordinates directly
-      const containerWidth = containerDimensions.width || 1200
-      const containerHeight = containerDimensions.height || 800
-      
-      const percentPos = gridToPercent(
-        gridPosition.x,
-        gridPosition.y,
-        containerWidth,
-        containerHeight
-      )
-      
       await api.put(`/maps/${mapId}/timeline-images/${timelineImageId}`, {
-        position_x: percentPos.percentX,
-        position_y: percentPos.percentY,
+        position_x: position.x,
+        position_y: position.y,
         scale: scale
       })
       
@@ -225,26 +169,6 @@ function ImageAlignment() {
     navigate(`/map/${mapId}/settings`)
   }
 
-  // Generate grid labels using utility function
-  const getGridLabels = () => {
-    const { width: containerWidth, height: containerHeight } = containerDimensions
-    if (!containerWidth || !containerHeight) return []
-
-    const labels = generateGridLabels(containerWidth, containerHeight)
-    
-    return labels.map((label, index) => (
-      <span 
-        key={`${label.type}-${index}`}
-        className={`grid-label ${label.type}-label`}
-        style={{ 
-          left: label.type === 'column' ? `${label.x}px` : `${label.x}px`,
-          top: label.type === 'row' ? `${label.y}px` : `${label.y}px`
-        }}
-      >
-        {label.text}
-      </span>
-    ))
-  }
 
   if (loading) {
     return (
@@ -312,7 +236,7 @@ function ImageAlignment() {
           />
         </div>
         <div className="position-info">
-          Position: {gridPosition ? `${gridToCoordinate(gridPosition.x, gridPosition.y)} (${gridPosition.x.toFixed(1)}, ${gridPosition.y.toFixed(1)})` : 'Loading...'}
+          Position: {position.x.toFixed(1)}%, {position.y.toFixed(1)}%
         </div>
       </div>
 
@@ -323,10 +247,7 @@ function ImageAlignment() {
         onMouseUp={handleMouseUp}  
         onMouseLeave={handleMouseUp}
       >
-        {/* Grid Labels */}
-        <div className="grid-labels">
-          {getGridLabels()}
-        </div>
+        {/* Grid background for reference */}
 
         {/* Base/Reference Image */}
         {baseImage && (
@@ -338,14 +259,14 @@ function ImageAlignment() {
         )}
         
         {/* New Image Being Aligned */}
-        {timelineImage && gridPosition && (
+        {timelineImage && (
           <img
             ref={newImageRef}
             src={timelineImage.imageUrl}
             alt="Image being aligned"
             className={`alignment-image ${isDragging ? 'dragging' : ''}`}
             style={{
-              transform: `translate(${gridPosition.x * 50}px, ${gridPosition.y * 50}px) scale(${scale})`,
+              transform: `translate(${position.x}%, ${position.y}%) scale(${scale})`,
               cursor: isDragging ? 'grabbing' : 'grab'
             }}
             onMouseDown={handleMouseDown}
