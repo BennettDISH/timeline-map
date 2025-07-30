@@ -344,7 +344,7 @@ function MapSettings() {
                       </div>
                       <div className="image-actions">
                         <button
-                          onClick={() => window.open(`/map/${mapId}/align/${img.id}`, '_blank')}
+                          onClick={() => navigate(`/map/${mapId}/align/${img.id}`)}
                           className="align-button"
                           title="Align image position"
                           disabled={saving}
