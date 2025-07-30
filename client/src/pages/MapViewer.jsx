@@ -431,7 +431,7 @@ function MapViewer() {
   const getCurrentBackgroundImage = () => {
     if (!map?.timelineEnabled || timelineImages.length === 0) {
       // Return the original map image if timeline is disabled or no timeline images
-      return map?.imageUrl
+      return { url: map?.imageUrl, positioning: null }
     }
     
     // Find the image that should be displayed at the current time
@@ -440,17 +440,33 @@ function MapViewer() {
     })
     
     if (activeImage) {
-      return activeImage.imageUrl
+      return {
+        url: activeImage.imageUrl,
+        positioning: {
+          positionX: activeImage.positionX || 0,
+          positionY: activeImage.positionY || 0,
+          scale: activeImage.scale || 1.0,
+          objectFit: activeImage.objectFit || 'cover'
+        }
+      }
     }
     
     // Fall back to default image if one exists
     const defaultImage = timelineImages.find(img => img.isDefault)
     if (defaultImage) {
-      return defaultImage.imageUrl
+      return {
+        url: defaultImage.imageUrl,
+        positioning: {
+          positionX: defaultImage.positionX || 0,
+          positionY: defaultImage.positionY || 0,
+          scale: defaultImage.scale || 1.0,
+          objectFit: defaultImage.objectFit || 'cover'
+        }
+      }
     }
     
     // Fall back to original map image
-    return map?.imageUrl
+    return { url: map?.imageUrl, positioning: null }
   }
 
   // Filter nodes based on current time if timeline is enabled
@@ -675,20 +691,34 @@ function MapViewer() {
             transformOrigin: '0 0'
           }}
         >
-          {getCurrentBackgroundImage() ? (
-            <img 
-              ref={imageRef}
-              src={getCurrentBackgroundImage()} 
-              alt={map.title}
-              className="map-image"
-              draggable={false}
-            />
-          ) : (
-            <div className="no-map-image">
-              <h3>No Background Image</h3>
-              <p>This map doesn't have a background image set.</p>
-            </div>
-          )}
+          {(() => {
+            const backgroundData = getCurrentBackgroundImage()
+            if (!backgroundData.url) {
+              return (
+                <div className="no-map-image">
+                  <h3>No Background Image</h3>
+                  <p>This map doesn't have a background image set.</p>
+                </div>
+              )
+            }
+            
+            // Apply positioning styles if available
+            const imageStyle = backgroundData.positioning ? {
+              transform: `translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
+              objectFit: backgroundData.positioning.objectFit
+            } : {}
+            
+            return (
+              <img 
+                ref={imageRef}
+                src={backgroundData.url} 
+                alt={map.title}
+                className="map-image"
+                style={imageStyle}
+                draggable={false}
+              />
+            )
+          })()}
           
           {/* Render nodes */}
           {getVisibleNodes().map(node => (
