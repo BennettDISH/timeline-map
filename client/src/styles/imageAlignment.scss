@@ -228,8 +228,10 @@
 
     .base-image {
       position: absolute;
-      max-width: 90%;
-      max-height: 90%;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
       opacity: 0.5;
       pointer-events: none;
       user-select: none;
@@ -238,8 +240,10 @@
 
     .alignment-image {
       position: absolute;
-      max-width: 90%;
-      max-height: 90%;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
       opacity: 0.7;
       z-index: 2;
       user-select: none;
