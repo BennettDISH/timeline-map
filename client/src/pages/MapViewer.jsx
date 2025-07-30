@@ -702,6 +702,11 @@ function MapViewer() {
               )
             }
             
+            // Debug logging for positioning
+            if (backgroundData.positioning) {
+              console.log('MapViewer: Applying positioning', backgroundData.positioning)
+            }
+            
             // Apply positioning styles if available
             // Always use consistent image sizing to maintain node coordinate system
             const imageStyle = backgroundData.positioning ? {
