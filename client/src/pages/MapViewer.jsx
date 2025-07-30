@@ -703,7 +703,13 @@ function MapViewer() {
             }
             
             // Apply positioning styles if available
-            const imageStyle = backgroundData.positioning ? {
+            // Only use absolute positioning if the image has been manually positioned
+            const hasCustomPositioning = backgroundData.positioning && 
+              (backgroundData.positioning.positionX !== 0 || 
+               backgroundData.positioning.positionY !== 0 || 
+               backgroundData.positioning.scale !== 1.0)
+               
+            const imageStyle = hasCustomPositioning ? {
               position: 'absolute',
               top: '50%',
               left: '50%',
@@ -713,7 +719,11 @@ function MapViewer() {
               height: 'auto',
               transform: `translate(-50%, -50%) translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
               objectFit: backgroundData.positioning.objectFit
-            } : {}
+            } : {
+              // Keep standard styling for non-positioned images to maintain node alignment
+              width: '100%',
+              height: 'auto'
+            }
             
             return (
               <img 
