@@ -94,18 +94,24 @@ function ImageAlignment() {
       const containerWidth = 1200 // Standard container width
       const containerHeight = 800 // Standard container height
       
-      try {
-        const existingGridPos = percentToGrid(
-          targetImage.positionX || 0,
-          targetImage.positionY || 0,
-          containerWidth,
-          containerHeight
-        )
-        
-        setGridPosition(existingGridPos)
-      } catch (err) {
-        console.error('Error converting position to grid:', err)
-        // Fallback to default position
+      // Check if positioning data exists (requires database migration)
+      if (targetImage.positionX !== undefined && targetImage.positionY !== undefined) {
+        try {
+          const existingGridPos = percentToGrid(
+            targetImage.positionX || 0,
+            targetImage.positionY || 0,
+            containerWidth,
+            containerHeight
+          )
+          
+          setGridPosition(existingGridPos)
+        } catch (err) {
+          console.error('Error converting position to grid:', err)
+          setGridPosition({ x: 0, y: 0 })
+        }
+      } else {
+        // No positioning data - start at origin
+        console.log('No positioning data found - using default position')
         setGridPosition({ x: 0, y: 0 })
       }
       setScale(targetImage.scale || 1.0)
