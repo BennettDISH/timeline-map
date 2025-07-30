@@ -51,6 +51,7 @@ router.get('/', async (req, res) => {
       y: parseFloat(row.y_position),
       startTime: row.start_time,
       endTime: row.end_time,
+      timelineEnabled: row.timeline_enabled,
       imageId: row.image_id,
       imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
       createdBy: row.created_by_username,
@@ -109,6 +110,7 @@ router.get('/:id', async (req, res) => {
       y: parseFloat(row.y_position),
       startTime: row.start_time,
       endTime: row.end_time,
+      timelineEnabled: row.timeline_enabled,
       imageId: row.image_id,
       imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
       createdBy: row.created_by_username,
@@ -132,7 +134,7 @@ router.post('/', async (req, res) => {
   try {
     const { 
       title, description, content, map_id, x_position, y_position, 
-      start_time = 0, end_time = 100, image_id, tooltip_text, 
+      start_time = 0, end_time = 100, timeline_enabled = false, image_id, tooltip_text, 
       link_to_map_id, event_type = 'standard' 
     } = req.body;
     
@@ -189,14 +191,14 @@ router.post('/', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO events (
         title, description, content, map_id, x_position, y_position,
-        start_time, end_time, image_id, created_by, tooltip_text,
+        start_time, end_time, timeline_enabled, image_id, created_by, tooltip_text,
         link_to_map_id, event_type
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `, [
       title, description, content, map_id, x_position, y_position,
-      start_time, end_time, image_id || null, req.user.id, tooltip_text || null,
+      start_time, end_time, timeline_enabled, image_id || null, req.user.id, tooltip_text || null,
       link_to_map_id || null, event_type
     ]);
 
@@ -214,6 +216,7 @@ router.post('/', async (req, res) => {
         y: parseFloat(newEvent.y_position),
         startTime: newEvent.start_time,
         endTime: newEvent.end_time,
+        timelineEnabled: newEvent.timeline_enabled,
         imageId: newEvent.image_id,
         createdAt: newEvent.created_at,
         updatedAt: newEvent.updated_at,
@@ -235,7 +238,7 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       title, description, content, x_position, y_position, 
-      start_time, end_time, image_id, tooltip_text, 
+      start_time, end_time, timeline_enabled, image_id, tooltip_text, 
       link_to_map_id, event_type 
     } = req.body;
     
@@ -300,16 +303,17 @@ router.put('/:id', async (req, res) => {
           y_position = COALESCE($5, y_position),
           start_time = COALESCE($6, start_time),
           end_time = COALESCE($7, end_time),
-          image_id = COALESCE($8, image_id),
-          tooltip_text = COALESCE($9, tooltip_text),
-          link_to_map_id = COALESCE($10, link_to_map_id),
-          event_type = COALESCE($11, event_type),
+          timeline_enabled = COALESCE($8, timeline_enabled),
+          image_id = COALESCE($9, image_id),
+          tooltip_text = COALESCE($10, tooltip_text),
+          link_to_map_id = COALESCE($11, link_to_map_id),
+          event_type = COALESCE($12, event_type),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+      WHERE id = $13
       RETURNING *
     `, [
       title, description, content, x_position, y_position,
-      start_time, end_time, image_id, tooltip_text, 
+      start_time, end_time, timeline_enabled, image_id, tooltip_text, 
       link_to_map_id, event_type, id
     ]);
 
@@ -327,6 +331,7 @@ router.put('/:id', async (req, res) => {
         y: parseFloat(updatedEvent.y_position),
         startTime: updatedEvent.start_time,
         endTime: updatedEvent.end_time,
+        timelineEnabled: updatedEvent.timeline_enabled,
         imageId: updatedEvent.image_id,
         createdAt: updatedEvent.created_at,
         updatedAt: updatedEvent.updated_at,

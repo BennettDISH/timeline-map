@@ -30,6 +30,7 @@ function MapSettings() {
     isDefault: false
   })
   const [showTimelineForm, setShowTimelineForm] = useState(false)
+  const [editingTimelineImage, setEditingTimelineImage] = useState(null)
 
   useEffect(() => {
     if (mapId) {
@@ -114,13 +115,26 @@ function MapSettings() {
     
     try {
       const api = createAuthAPI()
-      await api.post(`/maps/${mapId}/timeline-images`, {
-        image_id: selectedImageId,
-        start_time: timelineFormData.startTime,
-        end_time: timelineFormData.endTime,
-        is_default: timelineFormData.isDefault
-      })
-      setSuccess('Timeline image added successfully!')
+      
+      if (editingTimelineImage) {
+        // Update existing timeline image
+        await api.put(`/maps/${mapId}/timeline-images/${editingTimelineImage.id}`, {
+          start_time: timelineFormData.startTime,
+          end_time: timelineFormData.endTime,
+          is_default: timelineFormData.isDefault
+        })
+        setSuccess('Timeline image updated successfully!')
+      } else {
+        // Create new timeline image
+        await api.post(`/maps/${mapId}/timeline-images`, {
+          image_id: selectedImageId,
+          start_time: timelineFormData.startTime,
+          end_time: timelineFormData.endTime,
+          is_default: timelineFormData.isDefault
+        })
+        setSuccess('Timeline image added successfully!')
+      }
+      
       setTimeout(() => setSuccess(''), 3000)
       
       // Reset form
@@ -131,11 +145,12 @@ function MapSettings() {
         isDefault: false
       })
       setShowTimelineForm(false)
+      setEditingTimelineImage(null)
       
       loadMapData() // Reload to get updated timeline images
     } catch (err) {
-      console.error('Failed to add timeline image:', err)
-      setError(err.response?.data?.message || 'Failed to add timeline image')
+      console.error('Failed to save timeline image:', err)
+      setError(err.response?.data?.message || 'Failed to save timeline image')
     } finally {
       setSaving(false)
     }
@@ -196,6 +211,28 @@ function MapSettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const startEditingTimelineImage = (timelineImage) => {
+    setEditingTimelineImage(timelineImage)
+    setSelectedImageId(timelineImage.imageId.toString())
+    setTimelineFormData({
+      startTime: timelineImage.startTime,
+      endTime: timelineImage.endTime,
+      isDefault: timelineImage.isDefault
+    })
+    setShowTimelineForm(true)
+  }
+
+  const cancelEditingTimelineImage = () => {
+    setEditingTimelineImage(null)
+    setSelectedImageId('')
+    setTimelineFormData({
+      startTime: 0,
+      endTime: 100,
+      isDefault: false
+    })
+    setShowTimelineForm(false)
   }
 
   if (loading) {
@@ -307,6 +344,14 @@ function MapSettings() {
                       </div>
                       <div className="image-actions">
                         <button
+                          onClick={() => startEditingTimelineImage(img)}
+                          className="edit-button"
+                          title="Edit timeline settings"
+                          disabled={saving}
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
                           onClick={() => toggleDefaultImage(img.id, img.isDefault)}
                           className={`default-button ${img.isDefault ? 'is-default' : ''}`}
                           title={img.isDefault ? 'Remove as default image' : 'Set as default image'}
@@ -331,11 +376,17 @@ function MapSettings() {
               {/* Add Timeline Image Form */}
               <div className="add-timeline-image">
                 <div className="add-timeline-header">
-                  <h3>Add Timeline Image</h3>
+                  <h3>{editingTimelineImage ? 'Edit Timeline Image' : 'Add Timeline Image'}</h3>
                   <button
-                    onClick={() => setShowTimelineForm(!showTimelineForm)}
+                    onClick={() => {
+                      if (editingTimelineImage) {
+                        cancelEditingTimelineImage()
+                      } else {
+                        setShowTimelineForm(!showTimelineForm)
+                      }
+                    }}
                     className="toggle-form-button"
-                    disabled={availableImages.length === 0}
+                    disabled={!editingTimelineImage && availableImages.length === 0}
                   >
                     {showTimelineForm ? '✕ Cancel' : '+ Add Timeline Image'}
                   </button>
@@ -349,10 +400,15 @@ function MapSettings() {
                         images={availableImages}
                         selectedImageId={selectedImageId}
                         onImageSelect={setSelectedImageId}
-                        disabled={saving}
+                        disabled={saving || editingTimelineImage}
                         placeholder="Choose an image..."
                         showPreview={true}
                       />
+                      {editingTimelineImage && (
+                        <small style={{color: '#718096', marginTop: '4px', display: 'block'}}>
+                          Cannot change image when editing. Delete and create new to use different image.
+                        </small>
+                      )}
                     </div>
                     
                     <div className="timeline-controls">
@@ -430,19 +486,14 @@ function MapSettings() {
                     
                     <div className="form-actions">
                       <button type="submit" disabled={saving || !selectedImageId} className="add-button">
-                        {saving ? '⏳ Adding...' : '+ Add to Timeline'}
+                        {saving 
+                          ? (editingTimelineImage ? '⏳ Updating...' : '⏳ Adding...') 
+                          : (editingTimelineImage ? '💾 Update Timeline' : '+ Add to Timeline')
+                        }
                       </button>
                       <button 
                         type="button" 
-                        onClick={() => {
-                          setShowTimelineForm(false)
-                          setSelectedImageId('')
-                          setTimelineFormData({
-                            startTime: 0,
-                            endTime: 100,
-                            isDefault: false
-                          })
-                        }}
+                        onClick={cancelEditingTimelineImage}
                         className="cancel-button"
                         disabled={saving}
                       >
