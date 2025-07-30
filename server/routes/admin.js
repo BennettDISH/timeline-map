@@ -117,8 +117,20 @@ router.post('/migrate', async (req, res) => {
         console.log('Default world already exists or no admin user found');
       }
       
+      // Step 7: Add positioning columns to map_timeline_images table
+      console.log('Adding positioning columns to map_timeline_images table...')
+      try {
+        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS position_x DECIMAL(5,2) DEFAULT 0.0')
+        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS position_y DECIMAL(5,2) DEFAULT 0.0')
+        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS scale DECIMAL(3,2) DEFAULT 1.0')
+        await pool.query('ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS object_fit VARCHAR(20) DEFAULT \'cover\'')
+        console.log('✅ Positioning columns added to map_timeline_images table')
+      } catch (err) {
+        console.log('Note: Error adding positioning columns (may already exist):', err.message)
+      }
+
       console.log('✅ Database migration completed successfully!');
-      console.log('📊 Migration added: worlds table, world_id columns, default world for existing data');
+      console.log('📊 Migration added: worlds table, world_id columns, default world for existing data, image positioning');
       
       // Test connection
       const result = await pool.query('SELECT COUNT(*) FROM users');

@@ -12,6 +12,7 @@ import Migration from './pages/Migration'
 import WorldSettings from './pages/WorldSettings'
 import MapSettings from './pages/MapSettings'
 import ImageManager from './pages/ImageManager'
+import ImageAlignment from './pages/ImageAlignment'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -96,6 +97,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <MapSettings />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/map/:mapId/align/:timelineImageId" 
+          element={
+            <ProtectedRoute>
+              <ImageAlignment />
             </ProtectedRoute>
           } 
         />

@@ -344,6 +344,14 @@ function MapSettings() {
                       </div>
                       <div className="image-actions">
                         <button
+                          onClick={() => window.open(`/map/${mapId}/align/${img.id}`, '_blank')}
+                          className="align-button"
+                          title="Align image position"
+                          disabled={saving}
+                        >
+                          🎯 Align
+                        </button>
+                        <button
                           onClick={() => startEditingTimelineImage(img)}
                           className="edit-button"
                           title="Edit timeline settings"

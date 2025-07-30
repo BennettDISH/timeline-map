@@ -99,6 +99,10 @@ CREATE TABLE IF NOT EXISTS map_timeline_images (
     start_time INTEGER NOT NULL DEFAULT 0,
     end_time INTEGER NOT NULL DEFAULT 100,
     is_default BOOLEAN DEFAULT false,
+    position_x DECIMAL(5,2) DEFAULT 0.0,
+    position_y DECIMAL(5,2) DEFAULT 0.0,
+    scale DECIMAL(3,2) DEFAULT 1.0,
+    object_fit VARCHAR(20) DEFAULT 'cover',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(map_id, image_id)

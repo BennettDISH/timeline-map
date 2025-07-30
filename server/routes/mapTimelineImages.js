@@ -39,6 +39,10 @@ router.get('/:mapId/timeline-images', async (req, res) => {
       startTime: row.start_time,
       endTime: row.end_time,
       isDefault: row.is_default,
+      positionX: parseFloat(row.position_x || 0),
+      positionY: parseFloat(row.position_y || 0),
+      scale: parseFloat(row.scale || 1.0),
+      objectFit: row.object_fit || 'cover',
       imageName: row.original_name,
       imageFilename: row.filename,
       imageUrl: row.file_path ? `${req.protocol}://${req.get('host')}${row.file_path}` : null,
@@ -58,7 +62,10 @@ router.get('/:mapId/timeline-images', async (req, res) => {
 router.post('/:mapId/timeline-images', async (req, res) => {
   try {
     const { mapId } = req.params;
-    const { image_id, start_time, end_time, is_default = false } = req.body;
+    const { 
+      image_id, start_time, end_time, is_default = false,
+      position_x = 0, position_y = 0, scale = 1.0, object_fit = 'cover'
+    } = req.body;
     
     if (!image_id || start_time === undefined || end_time === undefined) {
       return res.status(400).json({ message: 'Image ID, start time, and end time are required' });
@@ -116,10 +123,10 @@ router.post('/:mapId/timeline-images', async (req, res) => {
     }
     
     const result = await pool.query(`
-      INSERT INTO map_timeline_images (map_id, image_id, start_time, end_time, is_default)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO map_timeline_images (map_id, image_id, start_time, end_time, is_default, position_x, position_y, scale, object_fit)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [mapId, image_id, start_time, end_time, is_default]);
+    `, [mapId, image_id, start_time, end_time, is_default, position_x, position_y, scale, object_fit]);
     
     res.status(201).json({
       message: 'Timeline image added successfully',
@@ -130,6 +137,10 @@ router.post('/:mapId/timeline-images', async (req, res) => {
         startTime: result.rows[0].start_time,
         endTime: result.rows[0].end_time,
         isDefault: result.rows[0].is_default,
+        positionX: parseFloat(result.rows[0].position_x),
+        positionY: parseFloat(result.rows[0].position_y),
+        scale: parseFloat(result.rows[0].scale),
+        objectFit: result.rows[0].object_fit,
         createdAt: result.rows[0].created_at
       }
     });
@@ -148,7 +159,7 @@ router.post('/:mapId/timeline-images', async (req, res) => {
 router.put('/:mapId/timeline-images/:imageId', async (req, res) => {
   try {
     const { mapId, imageId } = req.params;
-    const { start_time, end_time, is_default } = req.body;
+    const { start_time, end_time, is_default, position_x, position_y, scale, object_fit } = req.body;
     
     // Verify user owns the map
     const mapCheck = await pool.query(`
@@ -189,10 +200,14 @@ router.put('/:mapId/timeline-images/:imageId', async (req, res) => {
       SET start_time = COALESCE($1, start_time),
           end_time = COALESCE($2, end_time),
           is_default = COALESCE($3, is_default),
+          position_x = COALESCE($4, position_x),
+          position_y = COALESCE($5, position_y),
+          scale = COALESCE($6, scale),
+          object_fit = COALESCE($7, object_fit),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4 AND map_id = $5
+      WHERE id = $8 AND map_id = $9
       RETURNING *
-    `, [start_time, end_time, is_default, imageId, mapId]);
+    `, [start_time, end_time, is_default, position_x, position_y, scale, object_fit, imageId, mapId]);
     
     res.json({
       message: 'Timeline image updated successfully',
@@ -203,6 +218,10 @@ router.put('/:mapId/timeline-images/:imageId', async (req, res) => {
         startTime: result.rows[0].start_time,
         endTime: result.rows[0].end_time,
         isDefault: result.rows[0].is_default,
+        positionX: parseFloat(result.rows[0].position_x),
+        positionY: parseFloat(result.rows[0].position_y),
+        scale: parseFloat(result.rows[0].scale),
+        objectFit: result.rows[0].object_fit,
         updatedAt: result.rows[0].updated_at
       }
     });
