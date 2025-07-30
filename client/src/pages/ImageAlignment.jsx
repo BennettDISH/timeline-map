@@ -21,6 +21,7 @@ function ImageAlignment() {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
   
   const containerRef = useRef(null)
   const newImageRef = useRef(null)
@@ -30,6 +31,22 @@ function ImageAlignment() {
       loadAlignmentData()
     }
   }, [mapId, timelineImageId])
+
+  // Update container dimensions for grid labels
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        setContainerDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        })
+      }
+    }
+
+    updateDimensions()
+    window.addEventListener('resize', updateDimensions)
+    return () => window.removeEventListener('resize', updateDimensions)
+  }, [loading])
 
   const createAuthAPI = () => {
     const token = localStorage.getItem('auth_token')
@@ -164,6 +181,51 @@ function ImageAlignment() {
     navigate(`/map/${mapId}/settings`)
   }
 
+  // Generate grid labels
+  const generateGridLabels = () => {
+    const labels = []
+    const { width: containerWidth, height: containerHeight } = containerDimensions
+    const gridSize = 50
+
+    if (!containerWidth || !containerHeight) return []
+
+    // Column labels (A, B, C, etc.)
+    for (let i = 0; i < Math.floor(containerWidth / gridSize); i++) {
+      const letter = String.fromCharCode(65 + (i % 26)) // A-Z, then AA, AB, etc.
+      const x = (i + 0.5) * gridSize
+      if (x < containerWidth) {
+        labels.push(
+          <span 
+            key={`col-${i}`}
+            className="grid-label column-label"
+            style={{ left: `${x}px` }}
+          >
+            {letter}
+          </span>
+        )
+      }
+    }
+
+    // Row labels (1, 2, 3, etc.)
+    for (let i = 0; i < Math.floor(containerHeight / gridSize); i++) {
+      const number = i + 1
+      const y = (i + 0.5) * gridSize
+      if (y < containerHeight) {
+        labels.push(
+          <span 
+            key={`row-${i}`}
+            className="grid-label row-label"
+            style={{ top: `${y}px` }}
+          >
+            {number}
+          </span>
+        )
+      }
+    }
+
+    return labels
+  }
+
   if (loading) {
     return (
       <div className="alignment-loading">
@@ -238,9 +300,14 @@ function ImageAlignment() {
         className="alignment-container"
         ref={containerRef}
         onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        onMouseUp={handleMouseUp}  
         onMouseLeave={handleMouseUp}
       >
+        {/* Grid Labels */}
+        <div className="grid-labels">
+          {generateGridLabels()}
+        </div>
+
         {/* Base/Reference Image */}
         {baseImage && (
           <img 
