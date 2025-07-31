@@ -1027,22 +1027,126 @@ function MapViewer() {
                 {/* Grid overlay for alignment */}
                 {alignmentMode && (
                   <div className="alignment-grid">
-                    {/* Vertical lines */}
-                    {[...Array(11)].map((_, i) => (
+                    {/* Vertical lines with labels */}
+                    {[...Array(21)].map((_, i) => (
                       <div 
                         key={`v${i}`}
-                        className="grid-line vertical"
-                        style={{ left: `${i * 10}%` }}
-                      />
+                        className={`grid-line vertical ${i % 2 === 0 ? 'major' : 'minor'}`}
+                        style={{ left: `${i * 5}%` }}
+                      >
+                        {i % 4 === 0 && (
+                          <span className="grid-label" style={{ 
+                            position: 'absolute', 
+                            top: '5px', 
+                            left: '2px', 
+                            fontSize: '10px', 
+                            color: '#007bff',
+                            background: 'rgba(255,255,255,0.8)',
+                            padding: '1px 3px',
+                            borderRadius: '2px'
+                          }}>
+                            {i * 5}%
+                          </span>
+                        )}
+                      </div>
                     ))}
-                    {/* Horizontal lines */}
-                    {[...Array(11)].map((_, i) => (
+                    {/* Horizontal lines with labels */}
+                    {[...Array(21)].map((_, i) => (
                       <div 
                         key={`h${i}`}
-                        className="grid-line horizontal"
-                        style={{ top: `${i * 10}%` }}
-                      />
+                        className={`grid-line horizontal ${i % 2 === 0 ? 'major' : 'minor'}`}
+                        style={{ top: `${i * 5}%` }}
+                      >
+                        {i % 4 === 0 && (
+                          <span className="grid-label" style={{ 
+                            position: 'absolute', 
+                            top: '2px', 
+                            left: '5px', 
+                            fontSize: '10px', 
+                            color: '#007bff',
+                            background: 'rgba(255,255,255,0.8)',
+                            padding: '1px 3px',
+                            borderRadius: '2px'
+                          }}>
+                            {i * 5}%
+                          </span>
+                        )}
+                      </div>
                     ))}
+                    
+                    {/* Position indicator crosshair */}
+                    {selectedTimelineImage && (
+                      <div 
+                        className="position-indicator"
+                        style={{
+                          position: 'absolute',
+                          left: `${imagePosition.x}%`,
+                          top: `${imagePosition.y}%`,
+                          width: '20px',
+                          height: '20px',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 10,
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute',
+                          left: '8px',
+                          top: '0',
+                          width: '4px',
+                          height: '20px',
+                          background: '#ff4444',
+                          borderRadius: '2px'
+                        }} />
+                        <div style={{
+                          position: 'absolute',
+                          left: '0',
+                          top: '8px',
+                          width: '20px',
+                          height: '4px',
+                          background: '#ff4444',
+                          borderRadius: '2px'
+                        }} />
+                        <div style={{
+                          position: 'absolute',
+                          left: '22px',
+                          top: '-2px',
+                          fontSize: '11px',
+                          color: '#ff4444',
+                          background: 'rgba(255,255,255,0.9)',
+                          padding: '2px 4px',
+                          borderRadius: '3px',
+                          border: '1px solid #ff4444',
+                          whiteSpace: 'nowrap',
+                          fontWeight: 'bold'
+                        }}>
+                          {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Alignment debug info */}
+                    {selectedTimelineImage && containerRef.current && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '10px',
+                        left: '10px',
+                        background: 'rgba(0,0,0,0.8)',
+                        color: 'white',
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        zIndex: 15,
+                        pointerEvents: 'none'
+                      }}>
+                        <div>Image: {selectedTimelineImage.imageName}</div>
+                        <div>Position: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</div>
+                        <div>Scale: {imageScale.toFixed(2)}x</div>
+                        <div>Container: {containerRef.current.getBoundingClientRect().width.toFixed(0)} × {containerRef.current.getBoundingClientRect().height.toFixed(0)}px</div>
+                        <div>Pixel offset: {((imagePosition.x / 100) * containerRef.current.getBoundingClientRect().width).toFixed(1)}px, {((imagePosition.y / 100) * containerRef.current.getBoundingClientRect().height).toFixed(1)}px</div>
+                      </div>
+                    )}
                   </div>
                 )}
                 

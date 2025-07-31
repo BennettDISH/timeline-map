@@ -50,22 +50,39 @@
   &.vertical {
     width: 1px;
     height: 100%;
-    background: rgba(0, 123, 255, 0.3);
-    border-right: 1px dashed rgba(0, 123, 255, 0.5);
+    
+    &.major {
+      background: rgba(0, 123, 255, 0.4);
+      border-right: 1px solid rgba(0, 123, 255, 0.6);
+    }
+    
+    &.minor {
+      background: rgba(0, 123, 255, 0.2);
+      border-right: 1px dashed rgba(0, 123, 255, 0.3);
+    }
   }
   
   &.horizontal {
-    height: 1px;
     width: 100%;
-    background: rgba(0, 123, 255, 0.3);
-    border-bottom: 1px dashed rgba(0, 123, 255, 0.5);
+    height: 1px;
+    
+    &.major {
+      background: rgba(0, 123, 255, 0.4);
+      border-bottom: 1px solid rgba(0, 123, 255, 0.6);
+    }
+    
+    &.minor {
+      background: rgba(0, 123, 255, 0.2);
+      border-bottom: 1px dashed rgba(0, 123, 255, 0.3);
+    }
   }
   
   // Make center lines more prominent
   &.vertical[style*="50%"],
   &.horizontal[style*="50%"] {
-    background: rgba(0, 123, 255, 0.6);
-    border-color: rgba(0, 123, 255, 0.8);
+    background: rgba(0, 123, 255, 0.8) !important;
+    border-color: rgba(0, 123, 255, 1) !important;
+    border-width: 2px !important;
   }
 }
 
