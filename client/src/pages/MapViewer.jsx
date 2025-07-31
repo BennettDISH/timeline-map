@@ -5,6 +5,7 @@ import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import axios from 'axios'
 import '../styles/timelineStyles.scss'
+import '../styles/alignmentStyles.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
@@ -43,6 +44,15 @@ function MapViewer() {
   })
   const [timelineImages, setTimelineImages] = useState([]) // Timeline-based background images
   
+  // Image alignment state (for timeline images)
+  const [alignmentMode, setAlignmentMode] = useState(false)
+  const [selectedTimelineImage, setSelectedTimelineImage] = useState(null)
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
+  const [imageScale, setImageScale] = useState(1.0)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [imageDragStart, setImageDragStart] = useState({ x: 0, y: 0 })
+  const [imageDragOffset, setImageDragOffset] = useState({ x: 0, y: 0 })
+  
   // Pan and zoom state
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -56,6 +66,7 @@ function MapViewer() {
   
   const containerRef = useRef(null)
   const imageRef = useRef(null)
+  const alignmentImageRef = useRef(null)
 
   useEffect(() => {
     if (mapId) {
@@ -145,13 +156,46 @@ function MapViewer() {
   const handleMouseDown = (e) => {
     if (isAddingNode || isDraggingNode) return // Don't drag map when adding nodes or dragging nodes
     
+    // Check if we're dragging the alignment image
+    if (alignmentMode && selectedTimelineImage && e.target === alignmentImageRef.current) {
+      e.stopPropagation()
+      setIsDraggingImage(true)
+      const rect = containerRef.current.getBoundingClientRect()
+      setImageDragStart({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      })
+      setImageDragOffset({
+        x: imagePosition.x,
+        y: imagePosition.y
+      })
+      return
+    }
+    
     setIsDragging(true)
     setLastMousePos({ x: e.clientX, y: e.clientY })
     // Remove preventDefault to avoid passive event listener issues
   }
 
   const handleMouseMove = (e) => {
-    if (isDragging && !isDraggingNode) {
+    if (isDraggingImage && selectedTimelineImage && containerRef.current) {
+      // Image alignment dragging
+      const rect = containerRef.current.getBoundingClientRect()
+      const currentX = e.clientX - rect.left
+      const currentY = e.clientY - rect.top
+      
+      const deltaX = currentX - imageDragStart.x
+      const deltaY = currentY - imageDragStart.y
+      
+      // Convert pixel movement to percentage relative to container size
+      const percentX = (deltaX / rect.width) * 100
+      const percentY = (deltaY / rect.height) * 100
+      
+      setImagePosition({
+        x: imageDragOffset.x + percentX,
+        y: imageDragOffset.y + percentY
+      })
+    } else if (isDragging && !isDraggingNode) {
       // Map dragging
       const deltaX = e.clientX - lastMousePos.x
       const deltaY = e.clientY - lastMousePos.y
@@ -204,7 +248,9 @@ function MapViewer() {
   }
 
   const handleMouseUp = async () => {
-    if (isDraggingNode && draggingNode) {
+    if (isDraggingImage) {
+      setIsDraggingImage(false)
+    } else if (isDraggingNode && draggingNode) {
       // Save the final position to database
       try {
         await handleNodeUpdate(draggingNode, {
@@ -225,23 +271,31 @@ function MapViewer() {
   const handleWheel = (e) => {
     e.preventDefault()
     
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newScale = Math.max(0.1, Math.min(5, scale * delta))
-    
-    // Zoom towards mouse position
-    const rect = containerRef.current.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
-    
-    const zoomPointX = (mouseX - position.x) / scale
-    const zoomPointY = (mouseY - position.y) / scale
-    
-    setPosition({
-      x: mouseX - zoomPointX * newScale,
-      y: mouseY - zoomPointY * newScale
-    })
-    
-    setScale(newScale)
+    if (e.shiftKey && alignmentMode) {
+      // Image scale adjustment (Shift + wheel in alignment mode)
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      const newImageScale = Math.max(0.05, Math.min(5.0, imageScale + delta))
+      setImageScale(newImageScale)
+    } else {
+      // Regular viewport zoom
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newScale = Math.max(0.1, Math.min(5, scale * delta))
+      
+      // Zoom towards mouse position
+      const rect = containerRef.current.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      const zoomPointX = (mouseX - position.x) / scale
+      const zoomPointY = (mouseY - position.y) / scale
+      
+      setPosition({
+        x: mouseX - zoomPointX * newScale,
+        y: mouseY - zoomPointY * newScale
+      })
+      
+      setScale(newScale)
+    }
   }
 
   const handleMapClick = async (e) => {
@@ -620,6 +674,25 @@ function MapViewer() {
         )}
       </div>
 
+      {alignmentMode && (
+        <div className="alignment-info">
+          <h3>🎯 Aligning Timeline Image</h3>
+          <p>Drag the timeline image to align it. Shift + scroll wheel to scale image.</p>
+          <div className="alignment-controls">
+            <label>Scale: {imageScale.toFixed(2)}x</label>
+            <input
+              type="range"
+              min="0.05"
+              max="5.0"
+              step="0.05"
+              value={imageScale}
+              onChange={(e) => setImageScale(parseFloat(e.target.value))}
+            />
+            <span>Position: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</span>
+          </div>
+        </div>
+      )}
+
       <div className="map-controls">
         <div className="view-controls">
           <button onClick={resetView} title="Reset view">
@@ -627,6 +700,7 @@ function MapViewer() {
           </button>
           <span className="zoom-level">
             Zoom: {Math.round(scale * 100)}%
+            {alignmentMode && ` | Image: ${(imageScale * 100).toFixed(0)}%`}
           </span>
           <div className="mode-toggle-container">
             <span className="mode-label">👁️ View</span>
@@ -653,14 +727,30 @@ function MapViewer() {
           </div>
           
           {interactionMode === 'edit' && (
-            <button 
-              onClick={handleTimelineToggle}
-              className={`timeline-toggle ${map?.timelineEnabled ? 'enabled' : 'disabled'}`}
-              title={`${map?.timelineEnabled ? 'Disable' : 'Enable'} timeline for this map`}
-              disabled={saving}
-            >
-              {map?.timelineEnabled ? '🕒 Timeline ON' : '🕒 Timeline OFF'}
-            </button>
+            <>
+              <button 
+                onClick={handleTimelineToggle}
+                className={`timeline-toggle ${map?.timelineEnabled ? 'enabled' : 'disabled'}`}
+                title={`${map?.timelineEnabled ? 'Disable' : 'Enable'} timeline for this map`}
+                disabled={saving}
+              >
+                {map?.timelineEnabled ? '🕒 Timeline ON' : '🕒 Timeline OFF'}
+              </button>
+              
+              {alignmentMode && (
+                <>
+                  <button onClick={resetImagePosition} className="reset-button">
+                    🔄 Reset Position
+                  </button>
+                  <button onClick={saveImageAlignment} disabled={saving} className="save-button">
+                    {saving ? '💾 Saving...' : '💾 Save Alignment'}
+                  </button>
+                  <button onClick={exitAlignmentMode} className="cancel-button">
+                    ✕ Exit Alignment
+                  </button>
+                </>
+              )}
+            </>
           )}
         </div>
         
@@ -752,14 +842,40 @@ function MapViewer() {
             }
             
             return (
-              <img 
-                ref={imageRef}
-                src={backgroundData.url} 
-                alt={map.title}
-                className="map-image"
-                style={imageStyle}
-                draggable={false}
-              />
+              <>
+                <img 
+                  ref={imageRef}
+                  src={backgroundData.url} 
+                  alt={map.title}
+                  className="map-image"
+                  style={imageStyle}
+                  draggable={false}
+                />
+                
+                {/* Alignment overlay image */}
+                {alignmentMode && selectedTimelineImage && (
+                  <img
+                    ref={alignmentImageRef}
+                    src={selectedTimelineImage.imageUrl}
+                    alt="Image being aligned"
+                    className={`alignment-image ${isDraggingImage ? 'dragging' : ''}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: 'auto',
+                      transform: `translate(${imagePosition.x}%, ${imagePosition.y}%) scale(${imageScale})`,
+                      transformOrigin: 'center center',
+                      cursor: isDraggingImage ? 'grabbing' : 'grab',
+                      opacity: 0.8,
+                      border: '2px dashed #007bff',
+                      zIndex: 5
+                    }}
+                    draggable={false}
+                  />
+                )}
+              </>
             )
           })()}
           
@@ -810,6 +926,12 @@ function MapViewer() {
       {saveError && (
         <div className="save-error">
           ❌ {saveError}
+        </div>
+      )}
+      
+      {alignmentMode && (
+        <div className="alignment-help">
+          💡 <strong>Alignment Mode:</strong> Drag the blue-bordered image to position it. Use Shift + scroll wheel to scale. Click the alignment button again to exit.
         </div>
       )}
 
@@ -992,6 +1114,30 @@ function MapViewer() {
           <div className="timeline-controls">
             <div className="timeline-label">
               <span>Timeline: {currentTime} {timelineSettings.timeUnit}</span>
+              {timelineImages.length > 0 && interactionMode === 'edit' && (
+                <div className="timeline-images">
+                  <span>Timeline Images: </span>
+                  {timelineImages.map(img => {
+                    const isActive = currentTime >= img.startTime && currentTime <= img.endTime
+                    return (
+                      <button
+                        key={img.id}
+                        className={`timeline-image-btn ${isActive ? 'active' : ''} ${selectedTimelineImage?.id === img.id ? 'aligning' : ''}`}
+                        onClick={() => {
+                          if (alignmentMode && selectedTimelineImage?.id === img.id) {
+                            exitAlignmentMode()
+                          } else {
+                            enterAlignmentMode(img)
+                          }
+                        }}
+                        title={`${img.title || 'Timeline Image'} (${img.startTime}-${img.endTime})`}
+                      >
+                        {selectedTimelineImage?.id === img.id ? '🎯' : isActive ? '📷' : '⏸️'}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <div className="timeline-slider">
               <input
