@@ -988,24 +988,48 @@ function MapViewer() {
               })
             }
             
-            // Apply positioning styles if available
-            // Use pixel-based positioning relative to container, not image dimensions
+            // Apply positioning styles using GRID COORDINATES
             const imageStyle = backgroundData.positioning && containerRef.current ? (() => {
               const containerRect = containerRef.current.getBoundingClientRect()
-              const pixelX = (backgroundData.positioning.positionX / 100) * containerRect.width
-              const pixelY = (backgroundData.positioning.positionY / 100) * containerRect.height
+              const centerX = containerRect.width / 2
+              const centerY = containerRect.height / 2
+              
+              // Convert percentage-based positioning to grid coordinates
+              // For now, treat percentages as grid coordinate offsets (we'll update this later)
+              const gridX = (backgroundData.positioning.positionX || 0) * 5 // Scale up percentage to grid units
+              const gridY = -(backgroundData.positioning.positionY || 0) * 5 // Negative for proper Y direction
+              
+              // Convert grid coordinates to screen pixels relative to fixed origin
+              const screenX = centerX + (gridX * scale) + position.x
+              const screenY = centerY + (gridY * scale) + position.y
+              
+              console.log('🎯 GRID POSITIONING:', {
+                percentagePos: { x: backgroundData.positioning.positionX, y: backgroundData.positioning.positionY },
+                gridPos: { x: gridX, y: gridY },
+                screenPos: { x: screenX, y: screenY },
+                scale: scale,
+                viewportOffset: position
+              })
               
               return {
+                position: 'absolute',
+                left: '0',
+                top: '0',
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                transform: `translate(${pixelX}px, ${pixelY}px) scale(${backgroundData.positioning.scale})`,
+                transform: `translate(${screenX - centerX}px, ${screenY - centerY}px) scale(${backgroundData.positioning.scale || 1})`,
                 transformOrigin: 'center center'
               }
             })() : {
+              position: 'absolute',
+              left: '0',
+              top: '0',
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
+              objectFit: 'cover',
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              transformOrigin: 'center center'
             }
             
             // Debug positioning and container info
@@ -1165,8 +1189,22 @@ function MapViewer() {
                     style={(() => {
                       if (!containerRef.current) return {};
                       const containerRect = containerRef.current.getBoundingClientRect()
-                      const pixelX = (imagePosition.x / 100) * containerRect.width
-                      const pixelY = (imagePosition.y / 100) * containerRect.height
+                      const centerX = containerRect.width / 2
+                      const centerY = containerRect.height / 2
+                      
+                      // Convert alignment position to grid coordinates
+                      const gridX = (imagePosition.x || 0) * 5 // Scale up percentage to grid units
+                      const gridY = -(imagePosition.y || 0) * 5 // Negative for proper Y direction
+                      
+                      // Convert grid coordinates to screen pixels relative to fixed origin
+                      const screenX = centerX + (gridX * scale) + position.x
+                      const screenY = centerY + (gridY * scale) + position.y
+                      
+                      console.log('🎯 ALIGNMENT OVERLAY GRID:', {
+                        percentagePos: { x: imagePosition.x, y: imagePosition.y },
+                        gridPos: { x: gridX, y: gridY },
+                        screenPos: { x: screenX, y: screenY }
+                      })
                       
                       return {
                         position: 'absolute',
@@ -1175,7 +1213,7 @@ function MapViewer() {
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
-                        transform: `translate(${pixelX}px, ${pixelY}px) scale(${imageScale})`,
+                        transform: `translate(${screenX - centerX}px, ${screenY - centerY}px) scale(${imageScale})`,
                         transformOrigin: 'center center',
                         cursor: isDraggingImage ? 'grabbing' : 'grab',
                         opacity: 0.5,
@@ -1192,41 +1230,59 @@ function MapViewer() {
             )
           })()}
           
-          {/* Render nodes */}
-          {getVisibleNodes().map(node => (
-            <div
-              key={node.id}
-              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${draggingNode?.id === node.id ? 'dragging' : ''}`}
-              style={{
-                left: `${node.x}%`,
-                top: `${node.y}%`,
-                cursor: isDraggingNode && draggingNode?.id === node.id 
-                  ? 'grabbing' 
-                  : interactionMode === 'edit' 
-                    ? 'grab' 
-                    : 'pointer'
-              }}
-              onMouseDown={(e) => handleNodeMouseDown(e, node)}
-              onClick={(e) => handleNodeClick(e, node)}
-              title={
-                interactionMode === 'view'
-                  ? node.eventType === 'standard' 
-                    ? 'Click to view info'
-                    : node.linkToMapId 
-                      ? 'Click to navigate to linked map'
-                      : 'Map node (no link set)'
-                  : 'Click to edit node'
-              }
-            >
-              <div className="node-marker">
-                {node.eventType === 'standard' ? 'ℹ️' : node.linkToMapId ? '🗺️' : '📍'}
+          {/* Render nodes using GRID COORDINATES */}
+          {getVisibleNodes().map(node => {
+            if (!containerRef.current) return null
+            
+            const containerRect = containerRef.current.getBoundingClientRect()
+            const centerX = containerRect.width / 2
+            const centerY = containerRect.height / 2
+            
+            // Convert node percentage position to grid coordinates
+            const gridX = (node.x || 0) * 5 // Scale up percentage to grid units  
+            const gridY = -(node.y || 0) * 5 // Negative for proper Y direction
+            
+            // Convert grid coordinates to screen pixels relative to fixed origin
+            const screenX = centerX + (gridX * scale) + position.x
+            const screenY = centerY + (gridY * scale) + position.y
+            
+            return (
+              <div
+                key={node.id}
+                className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${draggingNode?.id === node.id ? 'dragging' : ''}`}
+                style={{
+                  position: 'absolute',
+                  left: `${screenX}px`,
+                  top: `${screenY}px`,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: isDraggingNode && draggingNode?.id === node.id 
+                    ? 'grabbing' 
+                    : interactionMode === 'edit' 
+                      ? 'grab' 
+                      : 'pointer'
+                }}
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onClick={(e) => handleNodeClick(e, node)}
+                title={
+                  interactionMode === 'view'
+                    ? node.eventType === 'standard' 
+                      ? 'Click to view info'
+                      : node.linkToMapId 
+                        ? 'Click to navigate to linked map'
+                        : 'Map node (no link set)'
+                    : 'Click to edit node'
+                }
+              >
+                <div className="node-marker">
+                  {node.eventType === 'standard' ? 'ℹ️' : node.linkToMapId ? '🗺️' : '📍'}
+                </div>
+                <div className="node-tooltip">
+                  <strong>{node.title}</strong>
+                  <p>{node.content || node.description}</p>
+                </div>
               </div>
-              <div className="node-tooltip">
-                <strong>{node.title}</strong>
-                <p>{node.content || node.description}</p>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
