@@ -1027,17 +1027,17 @@ function MapViewer() {
                 {/* Grid overlay for alignment */}
                 {interactionMode === 'edit' && (
                   <div className="alignment-grid">
-                    {/* Vertical lines with labels - expanded grid */}
-                    {[...Array(101)].map((_, i) => (
+                    {/* Vertical grid lines */}
+                    {[...Array(21)].map((_, i) => (
                       <div 
                         key={`v${i}`}
                         className={`grid-line vertical ${i % 2 === 0 ? 'major' : 'minor'}`}
-                        style={{ left: `${40 + (i * 1)}%` }}
+                        style={{ left: `${i * 5}%` }}
                       >
-                        {i % 10 === 0 && (
+                        {i % 4 === 0 && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
-                            top: '205px', 
+                            top: '5px', 
                             left: '2px', 
                             fontSize: '10px', 
                             color: '#007bff',
@@ -1045,30 +1045,30 @@ function MapViewer() {
                             padding: '1px 3px',
                             borderRadius: '2px'
                           }}>
-                            {(i - 40)}%
+                            {i * 5}%
                           </span>
                         )}
                       </div>
                     ))}
-                    {/* Horizontal lines with labels - expanded grid */}
-                    {[...Array(101)].map((_, i) => (
+                    {/* Horizontal grid lines */}
+                    {[...Array(21)].map((_, i) => (
                       <div 
                         key={`h${i}`}
                         className={`grid-line horizontal ${i % 2 === 0 ? 'major' : 'minor'}`}
-                        style={{ top: `${40 + (i * 1)}%` }}
+                        style={{ top: `${i * 5}%` }}
                       >
-                        {i % 10 === 0 && (
+                        {i % 4 === 0 && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
                             top: '2px', 
-                            left: '205px', 
+                            left: '5px', 
                             fontSize: '10px', 
                             color: '#007bff',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '1px 3px',
                             borderRadius: '2px'
                           }}>
-                            {(i - 40)}%
+                            {i * 5}%
                           </span>
                         )}
                       </div>
@@ -1084,8 +1084,8 @@ function MapViewer() {
                           className="background-position-indicator"
                           style={{
                             position: 'absolute',
-                            left: `${200 + (currentBg.positioning.positionX || 0)}%`,
-                            top: `${200 + (currentBg.positioning.positionY || 0)}%`,
+                            left: `${currentBg.positioning.positionX || 0}%`,
+                            top: `${currentBg.positioning.positionY || 0}%`,
                             width: '20px',
                             height: '20px',
                             transform: 'translate(-50%, -50%)',
@@ -1136,8 +1136,8 @@ function MapViewer() {
                         className="position-indicator"
                         style={{
                           position: 'absolute',
-                          left: `${200 + imagePosition.x}%`,
-                          top: `${200 + imagePosition.y}%`,
+                          left: `${imagePosition.x}%`,
+                          top: `${imagePosition.y}%`,
                           width: '20px',
                           height: '20px',
                           transform: 'translate(-50%, -50%)',
