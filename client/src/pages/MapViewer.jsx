@@ -299,9 +299,9 @@ function MapViewer() {
         calculatedPercent: { imageX, imageY }
       })
       
-      // Keep within bounds
-      const boundedX = Math.max(0, Math.min(100, imageX))
-      const boundedY = Math.max(0, Math.min(100, imageY))
+      // No bounds constraints - nodes can be positioned anywhere on the grid
+      const boundedX = imageX
+      const boundedY = imageY
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
@@ -367,65 +367,61 @@ function MapViewer() {
   }
 
   const handleMapClick = async (e) => {
-    if (!isAddingNode) return
+    if (!isAddingNode || !containerRef.current) return
     
-    // Use simplified approach - mouse position relative to image directly
-    const imageRect = imageRef.current.getBoundingClientRect()
+    // Calculate click position relative to GRID COORDINATES (not image)
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const centerX = containerRect.width / 2
+    const centerY = containerRect.height / 2
     
-    const mouseX = e.clientX - imageRect.left
-    const mouseY = e.clientY - imageRect.top
+    // Mouse position relative to container
+    const mouseX = e.clientX - containerRect.left
+    const mouseY = e.clientY - containerRect.top
     
-    // Simplified calculation since image element now matches displayed image size
-    const imageX = (mouseX / imageRect.width) * 100
-    const imageY = (mouseY / imageRect.height) * 100
+    // Convert mouse position to grid coordinates
+    const gridX = (mouseX - centerX) / scale
+    const gridY = (mouseY - centerY) / scale
     
-    // Debug logging for placement
-    // Check what CSS is actually being applied
-    const img = imageRef.current
-    const computedStyle = window.getComputedStyle(img)
+    // Convert grid coordinates to percentage for storage (temporary)
+    const percentX = gridX / 5
+    const percentY = gridY / 5
     
-    console.log('Click placement debug (simplified):', {
-      imageRect: { width: imageRect.width, height: imageRect.height },
+    console.log('🎯 NODE PLACEMENT ON GRID:', {
       mousePos: { mouseX, mouseY },
-      calculatedPercent: { imageX, imageY },
-      css: {
-        width: computedStyle.width,
-        height: computedStyle.height,
-        objectFit: computedStyle.objectFit
-      }
+      gridPos: { x: gridX, y: gridY },
+      percentPos: { x: percentX, y: percentY },
+      scale: scale
     })
     
-    // Ensure coordinates are within bounds
-    if (imageX >= 0 && imageX <= 100 && imageY >= 0 && imageY <= 100) {
-      setSaving(true)
-      setSaveError('')
-      
-      try {
-        const newNodeData = {
-          title: `New ${nodeType === 'standard' ? 'Info' : 'Map'} Node`,
-          description: '',
-          content: 'Click to edit this node',
-          map_id: parseInt(mapId),
-          x_position: imageX,
-          y_position: imageY,
-          event_type: nodeType,
-          start_time: 0,
-          end_time: 100,
-          timeline_enabled: false
-        }
-        
-        const result = await eventService.createEvent(newNodeData)
-        const newNode = result.event
-        
-        setNodes([...nodes, newNode])
-        setSelectedNode(newNode)
-        setIsAddingNode(false)
-      } catch (err) {
-        console.error('Failed to create node:', err)
-        setSaveError(err.message || 'Failed to create node')
-      } finally {
-        setSaving(false)
+    // No bounds checking - nodes can be placed anywhere on the grid
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const newNodeData = {
+        title: `New ${nodeType === 'standard' ? 'Info' : 'Map'} Node`,
+        description: '',
+        content: 'Click to edit this node',
+        map_id: parseInt(mapId),
+        x_position: percentX,
+        y_position: percentY,
+        event_type: nodeType,
+        start_time: 0,
+        end_time: 100,
+        timeline_enabled: false
       }
+      
+      const result = await eventService.createEvent(newNodeData)
+      const newNode = result.event
+      
+      setNodes([...nodes, newNode])
+      setSelectedNode(newNode)
+      setIsAddingNode(false)
+    } catch (err) {
+      console.error('Failed to create node:', err)
+      setSaveError(err.message || 'Failed to create node')
+    } finally {
+      setSaving(false)
     }
   }
 
