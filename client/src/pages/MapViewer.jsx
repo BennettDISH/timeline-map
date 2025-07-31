@@ -989,14 +989,20 @@ function MapViewer() {
             }
             
             // Apply positioning styles if available
-            // Use object-fit cover to ensure consistent container filling
-            const imageStyle = backgroundData.positioning ? {
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover', // Fill container completely for consistent positioning
-              transform: `translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
-              transformOrigin: 'center center'
-            } : {
+            // Use pixel-based positioning relative to container, not image dimensions
+            const imageStyle = backgroundData.positioning && containerRef.current ? (() => {
+              const containerRect = containerRef.current.getBoundingClientRect()
+              const pixelX = (backgroundData.positioning.positionX / 100) * containerRect.width
+              const pixelY = (backgroundData.positioning.positionY / 100) * containerRect.height
+              
+              return {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: `translate(${pixelX}px, ${pixelY}px) scale(${backgroundData.positioning.scale})`,
+                transformOrigin: 'center center'
+              }
+            })() : {
               width: '100%',
               height: '100%',
               objectFit: 'cover'
@@ -1047,22 +1053,29 @@ function MapViewer() {
                     src={selectedTimelineImage.imageUrl}
                     alt="Image being aligned"
                     className={`alignment-image ${isDraggingImage ? 'dragging' : ''}`}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      transform: `translate(${imagePosition.x}%, ${imagePosition.y}%) scale(${imageScale})`,
-                      transformOrigin: 'center center',
-                      cursor: isDraggingImage ? 'grabbing' : 'grab',
-                      opacity: 0.5,
-                      border: '2px solid #007bff',
-                      borderRadius: '4px',
-                      boxShadow: '0 0 10px rgba(0,123,255,0.3)',
-                      zIndex: 5
-                    }}
+                    style={(() => {
+                      if (!containerRef.current) return {};
+                      const containerRect = containerRef.current.getBoundingClientRect()
+                      const pixelX = (imagePosition.x / 100) * containerRect.width
+                      const pixelY = (imagePosition.y / 100) * containerRect.height
+                      
+                      return {
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        transform: `translate(${pixelX}px, ${pixelY}px) scale(${imageScale})`,
+                        transformOrigin: 'center center',
+                        cursor: isDraggingImage ? 'grabbing' : 'grab',
+                        opacity: 0.5,
+                        border: '2px solid #007bff',
+                        borderRadius: '4px',
+                        boxShadow: '0 0 10px rgba(0,123,255,0.3)',
+                        zIndex: 5
+                      }
+                    })()}
                     draggable={false}
                   />
                 )}
