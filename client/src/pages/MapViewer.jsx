@@ -625,6 +625,80 @@ function MapViewer() {
     }))
     setHasUnsavedChanges(true)
   }
+  
+  // Image alignment functions
+  const enterAlignmentMode = (timelineImage) => {
+    setAlignmentMode(true)
+    setSelectedTimelineImage(timelineImage)
+    setImagePosition({ 
+      x: timelineImage.positionX || 0, 
+      y: timelineImage.positionY || 0 
+    })
+    setImageScale(timelineImage.scale || 1.0)
+    setInteractionMode('edit') // Switch to edit mode for alignment
+  }
+  
+  const exitAlignmentMode = () => {
+    setAlignmentMode(false)
+    setSelectedTimelineImage(null)
+    setImagePosition({ x: 0, y: 0 })
+    setImageScale(1.0)
+  }
+  
+  const resetImagePosition = () => {
+    setImagePosition({ x: 0, y: 0 })
+    setImageScale(1.0)
+  }
+  
+  const saveImageAlignment = async () => {
+    if (!selectedTimelineImage) return
+    
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const api = axios.create({
+        baseURL: '/api',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      })
+      
+      await api.put(`/maps/${mapId}/timeline-images/${selectedTimelineImage.id}`, {
+        position_x: imagePosition.x,
+        position_y: imagePosition.y,
+        scale: imageScale
+      })
+      
+      // Update the timeline image in local state
+      setTimelineImages(timelineImages.map(img => 
+        img.id === selectedTimelineImage.id 
+          ? { ...img, positionX: imagePosition.x, positionY: imagePosition.y, scale: imageScale }
+          : img
+      ))
+      
+      // Update selected image
+      setSelectedTimelineImage({
+        ...selectedTimelineImage,
+        positionX: imagePosition.x,
+        positionY: imagePosition.y,
+        scale: imageScale
+      })
+      
+      setSaveError('')
+    } catch (err) {
+      console.error('Failed to save image alignment:', err)
+      const errorMessage = err.response?.data?.message || 'Failed to save alignment'
+      
+      if (errorMessage.includes('column "position_x" does not exist') || errorMessage.includes('position_x')) {
+        setSaveError('Database migration required. Please run the migration from /migration to add positioning support.')
+      } else {
+        setSaveError(errorMessage)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleSaveChanges = async () => {
     if (!selectedNode || !hasUnsavedChanges) return
