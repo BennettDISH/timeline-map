@@ -674,10 +674,13 @@ function MapViewer() {
         )}
       </div>
 
-      {alignmentMode && (
+      {alignmentMode && selectedTimelineImage && (
         <div className="alignment-info">
-          <h3>🎯 Aligning Timeline Image</h3>
-          <p>Drag the timeline image to align it. Shift + scroll wheel to scale image.</p>
+          <h3>🎯 Aligning: {selectedTimelineImage.imageName || 'Timeline Image'}</h3>
+          <p>
+            <strong>Drag the blue-bordered image</strong> to position it against the background. 
+            <strong>Shift + scroll wheel</strong> to scale the alignment image.
+          </p>
           <div className="alignment-controls">
             <label>Scale: {imageScale.toFixed(2)}x</label>
             <input
@@ -868,8 +871,10 @@ function MapViewer() {
                       transform: `translate(${imagePosition.x}%, ${imagePosition.y}%) scale(${imageScale})`,
                       transformOrigin: 'center center',
                       cursor: isDraggingImage ? 'grabbing' : 'grab',
-                      opacity: 0.8,
-                      border: '2px dashed #007bff',
+                      opacity: 0.7,
+                      border: '3px dashed #007bff',
+                      borderRadius: '4px',
+                      boxShadow: '0 0 10px rgba(0,123,255,0.3)',
                       zIndex: 5
                     }}
                     draggable={false}
@@ -929,9 +934,10 @@ function MapViewer() {
         </div>
       )}
       
-      {alignmentMode && (
+      {alignmentMode && selectedTimelineImage && (
         <div className="alignment-help">
-          💡 <strong>Alignment Mode:</strong> Drag the blue-bordered image to position it. Use Shift + scroll wheel to scale. Click the alignment button again to exit.
+          💡 <strong>Alignment Active:</strong> The blue-bordered image is now overlaid on the background. 
+          Drag it to align with reference features. When satisfied, click "Save Alignment" or "Exit Alignment" above.
         </div>
       )}
 
@@ -1114,9 +1120,11 @@ function MapViewer() {
           <div className="timeline-controls">
             <div className="timeline-label">
               <span>Timeline: {currentTime} {timelineSettings.timeUnit}</span>
-              {timelineImages.length > 0 && interactionMode === 'edit' && (
+              {interactionMode === 'edit' && (
                 <div className="timeline-images">
-                  <span>Timeline Images: </span>
+                  {timelineImages.length > 0 ? (
+                    <>
+                      <span>Align Images: </span>
                   {timelineImages.map(img => {
                     const isActive = currentTime >= img.startTime && currentTime <= img.endTime
                     return (
@@ -1128,14 +1136,21 @@ function MapViewer() {
                             exitAlignmentMode()
                           } else {
                             enterAlignmentMode(img)
+                            // Also set timeline to this image's time range to make it visible
+                            const midTime = Math.floor((img.startTime + img.endTime) / 2)
+                            setCurrentTime(midTime)
                           }
                         }}
-                        title={`${img.title || 'Timeline Image'} (${img.startTime}-${img.endTime})`}
+                        title={`Align ${img.imageName || 'Timeline Image'} (${img.startTime}-${img.endTime})`}
                       >
-                        {selectedTimelineImage?.id === img.id ? '🎯' : isActive ? '📷' : '⏸️'}
+                        {selectedTimelineImage?.id === img.id ? '🎯 Aligning' : `📷 ${img.imageName || 'Image'}`}
                       </button>
                     )
                   })}
+                    </>
+                  ) : (
+                    <span style={{color: '#6c757d', fontSize: '0.9rem'}}>No timeline images yet - add them in Map Settings</span>
+                  )}
                 </div>
               )}
             </div>

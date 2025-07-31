@@ -326,7 +326,7 @@ function MapSettings() {
             <h2>🖼️ Timeline Background Images</h2>
             <p>Configure different background images for different time periods</p>
             <div className="alignment-info">
-              <p><strong>💡 Tip:</strong> After adding timeline images, use the "View & Align" button to position them in the map view. In edit mode, click the timeline image buttons to align their positioning.</p>
+              <p><strong>💡 Tip:</strong> After adding timeline images, go to the map view and switch to Edit mode. Timeline image alignment buttons will appear in the timeline scrubber.</p>
             </div>
             
             <div className="timeline-images-container">
@@ -346,14 +346,6 @@ function MapSettings() {
                         {img.isDefault && <span className="default-badge">Default</span>}
                       </div>
                       <div className="image-actions">
-                        <button
-                          onClick={() => navigate(`/map/${mapId}`)}
-                          className="align-button"
-                          title="Go to map view to align this image"
-                          disabled={saving}
-                        >
-                          🎯 View & Align
-                        </button>
                         <button
                           onClick={() => startEditingTimelineImage(img)}
                           className="edit-button"
