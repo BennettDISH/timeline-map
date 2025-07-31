@@ -677,10 +677,20 @@ function MapViewer() {
       {alignmentMode && selectedTimelineImage && (
         <div className="alignment-info">
           <h3>🎯 Aligning: {selectedTimelineImage.imageName || 'Timeline Image'}</h3>
-          <p>
-            <strong>Drag the blue-bordered image</strong> to position it against the background. 
-            <strong>Shift + scroll wheel</strong> to scale the alignment image.
-          </p>
+          <div className="alignment-workflow">
+            <div className="workflow-step">
+              <strong>1.</strong> Use the timeline scrubber to show the background you want to align against
+            </div>
+            <div className="workflow-step">
+              <strong>2.</strong> Drag the blue-bordered overlay image to align it with the background
+            </div>
+            <div className="workflow-step">
+              <strong>3.</strong> Use Shift + scroll wheel (or slider below) to scale the alignment image
+            </div>
+            <div className="workflow-step">
+              <strong>4.</strong> Click "Save Alignment" when positioned correctly
+            </div>
+          </div>
           <div className="alignment-controls">
             <label>Scale: {imageScale.toFixed(2)}x</label>
             <input
@@ -936,8 +946,8 @@ function MapViewer() {
       
       {alignmentMode && selectedTimelineImage && (
         <div className="alignment-help">
-          💡 <strong>Alignment Active:</strong> The blue-bordered image is now overlaid on the background. 
-          Drag it to align with reference features. When satisfied, click "Save Alignment" or "Exit Alignment" above.
+          💡 <strong>Tip:</strong> Move the timeline scrubber to show different background images, then align the blue-bordered overlay against them. 
+          This lets you position each timeline image relative to others at different time periods.
         </div>
       )}
 
@@ -1120,37 +1130,50 @@ function MapViewer() {
           <div className="timeline-controls">
             <div className="timeline-label">
               <span>Timeline: {currentTime} {timelineSettings.timeUnit}</span>
-              {interactionMode === 'edit' && (
-                <div className="timeline-images">
-                  {timelineImages.length > 0 ? (
-                    <>
-                      <span>Align Images: </span>
-                  {timelineImages.map(img => {
-                    const isActive = currentTime >= img.startTime && currentTime <= img.endTime
-                    return (
-                      <button
-                        key={img.id}
-                        className={`timeline-image-btn ${isActive ? 'active' : ''} ${selectedTimelineImage?.id === img.id ? 'aligning' : ''}`}
-                        onClick={() => {
-                          if (alignmentMode && selectedTimelineImage?.id === img.id) {
-                            exitAlignmentMode()
-                          } else {
-                            enterAlignmentMode(img)
-                            // Also set timeline to this image's time range to make it visible
-                            const midTime = Math.floor((img.startTime + img.endTime) / 2)
-                            setCurrentTime(midTime)
-                          }
-                        }}
-                        title={`Align ${img.imageName || 'Timeline Image'} (${img.startTime}-${img.endTime})`}
-                      >
-                        {selectedTimelineImage?.id === img.id ? '🎯 Aligning' : `📷 ${img.imageName || 'Image'}`}
-                      </button>
-                    )
-                  })}
-                    </>
-                  ) : (
-                    <span style={{color: '#6c757d', fontSize: '0.9rem'}}>No timeline images yet - add them in Map Settings</span>
-                  )}
+              {interactionMode === 'edit' && timelineImages.length > 0 && (
+                <div className="timeline-images-section">
+                  <div className="timeline-images-header">
+                    <span>Timeline Image Alignment:</span>
+                  </div>
+                  <div className="timeline-images-grid">
+                    {timelineImages.map(img => {
+                      const isActive = currentTime >= img.startTime && currentTime <= img.endTime
+                      const isAligning = selectedTimelineImage?.id === img.id
+                      return (
+                        <div key={img.id} className={`timeline-image-card ${isActive ? 'active' : ''} ${isAligning ? 'aligning' : ''}`}>
+                          <img 
+                            src={img.imageUrl} 
+                            alt={img.imageName}
+                            className="timeline-image-preview"
+                          />
+                          <div className="timeline-image-info">
+                            <strong>{img.imageName}</strong>
+                            <span>{img.startTime}-{img.endTime}</span>
+                          </div>
+                          <button
+                            className={`align-btn ${isAligning ? 'active' : ''}`}
+                            onClick={() => {
+                              if (alignmentMode && selectedTimelineImage?.id === img.id) {
+                                exitAlignmentMode()
+                              } else {
+                                enterAlignmentMode(img)
+                                // Don't change timeline position - keep current background visible
+                              }
+                            }}
+                            title={isAligning ? 'Exit alignment mode' : `Align this image against current background`}
+                          >
+                            {isAligning ? '✕ Exit' : '🎯 Align'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {interactionMode === 'edit' && timelineImages.length === 0 && (
+                <div className="no-timeline-images">
+                  <span>No timeline images yet - add them in Map Settings</span>
                 </div>
               )}
             </div>
