@@ -653,6 +653,13 @@ function MapViewer() {
   const saveImageAlignment = async () => {
     if (!selectedTimelineImage) return
     
+    console.log('Saving alignment:', {
+      imageId: selectedTimelineImage.id,
+      imageName: selectedTimelineImage.imageName,
+      position: imagePosition,
+      scale: imageScale
+    })
+    
     setSaving(true)
     setSaveError('')
     
@@ -664,11 +671,13 @@ function MapViewer() {
         }
       })
       
-      await api.put(`/maps/${mapId}/timeline-images/${selectedTimelineImage.id}`, {
+      const response = await api.put(`/maps/${mapId}/timeline-images/${selectedTimelineImage.id}`, {
         position_x: imagePosition.x,
         position_y: imagePosition.y,
         scale: imageScale
       })
+      
+      console.log('Alignment save response:', response.data)
       
       // Update the timeline image in local state
       setTimelineImages(timelineImages.map(img => 
@@ -781,24 +790,10 @@ function MapViewer() {
       </div>
 
       {alignmentMode && selectedTimelineImage && (
-        <div className="alignment-info">
-          <h3>🎯 Aligning: {selectedTimelineImage.imageName || 'Timeline Image'}</h3>
-          <div className="alignment-workflow">
-            <div className="workflow-step">
-              <strong>Background:</strong> Showing the chronologically previous timeline image as reference
-            </div>
-            <div className="workflow-step">
-              <strong>Overlay:</strong> The semi-transparent blue-bordered image is what you're aligning
-            </div>
-            <div className="workflow-step">
-              <strong>Align:</strong> Drag the overlay to match features in the background image
-            </div>
-            <div className="workflow-step">
-              <strong>Scale:</strong> Use Shift + scroll wheel or slider to resize if needed
-            </div>
-          </div>
-          <div className="alignment-controls">
-            <label>Scale: {imageScale.toFixed(2)}x</label>
+        <div className="alignment-info-compact">
+          <span className="alignment-title">🎯 Aligning: {selectedTimelineImage.imageName}</span>
+          <div className="alignment-controls-compact">
+            <span>Scale: {imageScale.toFixed(2)}x</span>
             <input
               type="range"
               min="0.05"
@@ -807,7 +802,7 @@ function MapViewer() {
               value={imageScale}
               onChange={(e) => setImageScale(parseFloat(e.target.value))}
             />
-            <span>Position: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</span>
+            <span>Pos: {imagePosition.x.toFixed(0)}%, {imagePosition.y.toFixed(0)}%</span>
           </div>
         </div>
       )}
@@ -970,6 +965,28 @@ function MapViewer() {
                   style={imageStyle}
                   draggable={false}
                 />
+                
+                {/* Grid overlay for alignment */}
+                {alignmentMode && (
+                  <div className="alignment-grid">
+                    {/* Vertical lines */}
+                    {[...Array(11)].map((_, i) => (
+                      <div 
+                        key={`v${i}`}
+                        className="grid-line vertical"
+                        style={{ left: `${i * 10}%` }}
+                      />
+                    ))}
+                    {/* Horizontal lines */}
+                    {[...Array(11)].map((_, i) => (
+                      <div 
+                        key={`h${i}`}
+                        className="grid-line horizontal"
+                        style={{ top: `${i * 10}%` }}
+                      />
+                    ))}
+                  </div>
+                )}
                 
                 {/* Alignment overlay image */}
                 {alignmentMode && selectedTimelineImage && (
