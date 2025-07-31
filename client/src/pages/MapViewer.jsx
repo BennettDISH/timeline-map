@@ -938,16 +938,17 @@ function MapViewer() {
             }
             
             // Apply positioning styles if available
-            // Always use consistent image sizing to maintain node coordinate system
+            // Use object-fit cover to ensure consistent container filling
             const imageStyle = backgroundData.positioning ? {
               width: '100%',
-              height: 'auto',
+              height: '100%',
+              objectFit: 'cover', // Fill container completely for consistent positioning
               transform: `translate(${backgroundData.positioning.positionX}%, ${backgroundData.positioning.positionY}%) scale(${backgroundData.positioning.scale})`,
-              transformOrigin: 'center center',
-              objectFit: backgroundData.positioning.objectFit
+              transformOrigin: 'center center'
             } : {
               width: '100%',
-              height: 'auto'
+              height: '100%',
+              objectFit: 'cover'
             }
             
             // Debug the actual transform being applied
@@ -1000,7 +1001,8 @@ function MapViewer() {
                       top: 0,
                       left: 0,
                       width: '100%',
-                      height: 'auto',
+                      height: '100%',
+                      objectFit: 'cover',
                       transform: `translate(${imagePosition.x}%, ${imagePosition.y}%) scale(${imageScale})`,
                       transformOrigin: 'center center',
                       cursor: isDraggingImage ? 'grabbing' : 'grab',
