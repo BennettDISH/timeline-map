@@ -219,30 +219,47 @@ function MapViewer() {
 
   const handleMouseMove = (e) => {
     if (isDraggingImage && selectedTimelineImage && containerRef.current) {
-      // Image alignment dragging
+      // Image alignment dragging using GRID COORDINATES
       const rect = containerRef.current.getBoundingClientRect()
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
+      
+      // Current mouse position relative to container
       const currentX = e.clientX - rect.left
       const currentY = e.clientY - rect.top
       
+      // Calculate mouse movement in pixels
       const deltaX = currentX - imageDragStart.x
       const deltaY = currentY - imageDragStart.y
       
-      // Convert pixel movement to percentage relative to container size
-      const percentX = (deltaX / rect.width) * 100
-      const percentY = (deltaY / rect.height) * 100
+      // Convert pixel movement to grid coordinate movement
+      const gridDeltaX = deltaX / scale
+      const gridDeltaY = -deltaY / scale // Negative for proper Y direction
+      
+      // Convert original percentage position to grid coordinates
+      const originalGridX = (imageDragOffset.x || 0) * 5
+      const originalGridY = -(imageDragOffset.y || 0) * 5
+      
+      // Calculate new grid position
+      const newGridX = originalGridX + gridDeltaX
+      const newGridY = originalGridY + gridDeltaY
+      
+      // Convert back to percentage for storage (temporary until we update storage)
+      const newPercentX = newGridX / 5
+      const newPercentY = -newGridY / 5
       
       const newPosition = {
-        x: imageDragOffset.x + percentX,
-        y: imageDragOffset.y + percentY
+        x: newPercentX,
+        y: newPercentY
       }
       
-      console.log('🖱️ DRAG DEBUG:', {
-        containerSize: { width: rect.width, height: rect.height },
+      console.log('🖱️ GRID DRAG DEBUG:', {
         mouseDelta: { deltaX, deltaY },
-        percentDelta: { percentX, percentY },
-        dragOffset: imageDragOffset,
-        newPosition,
-        selectedImage: selectedTimelineImage?.imageName
+        gridDelta: { gridDeltaX, gridDeltaY },
+        originalGrid: { x: originalGridX, y: originalGridY },
+        newGrid: { x: newGridX, y: newGridY },
+        newPercent: { x: newPercentX, y: newPercentY },
+        scale: scale
       })
       
       setImagePosition(newPosition)
