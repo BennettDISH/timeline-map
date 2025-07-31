@@ -1162,52 +1162,6 @@ function MapViewer() {
           <div className="timeline-controls">
             <div className="timeline-label">
               <span>Timeline: {currentTime} {timelineSettings.timeUnit}</span>
-              {interactionMode === 'edit' && timelineImages.length > 0 && (
-                <div className="timeline-images-section">
-                  <div className="timeline-images-header">
-                    <span>Timeline Image Alignment:</span>
-                  </div>
-                  <div className="timeline-images-grid">
-                    {timelineImages.map(img => {
-                      const isActive = currentTime >= img.startTime && currentTime <= img.endTime
-                      const isAligning = selectedTimelineImage?.id === img.id
-                      return (
-                        <div key={img.id} className={`timeline-image-card ${isActive ? 'active' : ''} ${isAligning ? 'aligning' : ''}`}>
-                          <img 
-                            src={img.imageUrl} 
-                            alt={img.imageName}
-                            className="timeline-image-preview"
-                          />
-                          <div className="timeline-image-info">
-                            <strong>{img.imageName}</strong>
-                            <span>{img.startTime}-{img.endTime}</span>
-                          </div>
-                          <button
-                            className={`align-btn ${isAligning ? 'active' : ''}`}
-                            onClick={() => {
-                              if (alignmentMode && selectedTimelineImage?.id === img.id) {
-                                exitAlignmentMode()
-                              } else {
-                                enterAlignmentMode(img)
-                                // Don't change timeline position - keep current background visible
-                              }
-                            }}
-                            title={isAligning ? 'Exit alignment mode' : `Align this image against current background`}
-                          >
-                            {isAligning ? '✕ Exit' : '🎯 Align'}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {interactionMode === 'edit' && timelineImages.length === 0 && (
-                <div className="no-timeline-images">
-                  <span>No timeline images yet - add them in Map Settings</span>
-                </div>
-              )}
             </div>
             <div className="timeline-slider">
               <input
@@ -1223,6 +1177,39 @@ function MapViewer() {
               <span>{timelineSettings.minTime}</span>
               <span>{timelineSettings.maxTime}</span>
             </div>
+            
+            {/* Timeline image dots */}
+            {interactionMode === 'edit' && timelineImages.length > 0 && (
+              <div className="timeline-dots">
+                {timelineImages.map((img, index) => {
+                  const isActive = currentTime >= img.startTime && currentTime <= img.endTime
+                  const isAligning = selectedTimelineImage?.id === img.id
+                  const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c']
+                  const color = colors[index % colors.length]
+                  
+                  return (
+                    <button
+                      key={img.id}
+                      className={`timeline-dot ${isActive ? 'active' : ''} ${isAligning ? 'aligning' : ''}`}
+                      style={{
+                        backgroundColor: color,
+                        borderColor: isActive ? color : '#dee2e6'
+                      }}
+                      onClick={() => {
+                        if (alignmentMode && selectedTimelineImage?.id === img.id) {
+                          exitAlignmentMode()
+                        } else {
+                          enterAlignmentMode(img)
+                        }
+                      }}
+                      title={`${img.imageName || 'Timeline Image'} (${img.startTime}-${img.endTime})${isAligning ? ' - Click to exit alignment' : ' - Click to align'}`}
+                    >
+                      {isAligning ? '🎯' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
