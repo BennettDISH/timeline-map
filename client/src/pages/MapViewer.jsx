@@ -1025,7 +1025,7 @@ function MapViewer() {
                 />
                 
                 {/* Grid overlay for alignment */}
-                {alignmentMode && (
+                {interactionMode === 'edit' && (
                   <div className="alignment-grid">
                     {/* Vertical lines with labels */}
                     {[...Array(21)].map((_, i) => (
@@ -1074,8 +1074,64 @@ function MapViewer() {
                       </div>
                     ))}
                     
-                    {/* Position indicator crosshair */}
-                    {selectedTimelineImage && (
+                    {/* Position indicator for current background image */}
+                    {(() => {
+                      const currentBg = getCurrentBackgroundData()
+                      if (!currentBg || !currentBg.positioning) return null
+                      
+                      return (
+                        <div 
+                          className="background-position-indicator"
+                          style={{
+                            position: 'absolute',
+                            left: `${currentBg.positioning.positionX || 0}%`,
+                            top: `${currentBg.positioning.positionY || 0}%`,
+                            width: '20px',
+                            height: '20px',
+                            transform: 'translate(-50%, -50%)',
+                            zIndex: 9,
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute',
+                            left: '8px',
+                            top: '0',
+                            width: '4px',
+                            height: '20px',
+                            background: '#00ff44',
+                            borderRadius: '2px'
+                          }} />
+                          <div style={{
+                            position: 'absolute',
+                            left: '0',
+                            top: '8px',
+                            width: '20px',
+                            height: '4px',
+                            background: '#00ff44',
+                            borderRadius: '2px'
+                          }} />
+                          <div style={{
+                            position: 'absolute',
+                            left: '22px',
+                            top: '-2px',
+                            fontSize: '11px',
+                            color: '#00ff44',
+                            background: 'rgba(0,0,0,0.8)',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            border: '1px solid #00ff44',
+                            whiteSpace: 'nowrap',
+                            fontWeight: 'bold'
+                          }}>
+                            BG: {(currentBg.positioning.positionX || 0).toFixed(1)}%, {(currentBg.positioning.positionY || 0).toFixed(1)}%
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    
+                    {/* Position indicator crosshair for alignment overlay */}
+                    {alignmentMode && selectedTimelineImage && (
                       <div 
                         className="position-indicator"
                         style={{
@@ -1120,33 +1176,45 @@ function MapViewer() {
                           whiteSpace: 'nowrap',
                           fontWeight: 'bold'
                         }}>
-                          {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%
+                          ALIGN: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%
                         </div>
                       </div>
                     )}
                     
-                    {/* Alignment debug info */}
-                    {selectedTimelineImage && containerRef.current && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '10px',
-                        left: '10px',
-                        background: 'rgba(0,0,0,0.8)',
-                        color: 'white',
-                        padding: '8px 12px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontFamily: 'monospace',
-                        zIndex: 15,
-                        pointerEvents: 'none'
-                      }}>
-                        <div>Image: {selectedTimelineImage.imageName}</div>
-                        <div>Position: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</div>
-                        <div>Scale: {imageScale.toFixed(2)}x</div>
-                        <div>Container: {containerRef.current.getBoundingClientRect().width.toFixed(0)} × {containerRef.current.getBoundingClientRect().height.toFixed(0)}px</div>
-                        <div>Pixel offset: {((imagePosition.x / 100) * containerRef.current.getBoundingClientRect().width).toFixed(1)}px, {((imagePosition.y / 100) * containerRef.current.getBoundingClientRect().height).toFixed(1)}px</div>
-                      </div>
-                    )}
+                    {/* Debug info for current background image */}
+                    {containerRef.current && (() => {
+                      const currentBg = getCurrentBackgroundData()
+                      if (!currentBg || !currentBg.positioning) return null
+                      
+                      return (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          background: 'rgba(0,0,0,0.8)',
+                          color: 'white',
+                          padding: '8px 12px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          zIndex: 15,
+                          pointerEvents: 'none'
+                        }}>
+                          <div>Current: {currentBg.imageName}</div>
+                          <div>Position: {currentBg.positioning.positionX?.toFixed(1) || 0}%, {currentBg.positioning.positionY?.toFixed(1) || 0}%</div>
+                          <div>Scale: {currentBg.positioning.scale?.toFixed(2) || 1.00}x</div>
+                          <div>Container: {containerRef.current.getBoundingClientRect().width.toFixed(0)} × {containerRef.current.getBoundingClientRect().height.toFixed(0)}px</div>
+                          <div>Pixel offset: {((currentBg.positioning.positionX || 0) / 100 * containerRef.current.getBoundingClientRect().width).toFixed(1)}px, {((currentBg.positioning.positionY || 0) / 100 * containerRef.current.getBoundingClientRect().height).toFixed(1)}px</div>
+                          {alignmentMode && selectedTimelineImage && (
+                            <div style={{ borderTop: '1px solid #666', paddingTop: '4px', marginTop: '4px' }}>
+                              <div>Aligning: {selectedTimelineImage.imageName}</div>
+                              <div>New pos: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</div>
+                              <div>New scale: {imageScale.toFixed(2)}x</div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
                 
