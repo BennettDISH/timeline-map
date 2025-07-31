@@ -1024,32 +1024,24 @@ function MapViewer() {
                   draggable={false}
                 />
                 
-                {/* Infinite coordinate grid */}
+                {/* Fixed coordinate grid - NEVER moves */}
                 {interactionMode === 'edit' && containerRef.current && (() => {
                   const containerRect = containerRef.current.getBoundingClientRect()
                   const centerX = containerRect.width / 2
                   const centerY = containerRect.height / 2
                   
-                  // Grid spacing in pixels (scales with zoom)
+                  // Fixed grid spacing in pixels (scales with zoom for visibility)
                   const gridSpacing = 50 * scale
                   
-                  // Calculate visible grid range
-                  const leftmostX = -position.x - centerX
-                  const rightmostX = -position.x + centerX
-                  const topmostY = -position.y - centerY
-                  const bottommostY = -position.y + centerY
-                  
-                  const startGridX = Math.floor(leftmostX / gridSpacing) - 2
-                  const endGridX = Math.ceil(rightmostX / gridSpacing) + 2
-                  const startGridY = Math.floor(topmostY / gridSpacing) - 2
-                  const endGridY = Math.ceil(bottommostY / gridSpacing) + 2
+                  // Calculate grid range to cover expanded view
+                  const gridRange = 50 // Show 50 grid lines in each direction
                   
                   const verticalLines = []
                   const horizontalLines = []
                   
-                  // Generate vertical lines
-                  for (let i = startGridX; i <= endGridX; i++) {
-                    const x = centerX + position.x + (i * gridSpacing)
+                  // Generate vertical lines - FIXED positions
+                  for (let i = -gridRange; i <= gridRange; i++) {
+                    const x = centerX + (i * gridSpacing)
                     const gridCoord = i
                     const isMajor = i % 5 === 0
                     
@@ -1061,20 +1053,21 @@ function MapViewer() {
                           left: `${x}px`,
                           top: 0,
                           height: '100%',
-                          position: 'absolute'
+                          position: 'fixed' // FIXED - never moves!
                         }}
                       >
                         {isMajor && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
-                            top: `${centerY + position.y + 5}px`, 
+                            top: `${centerY + 5}px`, 
                             left: '2px', 
                             fontSize: `${10 / scale}px`, 
                             color: '#007bff',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '1px 3px',
                             borderRadius: '2px',
-                            transform: `scale(${Math.min(1, 1/scale)})`
+                            transform: `scale(${Math.min(1, 1/scale)})`,
+                            pointerEvents: 'none'
                           }}>
                             {gridCoord * 50}
                           </span>
@@ -1083,9 +1076,9 @@ function MapViewer() {
                     )
                   }
                   
-                  // Generate horizontal lines
-                  for (let i = startGridY; i <= endGridY; i++) {
-                    const y = centerY + position.y + (i * gridSpacing)
+                  // Generate horizontal lines - FIXED positions
+                  for (let i = -gridRange; i <= gridRange; i++) {
+                    const y = centerY + (i * gridSpacing)
                     const gridCoord = -i // Negative because Y coordinates go up=positive, down=negative
                     const isMajor = i % 5 === 0
                     
@@ -1097,20 +1090,21 @@ function MapViewer() {
                           top: `${y}px`,
                           left: 0,
                           width: '100%',
-                          position: 'absolute'
+                          position: 'fixed' // FIXED - never moves!
                         }}
                       >
                         {isMajor && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
                             top: '2px', 
-                            left: `${centerX + position.x + 5}px`, 
+                            left: `${centerX + 5}px`, 
                             fontSize: `${10 / scale}px`, 
                             color: '#007bff',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '1px 3px',
                             borderRadius: '2px',
-                            transform: `scale(${Math.min(1, 1/scale)})`
+                            transform: `scale(${Math.min(1, 1/scale)})`,
+                            pointerEvents: 'none'
                           }}>
                             {gridCoord * 50}
                           </span>
@@ -1120,36 +1114,39 @@ function MapViewer() {
                   }
                   
                   return (
-                    <div className="alignment-grid" style={{ overflow: 'visible' }}>
+                    <div className="alignment-grid" style={{ overflow: 'visible', position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 2 }}>
                       {verticalLines}
                       {horizontalLines}
                       
-                      {/* Origin marker */}
+                      {/* FIXED Origin marker - never moves */}
                       <div 
                         style={{
-                          position: 'absolute',
-                          left: `${centerX + position.x}px`,
-                          top: `${centerY + position.y}px`,
+                          position: 'fixed',
+                          left: `${centerX}px`,
+                          top: `${centerY}px`,
                           width: '10px',
                           height: '10px',
                           background: '#ff0000',
                           borderRadius: '50%',
                           transform: 'translate(-50%, -50%)',
-                          zIndex: 5
+                          zIndex: 5,
+                          pointerEvents: 'none'
                         }}
                       />
                       <div 
                         style={{
-                          position: 'absolute',
-                          left: `${centerX + position.x + 15}px`,
-                          top: `${centerY + position.y - 8}px`,
+                          position: 'fixed',
+                          left: `${centerX + 15}px`,
+                          top: `${centerY - 8}px`,
                           fontSize: `${12 / scale}px`,
                           color: '#ff0000',
                           fontWeight: 'bold',
                           background: 'rgba(255,255,255,0.9)',
                           padding: '2px 4px',
                           borderRadius: '3px',
-                          transform: `scale(${Math.min(1, 1/scale)})`
+                          transform: `scale(${Math.min(1, 1/scale)})`,
+                          pointerEvents: 'none',
+                          zIndex: 5
                         }}
                       >
                         (0,0)
