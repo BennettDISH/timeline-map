@@ -486,7 +486,9 @@ function MapViewer() {
     console.log('getCurrentBackgroundImage called:', {
       timelineEnabled: map?.timelineEnabled,
       timelineImagesCount: timelineImages.length,
-      currentTime: currentTime
+      currentTime: currentTime,
+      alignmentMode: alignmentMode,
+      selectedTimelineImageId: selectedTimelineImage?.id
     })
     
     if (!map?.timelineEnabled || timelineImages.length === 0) {
@@ -494,7 +496,37 @@ function MapViewer() {
       return { url: map?.imageUrl, positioning: null }
     }
     
-    // Find the image that should be displayed at the current time
+    // If we're in alignment mode, show the reference image for alignment
+    if (alignmentMode && selectedTimelineImage) {
+      // Find the chronologically previous image to align against
+      const sortedImages = timelineImages
+        .filter(img => img.id !== selectedTimelineImage.id) // Exclude the image being aligned
+        .sort((a, b) => a.startTime - b.startTime)
+      
+      // Find the most recent image before the one being aligned
+      const referenceImage = sortedImages
+        .filter(img => img.startTime < selectedTimelineImage.startTime)
+        .pop() // Get the last one (most recent before current)
+      
+      if (referenceImage) {
+        console.log('Using reference image for alignment:', referenceImage)
+        return {
+          url: referenceImage.imageUrl,
+          positioning: {
+            positionX: referenceImage.positionX || 0,
+            positionY: referenceImage.positionY || 0,
+            scale: referenceImage.scale || 1.0,
+            objectFit: referenceImage.objectFit || 'cover'
+          }
+        }
+      } else {
+        // No previous image, use the base map image
+        console.log('No reference image found, using base map')
+        return { url: map?.imageUrl, positioning: null }
+      }
+    }
+    
+    // Normal timeline behavior - find the image that should be displayed at the current time
     const activeImage = timelineImages.find(img => {
       const matches = currentTime >= img.startTime && currentTime <= img.endTime
       console.log(`Checking timeline image ${img.id}:`, {
@@ -679,16 +711,16 @@ function MapViewer() {
           <h3>🎯 Aligning: {selectedTimelineImage.imageName || 'Timeline Image'}</h3>
           <div className="alignment-workflow">
             <div className="workflow-step">
-              <strong>1.</strong> Use the timeline scrubber to show the background you want to align against
+              <strong>Background:</strong> Showing the chronologically previous timeline image as reference
             </div>
             <div className="workflow-step">
-              <strong>2.</strong> Drag the blue-bordered overlay image to align it with the background
+              <strong>Overlay:</strong> The semi-transparent blue-bordered image is what you're aligning
             </div>
             <div className="workflow-step">
-              <strong>3.</strong> Use Shift + scroll wheel (or slider below) to scale the alignment image
+              <strong>Align:</strong> Drag the overlay to match features in the background image
             </div>
             <div className="workflow-step">
-              <strong>4.</strong> Click "Save Alignment" when positioned correctly
+              <strong>Scale:</strong> Use Shift + scroll wheel or slider to resize if needed
             </div>
           </div>
           <div className="alignment-controls">
@@ -881,8 +913,8 @@ function MapViewer() {
                       transform: `translate(${imagePosition.x}%, ${imagePosition.y}%) scale(${imageScale})`,
                       transformOrigin: 'center center',
                       cursor: isDraggingImage ? 'grabbing' : 'grab',
-                      opacity: 0.7,
-                      border: '3px dashed #007bff',
+                      opacity: 0.5,
+                      border: '2px solid #007bff',
                       borderRadius: '4px',
                       boxShadow: '0 0 10px rgba(0,123,255,0.3)',
                       zIndex: 5
