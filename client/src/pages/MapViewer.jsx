@@ -89,6 +89,46 @@ function MapViewer() {
     }
   }, [])
 
+  // Debug positioning issues
+  useEffect(() => {
+    if (alignmentMode && containerRef.current && imageRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const imageRect = imageRef.current.getBoundingClientRect()
+      const mapContentEl = containerRef.current.querySelector('.map-content')
+      const mapContentRect = mapContentEl ? mapContentEl.getBoundingClientRect() : null
+      
+      console.log('🔍 POSITIONING DEBUG:', {
+        alignmentMode,
+        selectedImage: selectedTimelineImage?.imageName,
+        containerDimensions: {
+          width: containerRect.width,
+          height: containerRect.height
+        },
+        mapContentDimensions: mapContentRect ? {
+          width: mapContentRect.width,
+          height: mapContentRect.height,
+          transform: mapContentEl.style.transform
+        } : 'not found',
+        imageDimensions: {
+          width: imageRect.width,
+          height: imageRect.height,
+          naturalWidth: imageRef.current.naturalWidth,
+          naturalHeight: imageRef.current.naturalHeight
+        },
+        imageStyles: {
+          objectFit: window.getComputedStyle(imageRef.current).objectFit,
+          transform: window.getComputedStyle(imageRef.current).transform
+        },
+        currentPosition: imagePosition,
+        scale: imageScale,
+        viewportTransform: {
+          scale: scale,
+          position: position
+        }
+      })
+    }
+  }, [alignmentMode, selectedTimelineImage, imagePosition, imageScale])
+
   const loadMap = async () => {
     try {
       setLoading(true)
@@ -191,10 +231,21 @@ function MapViewer() {
       const percentX = (deltaX / rect.width) * 100
       const percentY = (deltaY / rect.height) * 100
       
-      setImagePosition({
+      const newPosition = {
         x: imageDragOffset.x + percentX,
         y: imageDragOffset.y + percentY
+      }
+      
+      console.log('🖱️ DRAG DEBUG:', {
+        containerSize: { width: rect.width, height: rect.height },
+        mouseDelta: { deltaX, deltaY },
+        percentDelta: { percentX, percentY },
+        dragOffset: imageDragOffset,
+        newPosition,
+        selectedImage: selectedTimelineImage?.imageName
       })
+      
+      setImagePosition(newPosition)
     } else if (isDragging && !isDraggingNode) {
       // Map dragging
       const deltaX = e.clientX - lastMousePos.x
@@ -951,7 +1002,7 @@ function MapViewer() {
               objectFit: 'cover'
             }
             
-            // Debug the actual transform being applied
+            // Debug positioning and container info
             if (backgroundData.positioning) {
               console.log('MapViewer: Applied transform:', imageStyle.transform)
             }
