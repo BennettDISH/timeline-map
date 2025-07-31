@@ -284,6 +284,22 @@ router.post('/migrate', async (req, res) => {
     
     console.log('✅ Map timeline images table ready with positioning support')
     
+    // Remove check constraints on event position columns for infinite grid support
+    console.log('🔄 Removing coordinate constraints for infinite grid support...')
+    try {
+      await pool.query('ALTER TABLE events DROP CONSTRAINT IF EXISTS events_x_position_check')
+      console.log('✅ Removed x_position check constraint')
+    } catch (error) {
+      console.log('ℹ️ x_position check constraint removal:', error.message)
+    }
+    
+    try {
+      await pool.query('ALTER TABLE events DROP CONSTRAINT IF EXISTS events_y_position_check')
+      console.log('✅ Removed y_position check constraint')
+    } catch (error) {
+      console.log('ℹ️ y_position check constraint removal:', error.message)
+    }
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 

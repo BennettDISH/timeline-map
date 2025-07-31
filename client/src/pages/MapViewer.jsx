@@ -1091,7 +1091,7 @@ function MapViewer() {
                           left: `${x}px`,
                           top: 0,
                           height: '100%',
-                          position: 'fixed' // FIXED - never moves!
+                          position: 'absolute'
                         }}
                       >
                         {isMajor && (
@@ -1128,7 +1128,7 @@ function MapViewer() {
                           top: `${y}px`,
                           left: 0,
                           width: '100%',
-                          position: 'fixed' // FIXED - never moves!
+                          position: 'absolute'
                         }}
                       >
                         {isMajor && (
@@ -1152,14 +1152,23 @@ function MapViewer() {
                   }
                   
                   return (
-                    <div className="alignment-grid" style={{ overflow: 'visible', position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 2 }}>
+                    <div className="alignment-grid" style={{ 
+                      overflow: 'visible', 
+                      position: 'absolute', 
+                      top: 0, 
+                      left: 0, 
+                      width: '100%', 
+                      height: '100%', 
+                      zIndex: 2,
+                      pointerEvents: 'none'
+                    }}>
                       {verticalLines}
                       {horizontalLines}
                       
-                      {/* FIXED Origin marker - never moves */}
+                      {/* Origin marker at center of container */}
                       <div 
                         style={{
-                          position: 'fixed',
+                          position: 'absolute',
                           left: `${centerX}px`,
                           top: `${centerY}px`,
                           width: '10px',
@@ -1173,7 +1182,7 @@ function MapViewer() {
                       />
                       <div 
                         style={{
-                          position: 'fixed',
+                          position: 'absolute',
                           left: `${centerX + 15}px`,
                           top: `${centerY - 8}px`,
                           fontSize: `${12 / scale}px`,
