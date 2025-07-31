@@ -1076,7 +1076,7 @@ function MapViewer() {
                     
                     {/* Position indicator for current background image */}
                     {(() => {
-                      const currentBg = getCurrentBackgroundData()
+                      const currentBg = getCurrentBackgroundImage()
                       if (!currentBg || !currentBg.positioning) return null
                       
                       return (
@@ -1183,7 +1183,7 @@ function MapViewer() {
                     
                     {/* Debug info for current background image */}
                     {containerRef.current && (() => {
-                      const currentBg = getCurrentBackgroundData()
+                      const currentBg = getCurrentBackgroundImage()
                       if (!currentBg || !currentBg.positioning) return null
                       
                       return (
@@ -1200,9 +1200,9 @@ function MapViewer() {
                           zIndex: 15,
                           pointerEvents: 'none'
                         }}>
-                          <div>Current: {currentBg.imageName}</div>
-                          <div>Position: {currentBg.positioning.positionX?.toFixed(1) || 0}%, {currentBg.positioning.positionY?.toFixed(1) || 0}%</div>
-                          <div>Scale: {currentBg.positioning.scale?.toFixed(2) || 1.00}x</div>
+                          <div>Current: {currentBg.url ? 'Timeline Image' : 'Base Map'}</div>
+                          <div>Position: {(currentBg.positioning.positionX || 0).toFixed(1)}%, {(currentBg.positioning.positionY || 0).toFixed(1)}%</div>
+                          <div>Scale: {(currentBg.positioning.scale || 1.0).toFixed(2)}x</div>
                           <div>Container: {containerRef.current.getBoundingClientRect().width.toFixed(0)} × {containerRef.current.getBoundingClientRect().height.toFixed(0)}px</div>
                           <div>Pixel offset: {((currentBg.positioning.positionX || 0) / 100 * containerRef.current.getBoundingClientRect().width).toFixed(1)}px, {((currentBg.positioning.positionY || 0) / 100 * containerRef.current.getBoundingClientRect().height).toFixed(1)}px</div>
                           {alignmentMode && selectedTimelineImage && (
