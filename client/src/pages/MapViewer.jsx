@@ -234,11 +234,11 @@ function MapViewer() {
       
       // Convert pixel movement to grid coordinate movement
       const gridDeltaX = deltaX / scale
-      const gridDeltaY = -deltaY / scale // Negative for proper Y direction
+      const gridDeltaY = deltaY / scale // Drag up = up, drag down = down
       
       // Convert original percentage position to grid coordinates
       const originalGridX = (imageDragOffset.x || 0) * 5
-      const originalGridY = -(imageDragOffset.y || 0) * 5
+      const originalGridY = (imageDragOffset.y || 0) * 5
       
       // Calculate new grid position
       const newGridX = originalGridX + gridDeltaX
@@ -246,7 +246,7 @@ function MapViewer() {
       
       // Convert back to percentage for storage (temporary until we update storage)
       const newPercentX = newGridX / 5
-      const newPercentY = -newGridY / 5
+      const newPercentY = newGridY / 5
       
       const newPosition = {
         x: newPercentX,
@@ -1014,11 +1014,12 @@ function MapViewer() {
               // Convert percentage-based positioning to grid coordinates
               // For now, treat percentages as grid coordinate offsets (we'll update this later)
               const gridX = (backgroundData.positioning.positionX || 0) * 5 // Scale up percentage to grid units
-              const gridY = -(backgroundData.positioning.positionY || 0) * 5 // Negative for proper Y direction
+              const gridY = (backgroundData.positioning.positionY || 0) * 5
               
-              // Convert grid coordinates to screen pixels relative to fixed origin
-              const screenX = centerX + (gridX * scale) + position.x
-              const screenY = centerY + (gridY * scale) + position.y
+              // Convert grid coordinates to screen pixels relative to FIXED grid origin
+              // Images should NOT move when viewport is dragged - they stay at fixed grid positions
+              const screenX = centerX + (gridX * scale)
+              const screenY = centerY + (gridY * scale)
               
               console.log('🎯 GRID POSITIONING:', {
                 percentagePos: { x: backgroundData.positioning.positionX, y: backgroundData.positioning.positionY },
@@ -1041,11 +1042,11 @@ function MapViewer() {
             })() : {
               position: 'absolute',
               left: '0',
-              top: '0',
+              top: '0',  
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              transform: `translate(0px, 0px) scale(${scale})`,
               transformOrigin: 'center center'
             }
             
@@ -1211,11 +1212,11 @@ function MapViewer() {
                       
                       // Convert alignment position to grid coordinates
                       const gridX = (imagePosition.x || 0) * 5 // Scale up percentage to grid units
-                      const gridY = -(imagePosition.y || 0) * 5 // Negative for proper Y direction
+                      const gridY = (imagePosition.y || 0) * 5
                       
-                      // Convert grid coordinates to screen pixels relative to fixed origin
-                      const screenX = centerX + (gridX * scale) + position.x
-                      const screenY = centerY + (gridY * scale) + position.y
+                      // Convert grid coordinates to screen pixels relative to FIXED grid origin
+                      const screenX = centerX + (gridX * scale)
+                      const screenY = centerY + (gridY * scale)
                       
                       console.log('🎯 ALIGNMENT OVERLAY GRID:', {
                         percentagePos: { x: imagePosition.x, y: imagePosition.y },
@@ -1257,11 +1258,11 @@ function MapViewer() {
             
             // Convert node percentage position to grid coordinates
             const gridX = (node.x || 0) * 5 // Scale up percentage to grid units  
-            const gridY = -(node.y || 0) * 5 // Negative for proper Y direction
+            const gridY = (node.y || 0) * 5
             
-            // Convert grid coordinates to screen pixels relative to fixed origin
-            const screenX = centerX + (gridX * scale) + position.x
-            const screenY = centerY + (gridY * scale) + position.y
+            // Convert grid coordinates to screen pixels relative to FIXED grid origin  
+            const screenX = centerX + (gridX * scale)
+            const screenY = centerY + (gridY * scale)
             
             return (
               <div
