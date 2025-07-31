@@ -1024,199 +1024,139 @@ function MapViewer() {
                   draggable={false}
                 />
                 
-                {/* Grid overlay for alignment */}
-                {interactionMode === 'edit' && (
-                  <div className="alignment-grid">
-                    {/* Vertical grid lines */}
-                    {[...Array(21)].map((_, i) => (
+                {/* Infinite coordinate grid */}
+                {interactionMode === 'edit' && containerRef.current && (() => {
+                  const containerRect = containerRef.current.getBoundingClientRect()
+                  const centerX = containerRect.width / 2
+                  const centerY = containerRect.height / 2
+                  
+                  // Grid spacing in pixels (scales with zoom)
+                  const gridSpacing = 50 * scale
+                  
+                  // Calculate visible grid range
+                  const leftmostX = -position.x - centerX
+                  const rightmostX = -position.x + centerX
+                  const topmostY = -position.y - centerY
+                  const bottommostY = -position.y + centerY
+                  
+                  const startGridX = Math.floor(leftmostX / gridSpacing) - 2
+                  const endGridX = Math.ceil(rightmostX / gridSpacing) + 2
+                  const startGridY = Math.floor(topmostY / gridSpacing) - 2
+                  const endGridY = Math.ceil(bottommostY / gridSpacing) + 2
+                  
+                  const verticalLines = []
+                  const horizontalLines = []
+                  
+                  // Generate vertical lines
+                  for (let i = startGridX; i <= endGridX; i++) {
+                    const x = centerX + position.x + (i * gridSpacing)
+                    const gridCoord = i
+                    const isMajor = i % 5 === 0
+                    
+                    verticalLines.push(
                       <div 
                         key={`v${i}`}
-                        className={`grid-line vertical ${i % 2 === 0 ? 'major' : 'minor'}`}
-                        style={{ left: `${i * 5}%` }}
+                        className={`grid-line vertical ${isMajor ? 'major' : 'minor'}`}
+                        style={{ 
+                          left: `${x}px`,
+                          top: 0,
+                          height: '100%',
+                          position: 'absolute'
+                        }}
                       >
-                        {i % 4 === 0 && (
+                        {isMajor && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
-                            top: '5px', 
+                            top: `${centerY + position.y + 5}px`, 
                             left: '2px', 
-                            fontSize: '10px', 
+                            fontSize: `${10 / scale}px`, 
                             color: '#007bff',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '1px 3px',
-                            borderRadius: '2px'
+                            borderRadius: '2px',
+                            transform: `scale(${Math.min(1, 1/scale)})`
                           }}>
-                            {i * 5}%
+                            {gridCoord * 50}
                           </span>
                         )}
                       </div>
-                    ))}
-                    {/* Horizontal grid lines */}
-                    {[...Array(21)].map((_, i) => (
+                    )
+                  }
+                  
+                  // Generate horizontal lines
+                  for (let i = startGridY; i <= endGridY; i++) {
+                    const y = centerY + position.y + (i * gridSpacing)
+                    const gridCoord = -i // Negative because Y coordinates go up=positive, down=negative
+                    const isMajor = i % 5 === 0
+                    
+                    horizontalLines.push(
                       <div 
                         key={`h${i}`}
-                        className={`grid-line horizontal ${i % 2 === 0 ? 'major' : 'minor'}`}
-                        style={{ top: `${i * 5}%` }}
+                        className={`grid-line horizontal ${isMajor ? 'major' : 'minor'}`}
+                        style={{ 
+                          top: `${y}px`,
+                          left: 0,
+                          width: '100%',
+                          position: 'absolute'
+                        }}
                       >
-                        {i % 4 === 0 && (
+                        {isMajor && (
                           <span className="grid-label" style={{ 
                             position: 'absolute', 
                             top: '2px', 
-                            left: '5px', 
-                            fontSize: '10px', 
+                            left: `${centerX + position.x + 5}px`, 
+                            fontSize: `${10 / scale}px`, 
                             color: '#007bff',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '1px 3px',
-                            borderRadius: '2px'
+                            borderRadius: '2px',
+                            transform: `scale(${Math.min(1, 1/scale)})`
                           }}>
-                            {i * 5}%
+                            {gridCoord * 50}
                           </span>
                         )}
                       </div>
-                    ))}
-                    
-                    {/* Position indicator for current background image */}
-                    {(() => {
-                      const currentBg = getCurrentBackgroundImage()
-                      if (!currentBg || !currentBg.positioning) return null
+                    )
+                  }
+                  
+                  return (
+                    <div className="alignment-grid" style={{ overflow: 'visible' }}>
+                      {verticalLines}
+                      {horizontalLines}
                       
-                      return (
-                        <div 
-                          className="background-position-indicator"
-                          style={{
-                            position: 'absolute',
-                            left: `${currentBg.positioning.positionX || 0}%`,
-                            top: `${currentBg.positioning.positionY || 0}%`,
-                            width: '20px',
-                            height: '20px',
-                            transform: 'translate(-50%, -50%)',
-                            zIndex: 9,
-                            pointerEvents: 'none'
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            left: '8px',
-                            top: '0',
-                            width: '4px',
-                            height: '20px',
-                            background: '#00ff44',
-                            borderRadius: '2px'
-                          }} />
-                          <div style={{
-                            position: 'absolute',
-                            left: '0',
-                            top: '8px',
-                            width: '20px',
-                            height: '4px',
-                            background: '#00ff44',
-                            borderRadius: '2px'
-                          }} />
-                          <div style={{
-                            position: 'absolute',
-                            left: '22px',
-                            top: '-2px',
-                            fontSize: '11px',
-                            color: '#00ff44',
-                            background: 'rgba(0,0,0,0.8)',
-                            padding: '2px 4px',
-                            borderRadius: '3px',
-                            border: '1px solid #00ff44',
-                            whiteSpace: 'nowrap',
-                            fontWeight: 'bold'
-                          }}>
-                            BG: {(currentBg.positioning.positionX || 0).toFixed(1)}%, {(currentBg.positioning.positionY || 0).toFixed(1)}%
-                          </div>
-                        </div>
-                      )
-                    })()}
-                    
-                    {/* Position indicator crosshair for alignment overlay */}
-                    {alignmentMode && selectedTimelineImage && (
+                      {/* Origin marker */}
                       <div 
-                        className="position-indicator"
                         style={{
                           position: 'absolute',
-                          left: `${imagePosition.x}%`,
-                          top: `${imagePosition.y}%`,
-                          width: '20px',
-                          height: '20px',
+                          left: `${centerX + position.x}px`,
+                          top: `${centerY + position.y}px`,
+                          width: '10px',
+                          height: '10px',
+                          background: '#ff0000',
+                          borderRadius: '50%',
                           transform: 'translate(-50%, -50%)',
-                          zIndex: 10,
-                          pointerEvents: 'none'
+                          zIndex: 5
                         }}
-                      >
-                        <div style={{
+                      />
+                      <div 
+                        style={{
                           position: 'absolute',
-                          left: '8px',
-                          top: '0',
-                          width: '4px',
-                          height: '20px',
-                          background: '#ff4444',
-                          borderRadius: '2px'
-                        }} />
-                        <div style={{
-                          position: 'absolute',
-                          left: '0',
-                          top: '8px',
-                          width: '20px',
-                          height: '4px',
-                          background: '#ff4444',
-                          borderRadius: '2px'
-                        }} />
-                        <div style={{
-                          position: 'absolute',
-                          left: '22px',
-                          top: '-2px',
-                          fontSize: '11px',
-                          color: '#ff4444',
+                          left: `${centerX + position.x + 15}px`,
+                          top: `${centerY + position.y - 8}px`,
+                          fontSize: `${12 / scale}px`,
+                          color: '#ff0000',
+                          fontWeight: 'bold',
                           background: 'rgba(255,255,255,0.9)',
                           padding: '2px 4px',
                           borderRadius: '3px',
-                          border: '1px solid #ff4444',
-                          whiteSpace: 'nowrap',
-                          fontWeight: 'bold'
-                        }}>
-                          ALIGN: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%
-                        </div>
+                          transform: `scale(${Math.min(1, 1/scale)})`
+                        }}
+                      >
+                        (0,0)
                       </div>
-                    )}
-                    
-                    {/* Debug info for current background image */}
-                    {containerRef.current && (() => {
-                      const currentBg = getCurrentBackgroundImage()
-                      if (!currentBg || !currentBg.positioning) return null
-                      
-                      return (
-                        <div style={{
-                          position: 'absolute',
-                          top: '10px',
-                          left: '10px',
-                          background: 'rgba(0,0,0,0.8)',
-                          color: 'white',
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontFamily: 'monospace',
-                          zIndex: 15,
-                          pointerEvents: 'none'
-                        }}>
-                          <div>Current: {currentBg.url ? 'Timeline Image' : 'Base Map'}</div>
-                          <div>Position: {(currentBg.positioning.positionX || 0).toFixed(1)}%, {(currentBg.positioning.positionY || 0).toFixed(1)}%</div>
-                          <div>Scale: {(currentBg.positioning.scale || 1.0).toFixed(2)}x</div>
-                          <div>Container: {containerRef.current.getBoundingClientRect().width.toFixed(0)} × {containerRef.current.getBoundingClientRect().height.toFixed(0)}px</div>
-                          <div>Pixel offset: {((currentBg.positioning.positionX || 0) / 100 * containerRef.current.getBoundingClientRect().width).toFixed(1)}px, {((currentBg.positioning.positionY || 0) / 100 * containerRef.current.getBoundingClientRect().height).toFixed(1)}px</div>
-                          {alignmentMode && selectedTimelineImage && (
-                            <div style={{ borderTop: '1px solid #666', paddingTop: '4px', marginTop: '4px' }}>
-                              <div>Aligning: {selectedTimelineImage.imageName}</div>
-                              <div>New pos: {imagePosition.x.toFixed(1)}%, {imagePosition.y.toFixed(1)}%</div>
-                              <div>New scale: {imageScale.toFixed(2)}x</div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </div>
-                )}
+                    </div>
+                  )
+                })()}
                 
                 {/* Alignment overlay image */}
                 {alignmentMode && selectedTimelineImage && (
