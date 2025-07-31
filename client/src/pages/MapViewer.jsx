@@ -1031,7 +1031,7 @@ function MapViewer() {
                 top: '0',
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: 'contain',
                 transform: `translate(${screenX - centerX}px, ${screenY - centerY}px) scale(${backgroundData.positioning.scale || 1})`,
                 transformOrigin: 'center center'
               }
@@ -1041,7 +1041,7 @@ function MapViewer() {
               top: '0',  
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               transform: `translate(0px, 0px) scale(${scale})`,
               transformOrigin: 'center center'
             }
@@ -1226,7 +1226,7 @@ function MapViewer() {
                         left: 0,
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover',
+                        objectFit: 'contain',
                         transform: `translate(${screenX - centerX}px, ${screenY - centerY}px) scale(${imageScale})`,
                         transformOrigin: 'center center',
                         cursor: isDraggingImage ? 'grabbing' : 'grab',

@@ -159,10 +159,7 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this map' });
     }
     
-    // Validate coordinates are within bounds (0-100%)
-    if (x_position < 0 || x_position > 100 || y_position < 0 || y_position > 100) {
-      return res.status(400).json({ message: 'Coordinates must be between 0 and 100 percent' });
-    }
+    // Coordinates can be anywhere on the infinite grid (no bounds checking)
     
     // Verify image belongs to the world if provided
     if (image_id) {
@@ -262,13 +259,7 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this event' });
     }
     
-    // Validate coordinates if provided
-    if (x_position !== undefined && (x_position < 0 || x_position > 100)) {
-      return res.status(400).json({ message: 'X coordinate must be between 0 and 100 percent' });
-    }
-    if (y_position !== undefined && (y_position < 0 || y_position > 100)) {
-      return res.status(400).json({ message: 'Y coordinate must be between 0 and 100 percent' });
-    }
+    // Coordinates can be anywhere on the infinite grid (no bounds checking)
     
     // Verify image belongs to the world if provided
     if (image_id && image_id !== event.image_id) {
