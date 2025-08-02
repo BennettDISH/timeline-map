@@ -75,9 +75,17 @@ function MapViewer() {
   
   // **COORDINATE CONVERSION FUNCTIONS**
   const worldToScreen = (worldX, worldY) => {
-    if (!containerRef.current) return { x: 0, y: 0 }
+    if (!containerRef.current) {
+      // Return center of viewport as fallback
+      return { x: 400, y: 300 }
+    }
     
     const rect = containerRef.current.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) {
+      // Return center of viewport as fallback  
+      return { x: 400, y: 300 }
+    }
+    
     const centerX = rect.width / 2
     const centerY = rect.height / 2
     
@@ -114,11 +122,31 @@ function MapViewer() {
         console.log('Loaded map:', mapResult.map)
         
         // Convert coordinates to world pixels
-        const convertedNodes = eventsResult.events.map(node => ({
-          ...node,
-          worldX: node.xPixel !== undefined ? node.xPixel : (node.x || 0) * 1000,
-          worldY: node.yPixel !== undefined ? node.yPixel : (node.y || 0) * 1000
-        }))
+        const convertedNodes = eventsResult.events.map(node => {
+          // Priority: use pixel coordinates if they exist and are not 0, otherwise use percentage * 1000
+          let worldX, worldY
+          
+          if (node.xPixel !== undefined && node.xPixel !== null && node.xPixel !== 0) {
+            worldX = node.xPixel
+            worldY = node.yPixel || 0
+          } else {
+            // Convert percentage to world coordinates 
+            worldX = (node.x || 0) * 1000
+            worldY = (node.y || 0) * 1000
+          }
+          
+          console.log(`Node ${node.id} coords:`, {
+            original: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel },
+            converted: { worldX, worldY },
+            usingPixels: node.xPixel !== undefined && node.xPixel !== null && node.xPixel !== 0
+          })
+          
+          return {
+            ...node,
+            worldX,
+            worldY
+          }
+        })
         setNodes(convertedNodes)
         
         // Load timeline data if enabled
@@ -193,26 +221,36 @@ function MapViewer() {
     })
   }
   
-  // Get current background image
+  // Get current background image based on timeline
   const getCurrentBackgroundImage = () => {
     if (!timelineEnabled || timelineImages.length === 0) {
       return { url: map?.imageUrl, isTimelineImage: false }
     }
     
+    console.log('Getting background for time:', currentTime, 'from', timelineImages.length, 'images')
+    
     // Find active timeline image
-    const activeImage = timelineImages.find(img => 
-      currentTime >= img.startTime && currentTime <= img.endTime
-    )
+    const activeImage = timelineImages.find(img => {
+      const matches = currentTime >= img.startTime && currentTime <= img.endTime
+      console.log(`Image ${img.id}: ${img.startTime}-${img.endTime}, current: ${currentTime}, matches: ${matches}`)
+      return matches
+    })
     
     if (activeImage) {
+      console.log('Using timeline image:', activeImage)
       return {
         url: activeImage.imageUrl,
         isTimelineImage: true,
-        imageData: activeImage
+        imageData: activeImage,
+        positioning: {
+          positionX: activeImage.positionX || 0,
+          positionY: activeImage.positionY || 0,
+          scale: activeImage.scale || 1.0
+        }
       }
     }
     
-    // Fallback to map image
+    console.log('Using default map image')
     return { url: map?.imageUrl, isTimelineImage: false }
   }
   
@@ -317,6 +355,16 @@ function MapViewer() {
   const handleMouseUp = async () => {
     if (isDraggingNode && draggingNode) {
       // Save node position
+      console.log('Saving node position:', {
+        nodeId: draggingNode.id,
+        worldX: draggingNode.worldX,
+        worldY: draggingNode.worldY,
+        pixelCoords: {
+          x_pixel: Math.round(draggingNode.worldX),
+          y_pixel: Math.round(draggingNode.worldY)
+        }
+      })
+      
       try {
         await handleNodeUpdate(draggingNode, {
           x_pixel: Math.round(draggingNode.worldX),
@@ -434,8 +482,8 @@ function MapViewer() {
       
       setNodes(nodes.map(n => n.id === node.id ? {
         ...updatedNode,
-        worldX: updatedNode.xPixel !== undefined ? updatedNode.xPixel : updatedNode.x * 1000,
-        worldY: updatedNode.yPixel !== undefined ? updatedNode.yPixel : updatedNode.y * 1000
+        worldX: updatedNode.xPixel !== undefined && updatedNode.xPixel !== null && updatedNode.xPixel !== 0 ? updatedNode.xPixel : updatedNode.x * 1000,
+        worldY: updatedNode.yPixel !== undefined && updatedNode.yPixel !== null && updatedNode.yPixel !== 0 ? updatedNode.yPixel : updatedNode.y * 1000
       } : n))
       
       if (selectedNode && selectedNode.id === node.id) {
