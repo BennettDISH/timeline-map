@@ -92,6 +92,24 @@ function MapViewer() {
     const screenX = centerX + (worldX - camera.x) * zoom
     const screenY = centerY + (worldY - camera.y) * zoom
     
+    // DEBUG: Log coordinate conversion if it seems wrong
+    if (screenX > 10000 || screenY > 10000 || screenX < -10000 || screenY < -10000) {
+      console.log('🚨 COORDINATE CONVERSION ERROR:', {
+        input: { worldX, worldY },
+        camera,
+        zoom,
+        rect: { width: rect.width, height: rect.height },
+        center: { centerX, centerY },
+        calculation: {
+          deltaX: worldX - camera.x,
+          deltaY: worldY - camera.y,
+          scaledDeltaX: (worldX - camera.x) * zoom,
+          scaledDeltaY: (worldY - camera.y) * zoom
+        },
+        output: { screenX, screenY }
+      })
+    }
+    
     return { x: screenX, y: screenY }
   }
   
@@ -848,6 +866,17 @@ function MapViewer() {
                 width: containerRef.current?.getBoundingClientRect().width,
                 height: containerRef.current?.getBoundingClientRect().height
               }
+            })
+          }
+          
+          // DEBUG: Check for coordinate issues
+          if (screenPos.x > 10000 || screenPos.y > 10000) {
+            console.log('❌ NODE WITH BAD SCREEN POSITION:', {
+              nodeId: node.id,
+              key: `node-${node.id}`,
+              worldPos: { x: node.worldX, y: node.worldY },
+              screenPos,
+              isDragging: isDraggingNode && draggingNode?.id === node.id
             })
           }
           
