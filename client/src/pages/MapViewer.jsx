@@ -209,26 +209,31 @@ function MapViewer() {
 
   const handleMouseMove = (e) => {
     if (isDraggingImage && selectedTimelineImage && containerRef.current) {
-      // Image alignment dragging using same coordinate system as nodes
+      // Image alignment dragging - account for transform-based positioning
       const containerRect = containerRef.current.getBoundingClientRect()
       const centerX = containerRect.width / 2
       const centerY = containerRect.height / 2
       
-      // Mouse position relative to container
+      // Mouse position relative to container center (since image uses transform from center)
       const mouseX = e.clientX - containerRect.left
       const mouseY = e.clientY - containerRect.top
       
-      // Convert mouse position to grid coordinates (same as nodes)
-      const gridX = (mouseX - centerX) / scale
-      const gridY = (mouseY - centerY) / scale
+      // For transform-based positioning, we want the mouse offset from center
+      const offsetFromCenterX = mouseX - centerX
+      const offsetFromCenterY = mouseY - centerY
       
-      // Convert grid coordinates back to percentage for storage (same as nodes)
+      // Convert the offset to grid coordinates (accounting for current scale)
+      const gridX = offsetFromCenterX / scale
+      const gridY = offsetFromCenterY / scale
+      
+      // Convert grid coordinates to percentage for storage
       const percentX = gridX / 5
       const percentY = gridY / 5
       
-      console.log('🖱️ SIMPLIFIED IMAGE DRAG DEBUG:', {
+      console.log('🖱️ TRANSFORM-BASED IMAGE DRAG:', {
         mouse: { mouseX, mouseY },
-        container: { centerX, centerY },
+        center: { centerX, centerY },
+        offset: { offsetFromCenterX, offsetFromCenterY },
         scale: scale,
         grid: { gridX, gridY },
         percent: { percentX, percentY }
