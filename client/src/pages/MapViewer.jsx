@@ -126,7 +126,7 @@ function MapViewer() {
           // Priority: use pixel coordinates if they exist and are not 0, otherwise use percentage * 1000
           let worldX, worldY
           
-          if (node.xPixel !== undefined && node.xPixel !== null && node.xPixel !== 0) {
+          if (node.xPixel !== undefined && node.xPixel !== null) {
             worldX = node.xPixel
             worldY = node.yPixel || 0
           } else {
@@ -138,7 +138,7 @@ function MapViewer() {
           console.log(`Node ${node.id} coords:`, {
             original: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel },
             converted: { worldX, worldY },
-            usingPixels: node.xPixel !== undefined && node.xPixel !== null && node.xPixel !== 0
+            usingPixels: node.xPixel !== undefined && node.xPixel !== null
           })
           
           return {
@@ -169,8 +169,8 @@ function MapViewer() {
               }
             })
             console.log('Timeline images response:', timelineImagesResult.data)
-            setTimelineImages(timelineImagesResult.data.timelineImages || [])
-            console.log('Set timeline images:', timelineImagesResult.data.timelineImages?.length || 0, 'images')
+            setTimelineImages(timelineImagesResult.data.images || [])
+            console.log('Set timeline images:', timelineImagesResult.data.images?.length || 0, 'images')
           } catch (err) {
             console.error('Error loading timeline images:', err)
             console.log('Timeline images API call failed:', err.response?.data || err.message)
@@ -507,8 +507,8 @@ function MapViewer() {
       
       setNodes(nodes.map(n => n.id === node.id ? {
         ...updatedNode,
-        worldX: updatedNode.xPixel !== undefined && updatedNode.xPixel !== null && updatedNode.xPixel !== 0 ? updatedNode.xPixel : updatedNode.x * 1000,
-        worldY: updatedNode.yPixel !== undefined && updatedNode.yPixel !== null && updatedNode.yPixel !== 0 ? updatedNode.yPixel : updatedNode.y * 1000
+        worldX: updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000,
+        worldY: updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
       } : n))
       
       if (selectedNode && selectedNode.id === node.id) {
@@ -831,17 +831,28 @@ function MapViewer() {
         {getVisibleNodes().map(node => {
           const screenPos = worldToScreen(node.worldX, node.worldY)
           
+          // Debug logging for dragged nodes
+          if (isDraggingNode && draggingNode?.id === node.id) {
+            console.log(`Rendering dragged node ${node.id}:`, {
+              worldPos: { x: node.worldX, y: node.worldY },
+              screenPos,
+              containerRect: containerRef.current?.getBoundingClientRect(),
+              camera,
+              zoom
+            })
+          }
+          
           return (
             <div
               key={node.id}
-              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''}`}
+              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
               style={{
                 position: 'absolute',
                 left: screenPos.x,
                 top: screenPos.y,
                 transform: 'translate(-50%, -50%)',
                 cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
-                zIndex: 10
+                zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
               }}
               onClick={(e) => {
                 e.stopPropagation()
