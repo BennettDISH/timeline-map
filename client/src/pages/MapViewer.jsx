@@ -50,8 +50,7 @@ function MapViewer() {
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
   const [imageScale, setImageScale] = useState(1.0)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
-  const [imageDragStart, setImageDragStart] = useState({ x: 0, y: 0 })
-  const [imageDragOffset, setImageDragOffset] = useState({ x: 0, y: 0 })
+  // Removed imageDragStart and imageDragOffset - using direct coordinate conversion like nodes
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -200,15 +199,6 @@ function MapViewer() {
     if (alignmentMode && selectedTimelineImage && e.target === alignmentImageRef.current) {
       e.stopPropagation()
       setIsDraggingImage(true)
-      const rect = containerRef.current.getBoundingClientRect()
-      setImageDragStart({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      })
-      setImageDragOffset({
-        x: imagePosition.x,
-        y: imagePosition.y
-      })
       return
     }
     
@@ -219,50 +209,35 @@ function MapViewer() {
 
   const handleMouseMove = (e) => {
     if (isDraggingImage && selectedTimelineImage && containerRef.current) {
-      // Image alignment dragging using GRID COORDINATES
-      const rect = containerRef.current.getBoundingClientRect()
-      const centerX = rect.width / 2
-      const centerY = rect.height / 2
+      // Image alignment dragging using same coordinate system as nodes
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const centerX = containerRect.width / 2
+      const centerY = containerRect.height / 2
       
-      // Current mouse position relative to container
-      const currentX = e.clientX - rect.left
-      const currentY = e.clientY - rect.top
+      // Mouse position relative to container
+      const mouseX = e.clientX - containerRect.left
+      const mouseY = e.clientY - containerRect.top
       
-      // Calculate mouse movement in pixels
-      const deltaX = currentX - imageDragStart.x
-      const deltaY = currentY - imageDragStart.y
+      // Convert mouse position to grid coordinates (same as nodes)
+      const gridX = (mouseX - centerX) / scale
+      const gridY = (mouseY - centerY) / scale
       
-      // Convert pixel movement to grid coordinate movement
-      const gridDeltaX = deltaX / scale
-      const gridDeltaY = deltaY / scale // Drag up = up, drag down = down
+      // Convert grid coordinates back to percentage for storage (same as nodes)
+      const percentX = gridX / 5
+      const percentY = gridY / 5
       
-      // Convert original percentage position to grid coordinates
-      const originalGridX = (imageDragOffset.x || 0) * 5
-      const originalGridY = (imageDragOffset.y || 0) * 5
-      
-      // Calculate new grid position
-      const newGridX = originalGridX + gridDeltaX
-      const newGridY = originalGridY + gridDeltaY
-      
-      // Convert back to percentage for storage (temporary until we update storage)
-      const newPercentX = newGridX / 5
-      const newPercentY = newGridY / 5
-      
-      const newPosition = {
-        x: newPercentX,
-        y: newPercentY
-      }
-      
-      console.log('🖱️ GRID DRAG DEBUG:', {
-        mouseDelta: { deltaX, deltaY },
-        gridDelta: { gridDeltaX, gridDeltaY },
-        originalGrid: { x: originalGridX, y: originalGridY },
-        newGrid: { x: newGridX, y: newGridY },
-        newPercent: { x: newPercentX, y: newPercentY },
-        scale: scale
+      console.log('🖱️ SIMPLIFIED IMAGE DRAG DEBUG:', {
+        mouse: { mouseX, mouseY },
+        container: { centerX, centerY },
+        scale: scale,
+        grid: { gridX, gridY },
+        percent: { percentX, percentY }
       })
       
-      setImagePosition(newPosition)
+      setImagePosition({
+        x: percentX,
+        y: percentY
+      })
     } else if (isDragging && !isDraggingNode) {
       // Map dragging
       const deltaX = e.clientX - lastMousePos.x
