@@ -287,8 +287,9 @@ function MapViewer() {
       const mouseY = e.clientY - containerRect.top
       
       // Convert mouse position to grid coordinates (inverse of display logic)
-      const gridX = (mouseX - centerX - position.x) / scale
-      const gridY = (mouseY - centerY - position.y) / scale
+      // Nodes are positioned absolutely relative to container, not affected by position transform
+      const gridX = (mouseX - centerX) / scale
+      const gridY = (mouseY - centerY) / scale
       
       // Convert grid coordinates back to percentage for storage (inverse of display conversion)
       const percentX = gridX / 5  // Convert grid units back to percentage
