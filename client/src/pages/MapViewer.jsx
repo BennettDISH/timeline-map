@@ -1037,6 +1037,17 @@ function MapViewer() {
                   setShowInfoPanel(true)
                 } else {
                   setSelectedNode(node)
+                  // Reset form data when selecting a different node
+                  setEditFormData({
+                    title: node.title || '',
+                    description: node.description || '',
+                    content: node.content || '',
+                    linkToMapId: node.linkToMapId || null,
+                    startTime: node.startTime || 0,
+                    endTime: node.endTime || 100,
+                    timelineEnabled: node.timelineEnabled || false
+                  })
+                  setHasUnsavedChanges(false)
                 }
               }}
             >
