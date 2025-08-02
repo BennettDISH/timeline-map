@@ -299,9 +299,27 @@ function MapViewer() {
       return nodes
     }
     
+    console.log('👁️ FILTERING NODES BY TIMELINE:', {
+      currentTime,
+      totalNodes: nodes.length,
+      nodeDetails: nodes.map(node => ({
+        id: node.id,
+        title: node.title,
+        timelineEnabled: node.timelineEnabled,
+        startTime: node.startTime,
+        endTime: node.endTime,
+        shouldShow: !node.timelineEnabled || (currentTime >= node.startTime && currentTime <= node.endTime)
+      }))
+    })
+    
     const visibleNodes = nodes.filter(node => {
-      if (!node.timelineEnabled) return true
+      if (!node.timelineEnabled) {
+        console.log(`✅ Node ${node.id} always visible (timeline disabled for node)`)
+        return true
+      }
       const visible = currentTime >= node.startTime && currentTime <= node.endTime
+      console.log(`${visible ? '✅' : '❌'} Node ${node.id} (${node.title}): ${node.startTime}-${node.endTime}, current: ${currentTime}, visible: ${visible}`)
+      
       if (!visible && isDraggingNode && draggingNode?.id === node.id) {
         console.log('⚠️ DRAGGED NODE FILTERED OUT:', {
           nodeId: node.id,
@@ -315,9 +333,7 @@ function MapViewer() {
       return visible
     })
     
-    if (isDraggingNode) {
-      console.log('🎯 Visible nodes during drag:', visibleNodes.length, 'of', nodes.length)
-    }
+    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible`)
     
     return visibleNodes
   }
