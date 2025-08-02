@@ -236,15 +236,20 @@ function MapViewer() {
           
           // Load timeline images
           try {
+            console.log('🔍 Loading timeline images for map:', mapId)
             const token = localStorage.getItem('auth_token')
             const timelineImagesResult = await axios.get(`/api/maps/${mapId}/timeline-images`, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
             })
-            setTimelineImages(timelineImagesResult.data.images || [])
+            console.log('📥 Timeline images API response:', timelineImagesResult.data)
+            const images = timelineImagesResult.data.images || []
+            console.log('🖼️ Setting timeline images:', images.length, 'images')
+            setTimelineImages(images)
           } catch (err) {
-            console.error('Error loading timeline images:', err)
+            console.error('❌ Error loading timeline images:', err)
+            console.log('Timeline images API error details:', err.response?.data || err.message)
           }
         }
         
