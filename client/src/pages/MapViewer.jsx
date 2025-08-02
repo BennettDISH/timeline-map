@@ -160,6 +160,29 @@ function MapViewer() {
     }
   }, [mapId])
   
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isAddingNode) {
+          setIsAddingNode(false)
+        }
+        if (alignmentMode) {
+          exitAlignmentMode()
+        }
+        if (selectedNode) {
+          setSelectedNode(null)
+        }
+        if (showInfoPanel) {
+          setShowInfoPanel(false)
+        }
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAddingNode, alignmentMode, selectedNode, showInfoPanel])
+  
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
     if (!timelineEnabled) return nodes
@@ -520,7 +543,10 @@ function MapViewer() {
       <div className="map-header">
         <div className="header-content">
           <h1>{map?.title || 'Map Viewer'}</h1>
-          <Link to="/maps" className="back-link">← Back to Maps</Link>
+          <div className="header-actions">
+            <Link to={`/map/${mapId}/settings`} className="settings-button">⚙️ Settings</Link>
+            <Link to="/maps" className="back-link">← Back to Maps</Link>
+          </div>
         </div>
         {map?.description && (
           <p className="map-description">{map.description}</p>
@@ -540,6 +566,23 @@ function MapViewer() {
           >
             {interactionMode === 'view' ? 'View Mode' : 'Edit Mode'}
           </button>
+          
+          {!timelineEnabled && (
+            <button
+              onClick={async () => {
+                try {
+                  await worldService.updateWorld(map.worldId, { timeline_enabled: true })
+                  setTimelineEnabled(true)
+                  window.location.reload() // Reload to get timeline data
+                } catch (err) {
+                  setSaveError('Failed to enable timeline')
+                }
+              }}
+              className="enable-timeline-button"
+            >
+              Enable Timeline
+            </button>
+          )}
         </div>
         
         {interactionMode === 'edit' && (
@@ -569,14 +612,22 @@ function MapViewer() {
         <div className="timeline-container">
           <div className="timeline-header">
             <span className="timeline-label">Timeline: {currentTime} {timelineSettings.timeUnit}</span>
-            {alignmentMode && (
-              <button onClick={exitAlignmentMode} className="exit-alignment-button">
-                Exit Alignment Mode
-              </button>
-            )}
+            <div className="timeline-actions">
+              {alignmentMode && (
+                <button onClick={exitAlignmentMode} className="exit-alignment-button">
+                  Exit Alignment Mode
+                </button>
+              )}
+              {alignmentMode && (
+                <div className="alignment-help">
+                  💡 <strong>Tip:</strong> Drag the blue-bordered image to align it. Use Shift+scroll to scale.
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="timeline-controls">
+            <span className="timeline-min">{timelineSettings.minTime}</span>
             <input
               type="range"
               min={timelineSettings.minTime}
@@ -585,6 +636,7 @@ function MapViewer() {
               onChange={(e) => handleTimelineChange(e.target.value)}
               className="timeline-slider"
             />
+            <span className="timeline-max">{timelineSettings.maxTime}</span>
           </div>
           
           {/* Timeline image dots */}
@@ -599,9 +651,15 @@ function MapViewer() {
                     backgroundColor: `hsl(${index * 60}, 70%, 50%)`
                   }}
                   onClick={() => enterAlignmentMode(img)}
-                  title={`Click to align: ${img.originalName}`}
+                  title={`Click to align: ${img.originalName} (${img.startTime}-${img.endTime} ${timelineSettings.timeUnit})`}
                 />
               ))}
+            </div>
+          )}
+          
+          {timelineImages.length === 0 && (
+            <div className="timeline-empty-state">
+              <p>No timeline images added yet. Go to <Link to={`/map/${mapId}/settings`}>Settings</Link> to add timeline images.</p>
             </div>
           )}
         </div>
@@ -704,6 +762,13 @@ function MapViewer() {
         {isAddingNode && (
           <div className="adding-node-help">
             <p>Click anywhere to place a new {nodeType === 'standard' ? 'info' : 'map link'} node</p>
+            <p><small>Press Escape to cancel</small></p>
+          </div>
+        )}
+        
+        {interactionMode === 'edit' && !isAddingNode && (
+          <div className="edit-mode-help">
+            <p><small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small></p>
           </div>
         )}
         
