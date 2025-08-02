@@ -165,11 +165,12 @@ function MapViewer() {
             console.log('📐 Using percentage coordinates:', { worldX, worldY, calculation: `${node.x} * 1000, ${node.y} * 1000` })
           }
           
-          // Fix nodes at origin (0,0) - position them near camera center instead
+          // Check if node is incorrectly at origin
           if (worldX === 0 && worldY === 0) {
-            worldX = 500 + (Math.random() - 0.5) * 100 // Random position near camera center
-            worldY = 500 + (Math.random() - 0.5) * 100
-            console.log('🎯 FIXED ORIGIN NODE:', { nodeId: node.id, newPos: { worldX, worldY } })
+            console.log('⚠️ NODE AT ORIGIN - NEEDS INVESTIGATION:', { 
+              nodeId: node.id, 
+              rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel }
+            })
           }
           
           // DEBUG: Check for corrupted coordinates from database
