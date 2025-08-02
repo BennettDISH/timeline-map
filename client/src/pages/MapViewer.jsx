@@ -573,10 +573,34 @@ function MapViewer() {
               onClick={async () => {
                 try {
                   console.log('Enabling timeline for world:', map.worldId)
-                  const result = await worldService.updateWorld(map.worldId, { timeline_enabled: true })
+                  const result = await worldService.updateWorld(map.worldId, { 
+                    timeline_enabled: true,
+                    timeline_min_time: 0,
+                    timeline_max_time: 100,
+                    timeline_current_time: 50,
+                    timeline_time_unit: 'years'
+                  })
                   console.log('Timeline enable result:', result)
+                  
+                  // Update local state without reloading
                   setTimelineEnabled(true)
-                  window.location.reload() // Reload to get timeline data
+                  setTimelineSettings({
+                    minTime: 0,
+                    maxTime: 100,
+                    timeUnit: 'years'
+                  })
+                  setCurrentTime(50)
+                  
+                  // Update the map object
+                  setMap(prev => ({
+                    ...prev,
+                    timelineEnabled: true,
+                    timelineMinTime: 0,
+                    timelineMaxTime: 100,
+                    timelineCurrentTime: 50,
+                    timelineTimeUnit: 'years'
+                  }))
+                  
                 } catch (err) {
                   console.error('Timeline enable error:', err)
                   setSaveError(`Failed to enable timeline: ${err.message || err}`)
