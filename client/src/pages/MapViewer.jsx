@@ -637,7 +637,6 @@ function MapViewer() {
     )
   }
   
-  const backgroundData = getCurrentBackgroundImage()
   
   return (
     <div className="map-viewer">
@@ -776,12 +775,12 @@ function MapViewer() {
         }}
       >
         {/* Background Image */}
-        {backgroundData.url && (
+        {map?.imageUrl && (
           <img
-            src={backgroundData.url}
+            src={map.imageUrl}
             alt="Map background"
-            onLoad={() => console.log('🖼️ Background image loaded:', backgroundData.url)}
-            onError={() => console.log('❌ Background image failed to load:', backgroundData.url)}
+            onLoad={() => console.log('🖼️ Map image loaded:', map.imageUrl)}
+            onError={() => console.log('❌ Map image failed to load:', map.imageUrl)}
             style={{
               position: 'absolute',
               left: worldToScreen(0, 0).x,
