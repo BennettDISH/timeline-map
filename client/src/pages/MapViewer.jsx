@@ -325,6 +325,11 @@ function MapViewer() {
   // Get current background image based on timeline
   const getCurrentBackgroundImage = () => {
     if (!timelineEnabled || timelineImages.length === 0) {
+      console.log('📷 No timeline images or timeline disabled:', { 
+        timelineEnabled, 
+        imageCount: timelineImages.length,
+        defaultMapUrl: map?.imageUrl
+      })
       return { url: map?.imageUrl, isTimelineImage: false }
     }
     
@@ -335,6 +340,7 @@ function MapViewer() {
       timelineEnabled,
       images: timelineImages.map(img => ({
         id: img.id,
+        name: img.imageName || img.originalName,
         startTime: img.startTime,
         endTime: img.endTime,
         url: img.imageUrl,
@@ -344,11 +350,18 @@ function MapViewer() {
     
     // Find active timeline image
     const activeImage = timelineImages.find(img => {
-      return currentTime >= img.startTime && currentTime <= img.endTime
+      const isActive = currentTime >= img.startTime && currentTime <= img.endTime
+      console.log(`🔍 Checking image ${img.id}: ${img.startTime}-${img.endTime}, current: ${currentTime}, active: ${isActive}`)
+      return isActive
     })
     
     if (activeImage) {
-      console.log('✅ Using timeline image:', activeImage.id, activeImage.imageUrl)
+      console.log('✅ Using timeline image:', {
+        id: activeImage.id,
+        name: activeImage.imageName || activeImage.originalName,
+        url: activeImage.imageUrl,
+        timeRange: `${activeImage.startTime}-${activeImage.endTime}`
+      })
       return {
         url: activeImage.imageUrl,
         isTimelineImage: true,
