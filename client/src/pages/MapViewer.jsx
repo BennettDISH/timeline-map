@@ -119,7 +119,6 @@ function MapViewer() {
         ])
         
         setMap(mapResult.map)
-        console.log('Loaded map:', mapResult.map)
         
         // Convert coordinates to world pixels
         const convertedNodes = eventsResult.events.map(node => {
@@ -135,11 +134,6 @@ function MapViewer() {
             worldY = (node.y || 0) * 1000
           }
           
-          console.log(`Node ${node.id} coords:`, {
-            original: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel },
-            converted: { worldX, worldY },
-            usingPixels: node.xPixel !== undefined && node.xPixel !== null
-          })
           
           return {
             ...node,
@@ -161,19 +155,15 @@ function MapViewer() {
           
           // Load timeline images
           try {
-            console.log('Loading timeline images for map:', mapId)
             const token = localStorage.getItem('auth_token')
             const timelineImagesResult = await axios.get(`/api/maps/${mapId}/timeline-images`, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
             })
-            console.log('Timeline images response:', timelineImagesResult.data)
             setTimelineImages(timelineImagesResult.data.images || [])
-            console.log('Set timeline images:', timelineImagesResult.data.images?.length || 0, 'images')
           } catch (err) {
             console.error('Error loading timeline images:', err)
-            console.log('Timeline images API call failed:', err.response?.data || err.message)
           }
         }
         
@@ -182,7 +172,7 @@ function MapViewer() {
           const mapsResult = await mapService.getMaps()
           setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
         } catch (err) {
-          console.log('Failed to load available maps')
+          // Silently continue without available maps
         }
         
       } catch (err) {
@@ -223,11 +213,32 @@ function MapViewer() {
   
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
-    if (!timelineEnabled) return nodes
-    return nodes.filter(node => {
+    if (!timelineEnabled) {
+      console.log('🔵 Timeline disabled, showing all', nodes.length, 'nodes')
+      return nodes
+    }
+    
+    const visibleNodes = nodes.filter(node => {
       if (!node.timelineEnabled) return true
-      return currentTime >= node.startTime && currentTime <= node.endTime
+      const visible = currentTime >= node.startTime && currentTime <= node.endTime
+      if (!visible && isDraggingNode && draggingNode?.id === node.id) {
+        console.log('⚠️ DRAGGED NODE FILTERED OUT:', {
+          nodeId: node.id,
+          timelineEnabled: node.timelineEnabled,
+          startTime: node.startTime,
+          endTime: node.endTime,
+          currentTime,
+          visible
+        })
+      }
+      return visible
     })
+    
+    if (isDraggingNode) {
+      console.log('🎯 Visible nodes during drag:', visibleNodes.length, 'of', nodes.length)
+    }
+    
+    return visibleNodes
   }
   
   // Get current background image based on timeline
@@ -236,17 +247,27 @@ function MapViewer() {
       return { url: map?.imageUrl, isTimelineImage: false }
     }
     
-    console.log('Getting background for time:', currentTime, 'from', timelineImages.length, 'images')
+    // DEBUG: Timeline image selection
+    console.log('🖼️ TIMELINE DEBUG:', {
+      currentTime,
+      totalImages: timelineImages.length,
+      timelineEnabled,
+      images: timelineImages.map(img => ({
+        id: img.id,
+        startTime: img.startTime,
+        endTime: img.endTime,
+        url: img.imageUrl,
+        active: currentTime >= img.startTime && currentTime <= img.endTime
+      }))
+    })
     
     // Find active timeline image
     const activeImage = timelineImages.find(img => {
-      const matches = currentTime >= img.startTime && currentTime <= img.endTime
-      console.log(`Image ${img.id}: ${img.startTime}-${img.endTime}, current: ${currentTime}, matches: ${matches}`)
-      return matches
+      return currentTime >= img.startTime && currentTime <= img.endTime
     })
     
     if (activeImage) {
-      console.log('Using timeline image:', activeImage)
+      console.log('✅ Using timeline image:', activeImage.id, activeImage.imageUrl)
       return {
         url: activeImage.imageUrl,
         isTimelineImage: true,
@@ -259,7 +280,7 @@ function MapViewer() {
       }
     }
     
-    console.log('Using default map image')
+    console.log('⭕ Using default map image:', map?.imageUrl)
     return { url: map?.imageUrl, isTimelineImage: false }
   }
   
@@ -339,14 +360,6 @@ function MapViewer() {
       const newWorldX = dragStartNodePos.x + worldDeltaX
       const newWorldY = dragStartNodePos.y + worldDeltaY
       
-      console.log('Dragging node:', {
-        nodeId: draggingNode.id,
-        mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
-        worldDelta: { x: worldDeltaX, y: worldDeltaY },
-        oldWorld: { x: dragStartNodePos.x, y: dragStartNodePos.y },
-        newWorld: { x: newWorldX, y: newWorldY },
-        screenPos: worldToScreen(newWorldX, newWorldY)
-      })
       
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
@@ -373,22 +386,13 @@ function MapViewer() {
   const handleMouseUp = async () => {
     if (isDraggingNode && draggingNode) {
       // Save node position
-      console.log('Saving node position:', {
-        nodeId: draggingNode.id,
-        worldX: draggingNode.worldX,
-        worldY: draggingNode.worldY,
-        pixelCoords: {
-          x_pixel: Math.round(draggingNode.worldX),
-          y_pixel: Math.round(draggingNode.worldY)
-        }
-      })
       
       try {
         await handleNodeUpdate(draggingNode, {
           x_pixel: Math.round(draggingNode.worldX),
           y_pixel: Math.round(draggingNode.worldY)
         })
-        console.log('Node position saved successfully')
+        console.log('✅ Node position saved for node:', draggingNode.id)
       } catch (err) {
         console.error('Failed to save node position:', err)
         // Reset node position on error
@@ -548,6 +552,7 @@ function MapViewer() {
   // Timeline operations
   const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
+    console.log('⏰ Timeline changed to:', timeValue)
     setCurrentTime(timeValue)
     
     clearTimeout(timelineUpdateTimeoutRef.current)
@@ -650,7 +655,6 @@ function MapViewer() {
             <button
               onClick={async () => {
                 try {
-                  console.log('Enabling timeline for world:', map.worldId)
                   const result = await worldService.updateWorld(map.worldId, { 
                     timeline_enabled: true,
                     timeline_min_time: 0,
@@ -658,7 +662,6 @@ function MapViewer() {
                     timeline_current_time: 50,
                     timeline_time_unit: 'years'
                   })
-                  console.log('Timeline enable result:', result)
                   
                   // Update local state without reloading
                   setTimelineEnabled(true)
@@ -680,7 +683,7 @@ function MapViewer() {
                   }))
                   
                 } catch (err) {
-                  console.error('Timeline enable error:', err)
+                  console.error('❌ Timeline enable error:', err)
                   setSaveError(`Failed to enable timeline: ${err.message || err}`)
                 }
               }}
@@ -792,6 +795,8 @@ function MapViewer() {
           <img
             src={backgroundData.url}
             alt="Map background"
+            onLoad={() => console.log('🖼️ Background image loaded:', backgroundData.url)}
+            onError={() => console.log('❌ Background image failed to load:', backgroundData.url)}
             style={{
               position: 'absolute',
               left: worldToScreen(0, 0).x,
@@ -831,14 +836,18 @@ function MapViewer() {
         {getVisibleNodes().map(node => {
           const screenPos = worldToScreen(node.worldX, node.worldY)
           
-          // Debug logging for dragged nodes
+          // DEBUG: Node dragging visibility
           if (isDraggingNode && draggingNode?.id === node.id) {
-            console.log(`Rendering dragged node ${node.id}:`, {
+            console.log('🎯 DRAGGED NODE:', {
+              nodeId: node.id,
               worldPos: { x: node.worldX, y: node.worldY },
               screenPos,
-              containerRect: containerRef.current?.getBoundingClientRect(),
-              camera,
-              zoom
+              visible: screenPos.x > -50 && screenPos.x < (containerRef.current?.getBoundingClientRect().width || 0) + 50 &&
+                      screenPos.y > -50 && screenPos.y < (containerRef.current?.getBoundingClientRect().height || 0) + 50,
+              containerSize: {
+                width: containerRef.current?.getBoundingClientRect().width,
+                height: containerRef.current?.getBoundingClientRect().height
+              }
             })
           }
           
