@@ -139,6 +139,14 @@ function MapViewer() {
           }
         }
         
+        // Load available maps for linking
+        try {
+          const mapsResult = await mapService.getMaps()
+          setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
+        } catch (err) {
+          console.log('Failed to load available maps')
+        }
+        
       } catch (err) {
         console.error('Failed to load map data:', err)
         setError(err.message || 'Failed to load map')
@@ -417,6 +425,29 @@ function MapViewer() {
     }
   }
   
+  const handleNodeDelete = async (node) => {
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      await eventService.deleteEvent(node.id)
+      setNodes(nodes.filter(n => n.id !== node.id))
+      
+      if (selectedNode && selectedNode.id === node.id) {
+        setSelectedNode(null)
+      }
+      if (infoPanelNode && infoPanelNode.id === node.id) {
+        setShowInfoPanel(false)
+        setInfoPanelNode(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete node:', err)
+      setSaveError(err.message || 'Failed to delete node')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
   // Timeline operations
   const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
@@ -682,6 +713,223 @@ function MapViewer() {
           </div>
         )}
       </div>
+      
+      {/* Info Panel */}
+      {showInfoPanel && infoPanelNode && (
+        <div className="info-panel">
+          <div className="info-panel-header">
+            <h3>{infoPanelNode.title}</h3>
+            <button 
+              className="close-button"
+              onClick={() => setShowInfoPanel(false)}
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="info-panel-content">
+            {infoPanelNode.description && (
+              <div className="info-section">
+                <h4>Description</h4>
+                <p className="content-text">{infoPanelNode.description}</p>
+              </div>
+            )}
+            
+            {infoPanelNode.content && (
+              <div className="info-section">
+                <h4>Details</h4>
+                <p className="content-text">{infoPanelNode.content}</p>
+              </div>
+            )}
+            
+            {infoPanelNode.eventType === 'map_link' && infoPanelNode.linkToMapId && (
+              <div className="info-section">
+                <h4>Navigation</h4>
+                <button
+                  className="edit-button"
+                  onClick={() => navigate(`/maps/${infoPanelNode.linkToMapId}`)}
+                >
+                  Go to Linked Map
+                </button>
+              </div>
+            )}
+            
+            {interactionMode === 'edit' && (
+              <div className="info-panel-actions">
+                <button
+                  className="edit-button"
+                  onClick={() => {
+                    setSelectedNode(infoPanelNode)
+                    setEditFormData({
+                      title: infoPanelNode.title || '',
+                      description: infoPanelNode.description || '',
+                      content: infoPanelNode.content || '',
+                      linkToMapId: infoPanelNode.linkToMapId || null,
+                      startTime: infoPanelNode.startTime || 0,
+                      endTime: infoPanelNode.endTime || 100,
+                      timelineEnabled: infoPanelNode.timelineEnabled || false
+                    })
+                    setHasUnsavedChanges(false)
+                    setShowInfoPanel(false)
+                  }}
+                >
+                  Edit Node
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Node Editor */}
+      {selectedNode && interactionMode === 'edit' && (
+        <div className="node-editor">
+          <h3>Edit Node</h3>
+          
+          <div className="form-group">
+            <label>Title</label>
+            <input
+              type="text"
+              value={editFormData.title}
+              onChange={(e) => {
+                setEditFormData({...editFormData, title: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Node title"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Description</label>
+            <textarea
+              value={editFormData.description}
+              onChange={(e) => {
+                setEditFormData({...editFormData, description: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Brief description"
+              rows="3"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Content</label>
+            <textarea
+              value={editFormData.content}
+              onChange={(e) => {
+                setEditFormData({...editFormData, content: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Detailed content"
+              rows="4"
+            />
+          </div>
+          
+          {selectedNode.eventType === 'map_link' && (
+            <div className="form-group">
+              <label>Linked Map</label>
+              <select
+                value={editFormData.linkToMapId || ''}
+                onChange={(e) => {
+                  setEditFormData({...editFormData, linkToMapId: e.target.value || null})
+                  setHasUnsavedChanges(true)
+                }}
+              >
+                <option value="">Select a map...</option>
+                {availableMaps.map(map => (
+                  <option key={map.id} value={map.id}>{map.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {timelineEnabled && (
+            <>
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={editFormData.timelineEnabled}
+                    onChange={(e) => {
+                      setEditFormData({...editFormData, timelineEnabled: e.target.checked})
+                      setHasUnsavedChanges(true)
+                    }}
+                  />
+                  Enable for Timeline
+                </label>
+              </div>
+              
+              {editFormData.timelineEnabled && (
+                <>
+                  <div className="form-group">
+                    <label>Start Time: {editFormData.startTime}</label>
+                    <input
+                      type="range"
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      value={editFormData.startTime}
+                      onChange={(e) => {
+                        setEditFormData({...editFormData, startTime: parseInt(e.target.value)})
+                        setHasUnsavedChanges(true)
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>End Time: {editFormData.endTime}</label>
+                    <input
+                      type="range"
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      value={editFormData.endTime}
+                      onChange={(e) => {
+                        setEditFormData({...editFormData, endTime: parseInt(e.target.value)})
+                        setHasUnsavedChanges(true)
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+          
+          <div className="form-actions">
+            <button onClick={() => setSelectedNode(null)}>
+              Cancel
+            </button>
+            
+            <button
+              className="save-button"
+              disabled={saving}
+              onClick={async () => {
+                await handleNodeUpdate(selectedNode, editFormData)
+                setSelectedNode(null)
+                setHasUnsavedChanges(false)
+              }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            
+            <button
+              className="delete-button"
+              onClick={async () => {
+                if (window.confirm('Delete this node?')) {
+                  await handleNodeDelete(selectedNode)
+                  setSelectedNode(null)
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+          
+          {hasUnsavedChanges && (
+            <div className="unsaved-changes-notice">
+              <small>You have unsaved changes</small>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
