@@ -774,24 +774,6 @@ function MapViewer() {
           cursor: isDraggingViewport ? 'grabbing' : isAddingNode ? 'crosshair' : 'grab'
         }}
       >
-        {/* Background Image */}
-        {map?.imageUrl && (
-          <img
-            src={map.imageUrl}
-            alt="Map background"
-            onLoad={() => console.log('🖼️ Map image loaded:', map.imageUrl)}
-            onError={() => console.log('❌ Map image failed to load:', map.imageUrl)}
-            style={{
-              position: 'absolute',
-              left: worldToScreen(0, 0).x,
-              top: worldToScreen(0, 0).y,
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top left',
-              pointerEvents: 'none',
-              maxWidth: 'none'
-            }}
-          />
-        )}
         
         
         {/* Nodes */}
