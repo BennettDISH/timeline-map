@@ -156,12 +156,27 @@ function MapViewer() {
           if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
             console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
               nodeId: node.id,
-              rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel },
-              converted: { worldX, worldY }
+              title: node.title,
+              rawData: { 
+                x: node.x, 
+                y: node.y, 
+                xPixel: node.xPixel, 
+                yPixel: node.yPixel,
+                types: {
+                  x: typeof node.x,
+                  y: typeof node.y,
+                  xPixel: typeof node.xPixel,
+                  yPixel: typeof node.yPixel
+                }
+              },
+              converted: { worldX, worldY },
+              calculation: node.xPixel !== undefined && node.xPixel !== null 
+                ? 'Used xPixel/yPixel' 
+                : 'Used x/y * 1000'
             })
-            // Reset to reasonable coordinates
-            worldX = 500
-            worldY = 500
+            // Reset to reasonable coordinates near camera center
+            worldX = 500 + (Math.random() - 0.5) * 200 // Random position near center
+            worldY = 500 + (Math.random() - 0.5) * 200
           }
           
           return {
@@ -430,9 +445,22 @@ function MapViewer() {
       // Save node position
       
       try {
+        const pixelX = Math.round(draggingNode.worldX)
+        const pixelY = Math.round(draggingNode.worldY)
+        
+        // Prevent saving corrupted coordinates to database
+        if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
+          console.log('🚨 PREVENTED SAVING CORRUPTED COORDINATES:', {
+            nodeId: draggingNode.id,
+            worldPos: { x: draggingNode.worldX, y: draggingNode.worldY },
+            pixelPos: { x: pixelX, y: pixelY }
+          })
+          return
+        }
+        
         await handleNodeUpdate(draggingNode, {
-          x_pixel: Math.round(draggingNode.worldX),
-          y_pixel: Math.round(draggingNode.worldY)
+          x_pixel: pixelX,
+          y_pixel: pixelY
         })
         console.log('✅ Node position saved for node:', draggingNode.id)
       } catch (err) {
