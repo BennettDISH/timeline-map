@@ -140,16 +140,36 @@ function MapViewer() {
         
         // Convert coordinates to world pixels
         const convertedNodes = eventsResult.events.map(node => {
-          // Priority: use pixel coordinates if they exist and are not 0, otherwise use percentage * 1000
+          // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
+          
+          console.log('🔄 CONVERTING NODE COORDINATES:', {
+            nodeId: node.id,
+            title: node.title,
+            rawData: { 
+              x: node.x, 
+              y: node.y, 
+              xPixel: node.xPixel, 
+              yPixel: node.yPixel 
+            }
+          })
           
           if (node.xPixel !== undefined && node.xPixel !== null) {
             worldX = node.xPixel
             worldY = node.yPixel || 0
+            console.log('✅ Using pixel coordinates:', { worldX, worldY })
           } else {
             // Convert percentage to world coordinates 
             worldX = (node.x || 0) * 1000
             worldY = (node.y || 0) * 1000
+            console.log('📐 Using percentage coordinates:', { worldX, worldY, calculation: `${node.x} * 1000, ${node.y} * 1000` })
+          }
+          
+          // Fix nodes at origin (0,0) - position them near camera center instead
+          if (worldX === 0 && worldY === 0) {
+            worldX = 500 + (Math.random() - 0.5) * 100 // Random position near camera center
+            worldY = 500 + (Math.random() - 0.5) * 100
+            console.log('🎯 FIXED ORIGIN NODE:', { nodeId: node.id, newPos: { worldX, worldY } })
           }
           
           // DEBUG: Check for corrupted coordinates from database
@@ -157,25 +177,10 @@ function MapViewer() {
             console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
               nodeId: node.id,
               title: node.title,
-              rawData: { 
-                x: node.x, 
-                y: node.y, 
-                xPixel: node.xPixel, 
-                yPixel: node.yPixel,
-                types: {
-                  x: typeof node.x,
-                  y: typeof node.y,
-                  xPixel: typeof node.xPixel,
-                  yPixel: typeof node.yPixel
-                }
-              },
-              converted: { worldX, worldY },
-              calculation: node.xPixel !== undefined && node.xPixel !== null 
-                ? 'Used xPixel/yPixel' 
-                : 'Used x/y * 1000'
+              converted: { worldX, worldY }
             })
             // Reset to reasonable coordinates near camera center
-            worldX = 500 + (Math.random() - 0.5) * 200 // Random position near center
+            worldX = 500 + (Math.random() - 0.5) * 200
             worldY = 500 + (Math.random() - 0.5) * 200
           }
           
