@@ -5,7 +5,6 @@ import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import axios from 'axios'
 import '../styles/timelineStyles.scss'
-import '../styles/alignmentStyles.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
@@ -28,13 +27,7 @@ function MapViewer() {
     timeUnit: 'years'
   })
   const [timelineEnabled, setTimelineEnabled] = useState(false)
-  const [timelineImages, setTimelineImages] = useState([])
   
-  // Image alignment state
-  const [alignmentMode, setAlignmentMode] = useState(false)
-  const [selectedTimelineImage, setSelectedTimelineImage] = useState(null)
-  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
-  const [imageScale, setImageScale] = useState(1.0)
   
   // Interaction state
   const [interactionMode, setInteractionMode] = useState('view') // 'view' or 'edit'
@@ -61,16 +54,13 @@ function MapViewer() {
   const [zoom, setZoom] = useState(1) // Zoom level
   const [isDraggingViewport, setIsDraggingViewport] = useState(false)
   const [isDraggingNode, setIsDraggingNode] = useState(false)
-  const [isDraggingImage, setIsDraggingImage] = useState(false)
   const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 })
   const [dragStartCamera, setDragStartCamera] = useState({ x: 0, y: 0 })
   const [dragStartNodePos, setDragStartNodePos] = useState({ x: 0, y: 0 })
-  const [dragStartImagePos, setDragStartImagePos] = useState({ x: 0, y: 0 })
   const [draggingNode, setDraggingNode] = useState(null)
   
   // Refs
   const containerRef = useRef(null)
-  const alignmentImageRef = useRef(null)
   const timelineUpdateTimeoutRef = useRef(null)
   
   // State to track when container is ready for coordinate calculations
@@ -234,23 +224,6 @@ function MapViewer() {
             timeUnit: mapResult.map.timelineTimeUnit || 'years'
           })
           
-          // Load timeline images
-          try {
-            console.log('🔍 Loading timeline images for map:', mapId)
-            const token = localStorage.getItem('auth_token')
-            const timelineImagesResult = await axios.get(`/api/maps/${mapId}/timeline-images`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            })
-            console.log('📥 Timeline images API response:', timelineImagesResult.data)
-            const images = timelineImagesResult.data.images || []
-            console.log('🖼️ Setting timeline images:', images.length, 'images')
-            setTimelineImages(images)
-          } catch (err) {
-            console.error('❌ Error loading timeline images:', err)
-            console.log('Timeline images API error details:', err.response?.data || err.message)
-          }
         }
         
         // Load available maps for linking
@@ -281,9 +254,6 @@ function MapViewer() {
         if (isAddingNode) {
           setIsAddingNode(false)
         }
-        if (alignmentMode) {
-          exitAlignmentMode()
-        }
         if (selectedNode) {
           setSelectedNode(null)
         }
@@ -295,7 +265,7 @@ function MapViewer() {
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isAddingNode, alignmentMode, selectedNode, showInfoPanel])
+  }, [isAddingNode, selectedNode, showInfoPanel])
   
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
@@ -343,61 +313,6 @@ function MapViewer() {
     return visibleNodes
   }
   
-  // Get current background image based on timeline
-  const getCurrentBackgroundImage = () => {
-    if (!timelineEnabled || timelineImages.length === 0) {
-      console.log('📷 No timeline images or timeline disabled:', { 
-        timelineEnabled, 
-        imageCount: timelineImages.length,
-        defaultMapUrl: map?.imageUrl
-      })
-      return { url: map?.imageUrl, isTimelineImage: false }
-    }
-    
-    // DEBUG: Timeline image selection
-    console.log('🖼️ TIMELINE DEBUG:', {
-      currentTime,
-      totalImages: timelineImages.length,
-      timelineEnabled,
-      images: timelineImages.map(img => ({
-        id: img.id,
-        name: img.imageName || img.originalName,
-        startTime: img.startTime,
-        endTime: img.endTime,
-        url: img.imageUrl,
-        active: currentTime >= img.startTime && currentTime <= img.endTime
-      }))
-    })
-    
-    // Find active timeline image
-    const activeImage = timelineImages.find(img => {
-      const isActive = currentTime >= img.startTime && currentTime <= img.endTime
-      console.log(`🔍 Checking image ${img.id}: ${img.startTime}-${img.endTime}, current: ${currentTime}, active: ${isActive}`)
-      return isActive
-    })
-    
-    if (activeImage) {
-      console.log('✅ Using timeline image:', {
-        id: activeImage.id,
-        name: activeImage.imageName || activeImage.originalName,
-        url: activeImage.imageUrl,
-        timeRange: `${activeImage.startTime}-${activeImage.endTime}`
-      })
-      return {
-        url: activeImage.imageUrl,
-        isTimelineImage: true,
-        imageData: activeImage,
-        positioning: {
-          positionX: activeImage.positionX || 0,
-          positionY: activeImage.positionY || 0,
-          scale: activeImage.scale || 1.0
-        }
-      }
-    }
-    
-    console.log('⭕ Using default map image:', map?.imageUrl)
-    return { url: map?.imageUrl, isTimelineImage: false }
-  }
   
   // **MOUSE EVENTS**
   const handleMouseDown = (e) => {
@@ -409,14 +324,6 @@ function MapViewer() {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Check for alignment image dragging
-    if (alignmentMode && selectedTimelineImage && e.target === alignmentImageRef.current) {
-      e.stopPropagation()
-      setIsDraggingImage(true)
-      setDragStartMouse({ x: mouseX, y: mouseY })
-      setDragStartImagePos({ x: imagePosition.x, y: imagePosition.y })
-      return
-    }
     
     // Check for node dragging in edit mode
     if (interactionMode === 'edit') {
@@ -925,29 +832,6 @@ function MapViewer() {
             <span className="timeline-max">{timelineSettings.maxTime}</span>
           </div>
           
-          {/* Timeline image dots */}
-          {timelineImages.length > 0 && (
-            <div className="timeline-images-indicator">
-              {timelineImages.map((img, index) => (
-                <div
-                  key={img.id}
-                  className={`timeline-dot ${selectedTimelineImage?.id === img.id ? 'selected' : ''}`}
-                  style={{
-                    left: `${((img.startTime - timelineSettings.minTime) / (timelineSettings.maxTime - timelineSettings.minTime)) * 100}%`,
-                    backgroundColor: `hsl(${index * 60}, 70%, 50%)`
-                  }}
-                  onClick={() => enterAlignmentMode(img)}
-                  title={`Click to align: ${img.originalName} (${img.startTime}-${img.endTime} ${timelineSettings.timeUnit})`}
-                />
-              ))}
-            </div>
-          )}
-          
-          {timelineImages.length === 0 && (
-            <div className="timeline-empty-state">
-              <p>No timeline images added yet. Go to <Link to={`/map/${mapId}/settings`}>Settings</Link> to add timeline images.</p>
-            </div>
-          )}
         </div>
       )}
       
