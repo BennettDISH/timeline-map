@@ -445,15 +445,20 @@ function MapViewer() {
       // Save node position
       const finalWorldX = draggingNode.worldX
       const finalWorldY = draggingNode.worldY
+      const nodeToSave = draggingNode
       
       console.log('💾 SAVING NODE POSITION:', {
-        nodeId: draggingNode.id,
+        nodeId: nodeToSave.id,
         finalWorld: { x: finalWorldX, y: finalWorldY },
         finalScreen: worldToScreen(finalWorldX, finalWorldY),
         dragStartWorld: dragStartNodePos,
         camera,
         zoom
       })
+      
+      // Clear drag state immediately to prevent further updates
+      setIsDraggingNode(false)
+      setDraggingNode(null)
       
       try {
         const pixelX = Math.round(finalWorldX)
@@ -469,16 +474,16 @@ function MapViewer() {
           return
         }
         
-        await handleNodeUpdate(draggingNode, {
+        await handleNodeUpdate(nodeToSave, {
           x_pixel: pixelX,
           y_pixel: pixelY
         })
-        console.log('✅ Node position saved for node:', draggingNode.id)
+        console.log('✅ Node position saved for node:', nodeToSave.id)
       } catch (err) {
         console.error('Failed to save node position:', err)
         // Reset node position on error
         setNodes(nodes.map(node => 
-          node.id === draggingNode.id 
+          node.id === nodeToSave.id 
             ? { ...node, worldX: dragStartNodePos.x, worldY: dragStartNodePos.y }
             : node
         ))
@@ -494,10 +499,9 @@ function MapViewer() {
       }
     }
     
+    // Clear remaining drag states (node drag already cleared above)
     setIsDraggingViewport(false)
-    setIsDraggingNode(false)
     setIsDraggingImage(false)
-    setDraggingNode(null)
   }
   
   const handleWheel = (e) => {
