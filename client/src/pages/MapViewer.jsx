@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
 import eventService from '../services/eventService'
@@ -73,16 +73,47 @@ function MapViewer() {
   const alignmentImageRef = useRef(null)
   const timelineUpdateTimeoutRef = useRef(null)
   
+  // State to track when container is ready for coordinate calculations
+  const [containerReady, setContainerReady] = useState(false)
+  
+  // Effect to check when container is ready
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0 && !containerReady) {
+        console.log('📏 Container ready for coordinate calculations:', rect)
+        setContainerReady(true)
+      }
+    }
+  }, [map, containerReady])
+  
+  // Callback ref to ensure we know when container mounts
+  const setContainerRef = useCallback((element) => {
+    containerRef.current = element
+    if (element) {
+      // Use setTimeout to ensure the element is fully rendered
+      setTimeout(() => {
+        const rect = element.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          console.log('📏 Container mounted and ready:', rect)
+          setContainerReady(true)
+        }
+      }, 0)
+    }
+  }, [])
+  
   // **COORDINATE CONVERSION FUNCTIONS**
   const worldToScreen = (worldX, worldY) => {
     if (!containerRef.current) {
       // Return center of viewport as fallback
+      console.log('⚠️ worldToScreen called before container ready, using fallback')
       return { x: 400, y: 300 }
     }
     
     const rect = containerRef.current.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) {
       // Return center of viewport as fallback  
+      console.log('⚠️ Container has zero dimensions, using fallback:', rect)
       return { x: 400, y: 300 }
     }
     
@@ -888,7 +919,7 @@ function MapViewer() {
       
       {/* Map Container */}
       <div 
-        ref={containerRef}
+        ref={setContainerRef}
         className={`map-container ${isAddingNode ? 'adding-node' : ''} ${isDraggingViewport ? 'dragging' : ''}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
