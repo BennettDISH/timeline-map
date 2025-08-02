@@ -443,16 +443,27 @@ function MapViewer() {
   const handleMouseUp = async () => {
     if (isDraggingNode && draggingNode) {
       // Save node position
+      const finalWorldX = draggingNode.worldX
+      const finalWorldY = draggingNode.worldY
+      
+      console.log('💾 SAVING NODE POSITION:', {
+        nodeId: draggingNode.id,
+        finalWorld: { x: finalWorldX, y: finalWorldY },
+        finalScreen: worldToScreen(finalWorldX, finalWorldY),
+        dragStartWorld: dragStartNodePos,
+        camera,
+        zoom
+      })
       
       try {
-        const pixelX = Math.round(draggingNode.worldX)
-        const pixelY = Math.round(draggingNode.worldY)
+        const pixelX = Math.round(finalWorldX)
+        const pixelY = Math.round(finalWorldY)
         
         // Prevent saving corrupted coordinates to database
         if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
           console.log('🚨 PREVENTED SAVING CORRUPTED COORDINATES:', {
             nodeId: draggingNode.id,
-            worldPos: { x: draggingNode.worldX, y: draggingNode.worldY },
+            worldPos: { x: finalWorldX, y: finalWorldY },
             pixelPos: { x: pixelX, y: pixelY }
           })
           return
@@ -576,13 +587,34 @@ function MapViewer() {
     setSaveError('')
     
     try {
+      console.log('📤 UPDATING NODE:', { nodeId: node.id, updates })
+      
       const result = await eventService.updateEvent(node.id, updates)
       const updatedNode = result.event
       
+      console.log('📥 NODE UPDATE RESPONSE:', {
+        nodeId: updatedNode.id,
+        response: {
+          x: updatedNode.x,
+          y: updatedNode.y,
+          xPixel: updatedNode.xPixel,
+          yPixel: updatedNode.yPixel
+        }
+      })
+      
+      const newWorldX = updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000
+      const newWorldY = updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
+      
+      console.log('🔄 APPLYING NODE UPDATE:', {
+        nodeId: updatedNode.id,
+        newWorldPos: { x: newWorldX, y: newWorldY },
+        newScreenPos: worldToScreen(newWorldX, newWorldY)
+      })
+      
       setNodes(nodes.map(n => n.id === node.id ? {
         ...updatedNode,
-        worldX: updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000,
-        worldY: updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
+        worldX: newWorldX,
+        worldY: newWorldY
       } : n))
       
       if (selectedNode && selectedNode.id === node.id) {
