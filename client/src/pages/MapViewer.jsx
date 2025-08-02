@@ -275,43 +275,43 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging - let's go back to basics and use the working click logic
-      if (!imageRef.current) return
+      // Node dragging using grid coordinate system
+      if (!containerRef.current) return
       
-      // Simplified approach - get mouse position relative to the image directly
-      const imageRect = imageRef.current.getBoundingClientRect()
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const centerX = containerRect.width / 2
+      const centerY = containerRect.height / 2
       
-      // Mouse position relative to the image element
-      const mouseX = e.clientX - imageRect.left
-      const mouseY = e.clientY - imageRect.top
+      // Mouse position relative to container
+      const mouseX = e.clientX - containerRect.left
+      const mouseY = e.clientY - containerRect.top
       
-      // Simplified calculation since image element now matches displayed image size
-      const imageX = (mouseX / imageRect.width) * 100
-      const imageY = (mouseY / imageRect.height) * 100
+      // Convert mouse position to grid coordinates (inverse of display logic)
+      const gridX = (mouseX - centerX - position.x) / scale
+      const gridY = (mouseY - centerY - position.y) / scale
       
-      // Simple debug logging
-      const img = imageRef.current
-      const computedStyle = window.getComputedStyle(img)
+      // Convert grid coordinates back to percentage for storage (inverse of display conversion)
+      const percentX = gridX / 5  // Convert grid units back to percentage
+      const percentY = gridY / 5
       
-      console.log('Dragging debug (simplified):', {
-        imageRect: { width: imageRect.width, height: imageRect.height },
-        mousePos: { mouseX, mouseY },
-        calculatedPercent: { imageX, imageY }
+      console.log('Node dragging debug:', {
+        mouse: { mouseX, mouseY },
+        container: { centerX, centerY },
+        position: position,
+        scale: scale,
+        grid: { gridX, gridY },
+        percent: { percentX, percentY }
       })
-      
-      // No bounds constraints - nodes can be positioned anywhere on the grid
-      const boundedX = imageX
-      const boundedY = imageY
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
-          ? { ...node, x: boundedX, y: boundedY }
+          ? { ...node, x: percentX, y: percentY }
           : node
       ))
       
       // Update dragging node reference
-      setDraggingNode({ ...draggingNode, x: boundedX, y: boundedY })
+      setDraggingNode({ ...draggingNode, x: percentX, y: percentY })
     }
   }
 
