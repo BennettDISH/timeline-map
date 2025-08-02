@@ -357,21 +357,7 @@ function MapViewer() {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    if (isDraggingImage && selectedTimelineImage) {
-      // Image alignment dragging
-      const mouseDeltaX = mouseX - dragStartMouse.x
-      const mouseDeltaY = mouseY - dragStartMouse.y
-      
-      // Convert to world delta (scale by zoom for alignment precision)
-      const worldDeltaX = mouseDeltaX / (zoom * 100) // Scale factor for alignment
-      const worldDeltaY = mouseDeltaY / (zoom * 100)
-      
-      setImagePosition({
-        x: dragStartImagePos.x + worldDeltaX,
-        y: dragStartImagePos.y + worldDeltaY
-      })
-      
-    } else if (isDraggingNode && draggingNode) {
+    if (isDraggingNode && draggingNode) {
       // Node dragging
       const mouseDeltaX = mouseX - dragStartMouse.x
       const mouseDeltaY = mouseY - dragStartMouse.y
@@ -468,50 +454,35 @@ function MapViewer() {
       }
     }
     
-    if (isDraggingImage && selectedTimelineImage) {
-      // Save image position
-      try {
-        await saveImageAlignment()
-      } catch (err) {
-        console.error('Failed to save image position:', err)
-      }
-    }
     
     // Clear remaining drag states (node drag already cleared above)
     setIsDraggingViewport(false)
-    setIsDraggingImage(false)
   }
   
   const handleWheel = (e) => {
     e.preventDefault()
     
-    if (e.shiftKey && alignmentMode) {
-      // Image scale adjustment
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-      const newImageScale = Math.max(0.05, Math.min(5.0, imageScale + delta))
-      setImageScale(newImageScale)
-    } else {
-      // Viewport zoom
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
-      const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor))
+    // Viewport zoom
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+    const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor))
+    
+    // Zoom towards mouse position
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
       
-      // Zoom towards mouse position
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
-        
-        const worldPos = screenToWorld(mouseX, mouseY)
-        setZoom(newZoom)
-        
-        // Adjust camera to keep mouse position fixed
-        const newScreenPos = worldToScreen(worldPos.x, worldPos.y)
-        const deltaX = (mouseX - newScreenPos.x) / newZoom
-        const deltaY = (mouseY - newScreenPos.y) / newZoom
-        
-        setCamera(prev => ({
-          x: prev.x + deltaX,
-          y: prev.y + deltaY
+      const worldPos = screenToWorld(mouseX, mouseY)
+      setZoom(newZoom)
+      
+      // Adjust camera to keep mouse position fixed
+      const newScreenPos = worldToScreen(worldPos.x, worldPos.y)
+      const deltaX = (mouseX - newScreenPos.x) / newZoom
+      const deltaY = (mouseY - newScreenPos.y) / newZoom
+      
+      setCamera(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
         }))
       }
     }
@@ -651,43 +622,6 @@ function MapViewer() {
     }, 500)
   }
   
-  // Image alignment operations
-  const saveImageAlignment = async () => {
-    if (!selectedTimelineImage) return
-    
-    try {
-      const token = localStorage.getItem('auth_token')
-      await axios.put(`/api/maps/${mapId}/timeline-images/${selectedTimelineImage.id}`, {
-        position_x: imagePosition.x,
-        position_y: imagePosition.y,
-        scale: imageScale
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-    } catch (err) {
-      console.error('Failed to save image alignment:', err)
-      throw err
-    }
-  }
-  
-  const enterAlignmentMode = (timelineImage) => {
-    setSelectedTimelineImage(timelineImage)
-    setImagePosition({
-      x: timelineImage.positionX || 0,
-      y: timelineImage.positionY || 0
-    })
-    setImageScale(timelineImage.scale || 1.0)
-    setAlignmentMode(true)
-  }
-  
-  const exitAlignmentMode = () => {
-    setAlignmentMode(false)
-    setSelectedTimelineImage(null)
-    setImagePosition({ x: 0, y: 0 })
-    setImageScale(1.0)
-  }
   
   if (loading) {
     return <div className="map-viewer-loading">Loading map...</div>
@@ -806,16 +740,6 @@ function MapViewer() {
           <div className="timeline-header">
             <span className="timeline-label">Timeline: {currentTime} {timelineSettings.timeUnit}</span>
             <div className="timeline-actions">
-              {alignmentMode && (
-                <button onClick={exitAlignmentMode} className="exit-alignment-button">
-                  Exit Alignment Mode
-                </button>
-              )}
-              {alignmentMode && (
-                <div className="alignment-help">
-                  💡 <strong>Tip:</strong> Drag the blue-bordered image to align it. Use Shift+scroll to scale.
-                </div>
-              )}
             </div>
           </div>
           
@@ -870,28 +794,6 @@ function MapViewer() {
           />
         )}
         
-        {/* Alignment overlay image */}
-        {alignmentMode && selectedTimelineImage && (
-          <img
-            ref={alignmentImageRef}
-            src={selectedTimelineImage.imageUrl}
-            alt="Image being aligned"
-            className={`alignment-image ${isDraggingImage ? 'dragging' : ''}`}
-            style={{
-              position: 'absolute',
-              left: worldToScreen(imagePosition.x * 1000, imagePosition.y * 1000).x,
-              top: worldToScreen(imagePosition.x * 1000, imagePosition.y * 1000).y,
-              transform: `scale(${zoom * imageScale})`,
-              transformOrigin: 'top left',
-              cursor: isDraggingImage ? 'grabbing' : 'grab',
-              opacity: 0.7,
-              border: '2px solid #007bff',
-              zIndex: 5,
-              maxWidth: 'none'
-            }}
-            draggable={false}
-          />
-        )}
         
         {/* Nodes */}
         {getVisibleNodes().map(node => {
