@@ -50,7 +50,8 @@ function MapViewer() {
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
   const [imageScale, setImageScale] = useState(1.0)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
-  // Removed imageDragStart and imageDragOffset - using direct coordinate conversion like nodes
+  const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 })
+  const [dragStartImagePosition, setDragStartImagePosition] = useState({ x: 0, y: 0 })
   
   // Pan and zoom state
   const [scale, setScale] = useState(1)
@@ -199,6 +200,9 @@ function MapViewer() {
     if (alignmentMode && selectedTimelineImage && e.target === alignmentImageRef.current) {
       e.stopPropagation()
       setIsDraggingImage(true)
+      // Store starting position for delta-based dragging
+      setDragStartPosition({ x: e.clientX, y: e.clientY })
+      setDragStartImagePosition({ x: imagePosition.x, y: imagePosition.y })
       return
     }
     
@@ -208,40 +212,38 @@ function MapViewer() {
   }
 
   const handleMouseMove = (e) => {
-    if (isDraggingImage && selectedTimelineImage && containerRef.current) {
-      // Image alignment dragging - account for transform-based positioning
-      const containerRect = containerRef.current.getBoundingClientRect()
-      const centerX = containerRect.width / 2
-      const centerY = containerRect.height / 2
+    if (isDraggingImage && selectedTimelineImage) {
+      // Delta-based image dragging - immune to viewport coordinate issues
+      const mouseDeltaX = e.clientX - dragStartPosition.x
+      const mouseDeltaY = e.clientY - dragStartPosition.y
       
-      // Mouse position relative to container center (since image uses transform from center)
-      const mouseX = e.clientX - containerRect.left
-      const mouseY = e.clientY - containerRect.top
+      // Convert mouse delta to grid delta (independent of absolute coordinates)
+      const gridDeltaX = mouseDeltaX / scale
+      const gridDeltaY = mouseDeltaY / scale
       
-      // For transform-based positioning, we want the mouse offset from center
-      const offsetFromCenterX = mouseX - centerX
-      const offsetFromCenterY = mouseY - centerY
+      // Apply delta to original image position
+      const originalGridX = (dragStartImagePosition.x || 0) * 5
+      const originalGridY = (dragStartImagePosition.y || 0) * 5
       
-      // Convert the offset to grid coordinates (accounting for current scale)
-      const gridX = offsetFromCenterX / scale
-      const gridY = offsetFromCenterY / scale
+      const newGridX = originalGridX + gridDeltaX
+      const newGridY = originalGridY + gridDeltaY
       
-      // Convert grid coordinates to percentage for storage
-      const percentX = gridX / 5
-      const percentY = gridY / 5
+      // Convert back to percentage
+      const newPercentX = newGridX / 5
+      const newPercentY = newGridY / 5
       
-      console.log('🖱️ TRANSFORM-BASED IMAGE DRAG:', {
-        mouse: { mouseX, mouseY },
-        center: { centerX, centerY },
-        offset: { offsetFromCenterX, offsetFromCenterY },
-        scale: scale,
-        grid: { gridX, gridY },
-        percent: { percentX, percentY }
+      console.log('🖱️ DELTA-BASED IMAGE DRAG:', {
+        mouseDelta: { mouseDeltaX, mouseDeltaY },
+        gridDelta: { gridDeltaX, gridDeltaY },
+        originalGrid: { originalGridX, originalGridY },
+        newGrid: { newGridX, newGridY },
+        newPercent: { newPercentX, newPercentY },
+        viewportState: { scale: scale, position: position }
       })
       
       setImagePosition({
-        x: percentX,
-        y: percentY
+        x: newPercentX,
+        y: newPercentY
       })
     } else if (isDragging && !isDraggingNode) {
       // Map dragging
@@ -255,44 +257,46 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Node dragging using grid coordinate system
-      if (!containerRef.current) return
+      // Delta-based node dragging - immune to viewport coordinate issues
+      const mouseDeltaX = e.clientX - lastMousePos.x
+      const mouseDeltaY = e.clientY - lastMousePos.y
       
-      const containerRect = containerRef.current.getBoundingClientRect()
-      const centerX = containerRect.width / 2
-      const centerY = containerRect.height / 2
+      // Convert mouse delta to grid delta
+      const gridDeltaX = mouseDeltaX / scale
+      const gridDeltaY = mouseDeltaY / scale
       
-      // Mouse position relative to container
-      const mouseX = e.clientX - containerRect.left
-      const mouseY = e.clientY - containerRect.top
+      // Apply delta to current node position
+      const currentGridX = (draggingNode.x || 0) * 5
+      const currentGridY = (draggingNode.y || 0) * 5
       
-      // Convert mouse position to grid coordinates (inverse of display logic)
-      // Nodes are positioned absolutely relative to container, not affected by position transform
-      const gridX = (mouseX - centerX) / scale
-      const gridY = (mouseY - centerY) / scale
+      const newGridX = currentGridX + gridDeltaX
+      const newGridY = currentGridY + gridDeltaY
       
-      // Convert grid coordinates back to percentage for storage (inverse of display conversion)
-      const percentX = gridX / 5  // Convert grid units back to percentage
-      const percentY = gridY / 5
+      // Convert back to percentage
+      const newPercentX = newGridX / 5
+      const newPercentY = newGridY / 5
       
-      console.log('Node dragging debug:', {
-        mouse: { mouseX, mouseY },
-        container: { centerX, centerY },
-        position: position,
-        scale: scale,
-        grid: { gridX, gridY },
-        percent: { percentX, percentY }
+      console.log('🔵 DELTA-BASED NODE DRAG:', {
+        mouseDelta: { mouseDeltaX, mouseDeltaY },
+        gridDelta: { gridDeltaX, gridDeltaY },
+        currentGrid: { currentGridX, currentGridY },
+        newGrid: { newGridX, newGridY },
+        newPercent: { newPercentX, newPercentY },
+        viewportState: { scale: scale, position: position }
       })
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
-          ? { ...node, x: percentX, y: percentY }
+          ? { ...node, x: newPercentX, y: newPercentY }
           : node
       ))
       
       // Update dragging node reference
-      setDraggingNode({ ...draggingNode, x: percentX, y: percentY })
+      setDraggingNode({ ...draggingNode, x: newPercentX, y: newPercentY })
+      
+      // Update mouse position for next delta calculation
+      setLastMousePos({ x: e.clientX, y: e.clientY })
     }
   }
 
