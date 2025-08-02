@@ -152,6 +152,17 @@ function MapViewer() {
             worldY = (node.y || 0) * 1000
           }
           
+          // DEBUG: Check for corrupted coordinates from database
+          if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
+            console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
+              nodeId: node.id,
+              rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel },
+              converted: { worldX, worldY }
+            })
+            // Reset to reasonable coordinates
+            worldX = 500
+            worldY = 500
+          }
           
           return {
             ...node,
@@ -378,6 +389,19 @@ function MapViewer() {
       const newWorldX = dragStartNodePos.x + worldDeltaX
       const newWorldY = dragStartNodePos.y + worldDeltaY
       
+      // DEBUG: Check for coordinate corruption during drag
+      if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
+        console.log('🚨 PREVENTING COORDINATE CORRUPTION DURING DRAG:', {
+          nodeId: draggingNode.id,
+          mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
+          worldDelta: { x: worldDeltaX, y: worldDeltaY },
+          dragStart: dragStartNodePos,
+          newWorld: { x: newWorldX, y: newWorldY },
+          zoom,
+          camera
+        })
+        return // Don't update coordinates if they're corrupted
+      }
       
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
