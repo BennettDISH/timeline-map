@@ -300,6 +300,63 @@ router.post('/migrate', async (req, res) => {
       console.log('ℹ️ y_position check constraint removal:', error.message)
     }
     
+    // Convert coordinate storage from percentages to pixels
+    console.log('🔄 Converting coordinate system to pixel-based...')
+    
+    // Add new pixel coordinate columns to events table
+    const eventPixelColumns = [
+      'x_pixel INTEGER DEFAULT 0',
+      'y_pixel INTEGER DEFAULT 0'
+    ]
+    
+    for (const columnDef of eventPixelColumns) {
+      const columnName = columnDef.split(' ')[0]
+      try {
+        await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS ${columnDef}`)
+        console.log(`✅ Added ${columnName} column to events table`)
+      } catch (err) {
+        try {
+          await pool.query(`ALTER TABLE events ADD COLUMN ${columnDef}`)
+          console.log(`✅ Added ${columnName} column to events table`)
+        } catch (err2) {
+          if (err2.code === '42701') {
+            console.log(`⏭️ Column ${columnName} already exists`)
+          } else {
+            console.log(`❌ Failed to add column ${columnName}:`, err2.message)
+            throw err2
+          }
+        }
+      }
+    }
+    
+    // Add new pixel coordinate columns to map_timeline_images table
+    const imagePixelColumns = [
+      'x_pixel INTEGER DEFAULT 0',
+      'y_pixel INTEGER DEFAULT 0'
+    ]
+    
+    for (const columnDef of imagePixelColumns) {
+      const columnName = columnDef.split(' ')[0]
+      try {
+        await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN IF NOT EXISTS ${columnDef}`)
+        console.log(`✅ Added ${columnName} column to map_timeline_images table`)
+      } catch (err) {
+        try {
+          await pool.query(`ALTER TABLE map_timeline_images ADD COLUMN ${columnDef}`)
+          console.log(`✅ Added ${columnName} column to map_timeline_images table`)
+        } catch (err2) {
+          if (err2.code === '42701') {
+            console.log(`⏭️ Column ${columnName} already exists`)
+          } else {
+            console.log(`❌ Failed to add column ${columnName}:`, err2.message)
+            throw err2
+          }
+        }
+      }
+    }
+    
+    console.log('✅ Pixel coordinate system migration completed')
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 

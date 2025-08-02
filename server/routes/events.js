@@ -49,6 +49,8 @@ router.get('/', async (req, res) => {
       mapId: row.map_id,
       x: parseFloat(row.x_position),
       y: parseFloat(row.y_position),
+      xPixel: row.x_pixel || 0,
+      yPixel: row.y_pixel || 0,
       startTime: row.start_time,
       endTime: row.end_time,
       timelineEnabled: row.timeline_enabled,
@@ -133,7 +135,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { 
-      title, description, content, map_id, x_position, y_position, 
+      title, description, content, map_id, x_position, y_position, x_pixel = 0, y_pixel = 0,
       start_time = 0, end_time = 100, timeline_enabled = false, image_id, tooltip_text, 
       link_to_map_id, event_type = 'standard' 
     } = req.body;
@@ -187,14 +189,14 @@ router.post('/', async (req, res) => {
     
     const result = await pool.query(`
       INSERT INTO events (
-        title, description, content, map_id, x_position, y_position,
+        title, description, content, map_id, x_position, y_position, x_pixel, y_pixel,
         start_time, end_time, timeline_enabled, image_id, created_by, tooltip_text,
         link_to_map_id, event_type
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `, [
-      title, description, content, map_id, x_position, y_position,
+      title, description, content, map_id, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id || null, req.user.id, tooltip_text || null,
       link_to_map_id || null, event_type
     ]);
@@ -234,7 +236,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { 
-      title, description, content, x_position, y_position, 
+      title, description, content, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id, tooltip_text, 
       link_to_map_id, event_type 
     } = req.body;
@@ -292,18 +294,20 @@ router.put('/:id', async (req, res) => {
           content = COALESCE($3, content),
           x_position = COALESCE($4, x_position),
           y_position = COALESCE($5, y_position),
-          start_time = COALESCE($6, start_time),
-          end_time = COALESCE($7, end_time),
-          timeline_enabled = COALESCE($8, timeline_enabled),
-          image_id = COALESCE($9, image_id),
-          tooltip_text = COALESCE($10, tooltip_text),
-          link_to_map_id = COALESCE($11, link_to_map_id),
-          event_type = COALESCE($12, event_type),
+          x_pixel = COALESCE($6, x_pixel),
+          y_pixel = COALESCE($7, y_pixel),
+          start_time = COALESCE($8, start_time),
+          end_time = COALESCE($9, end_time),
+          timeline_enabled = COALESCE($10, timeline_enabled),
+          image_id = COALESCE($11, image_id),
+          tooltip_text = COALESCE($12, tooltip_text),
+          link_to_map_id = COALESCE($13, link_to_map_id),
+          event_type = COALESCE($14, event_type),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $15
       RETURNING *
     `, [
-      title, description, content, x_position, y_position,
+      title, description, content, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id, tooltip_text, 
       link_to_map_id, event_type, id
     ]);

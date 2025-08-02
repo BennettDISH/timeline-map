@@ -257,43 +257,38 @@ function MapViewer() {
       
       setLastMousePos({ x: e.clientX, y: e.clientY })
     } else if (isDraggingNode && draggingNode) {
-      // Delta-based node dragging - immune to viewport coordinate issues
+      // Simple pixel-based node dragging
       const mouseDeltaX = e.clientX - lastMousePos.x
       const mouseDeltaY = e.clientY - lastMousePos.y
       
-      // Convert mouse delta to grid delta
-      const gridDeltaX = mouseDeltaX / scale
-      const gridDeltaY = mouseDeltaY / scale
+      // Convert mouse delta to world pixels (account for scale)
+      const pixelDeltaX = mouseDeltaX / scale
+      const pixelDeltaY = mouseDeltaY / scale
       
-      // Apply delta to current node position
-      const currentGridX = (draggingNode.x || 0) * 5
-      const currentGridY = (draggingNode.y || 0) * 5
+      // Apply delta to current pixel position
+      const currentPixelX = draggingNode.xPixel !== undefined ? draggingNode.xPixel : (draggingNode.x || 0) * 500
+      const currentPixelY = draggingNode.yPixel !== undefined ? draggingNode.yPixel : (draggingNode.y || 0) * 500
       
-      const newGridX = currentGridX + gridDeltaX
-      const newGridY = currentGridY + gridDeltaY
+      const newPixelX = currentPixelX + pixelDeltaX
+      const newPixelY = currentPixelY + pixelDeltaY
       
-      // Convert back to percentage
-      const newPercentX = newGridX / 5
-      const newPercentY = newGridY / 5
-      
-      console.log('🔵 DELTA-BASED NODE DRAG:', {
+      console.log('🔵 PIXEL-BASED NODE DRAG:', {
         mouseDelta: { mouseDeltaX, mouseDeltaY },
-        gridDelta: { gridDeltaX, gridDeltaY },
-        currentGrid: { currentGridX, currentGridY },
-        newGrid: { newGridX, newGridY },
-        newPercent: { newPercentX, newPercentY },
-        viewportState: { scale: scale, position: position }
+        pixelDelta: { pixelDeltaX, pixelDeltaY },
+        currentPixel: { currentPixelX, currentPixelY },
+        newPixel: { newPixelX, newPixelY },
+        scale: scale
       })
       
       // Update node position locally (don't save yet)
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
-          ? { ...node, x: newPercentX, y: newPercentY }
+          ? { ...node, xPixel: Math.round(newPixelX), yPixel: Math.round(newPixelY) }
           : node
       ))
       
       // Update dragging node reference
-      setDraggingNode({ ...draggingNode, x: newPercentX, y: newPercentY })
+      setDraggingNode({ ...draggingNode, xPixel: Math.round(newPixelX), yPixel: Math.round(newPixelY) })
       
       // Update mouse position for next delta calculation
       setLastMousePos({ x: e.clientX, y: e.clientY })
@@ -307,8 +302,8 @@ function MapViewer() {
       // Save the final position to database
       try {
         await handleNodeUpdate(draggingNode, {
-          x_position: draggingNode.x,
-          y_position: draggingNode.y
+          x_pixel: draggingNode.xPixel,
+          y_pixel: draggingNode.yPixel
         })
       } catch (err) {
         console.error('Failed to save node position:', err)
@@ -363,22 +358,18 @@ function MapViewer() {
     const mouseX = e.clientX - containerRect.left
     const mouseY = e.clientY - containerRect.top
     
-    // Convert mouse position to grid coordinates
-    const gridX = (mouseX - centerX) / scale
-    const gridY = (mouseY - centerY) / scale
+    // Convert mouse position to world pixel coordinates
+    const pixelX = (mouseX - centerX) / scale - position.x
+    const pixelY = (mouseY - centerY) / scale - position.y
     
-    // Convert grid coordinates to percentage for storage (temporary)
-    const percentX = gridX / 5
-    const percentY = gridY / 5
-    
-    console.log('🎯 NODE PLACEMENT ON GRID:', {
+    console.log('🎯 NODE PLACEMENT (pixel-based):', {
       mousePos: { mouseX, mouseY },
-      gridPos: { x: gridX, y: gridY },
-      percentPos: { x: percentX, y: percentY },
-      scale: scale
+      worldPixel: { x: pixelX, y: pixelY },
+      viewportState: { scale, position },
+      center: { centerX, centerY }
     })
     
-    // No bounds checking - nodes can be placed anywhere on the grid
+    // No bounds checking - nodes can be placed anywhere
     setSaving(true)
     setSaveError('')
     
@@ -388,8 +379,10 @@ function MapViewer() {
         description: '',
         content: 'Click to edit this node',
         map_id: parseInt(mapId),
-        x_position: percentX,
-        y_position: percentY,
+        x_position: 0, // Keep for backward compatibility
+        y_position: 0, // Keep for backward compatibility
+        x_pixel: Math.round(pixelX),
+        y_pixel: Math.round(pixelY),
         event_type: nodeType,
         start_time: 0,
         end_time: 100,
@@ -1238,7 +1231,7 @@ function MapViewer() {
             )
           })()}
           
-          {/* Render nodes using GRID COORDINATES */}
+          {/* Render nodes using PIXEL COORDINATES */}
           {getVisibleNodes().map(node => {
             if (!containerRef.current) return null
             
@@ -1246,13 +1239,13 @@ function MapViewer() {
             const centerX = containerRect.width / 2
             const centerY = containerRect.height / 2
             
-            // Convert node percentage position to grid coordinates
-            const gridX = (node.x || 0) * 5 // Scale up percentage to grid units  
-            const gridY = (node.y || 0) * 5
+            // Use pixel coordinates directly (fallback to percentage if pixel not set)
+            const nodePixelX = node.xPixel !== undefined ? node.xPixel : (node.x || 0) * 500
+            const nodePixelY = node.yPixel !== undefined ? node.yPixel : (node.y || 0) * 500
             
-            // Convert grid coordinates to screen pixels relative to FIXED grid origin  
-            const screenX = centerX + (gridX * scale)
-            const screenY = centerY + (gridY * scale)
+            // Apply viewport transform: center + pixel position + viewport offset, scaled
+            const screenX = centerX + (nodePixelX + position.x) * scale
+            const screenY = centerY + (nodePixelY + position.y) * scale
             
             return (
               <div
