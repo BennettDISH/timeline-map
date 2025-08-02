@@ -146,13 +146,18 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, settings } = req.body;
+    const { 
+      name, description, settings,
+      timeline_enabled, timeline_min_time, timeline_max_time, 
+      timeline_current_time, timeline_time_unit 
+    } = req.body;
 
-    if (!name || name.trim().length === 0) {
+    // Only require name if it's being updated (allow partial updates)
+    if (name !== undefined && (!name || name.trim().length === 0)) {
       return res.status(400).json({ message: 'World name is required' });
     }
 
-    if (name.length > 255) {
+    if (name && name.length > 255) {
       return res.status(400).json({ message: 'World name must be less than 255 characters' });
     }
 
@@ -166,22 +171,79 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'World not found' });
     }
 
-    // Check if name conflicts with another world
-    const nameCheck = await pool.query(
-      'SELECT id FROM worlds WHERE name = $1 AND created_by = $2 AND id != $3 AND is_active = true',
-      [name.trim(), req.user.id, id]
-    );
+    // Check if name conflicts with another world (only if name is being updated)
+    if (name) {
+      const nameCheck = await pool.query(
+        'SELECT id FROM worlds WHERE name = $1 AND created_by = $2 AND id != $3 AND is_active = true',
+        [name.trim(), req.user.id, id]
+      );
 
-    if (nameCheck.rows.length > 0) {
-      return res.status(409).json({ message: 'You already have a world with this name' });
+      if (nameCheck.rows.length > 0) {
+        return res.status(409).json({ message: 'You already have a world with this name' });
+      }
     }
+
+    // Build dynamic update query
+    const updateFields = [];
+    const updateValues = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updateFields.push(`name = $${paramIndex++}`);
+      updateValues.push(name.trim());
+    }
+    
+    if (description !== undefined) {
+      updateFields.push(`description = $${paramIndex++}`);
+      updateValues.push(description || null);
+    }
+    
+    if (settings !== undefined) {
+      updateFields.push(`settings = $${paramIndex++}`);
+      updateValues.push(JSON.stringify(settings || {}));
+    }
+    
+    if (timeline_enabled !== undefined) {
+      updateFields.push(`timeline_enabled = $${paramIndex++}`);
+      updateValues.push(timeline_enabled);
+    }
+    
+    if (timeline_min_time !== undefined) {
+      updateFields.push(`timeline_min_time = $${paramIndex++}`);
+      updateValues.push(timeline_min_time);
+    }
+    
+    if (timeline_max_time !== undefined) {
+      updateFields.push(`timeline_max_time = $${paramIndex++}`);
+      updateValues.push(timeline_max_time);
+    }
+    
+    if (timeline_current_time !== undefined) {
+      updateFields.push(`timeline_current_time = $${paramIndex++}`);
+      updateValues.push(timeline_current_time);
+    }
+    
+    if (timeline_time_unit !== undefined) {
+      updateFields.push(`timeline_time_unit = $${paramIndex++}`);
+      updateValues.push(timeline_time_unit);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    // Always update the timestamp
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    
+    // Add WHERE conditions at the end
+    updateValues.push(id, req.user.id);
 
     const result = await pool.query(`
       UPDATE worlds 
-      SET name = $1, description = $2, settings = $3, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4 AND created_by = $5
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramIndex++} AND created_by = $${paramIndex++}
       RETURNING *
-    `, [name.trim(), description || null, JSON.stringify(settings || {}), id, req.user.id]);
+    `, updateValues);
 
     const world = result.rows[0];
     
@@ -193,7 +255,14 @@ router.put('/:id', async (req, res) => {
         description: world.description,
         createdAt: world.created_at,
         updatedAt: world.updated_at,
-        settings: world.settings
+        settings: world.settings,
+        timelineEnabled: world.timeline_enabled,
+        timelineSettings: {
+          minTime: world.timeline_min_time,
+          maxTime: world.timeline_max_time,
+          currentTime: world.timeline_current_time,
+          timeUnit: world.timeline_time_unit
+        }
       }
     });
   } catch (error) {

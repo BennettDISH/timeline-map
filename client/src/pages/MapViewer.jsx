@@ -111,6 +111,7 @@ function MapViewer() {
         ])
         
         setMap(mapResult.map)
+        console.log('Loaded map:', mapResult.map)
         
         // Convert coordinates to world pixels
         const convertedNodes = eventsResult.events.map(node => ({
@@ -571,11 +572,14 @@ function MapViewer() {
             <button
               onClick={async () => {
                 try {
-                  await worldService.updateWorld(map.worldId, { timeline_enabled: true })
+                  console.log('Enabling timeline for world:', map.worldId)
+                  const result = await worldService.updateWorld(map.worldId, { timeline_enabled: true })
+                  console.log('Timeline enable result:', result)
                   setTimelineEnabled(true)
                   window.location.reload() // Reload to get timeline data
                 } catch (err) {
-                  setSaveError('Failed to enable timeline')
+                  console.error('Timeline enable error:', err)
+                  setSaveError(`Failed to enable timeline: ${err.message || err}`)
                 }
               }}
               className="enable-timeline-button"
