@@ -57,7 +57,7 @@ function MapViewer() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
   // **SIMPLE COORDINATE SYSTEM**
-  const [camera, setCamera] = useState({ x: 0, y: 0 }) // World position camera is looking at
+  const [camera, setCamera] = useState({ x: 500, y: 500 }) // World position camera is looking at (center of typical coordinate space)
   const [zoom, setZoom] = useState(1) // Zoom level
   const [isDraggingViewport, setIsDraggingViewport] = useState(false)
   const [isDraggingNode, setIsDraggingNode] = useState(false)
@@ -161,10 +161,19 @@ function MapViewer() {
           
           // Load timeline images
           try {
-            const timelineImagesResult = await axios.get(`/api/maps/${mapId}/timeline-images`)
+            console.log('Loading timeline images for map:', mapId)
+            const token = localStorage.getItem('auth_token')
+            const timelineImagesResult = await axios.get(`/api/maps/${mapId}/timeline-images`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+            console.log('Timeline images response:', timelineImagesResult.data)
             setTimelineImages(timelineImagesResult.data.timelineImages || [])
+            console.log('Set timeline images:', timelineImagesResult.data.timelineImages?.length || 0, 'images')
           } catch (err) {
-            console.log('No timeline images found or error loading them')
+            console.error('Error loading timeline images:', err)
+            console.log('Timeline images API call failed:', err.response?.data || err.message)
           }
         }
         
@@ -330,6 +339,15 @@ function MapViewer() {
       const newWorldX = dragStartNodePos.x + worldDeltaX
       const newWorldY = dragStartNodePos.y + worldDeltaY
       
+      console.log('Dragging node:', {
+        nodeId: draggingNode.id,
+        mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
+        worldDelta: { x: worldDeltaX, y: worldDeltaY },
+        oldWorld: { x: dragStartNodePos.x, y: dragStartNodePos.y },
+        newWorld: { x: newWorldX, y: newWorldY },
+        screenPos: worldToScreen(newWorldX, newWorldY)
+      })
+      
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
           ? { ...node, worldX: newWorldX, worldY: newWorldY }
@@ -370,8 +388,15 @@ function MapViewer() {
           x_pixel: Math.round(draggingNode.worldX),
           y_pixel: Math.round(draggingNode.worldY)
         })
+        console.log('Node position saved successfully')
       } catch (err) {
         console.error('Failed to save node position:', err)
+        // Reset node position on error
+        setNodes(nodes.map(node => 
+          node.id === draggingNode.id 
+            ? { ...node, worldX: dragStartNodePos.x, worldY: dragStartNodePos.y }
+            : node
+        ))
       }
     }
     
@@ -542,10 +567,15 @@ function MapViewer() {
     if (!selectedTimelineImage) return
     
     try {
+      const token = localStorage.getItem('auth_token')
       await axios.put(`/api/maps/${mapId}/timeline-images/${selectedTimelineImage.id}`, {
         position_x: imagePosition.x,
         position_y: imagePosition.y,
         scale: imageScale
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
     } catch (err) {
       console.error('Failed to save image alignment:', err)
@@ -606,7 +636,7 @@ function MapViewer() {
       <div className="map-controls">
         <div className="view-controls">
           <button onClick={() => setZoom(1)}>Reset Zoom</button>
-          <button onClick={() => setCamera({ x: 0, y: 0 })}>Center</button>
+          <button onClick={() => setCamera({ x: 500, y: 500 })}>Center</button>
           <span className="zoom-level">Zoom: {Math.round(zoom * 100)}%</span>
           
           <button 
