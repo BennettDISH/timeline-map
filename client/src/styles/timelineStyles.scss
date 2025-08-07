@@ -9,6 +9,8 @@
   backdrop-filter: blur(10px);
   z-index: 40;
   transition: all 0.3s ease;
+  height: auto;
+  max-height: 80px;
 
   &.active {
     background: linear-gradient(135deg, #2d3748 0%, #4a5568 50%, #2b6cb0 100%);
@@ -24,42 +26,46 @@
   .timeline-content {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 15px;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 15px 20px;
+    padding: 12px 20px;
+    height: 60px;
+    box-sizing: border-box;
 
     @media (max-width: 768px) {
-      gap: 12px;
-      padding: 12px 15px;
+      gap: 10px;
+      padding: 10px 15px;
+      height: 50px;
     }
   }
 
   .timeline-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     background: #4a5568;
     color: white;
     border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
+    border-radius: 6px;
+    padding: 8px 12px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     transition: all 0.2s ease;
-    min-width: 110px;
+    min-width: 100px;
+    height: 36px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
     .toggle-icon {
-      font-size: 16px;
+      font-size: 14px;
       transition: transform 0.2s ease;
     }
 
     &:hover {
       background: #718096;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
     }
 
     &.active {
@@ -71,32 +77,33 @@
       }
 
       .toggle-icon {
-        transform: scale(1.1);
+        transform: scale(1.05);
       }
     }
 
     @media (max-width: 768px) {
-      padding: 8px 12px;
-      font-size: 13px;
-      min-width: 90px;
+      padding: 6px 10px;
+      font-size: 12px;
+      min-width: 85px;
+      height: 32px;
     }
   }
 
   .timeline-range-display {
     color: #a0aec0;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
-    min-width: 35px;
+    min-width: 30px;
     text-align: center;
     background: rgba(255, 255, 255, 0.05);
-    padding: 6px 8px;
-    border-radius: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
     font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
 
     @media (max-width: 768px) {
-      font-size: 12px;
-      min-width: 30px;
-      padding: 4px 6px;
+      font-size: 11px;
+      min-width: 25px;
+      padding: 3px 5px;
     }
   }
 
@@ -181,39 +188,42 @@
   .timeline-current-time {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 3px;
     background: rgba(255, 255, 255, 0.1);
-    padding: 8px 12px;
-    border-radius: 8px;
-    min-width: 80px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    min-width: 70px;
     justify-content: center;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 36px;
+    box-sizing: border-box;
 
     .time-value {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 700;
       color: #e2e8f0;
       font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
     }
 
     .time-unit {
-      font-size: 12px;
+      font-size: 11px;
       color: #a0aec0;
       font-weight: 500;
       text-transform: lowercase;
     }
 
     @media (max-width: 768px) {
-      padding: 6px 10px;
-      min-width: 70px;
+      padding: 4px 8px;
+      min-width: 60px;
+      height: 32px;
 
       .time-value {
-        font-size: 14px;
+        font-size: 13px;
       }
 
       .time-unit {
-        font-size: 11px;
+        font-size: 10px;
       }
     }
   }
