@@ -6,6 +6,7 @@ import MapContainer from '../components/MapContainer'
 import NodeEditor from '../components/NodeEditor'
 import InfoPanel from '../components/InfoPanel'
 import Timeline from '../components/Timeline'
+import NodesListPanel from '../components/NodesListPanel'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
@@ -25,6 +26,7 @@ function MapViewer() {
   const [isAddingNode, setIsAddingNode] = useState(false)
   const [nodeType, setNodeType] = useState('info')
   const [showGrid, setShowGrid] = useState(false)
+  const [showNodesPanel, setShowNodesPanel] = useState(false)
 
   // Interactions
   const {
@@ -43,6 +45,7 @@ function MapViewer() {
     timeUnit: 'years'
   })
   const [timelineEnabled, setTimelineEnabled] = useState(false)
+  const [timelineActive, setTimelineActive] = useState(false) // Local toggle for temporarily disabling timeline
 
   // Edit form state
   const [editFormData, setEditFormData] = useState({
@@ -79,6 +82,7 @@ function MapViewer() {
       })
       
       setTimelineEnabled(!!map.timelineEnabled)
+      setTimelineActive(!!map.timelineEnabled) // Initially match the enabled state
       setCurrentTime(map.timelineCurrentTime || 50)
       setTimelineSettings({
         minTime: map.timelineMinTime || 0,
@@ -113,17 +117,18 @@ function MapViewer() {
         if (isAddingNode) setIsAddingNode(false)
         if (selectedNode) setSelectedNode(null)
         if (showInfoPanel) setShowInfoPanel(false)
+        if (showNodesPanel) setShowNodesPanel(false)
       }
     }
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isAddingNode, selectedNode, showInfoPanel])
+  }, [isAddingNode, selectedNode, showInfoPanel, showNodesPanel])
 
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
-    if (!timelineEnabled) {
-      console.log('🔵 Timeline disabled, showing all', nodes.length, 'nodes')
+    if (!timelineEnabled || !timelineActive) {
+      console.log('🔵 Timeline disabled/inactive, showing all', nodes.length, 'nodes')
       return nodes
     }
     
@@ -504,6 +509,23 @@ function MapViewer() {
             📐 Grid
           </button>
           
+          <button 
+            onClick={() => setShowNodesPanel(!showNodesPanel)}
+            className={`nodes-list-toggle ${showNodesPanel ? 'active' : ''}`}
+            style={{
+              padding: '6px 12px',
+              border: 'none',
+              borderRadius: '4px',
+              background: showNodesPanel ? '#4CAF50' : '#f0f0f0',
+              color: showNodesPanel ? 'white' : '#333',
+              cursor: 'pointer',
+              fontSize: '12px',
+              transition: 'all 0.2s'
+            }}
+          >
+            📋 View All Nodes ({nodes.length})
+          </button>
+          
           {!timelineEnabled && (
             <button
               onClick={async () => {
@@ -517,6 +539,7 @@ function MapViewer() {
                   })
                   
                   setTimelineEnabled(true)
+                  setTimelineActive(true)
                   setTimelineSettings({
                     minTime: 0,
                     maxTime: 100,
@@ -592,6 +615,34 @@ function MapViewer() {
         onEditNode={handleInfoPanelEditNode}
       />
       
+      {/* Nodes List Panel */}
+      <NodesListPanel
+        showNodesPanel={showNodesPanel}
+        nodes={nodes}
+        selectedNode={selectedNode}
+        interactionMode={interactionMode}
+        onClose={() => setShowNodesPanel(false)}
+        onNodeSelect={(node) => {
+          setSelectedNode(node)
+          setEditFormData({
+            title: node.title || '',
+            description: node.description || '',
+            content: node.content || '',
+            linkToMapId: node.linkToMapId || null,
+            startTime: node.startTime || 0,
+            endTime: node.endTime || 100,
+            timelineEnabled: node.timelineEnabled || false,
+            imageId: node.imageId || null,
+            nodeType: node.eventType === 'background_map' ? 'background_map' : 
+                     node.eventType === 'map_link' ? 'map_link' : 'info',
+            width: node.width || (node.eventType === 'background_map' ? 400 : 100),
+            height: node.height || (node.eventType === 'background_map' ? 300 : 100)
+          })
+          setHasUnsavedChanges(false)
+        }}
+        onNodeClick={handleNodeClick}
+      />
+      
       {/* Node Editor */}
       {interactionMode === 'edit' && (
         <NodeEditor
@@ -615,9 +666,11 @@ function MapViewer() {
       {/* Timeline at bottom */}
       <Timeline
         timelineEnabled={timelineEnabled}
+        timelineActive={timelineActive}
         currentTime={currentTime}
         timelineSettings={timelineSettings}
         onTimelineChange={handleTimelineChange}
+        onToggleActive={() => setTimelineActive(!timelineActive)}
       />
     </div>
   )
