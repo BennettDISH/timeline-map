@@ -505,6 +505,49 @@
     }
   }
 
+  .background-map-node {
+    position: absolute;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+    
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    
+    &.selected {
+      border-color: #ffd700;
+      box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+    }
+    
+    &.dragging {
+      border-color: #63b3ed;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .background-map-image {
+      border-radius: 8px;
+      user-select: none;
+      pointer-events: none;
+    }
+    
+    .background-map-label {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      max-width: calc(100% - 16px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+  }
+
   .adding-node-help {
     position: absolute;
     top: 50%;

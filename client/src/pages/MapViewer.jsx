@@ -49,7 +49,10 @@ function MapViewer() {
     startTime: 0,
     endTime: 100,
     timelineEnabled: false,
-    imageId: null
+    imageId: null,
+    isBackgroundMap: false,
+    width: 400,
+    height: 300
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
@@ -163,7 +166,7 @@ function MapViewer() {
         
         setMap(mapResult.map)
         
-        // Convert coordinates to world pixels
+        // Convert coordinates to world pixels and parse background map data
         const convertedNodes = eventsResult.events.map(node => {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
@@ -210,10 +213,24 @@ function MapViewer() {
             worldY = 500 + (Math.random() - 0.5) * 200
           }
           
+          // Parse background map dimensions from tooltip_text if it's a background_map
+          let width = 400, height = 300
+          if (node.eventType === 'background_map' && node.tooltipText) {
+            try {
+              const dimensions = JSON.parse(node.tooltipText)
+              width = dimensions.width || 400
+              height = dimensions.height || 300
+            } catch (e) {
+              // Fallback to defaults if JSON parsing fails
+            }
+          }
+          
           return {
             ...node,
             worldX,
-            worldY
+            worldY,
+            width,
+            height
           }
         })
         setNodes(convertedNodes)
@@ -238,12 +255,8 @@ function MapViewer() {
           // Silently continue without available maps
         }
         
-        try {
-          const imagesResult = await imageServiceBase64.getImages({ worldId: mapResult.map.worldId })
-          setAvailableImages(imagesResult.images)
-        } catch (err) {
-          // Silently continue without available images
-        }
+        // Only load images when needed (when user enters edit mode)
+        setAvailableImages([])
         
       } catch (err) {
         console.error('Failed to load map data:', err)
@@ -257,6 +270,25 @@ function MapViewer() {
       loadData()
     }
   }, [mapId])
+  
+  // Load images when entering edit mode
+  const loadImages = async () => {
+    if (availableImages.length === 0 && map?.worldId) {
+      try {
+        const imagesResult = await imageServiceBase64.getImages({ worldId: map.worldId })
+        setAvailableImages(imagesResult.images)
+      } catch (err) {
+        console.error('Failed to load images:', err)
+      }
+    }
+  }
+  
+  // Load images when switching to edit mode
+  useEffect(() => {
+    if (interactionMode === 'edit') {
+      loadImages()
+    }
+  }, [interactionMode])
   
   // Keyboard shortcuts
   useEffect(() => {
@@ -787,8 +819,68 @@ function MapViewer() {
       >
         
         
-        {/* Nodes */}
-        {getVisibleNodes().map(node => {
+        {/* Background Map Nodes (render behind regular nodes) */}
+        {getVisibleNodes().filter(node => node.eventType === 'background_map').map(node => {
+          const screenPos = worldToScreen(node.worldX, node.worldY)
+          
+          return (
+            <div
+              key={`bg-${node.id}`}
+              className={`background-map-node ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+              style={{
+                position: 'absolute',
+                left: screenPos.x - (node.width * zoom) / 2,
+                top: screenPos.y - (node.height * zoom) / 2,
+                width: node.width * zoom,
+                height: node.height * zoom,
+                cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+                zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 1
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (interactionMode === 'view') {
+                  setInfoPanelNode(node)
+                  setShowInfoPanel(true)
+                } else {
+                  setSelectedNode(node)
+                  setEditFormData({
+                    title: node.title || '',
+                    description: node.description || '',
+                    content: node.content || '',
+                    linkToMapId: node.linkToMapId || null,
+                    startTime: node.startTime || 0,
+                    endTime: node.endTime || 100,
+                    timelineEnabled: node.timelineEnabled || false,
+                    imageId: node.imageId || null,
+                    isBackgroundMap: node.eventType === 'background_map',
+                    width: node.width || 400,
+                    height: node.height || 300
+                  })
+                  setHasUnsavedChanges(false)
+                }
+              }}
+            >
+              {node.imageUrl && (
+                <img 
+                  src={node.imageUrl} 
+                  alt={node.title}
+                  className="background-map-image"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    opacity: 0.8,
+                    borderRadius: '8px'
+                  }}
+                />
+              )}
+              <div className="background-map-label">{node.title}</div>
+            </div>
+          )
+        })}
+        
+        {/* Regular Nodes */}
+        {getVisibleNodes().filter(node => node.eventType !== 'background_map').map(node => {
           const screenPos = worldToScreen(node.worldX, node.worldY)
           
           // DEBUG: Node dragging visibility
@@ -845,7 +937,10 @@ function MapViewer() {
                     startTime: node.startTime || 0,
                     endTime: node.endTime || 100,
                     timelineEnabled: node.timelineEnabled || false,
-                    imageId: node.imageId || null
+                    imageId: node.imageId || null,
+                    isBackgroundMap: node.eventType === 'background_map',
+                    width: node.width || 400,
+                    height: node.height || 300
                   })
                   setHasUnsavedChanges(false)
                 }
@@ -952,7 +1047,10 @@ function MapViewer() {
                       startTime: infoPanelNode.startTime || 0,
                       endTime: infoPanelNode.endTime || 100,
                       timelineEnabled: infoPanelNode.timelineEnabled || false,
-                      imageId: infoPanelNode.imageId || null
+                      imageId: infoPanelNode.imageId || null,
+                      isBackgroundMap: infoPanelNode.eventType === 'background_map',
+                      width: infoPanelNode.width || 400,
+                      height: infoPanelNode.height || 300
                     })
                     setHasUnsavedChanges(false)
                     setShowInfoPanel(false)
@@ -1023,6 +1121,54 @@ function MapViewer() {
               showPreview={false}
             />
           </div>
+          
+          {editFormData.imageId && (
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={editFormData.isBackgroundMap}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, isBackgroundMap: e.target.checked})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+                Background Map Node (image displays in background)
+              </label>
+            </div>
+          )}
+          
+          {editFormData.isBackgroundMap && editFormData.imageId && (
+            <>
+              <div className="form-group">
+                <label>Width: {editFormData.width}px</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="1000"
+                  value={editFormData.width}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, width: parseInt(e.target.value)})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Height: {editFormData.height}px</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="1000"
+                  value={editFormData.height}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, height: parseInt(e.target.value)})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+            </>
+          )}
           
           {selectedNode.eventType === 'map_link' && (
             <div className="form-group">
@@ -1101,7 +1247,27 @@ function MapViewer() {
               className="save-button"
               disabled={saving}
               onClick={async () => {
-                await handleNodeUpdate(selectedNode, editFormData)
+                const updateData = {
+                  title: editFormData.title,
+                  description: editFormData.description,
+                  content: editFormData.content,
+                  image_id: editFormData.imageId,
+                  link_to_map_id: editFormData.linkToMapId,
+                  start_time: editFormData.startTime,
+                  end_time: editFormData.endTime,
+                  timeline_enabled: editFormData.timelineEnabled,
+                  event_type: editFormData.isBackgroundMap ? 'background_map' : (editFormData.linkToMapId ? 'map_link' : 'standard')
+                }
+                
+                // Store dimensions temporarily in tooltip_text as JSON for background maps
+                if (editFormData.isBackgroundMap) {
+                  updateData.tooltip_text = JSON.stringify({
+                    width: editFormData.width,
+                    height: editFormData.height
+                  })
+                }
+                
+                await handleNodeUpdate(selectedNode, updateData)
                 setSelectedNode(null)
                 setHasUnsavedChanges(false)
               }}
