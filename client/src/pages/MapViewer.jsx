@@ -230,8 +230,9 @@ function MapViewer() {
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
           console.log('📐 Parsed saved dimensions:', dimensions)
-          width = dimensions.width || (updatedNode.eventType === 'standard' ? 100 : 400)
-          height = dimensions.height || (updatedNode.eventType === 'standard' ? 100 : 300)
+          width = dimensions.width !== undefined ? dimensions.width : (updatedNode.eventType === 'standard' ? 100 : 400)
+          height = dimensions.height !== undefined ? dimensions.height : (updatedNode.eventType === 'standard' ? 100 : 300)
+          console.log('📏 Using dimensions:', { width, height })
           hasDimensions = true
         } catch (e) {
           console.error('❌ Failed to parse tooltipText:', e, updatedNode.tooltipText)
