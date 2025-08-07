@@ -115,6 +115,17 @@ function NodeRenderer({
   const renderBackgroundNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
     
+    console.log('🖼️ RENDERING BACKGROUND NODE:', {
+      nodeId: node.id,
+      title: node.title,
+      imageUrl: node.imageUrl,
+      imageId: node.imageId,
+      eventType: node.eventType,
+      width: node.width,
+      height: node.height,
+      screenPos
+    })
+    
     return (
       <div
         key={`bg-${node.id}`}

@@ -22,6 +22,8 @@ export const useMapData = (mapId) => {
         setMap(mapResult.map)
         
         // Convert coordinates to world pixels and parse background map data
+        console.log('🔄 RAW EVENTS FROM API:', eventsResult.events)
+        
         const convertedNodes = eventsResult.events.map(node => {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
