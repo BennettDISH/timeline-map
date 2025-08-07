@@ -68,16 +68,22 @@ export const useMapData = (mapId) => {
             worldY = 500 + (Math.random() - 0.5) * 200
           }
           
-          // Parse background map dimensions from tooltip_text if it's a background_map
+          // Parse dimensions from tooltip_text for background_map and standard nodes with images
           let width = 400, height = 300
-          if (node.eventType === 'background_map' && node.tooltipText) {
+          if ((node.eventType === 'background_map' || (node.eventType === 'standard' && node.imageUrl)) && node.tooltipText) {
             try {
               const dimensions = JSON.parse(node.tooltipText)
-              width = dimensions.width || 400
-              height = dimensions.height || 300
+              width = dimensions.width || (node.eventType === 'standard' ? 100 : 400)
+              height = dimensions.height || (node.eventType === 'standard' ? 100 : 300)
             } catch (e) {
               // Fallback to defaults if JSON parsing fails
+              width = node.eventType === 'standard' ? 100 : 400
+              height = node.eventType === 'standard' ? 100 : 300
             }
+          } else if (node.eventType === 'standard' && node.imageUrl) {
+            // Default size for image nodes
+            width = 100
+            height = 100
           }
           
           return {

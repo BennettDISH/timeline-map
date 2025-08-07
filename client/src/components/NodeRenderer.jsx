@@ -43,34 +43,70 @@ function NodeRenderer({
       })
     }
     
-    return (
-      <div
-        key={node.id}
-        className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
-        style={{
-          position: 'absolute',
-          left: screenPos.x,
-          top: screenPos.y,
-          transform: 'translate(-50%, -50%)',
-          cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
-          zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
-        }}
-        onClick={(e) => onNodeClick(e, node)}
-      >
-        <div className="node-marker">
-          {node.imageUrl ? (
-            <img src={node.imageUrl} alt={node.title} className="node-image" />
-          ) : (
-            node.eventType === 'map_link' ? '🗺️' : 'ℹ️'
-          )}
+    // Check if this is an image node (info node with image)
+    const isImageNode = node.eventType === 'standard' && node.imageUrl
+    
+    if (isImageNode) {
+      // Render as scalable image without node styling
+      return (
+        <div
+          key={node.id}
+          className={`image-node ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+          style={{
+            position: 'absolute',
+            left: screenPos.x - (node.width * zoom) / 2,
+            top: screenPos.y - (node.height * zoom) / 2,
+            width: node.width * zoom,
+            height: node.height * zoom,
+            cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+            zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
+          }}
+          onClick={(e) => onNodeClick(e, node)}
+        >
+          <img 
+            src={node.imageUrl} 
+            alt={node.title}
+            className="scalable-node-image"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              borderRadius: '4px'
+            }}
+          />
+          <div className="image-node-tooltip">
+            <strong>{node.title}</strong>
+            {node.description && <p>{node.description}</p>}
+          </div>
         </div>
-        
-        <div className="node-tooltip">
-          <strong>{node.title}</strong>
-          {node.description && <p>{node.description}</p>}
+      )
+    } else {
+      // Render as traditional node with marker
+      return (
+        <div
+          key={node.id}
+          className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+          style={{
+            position: 'absolute',
+            left: screenPos.x,
+            top: screenPos.y,
+            transform: 'translate(-50%, -50%)',
+            cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+            zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
+          }}
+          onClick={(e) => onNodeClick(e, node)}
+        >
+          <div className="node-marker">
+            {node.eventType === 'map_link' ? '🗺️' : 'ℹ️'}
+          </div>
+          
+          <div className="node-tooltip">
+            <strong>{node.title}</strong>
+            {node.description && <p>{node.description}</p>}
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
   }
 
   const renderBackgroundNode = (node) => {

@@ -54,8 +54,8 @@ function MapViewer() {
     timelineEnabled: false,
     imageId: null,
     nodeType: 'info',
-    width: 400,
-    height: 300
+    width: 100,
+    height: 100
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
@@ -188,16 +188,22 @@ function MapViewer() {
       const newWorldX = updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000
       const newWorldY = updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
       
-      // Parse dimensions for background maps
+      // Parse dimensions for background maps and image nodes
       let width = 400, height = 300
-      if (updatedNode.eventType === 'background_map' && updatedNode.tooltipText) {
+      if ((updatedNode.eventType === 'background_map' || (updatedNode.eventType === 'standard' && updatedNode.imageUrl)) && updatedNode.tooltipText) {
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
-          width = dimensions.width || 400
-          height = dimensions.height || 300
+          width = dimensions.width || (updatedNode.eventType === 'standard' ? 100 : 400)
+          height = dimensions.height || (updatedNode.eventType === 'standard' ? 100 : 300)
         } catch (e) {
           // Fallback to defaults if JSON parsing fails
+          width = updatedNode.eventType === 'standard' ? 100 : 400
+          height = updatedNode.eventType === 'standard' ? 100 : 300
         }
+      } else if (updatedNode.eventType === 'standard' && updatedNode.imageUrl) {
+        // Default size for image nodes
+        width = 100
+        height = 100
       }
       
       setNodes(nodes.map(n => n.id === node.id ? {
@@ -280,8 +286,8 @@ function MapViewer() {
         imageId: node.imageId || null,
         nodeType: node.eventType === 'background_map' ? 'background_map' : 
                  node.eventType === 'map_link' ? 'map_link' : 'info',
-        width: node.width || 400,
-        height: node.height || 300
+        width: node.width || (node.eventType === 'background_map' ? 400 : 100),
+        height: node.height || (node.eventType === 'background_map' ? 300 : 100)
       })
       setHasUnsavedChanges(false)
     }
@@ -300,8 +306,8 @@ function MapViewer() {
       imageId: node.imageId || null,
       nodeType: node.eventType === 'background_map' ? 'background_map' : 
                node.eventType === 'map_link' ? 'map_link' : 'info',
-      width: node.width || 400,
-      height: node.height || 300
+      width: node.width || (node.eventType === 'background_map' ? 400 : 100),
+      height: node.height || (node.eventType === 'background_map' ? 300 : 100)
     })
     setHasUnsavedChanges(false)
     setShowInfoPanel(false)
@@ -321,8 +327,8 @@ function MapViewer() {
                   editFormData.nodeType === 'map_link' ? 'map_link' : 'standard'
     }
     
-    // Store dimensions temporarily in tooltip_text as JSON for background maps
-    if (editFormData.nodeType === 'background_map') {
+    // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
+    if (editFormData.nodeType === 'background_map' || (editFormData.nodeType === 'info' && editFormData.imageId)) {
       updateData.tooltip_text = JSON.stringify({
         width: editFormData.width,
         height: editFormData.height

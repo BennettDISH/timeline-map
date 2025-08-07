@@ -69,7 +69,7 @@ function NodeEditor({
         />
       </div>
       
-      {/* Show image selector for all node types except basic info */}
+      {/* Show image selector for info and background map nodes */}
       {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info') && (
         <div className="form-group">
           <label>Node Image (optional)</label>
@@ -81,6 +81,33 @@ function NodeEditor({
             showPreview={false}
           />
         </div>
+      )}
+      
+      {/* Image scaling for info nodes */}
+      {editFormData.nodeType === 'info' && editFormData.imageId && (
+        <>
+          <div className="form-group">
+            <label>Image Width: {editFormData.width}px</label>
+            <input
+              type="range"
+              min="50"
+              max="500"
+              value={editFormData.width}
+              onChange={(e) => handleFieldChange('width', parseInt(e.target.value))}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Image Height: {editFormData.height}px</label>
+            <input
+              type="range"
+              min="50"
+              max="500"
+              value={editFormData.height}
+              onChange={(e) => handleFieldChange('height', parseInt(e.target.value))}
+            />
+          </div>
+        </>
       )}
       
       {/* Background map dimensions */}

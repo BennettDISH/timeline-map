@@ -548,6 +548,70 @@
     }
   }
 
+  .image-node {
+    position: absolute;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.2s;
+    
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: scale(1.02);
+    }
+    
+    &.selected {
+      border-color: #ffd700;
+      box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.4);
+    }
+    
+    &.dragging {
+      border-color: #63b3ed;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transform: scale(1.05);
+      
+      .image-node-tooltip {
+        opacity: 0;
+      }
+    }
+    
+    .scalable-node-image {
+      user-select: none;
+      pointer-events: none;
+    }
+    
+    .image-node-tooltip {
+      position: absolute;
+      bottom: -35px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      white-space: nowrap;
+      max-width: 200px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+
+      strong {
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      p {
+        margin: 0;
+        color: #a0aec0;
+        font-size: 10px;
+      }
+    }
+
+    &:hover .image-node-tooltip {
+      opacity: 1;
+    }
+  }
+
   .adding-node-help {
     position: absolute;
     top: 50%;
