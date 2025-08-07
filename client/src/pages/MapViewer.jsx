@@ -72,7 +72,6 @@ function MapViewer() {
   // Load timeline data when map loads
   useEffect(() => {
     if (map) {
-      console.log('📍 LOADING TIMELINE STATE FROM MAP:', {
         timelineEnabled: map.timelineEnabled,
         currentTime: map.timelineCurrentTime,
         settings: {
@@ -100,7 +99,6 @@ function MapViewer() {
         const imagesResult = await imageServiceBase64.getImages({ worldId: map.worldId })
         setAvailableImages(imagesResult.images)
       } catch (err) {
-        console.error('Failed to load images:', err)
       }
     }
   }
@@ -129,7 +127,6 @@ function MapViewer() {
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
     if (!timelineEnabled || !timelineActive) {
-      console.log('🔵 Timeline disabled/inactive, showing all', nodes.length, 'nodes')
       return nodes
     }
     
@@ -138,7 +135,6 @@ function MapViewer() {
       
       // Debug background map nodes specifically
       if (node.eventType === 'background_map') {
-        console.log('🖼️ Background map timeline check:', {
           nodeId: node.id,
           title: node.title,
           timelineEnabled: node.timelineEnabled,
@@ -153,7 +149,6 @@ function MapViewer() {
     })
     
     const bgMapCount = visibleNodes.filter(n => n.eventType === 'background_map').length
-    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible (${bgMapCount} background maps)`)
     return visibleNodes
   }
 
@@ -202,7 +197,6 @@ function MapViewer() {
       setSelectedNode(newNode)
       setIsAddingNode(false)
     } catch (err) {
-      console.error('Failed to create node:', err)
       setSaveError(err.message || 'Failed to create node')
     } finally {
       setSaving(false)
@@ -228,16 +222,12 @@ function MapViewer() {
       if ((updatedNode.eventType === 'background_map' || 
            (updatedNode.eventType === 'standard' && updatedNode.imageId) || 
            (updatedNode.eventType === 'map_link' && updatedNode.imageId)) && updatedNode.tooltipText) {
-        console.log('🔄 Processing updated node tooltipText:', updatedNode.tooltipText)
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
-          console.log('📐 Parsed saved dimensions:', dimensions)
           width = dimensions.width !== undefined ? dimensions.width : (updatedNode.eventType === 'standard' ? 100 : 400)
           height = dimensions.height !== undefined ? dimensions.height : (updatedNode.eventType === 'standard' ? 100 : 300)
-          console.log('📏 Using dimensions:', { width, height })
           hasDimensions = true
         } catch (e) {
-          console.error('❌ Failed to parse tooltipText:', e, updatedNode.tooltipText)
           // Fallback to defaults if JSON parsing fails
           width = updatedNode.eventType === 'standard' ? 100 : 400
           height = updatedNode.eventType === 'standard' ? 100 : 300
@@ -255,7 +245,6 @@ function MapViewer() {
       if (updatedNode.imageId && !imageUrl && availableImages.length > 0) {
         const selectedImage = availableImages.find(img => img.id === updatedNode.imageId)
         imageUrl = selectedImage ? selectedImage.url : null
-        console.log('🖼️ FETCHED IMAGE URL FOR NEW NODE:', {
           imageId: updatedNode.imageId,
           imageUrl,
           selectedImage: selectedImage?.name || 'not found'
@@ -271,7 +260,6 @@ function MapViewer() {
         imageUrl
       }
       
-      console.log('🔄 NODE UPDATE COMPLETE:', {
         originalNode: node,
         updatedFromAPI: updatedNode,
         processedNode: processedUpdatedNode,
@@ -284,7 +272,6 @@ function MapViewer() {
         setSelectedNode(processedUpdatedNode)
       }
     } catch (err) {
-      console.error('Failed to update node:', err)
       setSaveError(err.message || 'Failed to update node')
     } finally {
       setSaving(false)
@@ -309,7 +296,6 @@ function MapViewer() {
         setInfoPanelNode(null)
       }
     } catch (err) {
-      console.error('Failed to delete node:', err)
       setSaveError(err.message || 'Failed to delete node')
     } finally {
       setSaving(false)
@@ -320,7 +306,6 @@ function MapViewer() {
   const getNodeScale = (node) => {
     if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
     
-    console.log('🔍 Getting scale for node:', {
       nodeId: node.id,
       eventType: node.eventType,
       imageId: node.imageId,
@@ -330,22 +315,17 @@ function MapViewer() {
     try {
       if (node.tooltipText) {
         const dimensions = JSON.parse(node.tooltipText)
-        console.log('📐 Parsed dimensions:', dimensions)
         const scale = dimensions.scale || 100
-        console.log('📏 Returning scale:', scale)
         return scale
       }
     } catch (e) {
-      console.error('❌ Error parsing tooltipText for scale:', e)
     }
     
-    console.log('📏 Defaulting to scale 100')
     return 100
   }
 
   const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
-    console.log('⏰ Timeline changed to:', timeValue)
     setCurrentTime(timeValue)
     
     clearTimeout(timelineUpdateTimeoutRef.current)
@@ -353,7 +333,6 @@ function MapViewer() {
       try {
         await worldService.updateTimelinePosition(map.worldId, timeValue)
       } catch (err) {
-        console.error('Failed to save timeline position:', err)
       }
     }, 500)
   }
@@ -365,6 +344,14 @@ function MapViewer() {
       setInfoPanelNode(node)
       setShowInfoPanel(true)
     } else {
+      console.log('🎯 NODE CLICK - Setting editFormData for node:', {
+        nodeId: node.id,
+        eventType: node.eventType,
+        imageId: node.imageId,
+        currentDimensions: { width: node.width, height: node.height },
+        tooltipText: node.tooltipText,
+        scale: getNodeScale(node)
+      })
       setSelectedNode(node)
       setEditFormData({
         title: node.title || '',
@@ -383,6 +370,18 @@ function MapViewer() {
                 (node.height || (node.eventType === 'background_map' ? 300 : 100)),
         scale: getNodeScale(node)
       })
+      
+      console.log('📝 EDIT FORM DATA SET:', {
+        nodeType: node.eventType === 'background_map' ? 'background_map' : 
+                 node.eventType === 'map_link' ? 'map_link' : 'info',
+        imageId: node.imageId || null,
+        width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+               (node.width || (node.eventType === 'background_map' ? 400 : 100)),
+        height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+                (node.height || (node.eventType === 'background_map' ? 300 : 100)),
+        scale: getNodeScale(node)
+      })
+      
       setHasUnsavedChanges(false)
     }
   }
@@ -489,11 +488,9 @@ function MapViewer() {
         baseHeight: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? 100 : undefined
       }
       
-      console.log('💾 Saving tooltip data:', tooltipData)
       updateData.tooltip_text = JSON.stringify(tooltipData)
     }
     
-    console.log('Sending update data:', updateData)
     await handleNodeUpdate(selectedNode, updateData)
     setSelectedNode(null)
     setHasUnsavedChanges(false)
@@ -637,7 +634,6 @@ function MapViewer() {
                     timelineTimeUnit: 'years'
                   }))
                 } catch (err) {
-                  console.error('❌ Timeline enable error:', err)
                   setSaveError(`Failed to enable timeline: ${err.message || err}`)
                 }
               }}

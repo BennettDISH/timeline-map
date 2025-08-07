@@ -24,7 +24,6 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
       setImages(result.images)
       setError('')
     } catch (err) {
-      console.error('Failed to load images:', err)
       setError(err.message || 'Failed to load images')
     } finally {
       setLoading(false)
@@ -48,7 +47,6 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
       await imageServiceBase64.deleteImage(imageId)
       setImages(images.filter(img => img.id !== imageId))
     } catch (err) {
-      console.error('Failed to delete image:', err)
       setError(err.message || 'Failed to delete image')
     }
   }

@@ -64,7 +64,6 @@ function WorldSettings() {
       
       setError('')
     } catch (err) {
-      console.error('Failed to load world:', err)
       setError(err.response?.data?.message || 'Failed to load world')
     } finally {
       setLoading(false)
@@ -83,7 +82,6 @@ function WorldSettings() {
       setSuccess('World details updated successfully!')
       loadWorld() // Reload to get updated data
     } catch (err) {
-      console.error('Failed to update world:', err)
       setError(err.response?.data?.message || 'Failed to update world details')
     } finally {
       setSaving(false)
@@ -108,7 +106,6 @@ function WorldSettings() {
       setSuccess('Timeline settings updated successfully!')
       loadWorld() // Reload to get updated data
     } catch (err) {
-      console.error('Failed to update timeline settings:', err)
       setError(err.response?.data?.message || 'Failed to update timeline settings')
     } finally {
       setSaving(false)

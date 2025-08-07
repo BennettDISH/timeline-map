@@ -63,7 +63,6 @@ function MapSettings() {
       
       setError('')
     } catch (err) {
-      console.error('Failed to load map data:', err)
       setError(err.response?.data?.message || 'Failed to load map data')
     } finally {
       setLoading(false)
@@ -81,7 +80,6 @@ function MapSettings() {
       setSuccess('Map details updated successfully!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      console.error('Failed to update map:', err)
       setError(err.response?.data?.message || 'Failed to update map')
     } finally {
       setSaving(false)

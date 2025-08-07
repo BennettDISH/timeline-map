@@ -24,7 +24,6 @@ function Setup() {
         navigate('/login')
       }
     } catch (error) {
-      console.error('Setup status check failed:', error)
       // Continue with setup if check fails
     } finally {
       setCheckingStatus(false)
@@ -53,7 +52,6 @@ function Setup() {
       navigate('/dashboard')
       
     } catch (error) {
-      console.error('Setup error:', error)
       const errorData = error.response?.data
       
       let errorMessage = errorData?.message || 'Setup failed. Please try again.'

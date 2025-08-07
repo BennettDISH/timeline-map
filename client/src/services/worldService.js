@@ -21,7 +21,6 @@ const worldService = {
       const response = await api.get('/')
       return response.data
     } catch (error) {
-      console.error('Get worlds error:', error)
       throw error.response?.data || { message: 'Failed to fetch worlds' }
     }
   },
@@ -33,7 +32,6 @@ const worldService = {
       const response = await api.get(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Get world error:', error)
       throw error.response?.data || { message: 'Failed to fetch world' }
     }
   },
@@ -45,7 +43,6 @@ const worldService = {
       const response = await api.post('/', worldData)
       return response.data
     } catch (error) {
-      console.error('Create world error:', error)
       throw error.response?.data || { message: 'Failed to create world' }
     }
   },
@@ -57,7 +54,6 @@ const worldService = {
       const response = await api.put(`/${id}`, worldData)
       return response.data
     } catch (error) {
-      console.error('Update world error:', error)
       throw error.response?.data || { message: 'Failed to update world' }
     }
   },
@@ -69,7 +65,6 @@ const worldService = {
       const response = await api.delete(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Delete world error:', error)
       throw error.response?.data || { message: 'Failed to delete world' }
     }
   },
@@ -81,7 +76,6 @@ const worldService = {
       const response = await api.post(`/${id}/duplicate`, { name: newName })
       return response.data
     } catch (error) {
-      console.error('Duplicate world error:', error)
       throw error.response?.data || { message: 'Failed to duplicate world' }
     }
   },
@@ -93,7 +87,6 @@ const worldService = {
       const response = await api.put(`/${id}/timeline`, timelineData)
       return response.data
     } catch (error) {
-      console.error('Update world timeline error:', error)
       throw error.response?.data || { message: 'Failed to update world timeline settings' }
     }
   },
@@ -105,7 +98,6 @@ const worldService = {
       const response = await api.post(`/${id}/timeline/time`, { current_time: currentTime })
       return response.data
     } catch (error) {
-      console.error('Update timeline position error:', error)
       throw error.response?.data || { message: 'Failed to update timeline position' }
     }
   },

@@ -30,7 +30,6 @@ export const createCoordinateUtils = (containerRef, camera, zoom) => {
     
     // DEBUG: Log coordinate conversion if it seems wrong
     if (screenX > 10000 || screenY > 10000 || screenX < -10000 || screenY < -10000) {
-      console.log('🚨 COORDINATE CONVERSION ERROR:', {
         input: { worldX, worldY },
         camera,
         zoom,

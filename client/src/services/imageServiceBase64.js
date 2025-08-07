@@ -51,7 +51,6 @@ const imageServiceBase64 = {
       
       return response.data
     } catch (error) {
-      console.error('Base64 upload error:', error)
       throw error.response?.data || { message: 'Upload failed' }
     }
   },
@@ -78,7 +77,6 @@ const imageServiceBase64 = {
       const response = await api.get(`/?${params}`)
       return response.data
     } catch (error) {
-      console.error('Get images error:', error)
       throw error.response?.data || { message: 'Failed to fetch images' }
     }
   },
@@ -95,7 +93,6 @@ const imageServiceBase64 = {
       const response = await api.get(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Get image error:', error)
       throw error.response?.data || { message: 'Failed to fetch image' }
     }
   },
@@ -112,7 +109,6 @@ const imageServiceBase64 = {
       const response = await api.delete(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Delete image error:', error)
       throw error.response?.data || { message: 'Failed to delete image' }
     }
   },

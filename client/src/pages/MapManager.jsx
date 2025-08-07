@@ -42,7 +42,6 @@ function MapManager() {
       setCurrentWorld(result.world)
       worldService.setCurrentWorld(result.world)
     } catch (error) {
-      console.error('Failed to load world:', error)
       setCurrentWorld(worldService.getCurrentWorld())
     }
   }
@@ -54,7 +53,6 @@ function MapManager() {
       setMaps(result.maps)
       setError('')
     } catch (err) {
-      console.error('Failed to load maps:', err)
       setError(err.message || 'Failed to load maps')
     } finally {
       setLoading(false)
@@ -94,7 +92,6 @@ function MapManager() {
       setNewMapData({ title: '', description: '' })
       setShowCreateForm(false)
     } catch (err) {
-      console.error('Failed to create map:', err)
       setError(err.message || 'Failed to create map')
     } finally {
       setCreating(false)
@@ -113,7 +110,6 @@ function MapManager() {
       await mapService.deleteMap(mapId)
       setMaps(maps.filter(m => m.id !== mapId))
     } catch (err) {
-      console.error('Failed to delete map:', err)
       setError(err.message || 'Failed to delete map')
     }
   }

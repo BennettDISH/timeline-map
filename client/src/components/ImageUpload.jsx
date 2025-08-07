@@ -37,7 +37,6 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false
       if (onUploadSuccess) onUploadSuccess(result.image)
       
     } catch (error) {
-      console.error('Upload failed:', error)
       if (onUploadError) onUploadError(error.message || 'Upload failed')
     } finally {
       setUploading(false)

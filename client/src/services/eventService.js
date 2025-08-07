@@ -21,7 +21,6 @@ const eventService = {
       const response = await api.get(`/?mapId=${mapId}`)
       return response.data
     } catch (error) {
-      console.error('Get events error:', error)
       throw error.response?.data || { message: 'Failed to fetch events' }
     }
   },
@@ -33,7 +32,6 @@ const eventService = {
       const response = await api.get(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Get event error:', error)
       throw error.response?.data || { message: 'Failed to fetch event' }
     }
   },
@@ -45,7 +43,6 @@ const eventService = {
       const response = await api.post('/', eventData)
       return response.data
     } catch (error) {
-      console.error('Create event error:', error)
       throw error.response?.data || { message: 'Failed to create event' }
     }
   },
@@ -53,12 +50,10 @@ const eventService = {
   // Update event
   async updateEvent(id, eventData) {
     try {
-      console.log('🔄 SERVICE UPDATING EVENT:', { id, eventData })
       const api = createAuthAPI()
       const response = await api.put(`/${id}`, eventData)
       return response.data
     } catch (error) {
-      console.error('Update event error:', error)
       throw error.response?.data || { message: 'Failed to update event' }
     }
   },
@@ -70,7 +65,6 @@ const eventService = {
       const response = await api.delete(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Delete event error:', error)
       throw error.response?.data || { message: 'Failed to delete event' }
     }
   }

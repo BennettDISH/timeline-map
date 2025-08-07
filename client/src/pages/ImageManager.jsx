@@ -32,7 +32,6 @@ function ImageManager() {
       setCurrentWorld(result.world)
       worldService.setCurrentWorld(result.world)
     } catch (error) {
-      console.error('Failed to load world:', error)
       // Fallback to stored world or none
       setCurrentWorld(worldService.getCurrentWorld())
     }

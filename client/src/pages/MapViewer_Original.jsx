@@ -78,7 +78,6 @@ function MapViewer() {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0 && !containerReady) {
-        console.log('📏 Container ready for coordinate calculations:', rect)
         setContainerReady(true)
       }
     }
@@ -92,7 +91,6 @@ function MapViewer() {
       setTimeout(() => {
         const rect = element.getBoundingClientRect()
         if (rect.width > 0 && rect.height > 0) {
-          console.log('📏 Container mounted and ready:', rect)
           setContainerReady(true)
         }
       }, 0)
@@ -103,14 +101,12 @@ function MapViewer() {
   const worldToScreen = (worldX, worldY) => {
     if (!containerRef.current) {
       // Return center of viewport as fallback
-      console.log('⚠️ worldToScreen called before container ready, using fallback')
       return { x: 400, y: 300 }
     }
     
     const rect = containerRef.current.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) {
       // Return center of viewport as fallback  
-      console.log('⚠️ Container has zero dimensions, using fallback:', rect)
       return { x: 400, y: 300 }
     }
     
@@ -122,7 +118,6 @@ function MapViewer() {
     
     // DEBUG: Log coordinate conversion if it seems wrong
     if (screenX > 10000 || screenY > 10000 || screenX < -10000 || screenY < -10000) {
-      console.log('🚨 COORDINATE CONVERSION ERROR:', {
         input: { worldX, worldY },
         camera,
         zoom,
@@ -171,7 +166,6 @@ function MapViewer() {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
           
-          console.log('🔄 CONVERTING NODE COORDINATES:', {
             nodeId: node.id,
             title: node.title,
             rawData: { 
@@ -185,17 +179,14 @@ function MapViewer() {
           if (node.xPixel !== undefined && node.xPixel !== null) {
             worldX = node.xPixel
             worldY = node.yPixel || 0
-            console.log('✅ Using pixel coordinates:', { worldX, worldY })
           } else {
             // Convert percentage to world coordinates 
             worldX = (node.x || 0) * 1000
             worldY = (node.y || 0) * 1000
-            console.log('📐 Using percentage coordinates:', { worldX, worldY, calculation: `${node.x} * 1000, ${node.y} * 1000` })
           }
           
           // Check if node is incorrectly at origin
           if (worldX === 0 && worldY === 0) {
-            console.log('⚠️ NODE AT ORIGIN - NEEDS INVESTIGATION:', { 
               nodeId: node.id, 
               rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel }
             })
@@ -203,7 +194,6 @@ function MapViewer() {
           
           // DEBUG: Check for corrupted coordinates from database
           if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
-            console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
               nodeId: node.id,
               title: node.title,
               converted: { worldX, worldY }
@@ -259,7 +249,6 @@ function MapViewer() {
         setAvailableImages([])
         
       } catch (err) {
-        console.error('Failed to load map data:', err)
         setError(err.message || 'Failed to load map')
       } finally {
         setLoading(false)
@@ -278,7 +267,6 @@ function MapViewer() {
         const imagesResult = await imageServiceBase64.getImages({ worldId: map.worldId })
         setAvailableImages(imagesResult.images)
       } catch (err) {
-        console.error('Failed to load images:', err)
       }
     }
   }
@@ -313,11 +301,9 @@ function MapViewer() {
   // Get visible nodes based on timeline
   const getVisibleNodes = () => {
     if (!timelineEnabled) {
-      console.log('🔵 Timeline disabled, showing all', nodes.length, 'nodes')
       return nodes
     }
     
-    console.log('👁️ FILTERING NODES BY TIMELINE:', {
       currentTime,
       totalNodes: nodes.length,
       nodeDetails: nodes.map(node => ({
@@ -332,14 +318,11 @@ function MapViewer() {
     
     const visibleNodes = nodes.filter(node => {
       if (!node.timelineEnabled) {
-        console.log(`✅ Node ${node.id} always visible (timeline disabled for node)`)
         return true
       }
       const visible = currentTime >= node.startTime && currentTime <= node.endTime
-      console.log(`${visible ? '✅' : '❌'} Node ${node.id} (${node.title}): ${node.startTime}-${node.endTime}, current: ${currentTime}, visible: ${visible}`)
       
       if (!visible && isDraggingNode && draggingNode?.id === node.id) {
-        console.log('⚠️ DRAGGED NODE FILTERED OUT:', {
           nodeId: node.id,
           timelineEnabled: node.timelineEnabled,
           startTime: node.startTime,
@@ -351,7 +334,6 @@ function MapViewer() {
       return visible
     })
     
-    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible`)
     
     return visibleNodes
   }
@@ -413,7 +395,6 @@ function MapViewer() {
       
       // DEBUG: Check for coordinate corruption during drag
       if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
-        console.log('🚨 PREVENTING COORDINATE CORRUPTION DURING DRAG:', {
           nodeId: draggingNode.id,
           mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
           worldDelta: { x: worldDeltaX, y: worldDeltaY },
@@ -454,7 +435,6 @@ function MapViewer() {
       const finalWorldY = draggingNode.worldY
       const nodeToSave = draggingNode
       
-      console.log('💾 SAVING NODE POSITION:', {
         nodeId: nodeToSave.id,
         finalWorld: { x: finalWorldX, y: finalWorldY },
         finalScreen: worldToScreen(finalWorldX, finalWorldY),
@@ -473,7 +453,6 @@ function MapViewer() {
         
         // Prevent saving corrupted coordinates to database
         if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
-          console.log('🚨 PREVENTED SAVING CORRUPTED COORDINATES:', {
             nodeId: draggingNode.id,
             worldPos: { x: finalWorldX, y: finalWorldY },
             pixelPos: { x: pixelX, y: pixelY }
@@ -485,9 +464,7 @@ function MapViewer() {
           x_pixel: pixelX,
           y_pixel: pixelY
         })
-        console.log('✅ Node position saved for node:', nodeToSave.id)
       } catch (err) {
-        console.error('Failed to save node position:', err)
         // Reset node position on error
         setNodes(nodes.map(node => 
           node.id === nodeToSave.id 
@@ -571,7 +548,6 @@ function MapViewer() {
       setSelectedNode(newNode)
       setIsAddingNode(false)
     } catch (err) {
-      console.error('Failed to create node:', err)
       setSaveError(err.message || 'Failed to create node')
     } finally {
       setSaving(false)
@@ -583,12 +559,10 @@ function MapViewer() {
     setSaveError('')
     
     try {
-      console.log('📤 UPDATING NODE:', { nodeId: node.id, updates })
       
       const result = await eventService.updateEvent(node.id, updates)
       const updatedNode = result.event
       
-      console.log('📥 NODE UPDATE RESPONSE:', {
         nodeId: updatedNode.id,
         response: {
           x: updatedNode.x,
@@ -601,7 +575,6 @@ function MapViewer() {
       const newWorldX = updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000
       const newWorldY = updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
       
-      console.log('🔄 APPLYING NODE UPDATE:', {
         nodeId: updatedNode.id,
         newWorldPos: { x: newWorldX, y: newWorldY },
         newScreenPos: worldToScreen(newWorldX, newWorldY)
@@ -617,7 +590,6 @@ function MapViewer() {
         setSelectedNode(updatedNode)
       }
     } catch (err) {
-      console.error('Failed to update node:', err)
       setSaveError(err.message || 'Failed to update node')
     } finally {
       setSaving(false)
@@ -640,7 +612,6 @@ function MapViewer() {
         setInfoPanelNode(null)
       }
     } catch (err) {
-      console.error('Failed to delete node:', err)
       setSaveError(err.message || 'Failed to delete node')
     } finally {
       setSaving(false)
@@ -650,7 +621,6 @@ function MapViewer() {
   // Timeline operations
   const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
-    console.log('⏰ Timeline changed to:', timeValue)
     setCurrentTime(timeValue)
     
     clearTimeout(timelineUpdateTimeoutRef.current)
@@ -660,7 +630,6 @@ function MapViewer() {
           timeline_current_time: timeValue
         })
       } catch (err) {
-        console.error('Failed to save timeline position:', err)
       }
     }, 500)
   }
@@ -743,7 +712,6 @@ function MapViewer() {
                   }))
                   
                 } catch (err) {
-                  console.error('❌ Timeline enable error:', err)
                   setSaveError(`Failed to enable timeline: ${err.message || err}`)
                 }
               }}
@@ -885,7 +853,6 @@ function MapViewer() {
           
           // DEBUG: Node dragging visibility
           if (isDraggingNode && draggingNode?.id === node.id) {
-            console.log('🎯 DRAGGED NODE:', {
               nodeId: node.id,
               worldPos: { x: node.worldX, y: node.worldY },
               screenPos,
@@ -900,7 +867,6 @@ function MapViewer() {
           
           // DEBUG: Check for coordinate issues
           if (screenPos.x > 10000 || screenPos.y > 10000) {
-            console.log('❌ NODE WITH BAD SCREEN POSITION:', {
               nodeId: node.id,
               key: `node-${node.id}`,
               worldPos: { x: node.worldX, y: node.worldY },

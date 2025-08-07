@@ -30,7 +30,6 @@ function NodeRenderer({
     
     // DEBUG: Node dragging visibility
     if (isDraggingNode && draggingNode?.id === node.id) {
-      console.log('🎯 DRAGGED NODE:', {
         nodeId: node.id,
         worldPos: { x: node.worldX, y: node.worldY },
         screenPos,
@@ -45,7 +44,6 @@ function NodeRenderer({
     
     // DEBUG: Check for coordinate issues
     if (screenPos.x > 10000 || screenPos.y > 10000) {
-      console.log('❌ NODE WITH BAD SCREEN POSITION:', {
         nodeId: node.id,
         key: `node-${node.id}`,
         worldPos: { x: node.worldX, y: node.worldY },
@@ -134,7 +132,6 @@ function NodeRenderer({
   const renderBackgroundNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
     
-    console.log('🖼️ RENDERING BACKGROUND NODE:', {
       nodeId: node.id,
       title: node.title,
       imageUrl: node.imageUrl,

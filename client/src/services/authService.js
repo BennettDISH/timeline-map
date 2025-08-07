@@ -78,7 +78,6 @@ const authService = {
     try {
       await api.post('/auth/logout')
     } catch (error) {
-      console.error('Logout error:', error)
     } finally {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user')

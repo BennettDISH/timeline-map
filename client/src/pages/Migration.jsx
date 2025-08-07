@@ -17,7 +17,6 @@ function Migration() {
       const response = await axios.post('/api/setup/migrate')
       setSuccess(response.data.message + ' - You can now create maps with timeline features and use image alignment!')
     } catch (error) {
-      console.error('Migration error:', error)
       setError(error.response?.data?.message || 'Migration failed. Please try again.')
     } finally {
       setMigrating(false)
@@ -32,9 +31,7 @@ function Migration() {
     try {
       const response = await axios.post('/api/setup/fix-constraint')
       setConstraintSuccess(response.data.message)
-      console.log('Constraint fix details:', response.data)
     } catch (error) {
-      console.error('Constraint fix error:', error)
       setError(error.response?.data?.message || 'Constraint fix failed. Please try again.')
     } finally {
       setFixingConstraint(false)

@@ -25,7 +25,6 @@ const mapService = {
       const response = await api.get(`/?${params}`)
       return response.data
     } catch (error) {
-      console.error('Get maps error:', error)
       throw error.response?.data || { message: 'Failed to fetch maps' }
     }
   },
@@ -37,7 +36,6 @@ const mapService = {
       const response = await api.get(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Get map error:', error)
       throw error.response?.data || { message: 'Failed to fetch map' }
     }
   },
@@ -49,7 +47,6 @@ const mapService = {
       const response = await api.post('/', mapData)
       return response.data
     } catch (error) {
-      console.error('Create map error:', error)
       throw error.response?.data || { message: 'Failed to create map' }
     }
   },
@@ -61,7 +58,6 @@ const mapService = {
       const response = await api.put(`/${id}`, mapData)
       return response.data
     } catch (error) {
-      console.error('Update map error:', error)
       throw error.response?.data || { message: 'Failed to update map' }
     }
   },
@@ -73,7 +69,6 @@ const mapService = {
       const response = await api.delete(`/${id}`)
       return response.data
     } catch (error) {
-      console.error('Delete map error:', error)
       throw error.response?.data || { message: 'Failed to delete map' }
     }
   }

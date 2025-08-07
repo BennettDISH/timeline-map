@@ -35,9 +35,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       setTimeout(() => {
         const rect = element.getBoundingClientRect()
         if (rect.width > 0 && rect.height > 0) {
-          console.log('📏 Container mounted and ready:', rect)
-          console.log('📍 Current camera position:', camera)
-          console.log('🔍 Current zoom level:', zoom)
           setContainerReady(true)
         }
       }, 0)
@@ -106,7 +103,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       
       // DEBUG: Check for coordinate corruption during drag
       if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
-        console.log('🚨 PREVENTING COORDINATE CORRUPTION DURING DRAG:', {
           nodeId: draggingNode.id,
           mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
           worldDelta: { x: worldDeltaX, y: worldDeltaY },
@@ -147,7 +143,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       const finalWorldY = draggingNode.worldY
       const nodeToSave = draggingNode
       
-      console.log('💾 SAVING NODE POSITION:', {
         nodeId: nodeToSave.id,
         finalWorld: { x: finalWorldX, y: finalWorldY },
         finalScreen: worldToScreen(finalWorldX, finalWorldY),
@@ -166,7 +161,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
         
         // Prevent saving corrupted coordinates to database
         if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
-          console.log('🚨 PREVENTED SAVING CORRUPTED COORDINATES:', {
             nodeId: draggingNode.id,
             worldPos: { x: finalWorldX, y: finalWorldY },
             pixelPos: { x: pixelX, y: pixelY }
@@ -178,11 +172,8 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
           x_pixel: pixelX,
           y_pixel: pixelY
         }
-        console.log('🎯 DRAG UPDATE DATA:', dragUpdateData)
         await eventService.updateEvent(nodeToSave.id, dragUpdateData)
-        console.log('✅ Node position saved for node:', nodeToSave.id)
       } catch (err) {
-        console.error('Failed to save node position:', err)
         // Reset node position on error
         setNodes(nodes.map(node => 
           node.id === nodeToSave.id 

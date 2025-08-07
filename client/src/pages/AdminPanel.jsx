@@ -32,7 +32,6 @@ function AdminPanel() {
       
       setMigrationStatus('✅ ' + response.data.message)
     } catch (error) {
-      console.error('Migration error:', error)
       setMigrationStatus('❌ Migration failed: ' + (error.response?.data?.message || error.message))
     } finally {
       setLoading(false)

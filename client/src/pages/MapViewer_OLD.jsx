@@ -97,7 +97,6 @@ function MapViewer() {
       const mapContentEl = containerRef.current.querySelector('.map-content')
       const mapContentRect = mapContentEl ? mapContentEl.getBoundingClientRect() : null
       
-      console.log('🔍 POSITIONING DEBUG:', {
         alignmentMode,
         selectedImage: selectedTimelineImage?.imageName,
         containerDimensions: {
@@ -153,7 +152,6 @@ function MapViewer() {
           const timelineImagesResult = await api.get(`/maps/${mapId}/timeline-images`)
           timelineImagesData = timelineImagesResult.data.images || []
         } catch (err) {
-          console.error('Failed to load timeline images:', err)
           // Continue without timeline images - not critical
         }
       }
@@ -172,7 +170,6 @@ function MapViewer() {
       setTimelineImages(timelineImagesData)
       setError('')
     } catch (err) {
-      console.error('Failed to load map:', err)
       setError(err.message || 'Failed to load map')
     } finally {
       setLoading(false)
@@ -187,7 +184,6 @@ function MapViewer() {
       const filteredMaps = result.maps.filter(m => m.id !== parseInt(mapId))
       setAvailableMaps(filteredMaps)
     } catch (err) {
-      console.error('Failed to load available maps:', err)
     } finally {
       setLoadingMaps(false)
     }
@@ -232,7 +228,6 @@ function MapViewer() {
       const newPercentX = newGridX / 5
       const newPercentY = newGridY / 5
       
-      console.log('🖱️ DELTA-BASED IMAGE DRAG:', {
         mouseDelta: { mouseDeltaX, mouseDeltaY },
         gridDelta: { gridDeltaX, gridDeltaY },
         originalGrid: { originalGridX, originalGridY },
@@ -272,7 +267,6 @@ function MapViewer() {
       const newPixelX = currentPixelX + pixelDeltaX
       const newPixelY = currentPixelY + pixelDeltaY
       
-      console.log('🔵 PIXEL-BASED NODE DRAG:', {
         mouseDelta: { mouseDeltaX, mouseDeltaY },
         pixelDelta: { pixelDeltaX, pixelDeltaY },
         currentPixel: { currentPixelX, currentPixelY },
@@ -306,7 +300,6 @@ function MapViewer() {
           y_pixel: draggingNode.yPixel
         })
       } catch (err) {
-        console.error('Failed to save node position:', err)
       }
       
       setIsDraggingNode(false)
@@ -362,7 +355,6 @@ function MapViewer() {
     const pixelX = (mouseX - centerX) / scale - position.x
     const pixelY = (mouseY - centerY) / scale - position.y
     
-    console.log('🎯 NODE PLACEMENT (pixel-based):', {
       mousePos: { mouseX, mouseY },
       worldPixel: { x: pixelX, y: pixelY },
       viewportState: { scale, position },
@@ -396,7 +388,6 @@ function MapViewer() {
       setSelectedNode(newNode)
       setIsAddingNode(false)
     } catch (err) {
-      console.error('Failed to create node:', err)
       setSaveError(err.message || 'Failed to create node')
     } finally {
       setSaving(false)
@@ -467,7 +458,6 @@ function MapViewer() {
         setSelectedNode(updatedNode)
       }
     } catch (err) {
-      console.error('Failed to update node:', err)
       setSaveError(err.message || 'Failed to update node')
     } finally {
       setSaving(false)
@@ -489,7 +479,6 @@ function MapViewer() {
       try {
         await worldService.updateTimelinePosition(map.worldId, timeValue)
       } catch (err) {
-        console.error('Failed to update timeline position:', err)
       }
     }, 500)
   }
@@ -516,7 +505,6 @@ function MapViewer() {
         setCurrentTime(50)
       }
     } catch (err) {
-      console.error('Failed to toggle timeline:', err)
       setSaveError(err.message || 'Failed to update timeline settings')
     } finally {
       setSaving(false)
@@ -525,7 +513,6 @@ function MapViewer() {
 
   // Get the appropriate background image based on current timeline position
   const getCurrentBackgroundImage = () => {
-    console.log('getCurrentBackgroundImage called:', {
       timelineEnabled: map?.timelineEnabled,
       timelineImagesCount: timelineImages.length,
       currentTime: currentTime,
@@ -551,7 +538,6 @@ function MapViewer() {
         .pop() // Get the last one (most recent before current)
       
       if (referenceImage) {
-        console.log('Using reference image for alignment:', referenceImage)
         return {
           url: referenceImage.imageUrl,
           positioning: {
@@ -563,7 +549,6 @@ function MapViewer() {
         }
       } else {
         // No previous image, use the base map image
-        console.log('No reference image found, using base map')
         return { url: map?.imageUrl, positioning: null }
       }
     }
@@ -571,7 +556,6 @@ function MapViewer() {
     // Normal timeline behavior - find the image that should be displayed at the current time
     const activeImage = timelineImages.find(img => {
       const matches = currentTime >= img.startTime && currentTime <= img.endTime
-      console.log(`Checking timeline image ${img.id}:`, {
         startTime: img.startTime,
         endTime: img.endTime,
         currentTime: currentTime,
@@ -582,7 +566,6 @@ function MapViewer() {
     })
     
     if (activeImage) {
-      console.log('Found active timeline image:', activeImage)
       return {
         url: activeImage.imageUrl,
         positioning: {
@@ -653,7 +636,6 @@ function MapViewer() {
         setHasUnsavedChanges(false)
       }
     } catch (err) {
-      console.error('Failed to delete node:', err)
       setSaveError(err.message || 'Failed to delete node')
     } finally {
       setSaving(false)
@@ -695,7 +677,6 @@ function MapViewer() {
   const saveImageAlignment = async () => {
     if (!selectedTimelineImage) return
     
-    console.log('Saving alignment:', {
       imageId: selectedTimelineImage.id,
       imageName: selectedTimelineImage.imageName,
       position: imagePosition,
@@ -719,7 +700,6 @@ function MapViewer() {
         scale: imageScale
       })
       
-      console.log('Alignment save response:', response.data)
       
       // Update the timeline image in local state
       setTimelineImages(timelineImages.map(img => 
@@ -738,7 +718,6 @@ function MapViewer() {
       
       setSaveError('')
     } catch (err) {
-      console.error('Failed to save image alignment:', err)
       const errorMessage = err.response?.data?.message || 'Failed to save alignment'
       
       if (errorMessage.includes('column "position_x" does not exist') || errorMessage.includes('position_x')) {
@@ -786,7 +765,6 @@ function MapViewer() {
       setSelectedNode(updatedNode)
       setHasUnsavedChanges(false)
     } catch (err) {
-      console.error('Failed to save node:', err)
       setSaveError(err.message || 'Failed to save node')
     } finally {
       setSaving(false)
@@ -965,14 +943,12 @@ function MapViewer() {
             
             // Debug logging for positioning
             if (backgroundData.positioning) {
-              console.log('MapViewer: Timeline image found with positioning:', {
                 positionX: backgroundData.positioning.positionX,
                 positionY: backgroundData.positioning.positionY,
                 scale: backgroundData.positioning.scale,
                 url: backgroundData.url
               })
             } else {
-              console.log('MapViewer: Using regular map image (no positioning)', {
                 url: backgroundData.url,
                 timelineImagesCount: timelineImages.length,
                 currentTime: currentTime
@@ -995,7 +971,6 @@ function MapViewer() {
               const screenX = centerX + (gridX * scale)
               const screenY = centerY + (gridY * scale)
               
-              console.log('🎯 GRID POSITIONING:', {
                 percentagePos: { x: backgroundData.positioning.positionX, y: backgroundData.positioning.positionY },
                 gridPos: { x: gridX, y: gridY },
                 screenPos: { x: screenX, y: screenY },
@@ -1026,7 +1001,6 @@ function MapViewer() {
             
             // Debug positioning and container info
             if (backgroundData.positioning) {
-              console.log('MapViewer: Applied transform:', imageStyle.transform)
             }
             
             return (
@@ -1201,7 +1175,6 @@ function MapViewer() {
                       const screenX = centerX + (gridX * scale)
                       const screenY = centerY + (gridY * scale)
                       
-                      console.log('🎯 ALIGNMENT OVERLAY GRID:', {
                         percentagePos: { x: imagePosition.x, y: imagePosition.y },
                         gridPos: { x: gridX, y: gridY },
                         screenPos: { x: screenX, y: screenY }

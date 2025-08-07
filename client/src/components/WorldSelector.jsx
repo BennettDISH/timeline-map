@@ -32,7 +32,6 @@ function WorldSelector({ onWorldSelect, currentWorldId = null }) {
         }
       }
     } catch (err) {
-      console.error('Failed to load worlds:', err)
       setError(err.message || 'Failed to load worlds')
     } finally {
       setLoading(false)
@@ -73,7 +72,6 @@ function WorldSelector({ onWorldSelect, currentWorldId = null }) {
       setNewWorldDescription('')
       setShowCreateForm(false)
     } catch (err) {
-      console.error('Failed to create world:', err)
       setError(err.message || 'Failed to create world')
     } finally {
       setCreating(false)
@@ -100,7 +98,6 @@ function WorldSelector({ onWorldSelect, currentWorldId = null }) {
         }
       }
     } catch (err) {
-      console.error('Failed to delete world:', err)
       setError(err.message || 'Failed to delete world')
     }
   }

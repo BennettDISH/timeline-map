@@ -28,7 +28,6 @@ export const useMapData = (mapId) => {
             const worldResult = await worldService.getWorld(mapData.worldId)
             worldData = worldResult.world
           } catch (err) {
-            console.error('Failed to load world data:', err)
             // Continue without world data if it fails
           }
         }
@@ -46,13 +45,11 @@ export const useMapData = (mapId) => {
         setMap(enrichedMap)
         
         // Convert coordinates to world pixels and parse background map data
-        console.log('🔄 RAW EVENTS FROM API:', eventsResult.events)
         
         const convertedNodes = eventsResult.events.map(node => {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
           
-          console.log('🔄 CONVERTING NODE COORDINATES:', {
             nodeId: node.id,
             title: node.title,
             rawData: { 
@@ -66,17 +63,14 @@ export const useMapData = (mapId) => {
           if (node.xPixel !== undefined && node.xPixel !== null) {
             worldX = node.xPixel
             worldY = node.yPixel || 0
-            console.log('✅ Using pixel coordinates:', { worldX, worldY })
           } else {
             // Convert percentage to world coordinates 
             worldX = (node.x || 0) * 1000
             worldY = (node.y || 0) * 1000
-            console.log('📐 Using percentage coordinates:', { worldX, worldY, calculation: `${node.x} * 1000, ${node.y} * 1000` })
           }
           
           // Check if node is incorrectly at origin
           if (worldX === 0 && worldY === 0) {
-            console.log('⚠️ NODE AT ORIGIN - NEEDS INVESTIGATION:', { 
               nodeId: node.id, 
               rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel }
             })
@@ -84,7 +78,6 @@ export const useMapData = (mapId) => {
           
           // DEBUG: Check for corrupted coordinates from database
           if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
-            console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
               nodeId: node.id,
               title: node.title,
               converted: { worldX, worldY }
@@ -128,13 +121,11 @@ export const useMapData = (mapId) => {
             const mapsResult = await mapService.getMaps(enrichedMap.worldId)
             setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
           } catch (err) {
-            console.error('Failed to load available maps for linking:', err)
             // Continue without available maps
           }
         }
         
       } catch (err) {
-        console.error('Failed to load map data:', err)
         setError(err.message || 'Failed to load map')
       } finally {
         setLoading(false)
