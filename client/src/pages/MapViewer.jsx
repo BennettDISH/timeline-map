@@ -17,6 +17,14 @@ function MapViewer() {
   // Core data
   const { map, setMap, nodes, setNodes, loading, error, availableMaps } = useMapData(mapId)
   
+  // UI state (must be defined before hooks that use them)
+  const [selectedNode, setSelectedNode] = useState(null)
+  const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [infoPanelNode, setInfoPanelNode] = useState(null)
+  const [interactionMode, setInteractionMode] = useState('view')
+  const [isAddingNode, setIsAddingNode] = useState(false)
+  const [nodeType, setNodeType] = useState('info')
+
   // Interactions
   const {
     camera, setCamera, zoom, setZoom,
@@ -25,14 +33,6 @@ function MapViewer() {
     containerRef, setContainerRef, worldToScreen, screenToWorld,
     handleMouseDown, handleNodeMouseDown, handleMouseMove, handleMouseUp, handleWheel
   } = useMapInteractions(nodes, setNodes, mapId, interactionMode)
-
-  // UI state
-  const [selectedNode, setSelectedNode] = useState(null)
-  const [showInfoPanel, setShowInfoPanel] = useState(false)
-  const [infoPanelNode, setInfoPanelNode] = useState(null)
-  const [interactionMode, setInteractionMode] = useState('view')
-  const [isAddingNode, setIsAddingNode] = useState(false)
-  const [nodeType, setNodeType] = useState('info')
   
   // Timeline state
   const [currentTime, setCurrentTime] = useState(50)
