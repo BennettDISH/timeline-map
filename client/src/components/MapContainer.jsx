@@ -18,7 +18,8 @@ function MapContainer({
   onMouseMove,
   onMouseUp,
   onWheel,
-  onNodeClick
+  onNodeClick,
+  onNodeMouseDown
 }) {
   return (
     <div 
@@ -45,6 +46,7 @@ function MapContainer({
         isDraggingNode={isDraggingNode}
         draggingNode={draggingNode}
         onNodeClick={onNodeClick}
+        onNodeMouseDown={onNodeMouseDown}
         containerRef={containerRef}
       />
       

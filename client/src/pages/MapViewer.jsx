@@ -23,8 +23,8 @@ function MapViewer() {
     isDraggingViewport, isDraggingNode, draggingNode,
     saving, setSaving, saveError, setSaveError,
     containerRef, setContainerRef, worldToScreen, screenToWorld,
-    handleMouseDown, handleMouseMove, handleMouseUp, handleWheel
-  } = useMapInteractions(nodes, setNodes, mapId)
+    handleMouseDown, handleNodeMouseDown, handleMouseMove, handleMouseUp, handleWheel
+  } = useMapInteractions(nodes, setNodes, mapId, interactionMode)
 
   // UI state
   const [selectedNode, setSelectedNode] = useState(null)
@@ -475,6 +475,7 @@ function MapViewer() {
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
         onNodeClick={handleNodeClick}
+        onNodeMouseDown={handleNodeMouseDown}
       />
       
       {/* Info Panel */}

@@ -9,6 +9,7 @@ function NodeRenderer({
   isDraggingNode,
   draggingNode,
   onNodeClick,
+  onNodeMouseDown,
   containerRef
 }) {
   const regularNodes = nodes.filter(node => node.eventType !== 'background_map')
@@ -61,6 +62,7 @@ function NodeRenderer({
             cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
             zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
           }}
+          onMouseDown={(e) => onNodeMouseDown && onNodeMouseDown(e, node)}
           onClick={(e) => onNodeClick(e, node)}
         >
           <img 
@@ -94,6 +96,7 @@ function NodeRenderer({
             cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
             zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
           }}
+          onMouseDown={(e) => onNodeMouseDown && onNodeMouseDown(e, node)}
           onClick={(e) => onNodeClick(e, node)}
         >
           <div className="node-marker">
@@ -125,6 +128,7 @@ function NodeRenderer({
           cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
           zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 1
         }}
+        onMouseDown={(e) => onNodeMouseDown && onNodeMouseDown(e, node)}
         onClick={(e) => onNodeClick(e, node)}
       >
         {node.imageUrl && (

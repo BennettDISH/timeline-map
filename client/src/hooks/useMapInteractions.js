@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { createCoordinateUtils } from '../utils/coordinateUtils'
 import eventService from '../services/eventService'
 
-export const useMapInteractions = (nodes, setNodes, mapId) => {
+export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
   // Camera and zoom state
   const [camera, setCamera] = useState({ x: 500, y: 500 })
   const [zoom, setZoom] = useState(1)
@@ -42,16 +42,27 @@ export const useMapInteractions = (nodes, setNodes, mapId) => {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Check for node dragging in edit mode
-    const rect = containerRef.current.getBoundingClientRect()
-    const localX = mouseX - rect.left
-    const localY = mouseY - rect.top
-    
-    // Start viewport dragging by default
+    // Start viewport dragging by default (node dragging is handled separately)
     setIsDraggingViewport(true)
     setDragStartMouse({ x: mouseX, y: mouseY })
     setDragStartCamera({ x: camera.x, y: camera.y })
   }, [camera])
+
+  const handleNodeMouseDown = useCallback((e, node) => {
+    e.stopPropagation() // Prevent map dragging
+    
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    
+    // Only allow dragging in edit mode
+    if (interactionMode === 'edit') {
+      setIsDraggingNode(true)
+      setDraggingNode(node)
+      setDragStartMouse({ x: mouseX, y: mouseY })
+      setDragStartNodePos({ x: node.worldX, y: node.worldY })
+      setIsDraggingViewport(false) // Stop viewport dragging
+    }
+  }, [interactionMode])
 
   const handleMouseMove = useCallback((e) => {
     const mouseX = e.clientX
@@ -138,10 +149,12 @@ export const useMapInteractions = (nodes, setNodes, mapId) => {
           return
         }
         
-        await eventService.updateEvent(nodeToSave.id, {
+        const dragUpdateData = {
           x_pixel: pixelX,
           y_pixel: pixelY
-        })
+        }
+        console.log('🎯 DRAG UPDATE DATA:', dragUpdateData)
+        await eventService.updateEvent(nodeToSave.id, dragUpdateData)
         console.log('✅ Node position saved for node:', nodeToSave.id)
       } catch (err) {
         console.error('Failed to save node position:', err)
@@ -208,6 +221,7 @@ export const useMapInteractions = (nodes, setNodes, mapId) => {
     
     // Event handlers
     handleMouseDown,
+    handleNodeMouseDown,
     handleMouseMove,
     handleMouseUp,
     handleWheel
