@@ -79,6 +79,7 @@ function NodeRenderer({
             src={node.imageUrl} 
             alt={node.title}
             className="scalable-node-image"
+            draggable={false}
             style={{
               width: '100%',
               height: '100%',
@@ -157,6 +158,7 @@ function NodeRenderer({
             src={node.imageUrl} 
             alt={node.title}
             className="background-map-image"
+            draggable={false}
             style={{
               width: '100%',
               height: '100%',
