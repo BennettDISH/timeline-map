@@ -70,9 +70,15 @@ function NodeRenderer({
             width: node.width * zoom,
             height: node.height * zoom,
             cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
-            zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
+            zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10,
+            pointerEvents: interactionMode === 'view' ? 'auto' : 'auto'
           }}
-          onMouseDown={(e) => onNodeMouseDown && onNodeMouseDown(e, node)}
+          onMouseDown={(e) => {
+            if (interactionMode === 'edit') {
+              onNodeMouseDown && onNodeMouseDown(e, node)
+            }
+            // In view mode, don't prevent default to allow map panning
+          }}
           onClick={(e) => onNodeClick(e, node)}
         >
           <img 
@@ -84,7 +90,9 @@ function NodeRenderer({
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              borderRadius: '4px'
+              borderRadius: '4px',
+              userSelect: 'none',
+              pointerEvents: 'none'
             }}
           />
           <div className="image-node-tooltip">
@@ -150,7 +158,12 @@ function NodeRenderer({
           cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
           zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 1
         }}
-        onMouseDown={(e) => onNodeMouseDown && onNodeMouseDown(e, node)}
+        onMouseDown={(e) => {
+          if (interactionMode === 'edit') {
+            onNodeMouseDown && onNodeMouseDown(e, node)
+          }
+          // In view mode, don't prevent default to allow map panning
+        }}
         onClick={(e) => onNodeClick(e, node)}
       >
         {node.imageUrl && (
@@ -164,7 +177,9 @@ function NodeRenderer({
               height: '100%',
               objectFit: 'cover',
               opacity: 0.8,
-              borderRadius: '8px'
+              borderRadius: '8px',
+              userSelect: 'none',
+              pointerEvents: 'none'
             }}
           />
         )}
