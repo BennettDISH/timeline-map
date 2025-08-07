@@ -420,8 +420,9 @@ function MapViewer() {
     
     // Handle scale changes for info and map_link nodes with images
     if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId) {
-      const baseWidth = editFormData.width || 100
-      const baseHeight = editFormData.height || 100
+      // Use fixed base dimensions for consistent scaling
+      const baseWidth = 100
+      const baseHeight = 100
       const newWidth = Math.round(baseWidth * value / 100)
       const newHeight = Math.round(baseHeight * value / 100)
       
@@ -469,8 +470,9 @@ function MapViewer() {
       
       // For info and map_link nodes with images, apply the scale to get final dimensions
       if ((editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId && editFormData.scale) {
-        const baseWidth = editFormData.width || 100
-        const baseHeight = editFormData.height || 100
+        // Use fixed base dimensions for scaling to prevent compounding
+        const baseWidth = 100  // Fixed base width
+        const baseHeight = 100 // Fixed base height
         finalWidth = Math.round(baseWidth * editFormData.scale / 100)
         finalHeight = Math.round(baseHeight * editFormData.scale / 100)
       }
@@ -478,7 +480,9 @@ function MapViewer() {
       const tooltipData = {
         width: finalWidth,
         height: finalHeight,
-        scale: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? editFormData.scale : undefined
+        scale: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? editFormData.scale : undefined,
+        baseWidth: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? 100 : undefined,
+        baseHeight: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? 100 : undefined
       }
       
       console.log('💾 Saving tooltip data:', tooltipData)
