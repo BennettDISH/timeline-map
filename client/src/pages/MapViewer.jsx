@@ -117,11 +117,26 @@ function MapViewer() {
     }
     
     const visibleNodes = nodes.filter(node => {
-      if (!node.timelineEnabled) return true
-      return currentTime >= node.startTime && currentTime <= node.endTime
+      const isVisible = !node.timelineEnabled || (currentTime >= node.startTime && currentTime <= node.endTime)
+      
+      // Debug background map nodes specifically
+      if (node.eventType === 'background_map') {
+        console.log('🖼️ Background map timeline check:', {
+          nodeId: node.id,
+          title: node.title,
+          timelineEnabled: node.timelineEnabled,
+          startTime: node.startTime,
+          endTime: node.endTime,
+          currentTime,
+          isVisible
+        })
+      }
+      
+      return isVisible
     })
     
-    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible`)
+    const bgMapCount = visibleNodes.filter(n => n.eventType === 'background_map').length
+    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible (${bgMapCount} background maps)`)
     return visibleNodes
   }
 
