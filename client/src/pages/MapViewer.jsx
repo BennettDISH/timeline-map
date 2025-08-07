@@ -483,8 +483,7 @@ function MapViewer() {
       setCamera(prev => ({
         x: prev.x + deltaX,
         y: prev.y + deltaY
-        }))
-      }
+      }))
     }
   }
   
@@ -1047,6 +1046,7 @@ function MapViewer() {
                   </div>
                 </>
               )}
+          </>
           )}
           
           <div className="form-actions">
