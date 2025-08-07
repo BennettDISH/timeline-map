@@ -226,12 +226,15 @@ function MapViewer() {
       // Check if we have stored dimensions in tooltipText
       let hasDimensions = false
       if ((updatedNode.eventType === 'background_map' || (updatedNode.eventType === 'standard' && updatedNode.imageUrl)) && updatedNode.tooltipText) {
+        console.log('🔄 Processing updated node tooltipText:', updatedNode.tooltipText)
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
+          console.log('📐 Parsed saved dimensions:', dimensions)
           width = dimensions.width || (updatedNode.eventType === 'standard' ? 100 : 400)
           height = dimensions.height || (updatedNode.eventType === 'standard' ? 100 : 300)
           hasDimensions = true
         } catch (e) {
+          console.error('❌ Failed to parse tooltipText:', e, updatedNode.tooltipText)
           // Fallback to defaults if JSON parsing fails
           width = updatedNode.eventType === 'standard' ? 100 : 400
           height = updatedNode.eventType === 'standard' ? 100 : 300
@@ -314,15 +317,26 @@ function MapViewer() {
   const getNodeScale = (node) => {
     if (node.eventType !== 'standard' || !node.imageId) return 100
     
+    console.log('🔍 Getting scale for node:', {
+      nodeId: node.id,
+      eventType: node.eventType,
+      imageId: node.imageId,
+      tooltipText: node.tooltipText
+    })
+    
     try {
       if (node.tooltipText) {
         const dimensions = JSON.parse(node.tooltipText)
-        return dimensions.scale || 100
+        console.log('📐 Parsed dimensions:', dimensions)
+        const scale = dimensions.scale || 100
+        console.log('📏 Returning scale:', scale)
+        return scale
       }
     } catch (e) {
-      // Fallback if JSON parsing fails
+      console.error('❌ Error parsing tooltipText for scale:', e)
     }
     
+    console.log('📏 Defaulting to scale 100')
     return 100
   }
 
@@ -456,11 +470,14 @@ function MapViewer() {
         finalHeight = Math.round(baseHeight * editFormData.scale / 100)
       }
       
-      updateData.tooltip_text = JSON.stringify({
+      const tooltipData = {
         width: finalWidth,
         height: finalHeight,
         scale: editFormData.nodeType === 'info' ? editFormData.scale : undefined
-      })
+      }
+      
+      console.log('💾 Saving tooltip data:', tooltipData)
+      updateData.tooltip_text = JSON.stringify(tooltipData)
     }
     
     console.log('Sending update data:', updateData)
