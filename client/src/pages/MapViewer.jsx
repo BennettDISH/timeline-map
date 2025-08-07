@@ -225,7 +225,9 @@ function MapViewer() {
       
       // Check if we have stored dimensions in tooltipText
       let hasDimensions = false
-      if ((updatedNode.eventType === 'background_map' || (updatedNode.eventType === 'standard' && updatedNode.imageId)) && updatedNode.tooltipText) {
+      if ((updatedNode.eventType === 'background_map' || 
+           (updatedNode.eventType === 'standard' && updatedNode.imageId) || 
+           (updatedNode.eventType === 'map_link' && updatedNode.imageId)) && updatedNode.tooltipText) {
         console.log('🔄 Processing updated node tooltipText:', updatedNode.tooltipText)
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
@@ -243,7 +245,7 @@ function MapViewer() {
       }
       
       // Only set defaults if we don't have stored dimensions
-      if (!hasDimensions && updatedNode.eventType === 'standard' && updatedNode.imageId) {
+      if (!hasDimensions && (updatedNode.eventType === 'standard' || updatedNode.eventType === 'map_link') && updatedNode.imageId) {
         width = 100
         height = 100
       }
