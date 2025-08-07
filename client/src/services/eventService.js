@@ -53,6 +53,7 @@ const eventService = {
   // Update event
   async updateEvent(id, eventData) {
     try {
+      console.log('🔄 SERVICE UPDATING EVENT:', { id, eventData })
       const api = createAuthAPI()
       const response = await api.put(`/${id}`, eventData)
       return response.data
