@@ -9,6 +9,8 @@
   backdrop-filter: blur(10px);
   z-index: 40;
   transition: all 0.3s ease;
+  height: auto;
+  margin: 10px auto;
 
   &.active {
     background: linear-gradient(135deg, #2d3748 0%, #4a5568 50%, #2b6cb0 100%);
