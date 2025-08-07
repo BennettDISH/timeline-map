@@ -245,6 +245,13 @@ router.put('/:id', async (req, res) => {
       link_to_map_id, event_type 
     } = req.body;
     
+    console.log('🔍 SERVER RECEIVED UPDATE:', { 
+      id, 
+      event_type, 
+      bodyKeys: Object.keys(req.body),
+      body: req.body 
+    });
+    
     // Get current event to verify ownership
     const currentEvent = await pool.query(`
       SELECT e.*, m.world_id, w.created_by 
