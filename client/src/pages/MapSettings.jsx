@@ -125,7 +125,7 @@ function MapSettings() {
             <Link to={`/worlds/${map.worldId}/maps`} className="back-button">
               ← Back to Maps
             </Link>
-            <Link to={`/maps/${mapId}`} className="view-button">
+            <Link to={`/map/${mapId}`} className="view-button">
               👁️ View Map
             </Link>
           </div>

@@ -55,7 +55,7 @@ function InfoPanel({
             <h4>Navigation</h4>
             <button
               className="edit-button"
-              onClick={() => navigate(`/maps/${infoPanelNode.linkToMapId}`)}
+              onClick={() => navigate(`/map/${infoPanelNode.linkToMapId}`)}
             >
               Go to Linked Map
             </button>
