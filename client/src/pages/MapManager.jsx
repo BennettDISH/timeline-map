@@ -1,25 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
-import ImageSelector from '../components/ImageSelector'
 import worldService from '../services/worldService'
 import mapService from '../services/mapService'
-import imageServiceBase64 from '../services/imageServiceBase64'
 import '../styles/mapManager.scss'
 
 function MapManager() {
   const [searchParams] = useSearchParams()
   const [currentWorld, setCurrentWorld] = useState(null)
   const [maps, setMaps] = useState([])
-  const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newMapData, setNewMapData] = useState({
     title: '',
-    description: '',
-    image_id: ''
+    description: ''
   })
 
   useEffect(() => {
@@ -37,7 +33,6 @@ function MapManager() {
   useEffect(() => {
     if (currentWorld) {
       loadMaps()
-      loadImages()
     }
   }, [currentWorld])
 
@@ -66,14 +61,6 @@ function MapManager() {
     }
   }
 
-  const loadImages = async () => {
-    try {
-      const result = await imageServiceBase64.getImages({ worldId: currentWorld.id })
-      setImages(result.images)
-    } catch (err) {
-      console.error('Failed to load images:', err)
-    }
-  }
 
   const handleWorldSelect = (world) => {
     setCurrentWorld(world)
@@ -97,15 +84,14 @@ function MapManager() {
         ...newMapData,
         title: newMapData.title.trim(),
         description: newMapData.description.trim() || null,
-        world_id: currentWorld.id,
-        image_id: newMapData.image_id || null
+        world_id: currentWorld.id
       })
 
       // Add new map to list
       setMaps([result.map, ...maps])
       
       // Reset form
-      setNewMapData({ title: '', description: '', image_id: '' })
+      setNewMapData({ title: '', description: '' })
       setShowCreateForm(false)
     } catch (err) {
       console.error('Failed to create map:', err)
@@ -201,17 +187,6 @@ function MapManager() {
                       disabled={creating}
                     />
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="map-image">Background Image (optional)</label>
-                    <ImageSelector
-                      images={images}
-                      selectedImageId={newMapData.image_id}
-                      onImageSelect={(imageId) => setNewMapData({...newMapData, image_id: imageId})}
-                      disabled={creating}
-                      placeholder="No background image"
-                      showPreview={false}
-                    />
-                  </div>
                   <div className="form-actions">
                     <button type="submit" disabled={creating}>
                       {creating ? 'Creating...' : 'Create Map'}
@@ -232,11 +207,7 @@ function MapManager() {
                 maps.map(map => (
                   <div key={map.id} className="map-card">
                     <div className="map-image">
-                      {map.imageUrl ? (
-                        <img src={map.imageUrl} alt={map.title} />
-                      ) : (
-                        <div className="no-image">🗺️</div>
-                      )}
+                      <div className="no-image">🗺️</div>
                     </div>
                     <div className="map-info">
                       <h3 className="map-title">{map.title}</h3>

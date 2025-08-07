@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import mapService from '../services/mapService'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
+import imageServiceBase64 from '../services/imageServiceBase64'
+import ImageSelector from '../components/ImageSelector'
 import axios from 'axios'
 import '../styles/timelineStyles.scss'
 
@@ -34,6 +36,7 @@ function MapViewer() {
   const [isAddingNode, setIsAddingNode] = useState(false)
   const [nodeType, setNodeType] = useState('standard')
   const [availableMaps, setAvailableMaps] = useState([])
+  const [availableImages, setAvailableImages] = useState([])
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [infoPanelNode, setInfoPanelNode] = useState(null)
   
@@ -45,7 +48,8 @@ function MapViewer() {
     linkToMapId: null,
     startTime: 0,
     endTime: 100,
-    timelineEnabled: false
+    timelineEnabled: false,
+    imageId: null
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
@@ -226,12 +230,19 @@ function MapViewer() {
           
         }
         
-        // Load available maps for linking
+        // Load available maps and images for linking
         try {
           const mapsResult = await mapService.getMaps()
           setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
         } catch (err) {
           // Silently continue without available maps
+        }
+        
+        try {
+          const imagesResult = await imageServiceBase64.getImages({ worldId: mapResult.map.worldId })
+          setAvailableImages(imagesResult.images)
+        } catch (err) {
+          // Silently continue without available images
         }
         
       } catch (err) {
@@ -513,7 +524,8 @@ function MapViewer() {
         event_type: nodeType,
         start_time: 0,
         end_time: 100,
-        timeline_enabled: false
+        timeline_enabled: false,
+        image_id: null
       }
       
       const result = await eventService.createEvent(newNodeData)
@@ -832,14 +844,19 @@ function MapViewer() {
                     linkToMapId: node.linkToMapId || null,
                     startTime: node.startTime || 0,
                     endTime: node.endTime || 100,
-                    timelineEnabled: node.timelineEnabled || false
+                    timelineEnabled: node.timelineEnabled || false,
+                    imageId: node.imageId || null
                   })
                   setHasUnsavedChanges(false)
                 }
               }}
             >
               <div className="node-marker">
-                {node.eventType === 'map_link' ? '🗺️' : 'ℹ️'}
+                {node.imageUrl ? (
+                  <img src={node.imageUrl} alt={node.title} className="node-image" />
+                ) : (
+                  node.eventType === 'map_link' ? '🗺️' : 'ℹ️'
+                )}
               </div>
               
               <div className="node-tooltip">
@@ -884,6 +901,17 @@ function MapViewer() {
           </div>
           
           <div className="info-panel-content">
+            {infoPanelNode.imageUrl && (
+              <div className="info-section">
+                <h4>Image</h4>
+                <img 
+                  src={infoPanelNode.imageUrl} 
+                  alt={infoPanelNode.title}
+                  className="node-preview-image"
+                />
+              </div>
+            )}
+            
             {infoPanelNode.description && (
               <div className="info-section">
                 <h4>Description</h4>
@@ -923,7 +951,8 @@ function MapViewer() {
                       linkToMapId: infoPanelNode.linkToMapId || null,
                       startTime: infoPanelNode.startTime || 0,
                       endTime: infoPanelNode.endTime || 100,
-                      timelineEnabled: infoPanelNode.timelineEnabled || false
+                      timelineEnabled: infoPanelNode.timelineEnabled || false,
+                      imageId: infoPanelNode.imageId || null
                     })
                     setHasUnsavedChanges(false)
                     setShowInfoPanel(false)
@@ -978,6 +1007,20 @@ function MapViewer() {
               }}
               placeholder="Detailed content"
               rows="4"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Node Image (optional)</label>
+            <ImageSelector
+              images={availableImages}
+              selectedImageId={editFormData.imageId}
+              onImageSelect={(imageId) => {
+                setEditFormData({...editFormData, imageId: imageId})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="No image selected"
+              showPreview={false}
             />
           </div>
           

@@ -412,50 +412,6 @@
       cursor: default;
     }
 
-    .map-content {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      cursor: grab;
-      overflow: visible;
-
-      .map-image {
-        display: block;
-        max-width: none;
-        user-select: none;
-        width: 100%;
-        height: auto;
-        object-fit: contain;
-        
-        // When positioned (timeline images with alignment data)
-        &[style*="position: absolute"] {
-          width: auto;
-          height: auto;
-        }
-      }
-
-      .no-map-image {
-        width: 800px;
-        height: 600px;
-        background: #2d3748;
-        border: 2px dashed #4a5568;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #a0aec0;
-
-        h3 {
-          margin: 0 0 10px 0;
-        }
-
-        p {
-          margin: 0;
-        }
-      }
-    }
   }
 
   .map-node {
@@ -490,9 +446,17 @@
       justify-content: center;
       font-size: 16px;
       transition: transform 0.2s, box-shadow 0.2s;
+      overflow: hidden;
 
       &:hover {
         transform: scale(1.1);
+      }
+
+      .node-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
       }
     }
 
@@ -747,6 +711,13 @@
           color: #e2e8f0;
           line-height: 1.5;
           white-space: pre-wrap;
+        }
+
+        .node-preview-image {
+          max-width: 100%;
+          height: auto;
+          border-radius: 6px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
       }
 
