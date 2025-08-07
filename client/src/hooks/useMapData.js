@@ -123,11 +123,14 @@ export const useMapData = (mapId) => {
         setNodes(convertedNodes)
         
         // Load available maps for linking
-        try {
-          const mapsResult = await mapService.getMaps()
-          setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
-        } catch (err) {
-          // Silently continue without available maps
+        if (enrichedMap.worldId) {
+          try {
+            const mapsResult = await mapService.getMaps(enrichedMap.worldId)
+            setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
+          } catch (err) {
+            console.error('Failed to load available maps for linking:', err)
+            // Continue without available maps
+          }
         }
         
       } catch (err) {
