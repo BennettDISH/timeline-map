@@ -377,8 +377,10 @@ function MapViewer() {
         imageId: node.imageId || null,
         nodeType: node.eventType === 'background_map' ? 'background_map' : 
                  node.eventType === 'map_link' ? 'map_link' : 'info',
-        width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-        height: node.height || (node.eventType === 'background_map' ? 300 : 100),
+        width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+               (node.width || (node.eventType === 'background_map' ? 400 : 100)),
+        height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+                (node.height || (node.eventType === 'background_map' ? 300 : 100)),
         scale: getNodeScale(node)
       })
       setHasUnsavedChanges(false)
@@ -398,9 +400,11 @@ function MapViewer() {
       imageId: node.imageId || null,
       nodeType: node.eventType === 'background_map' ? 'background_map' : 
                node.eventType === 'map_link' ? 'map_link' : 'info',
-      width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-      height: node.height || (node.eventType === 'background_map' ? 300 : 100),
-      scale: 100
+      width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+             (node.width || (node.eventType === 'background_map' ? 400 : 100)),
+      height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+              (node.height || (node.eventType === 'background_map' ? 300 : 100)),
+      scale: getNodeScale(node)
     })
     setHasUnsavedChanges(false)
     setShowInfoPanel(false)
@@ -712,8 +716,10 @@ function MapViewer() {
             imageId: node.imageId || null,
             nodeType: node.eventType === 'background_map' ? 'background_map' : 
                      node.eventType === 'map_link' ? 'map_link' : 'info',
-            width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-            height: node.height || (node.eventType === 'background_map' ? 300 : 100),
+            width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+                   (node.width || (node.eventType === 'background_map' ? 400 : 100)),
+            height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
+                    (node.height || (node.eventType === 'background_map' ? 300 : 100)),
             scale: getNodeScale(node)
           })
           setHasUnsavedChanges(false)
