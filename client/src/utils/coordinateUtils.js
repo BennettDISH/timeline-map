@@ -4,14 +4,22 @@
 export const createCoordinateUtils = (containerRef, camera, zoom) => {
   const worldToScreen = (worldX, worldY) => {
     if (!containerRef.current) {
-      console.log('⚠️ worldToScreen called before container ready, using fallback')
-      return { x: 400, y: 300 }
+      // Use a reasonable default viewport size if container not ready
+      const centerX = 800
+      const centerY = 400
+      const screenX = centerX + (worldX - camera.x) * zoom
+      const screenY = centerY + (worldY - camera.y) * zoom
+      return { x: screenX, y: screenY }
     }
     
     const rect = containerRef.current.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) {
-      console.log('⚠️ Container has zero dimensions, using fallback:', rect)
-      return { x: 400, y: 300 }
+      // Use a reasonable default if dimensions not available yet
+      const centerX = 800
+      const centerY = 400
+      const screenX = centerX + (worldX - camera.x) * zoom
+      const screenY = centerY + (worldY - camera.y) * zoom
+      return { x: screenX, y: screenY }
     }
     
     const centerX = rect.width / 2
