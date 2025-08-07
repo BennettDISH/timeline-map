@@ -67,8 +67,18 @@ function MapViewer() {
 
   // Load timeline data when map loads
   useEffect(() => {
-    if (map?.timelineEnabled) {
-      setTimelineEnabled(true)
+    if (map) {
+      console.log('📍 LOADING TIMELINE STATE FROM MAP:', {
+        timelineEnabled: map.timelineEnabled,
+        currentTime: map.timelineCurrentTime,
+        settings: {
+          minTime: map.timelineMinTime,
+          maxTime: map.timelineMaxTime,
+          timeUnit: map.timelineTimeUnit
+        }
+      })
+      
+      setTimelineEnabled(!!map.timelineEnabled)
       setCurrentTime(map.timelineCurrentTime || 50)
       setTimelineSettings({
         minTime: map.timelineMinTime || 0,
@@ -222,12 +232,25 @@ function MapViewer() {
         height = 100
       }
       
+      // If image was added but imageUrl is missing, fetch it from availableImages
+      let imageUrl = updatedNode.imageUrl
+      if (updatedNode.imageId && !imageUrl && availableImages.length > 0) {
+        const selectedImage = availableImages.find(img => img.id === updatedNode.imageId)
+        imageUrl = selectedImage ? selectedImage.url : null
+        console.log('🖼️ FETCHED IMAGE URL FOR NEW NODE:', {
+          imageId: updatedNode.imageId,
+          imageUrl,
+          selectedImage: selectedImage?.name || 'not found'
+        })
+      }
+      
       const processedUpdatedNode = {
         ...updatedNode,
         worldX: newWorldX,
         worldY: newWorldY,
         width,
-        height
+        height,
+        imageUrl
       }
       
       console.log('🔄 NODE UPDATE COMPLETE:', {

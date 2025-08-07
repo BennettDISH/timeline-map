@@ -33,10 +33,12 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
         const rect = element.getBoundingClientRect()
         if (rect.width > 0 && rect.height > 0) {
           console.log('📏 Container mounted and ready:', rect)
+          console.log('📍 Current camera position:', camera)
+          console.log('🔍 Current zoom level:', zoom)
         }
       }, 0)
     }
-  }, [])
+  }, [camera, zoom])
 
   const handleMouseDown = useCallback((e) => {
     const mouseX = e.clientX
