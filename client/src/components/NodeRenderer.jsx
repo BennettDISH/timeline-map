@@ -10,8 +10,19 @@ function NodeRenderer({
   draggingNode,
   onNodeClick,
   onNodeMouseDown,
-  containerRef
+  containerRef,
+  containerReady
 }) {
+  // Don't render nodes if container isn't ready or has zero dimensions
+  if (!containerRef || !containerRef.current || !containerReady) {
+    return null
+  }
+  
+  const rect = containerRef.current.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    return null
+  }
+
   const regularNodes = nodes.filter(node => node.eventType !== 'background_map')
   const backgroundNodes = nodes.filter(node => node.eventType === 'background_map')
 

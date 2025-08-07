@@ -16,6 +16,7 @@ function MapContainer({
   draggingNode,
   showGrid,
   camera,
+  containerReady,
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -72,6 +73,7 @@ function MapContainer({
         onNodeClick={onNodeClick}
         onNodeMouseDown={onNodeMouseDown}
         containerRef={containerRef}
+        containerReady={containerReady}
       />
       
       {isAddingNode && (

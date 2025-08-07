@@ -30,7 +30,7 @@ function MapViewer() {
   const {
     camera, setCamera, zoom, setZoom,
     isDraggingViewport, isDraggingNode, draggingNode,
-    saving, setSaving, saveError, setSaveError,
+    saving, setSaving, saveError, setSaveError, containerReady,
     containerRef, setContainerRef, worldToScreen, screenToWorld,
     handleMouseDown, handleNodeMouseDown, handleMouseMove, handleMouseUp, handleWheel
   } = useMapInteractions(nodes, setNodes, mapId, interactionMode)
@@ -576,6 +576,7 @@ function MapViewer() {
         draggingNode={draggingNode}
         showGrid={showGrid}
         camera={camera}
+        containerReady={containerReady}
         onMouseDown={(e) => isAddingNode ? handleMapClick(e) : handleMouseDown(e)}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

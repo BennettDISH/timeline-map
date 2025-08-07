@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { createCoordinateUtils } from '../utils/coordinateUtils'
 import eventService from '../services/eventService'
 
@@ -18,6 +18,9 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
   // Saving state
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  
+  // Container ready state to trigger re-renders
+  const [containerReady, setContainerReady] = useState(false)
 
   const containerRef = useRef(null)
   
@@ -35,10 +38,30 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
           console.log('📏 Container mounted and ready:', rect)
           console.log('📍 Current camera position:', camera)
           console.log('🔍 Current zoom level:', zoom)
+          setContainerReady(true)
         }
       }, 0)
+    } else {
+      setContainerReady(false)
     }
   }, [camera, zoom])
+  
+  // Force re-render when container dimensions change
+  useEffect(() => {
+    if (!containerRef.current) return
+    
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          setContainerReady(true)
+        }
+      }
+    })
+    
+    resizeObserver.observe(containerRef.current)
+    
+    return () => resizeObserver.disconnect()
+  }, [])
 
   const handleMouseDown = useCallback((e) => {
     const mouseX = e.clientX
@@ -214,6 +237,7 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
     setSaving,
     saveError,
     setSaveError,
+    containerReady,
     
     // Refs and utils
     containerRef,
