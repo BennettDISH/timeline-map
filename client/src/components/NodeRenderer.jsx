@@ -54,8 +54,8 @@ function NodeRenderer({
       })
     }
     
-    // Check if this is an image node (info node with image)
-    const isImageNode = node.eventType === 'standard' && node.imageUrl
+    // Check if this is an image node (info or map_link node with image)
+    const isImageNode = (node.eventType === 'standard' || node.eventType === 'map_link') && node.imageUrl
     
     if (isImageNode) {
       // Render as scalable image without node styling
