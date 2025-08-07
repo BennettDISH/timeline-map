@@ -90,28 +90,16 @@ function NodeEditor({
             
             {/* Image scaling for info nodes */}
             {editFormData.nodeType === 'info' && editFormData.imageId && (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Width: {editFormData.width}px</label>
-                  <input
-                    type="range"
-                    min="50"
-                    max="500"
-                    value={editFormData.width}
-                    onChange={(e) => handleFieldChange('width', parseInt(e.target.value))}
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Height: {editFormData.height}px</label>
-                  <input
-                    type="range"
-                    min="50"
-                    max="500"
-                    value={editFormData.height}
-                    onChange={(e) => handleFieldChange('height', parseInt(e.target.value))}
-                  />
-                </div>
+              <div className="form-group">
+                <label>Scale: {editFormData.scale || 100}% ({Math.round((editFormData.scale || 100) * editFormData.width / 100)}×{Math.round((editFormData.scale || 100) * editFormData.height / 100)}px)</label>
+                <input
+                  type="range"
+                  min="25"
+                  max="300"
+                  step="5"
+                  value={editFormData.scale || 100}
+                  onChange={(e) => handleFieldChange('scale', parseInt(e.target.value))}
+                />
               </div>
             )}
             

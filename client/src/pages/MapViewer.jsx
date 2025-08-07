@@ -59,7 +59,8 @@ function MapViewer() {
     imageId: null,
     nodeType: 'info',
     width: 100,
-    height: 100
+    height: 100,
+    scale: 100
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
@@ -338,7 +339,8 @@ function MapViewer() {
         nodeType: node.eventType === 'background_map' ? 'background_map' : 
                  node.eventType === 'map_link' ? 'map_link' : 'info',
         width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-        height: node.height || (node.eventType === 'background_map' ? 300 : 100)
+        height: node.height || (node.eventType === 'background_map' ? 300 : 100),
+        scale: 100
       })
       setHasUnsavedChanges(false)
     }
@@ -358,7 +360,8 @@ function MapViewer() {
       nodeType: node.eventType === 'background_map' ? 'background_map' : 
                node.eventType === 'map_link' ? 'map_link' : 'info',
       width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-      height: node.height || (node.eventType === 'background_map' ? 300 : 100)
+      height: node.height || (node.eventType === 'background_map' ? 300 : 100),
+      scale: 100
     })
     setHasUnsavedChanges(false)
     setShowInfoPanel(false)
@@ -373,6 +376,20 @@ function MapViewer() {
       setNodes(nodes.map(n => n.id === selectedNode.id ? {
         ...n,
         [field]: value
+      } : n))
+    }
+    
+    // Handle scale changes for info nodes with images
+    if (field === 'scale' && selectedNode && editFormData.nodeType === 'info' && editFormData.imageId) {
+      const baseWidth = editFormData.width || 100
+      const baseHeight = editFormData.height || 100
+      const newWidth = Math.round(baseWidth * value / 100)
+      const newHeight = Math.round(baseHeight * value / 100)
+      
+      setNodes(nodes.map(n => n.id === selectedNode.id ? {
+        ...n,
+        width: newWidth,
+        height: newHeight
       } : n))
     }
     
@@ -406,9 +423,20 @@ function MapViewer() {
     
     // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
     if (editFormData.nodeType === 'background_map' || (editFormData.nodeType === 'info' && editFormData.imageId)) {
+      let finalWidth = editFormData.width
+      let finalHeight = editFormData.height
+      
+      // For info nodes with images, apply the scale to get final dimensions
+      if (editFormData.nodeType === 'info' && editFormData.imageId && editFormData.scale) {
+        const baseWidth = editFormData.width || 100
+        const baseHeight = editFormData.height || 100
+        finalWidth = Math.round(baseWidth * editFormData.scale / 100)
+        finalHeight = Math.round(baseHeight * editFormData.scale / 100)
+      }
+      
       updateData.tooltip_text = JSON.stringify({
-        width: editFormData.width,
-        height: editFormData.height
+        width: finalWidth,
+        height: finalHeight
       })
     }
     
@@ -636,7 +664,8 @@ function MapViewer() {
             nodeType: node.eventType === 'background_map' ? 'background_map' : 
                      node.eventType === 'map_link' ? 'map_link' : 'info',
             width: node.width || (node.eventType === 'background_map' ? 400 : 100),
-            height: node.height || (node.eventType === 'background_map' ? 300 : 100)
+            height: node.height || (node.eventType === 'background_map' ? 300 : 100),
+            scale: 100
           })
           setHasUnsavedChanges(false)
         }}
