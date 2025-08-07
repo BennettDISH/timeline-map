@@ -1,0 +1,1302 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import mapService from '../services/mapService'
+import eventService from '../services/eventService'
+import worldService from '../services/worldService'
+import imageServiceBase64 from '../services/imageServiceBase64'
+import ImageSelector from '../components/ImageSelector'
+import axios from 'axios'
+import '../styles/timelineStyles.scss'
+
+function MapViewer() {
+  const { mapId } = useParams()
+  const navigate = useNavigate()
+  
+  // Core state
+  const [map, setMap] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [nodes, setNodes] = useState([])
+  const [selectedNode, setSelectedNode] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  
+  // Timeline state
+  const [currentTime, setCurrentTime] = useState(50)
+  const [timelineSettings, setTimelineSettings] = useState({
+    minTime: 0,
+    maxTime: 100,
+    timeUnit: 'years'
+  })
+  const [timelineEnabled, setTimelineEnabled] = useState(false)
+  
+  
+  // Interaction state
+  const [interactionMode, setInteractionMode] = useState('view') // 'view' or 'edit'
+  const [isAddingNode, setIsAddingNode] = useState(false)
+  const [nodeType, setNodeType] = useState('standard')
+  const [availableMaps, setAvailableMaps] = useState([])
+  const [availableImages, setAvailableImages] = useState([])
+  const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [infoPanelNode, setInfoPanelNode] = useState(null)
+  
+  // Edit form state
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    content: '',
+    linkToMapId: null,
+    startTime: 0,
+    endTime: 100,
+    timelineEnabled: false,
+    imageId: null,
+    isBackgroundMap: false,
+    width: 400,
+    height: 300
+  })
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
+  // **SIMPLE COORDINATE SYSTEM**
+  const [camera, setCamera] = useState({ x: 500, y: 500 }) // World position camera is looking at (center of typical coordinate space)
+  const [zoom, setZoom] = useState(1) // Zoom level
+  const [isDraggingViewport, setIsDraggingViewport] = useState(false)
+  const [isDraggingNode, setIsDraggingNode] = useState(false)
+  const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 })
+  const [dragStartCamera, setDragStartCamera] = useState({ x: 0, y: 0 })
+  const [dragStartNodePos, setDragStartNodePos] = useState({ x: 0, y: 0 })
+  const [draggingNode, setDraggingNode] = useState(null)
+  
+  // Refs
+  const containerRef = useRef(null)
+  const timelineUpdateTimeoutRef = useRef(null)
+  
+  // State to track when container is ready for coordinate calculations
+  const [containerReady, setContainerReady] = useState(false)
+  
+  // Effect to check when container is ready
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0 && !containerReady) {
+        console.log('📏 Container ready for coordinate calculations:', rect)
+        setContainerReady(true)
+      }
+    }
+  }, [map, containerReady])
+  
+  // Callback ref to ensure we know when container mounts
+  const setContainerRef = useCallback((element) => {
+    containerRef.current = element
+    if (element) {
+      // Use setTimeout to ensure the element is fully rendered
+      setTimeout(() => {
+        const rect = element.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          console.log('📏 Container mounted and ready:', rect)
+          setContainerReady(true)
+        }
+      }, 0)
+    }
+  }, [])
+  
+  // **COORDINATE CONVERSION FUNCTIONS**
+  const worldToScreen = (worldX, worldY) => {
+    if (!containerRef.current) {
+      // Return center of viewport as fallback
+      console.log('⚠️ worldToScreen called before container ready, using fallback')
+      return { x: 400, y: 300 }
+    }
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) {
+      // Return center of viewport as fallback  
+      console.log('⚠️ Container has zero dimensions, using fallback:', rect)
+      return { x: 400, y: 300 }
+    }
+    
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    
+    const screenX = centerX + (worldX - camera.x) * zoom
+    const screenY = centerY + (worldY - camera.y) * zoom
+    
+    // DEBUG: Log coordinate conversion if it seems wrong
+    if (screenX > 10000 || screenY > 10000 || screenX < -10000 || screenY < -10000) {
+      console.log('🚨 COORDINATE CONVERSION ERROR:', {
+        input: { worldX, worldY },
+        camera,
+        zoom,
+        rect: { width: rect.width, height: rect.height },
+        center: { centerX, centerY },
+        calculation: {
+          deltaX: worldX - camera.x,
+          deltaY: worldY - camera.y,
+          scaledDeltaX: (worldX - camera.x) * zoom,
+          scaledDeltaY: (worldY - camera.y) * zoom
+        },
+        output: { screenX, screenY }
+      })
+    }
+    
+    return { x: screenX, y: screenY }
+  }
+  
+  const screenToWorld = (screenX, screenY) => {
+    if (!containerRef.current) return { x: 0, y: 0 }
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    
+    const worldX = camera.x + (screenX - centerX) / zoom
+    const worldY = camera.y + (screenY - centerY) / zoom
+    
+    return { x: worldX, y: worldY }
+  }
+  
+  // Load data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [mapResult, eventsResult] = await Promise.all([
+          mapService.getMap(mapId),
+          eventService.getEvents(mapId)
+        ])
+        
+        setMap(mapResult.map)
+        
+        // Convert coordinates to world pixels and parse background map data
+        const convertedNodes = eventsResult.events.map(node => {
+          // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
+          let worldX, worldY
+          
+          console.log('🔄 CONVERTING NODE COORDINATES:', {
+            nodeId: node.id,
+            title: node.title,
+            rawData: { 
+              x: node.x, 
+              y: node.y, 
+              xPixel: node.xPixel, 
+              yPixel: node.yPixel 
+            }
+          })
+          
+          if (node.xPixel !== undefined && node.xPixel !== null) {
+            worldX = node.xPixel
+            worldY = node.yPixel || 0
+            console.log('✅ Using pixel coordinates:', { worldX, worldY })
+          } else {
+            // Convert percentage to world coordinates 
+            worldX = (node.x || 0) * 1000
+            worldY = (node.y || 0) * 1000
+            console.log('📐 Using percentage coordinates:', { worldX, worldY, calculation: `${node.x} * 1000, ${node.y} * 1000` })
+          }
+          
+          // Check if node is incorrectly at origin
+          if (worldX === 0 && worldY === 0) {
+            console.log('⚠️ NODE AT ORIGIN - NEEDS INVESTIGATION:', { 
+              nodeId: node.id, 
+              rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel }
+            })
+          }
+          
+          // DEBUG: Check for corrupted coordinates from database
+          if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
+            console.log('🚨 CORRUPTED COORDINATES FROM DATABASE:', {
+              nodeId: node.id,
+              title: node.title,
+              converted: { worldX, worldY }
+            })
+            // Reset to reasonable coordinates near camera center
+            worldX = 500 + (Math.random() - 0.5) * 200
+            worldY = 500 + (Math.random() - 0.5) * 200
+          }
+          
+          // Parse background map dimensions from tooltip_text if it's a background_map
+          let width = 400, height = 300
+          if (node.eventType === 'background_map' && node.tooltipText) {
+            try {
+              const dimensions = JSON.parse(node.tooltipText)
+              width = dimensions.width || 400
+              height = dimensions.height || 300
+            } catch (e) {
+              // Fallback to defaults if JSON parsing fails
+            }
+          }
+          
+          return {
+            ...node,
+            worldX,
+            worldY,
+            width,
+            height
+          }
+        })
+        setNodes(convertedNodes)
+        
+        // Load timeline data if enabled
+        if (mapResult.map.timelineEnabled) {
+          setTimelineEnabled(true)
+          setCurrentTime(mapResult.map.timelineCurrentTime || 50)
+          setTimelineSettings({
+            minTime: mapResult.map.timelineMinTime || 0,
+            maxTime: mapResult.map.timelineMaxTime || 100,
+            timeUnit: mapResult.map.timelineTimeUnit || 'years'
+          })
+          
+        }
+        
+        // Load available maps and images for linking
+        try {
+          const mapsResult = await mapService.getMaps()
+          setAvailableMaps(mapsResult.maps.filter(m => m.id !== parseInt(mapId)))
+        } catch (err) {
+          // Silently continue without available maps
+        }
+        
+        // Only load images when needed (when user enters edit mode)
+        setAvailableImages([])
+        
+      } catch (err) {
+        console.error('Failed to load map data:', err)
+        setError(err.message || 'Failed to load map')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    if (mapId) {
+      loadData()
+    }
+  }, [mapId])
+  
+  // Load images when entering edit mode
+  const loadImages = async () => {
+    if (availableImages.length === 0 && map?.worldId) {
+      try {
+        const imagesResult = await imageServiceBase64.getImages({ worldId: map.worldId })
+        setAvailableImages(imagesResult.images)
+      } catch (err) {
+        console.error('Failed to load images:', err)
+      }
+    }
+  }
+  
+  // Load images when switching to edit mode
+  useEffect(() => {
+    if (interactionMode === 'edit') {
+      loadImages()
+    }
+  }, [interactionMode])
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isAddingNode) {
+          setIsAddingNode(false)
+        }
+        if (selectedNode) {
+          setSelectedNode(null)
+        }
+        if (showInfoPanel) {
+          setShowInfoPanel(false)
+        }
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAddingNode, selectedNode, showInfoPanel])
+  
+  // Get visible nodes based on timeline
+  const getVisibleNodes = () => {
+    if (!timelineEnabled) {
+      console.log('🔵 Timeline disabled, showing all', nodes.length, 'nodes')
+      return nodes
+    }
+    
+    console.log('👁️ FILTERING NODES BY TIMELINE:', {
+      currentTime,
+      totalNodes: nodes.length,
+      nodeDetails: nodes.map(node => ({
+        id: node.id,
+        title: node.title,
+        timelineEnabled: node.timelineEnabled,
+        startTime: node.startTime,
+        endTime: node.endTime,
+        shouldShow: !node.timelineEnabled || (currentTime >= node.startTime && currentTime <= node.endTime)
+      }))
+    })
+    
+    const visibleNodes = nodes.filter(node => {
+      if (!node.timelineEnabled) {
+        console.log(`✅ Node ${node.id} always visible (timeline disabled for node)`)
+        return true
+      }
+      const visible = currentTime >= node.startTime && currentTime <= node.endTime
+      console.log(`${visible ? '✅' : '❌'} Node ${node.id} (${node.title}): ${node.startTime}-${node.endTime}, current: ${currentTime}, visible: ${visible}`)
+      
+      if (!visible && isDraggingNode && draggingNode?.id === node.id) {
+        console.log('⚠️ DRAGGED NODE FILTERED OUT:', {
+          nodeId: node.id,
+          timelineEnabled: node.timelineEnabled,
+          startTime: node.startTime,
+          endTime: node.endTime,
+          currentTime,
+          visible
+        })
+      }
+      return visible
+    })
+    
+    console.log(`📊 Timeline filter result: ${visibleNodes.length} of ${nodes.length} nodes visible`)
+    
+    return visibleNodes
+  }
+  
+  
+  // **MOUSE EVENTS**
+  const handleMouseDown = (e) => {
+    if (isAddingNode) {
+      handleMapClick(e)
+      return
+    }
+    
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    
+    
+    // Check for node dragging in edit mode
+    if (interactionMode === 'edit') {
+      const rect = containerRef.current.getBoundingClientRect()
+      const localX = mouseX - rect.left
+      const localY = mouseY - rect.top
+      
+      for (const node of getVisibleNodes()) {
+        const screenPos = worldToScreen(node.worldX, node.worldY)
+        const distance = Math.sqrt(
+          Math.pow(localX - screenPos.x, 2) + Math.pow(localY - screenPos.y, 2)
+        )
+        
+        if (distance < 20) {
+          setIsDraggingNode(true)
+          setDraggingNode(node)
+          setDragStartMouse({ x: mouseX, y: mouseY })
+          setDragStartNodePos({ x: node.worldX, y: node.worldY })
+          return
+        }
+      }
+    }
+    
+    // Start viewport dragging
+    setIsDraggingViewport(true)
+    setDragStartMouse({ x: mouseX, y: mouseY })
+    setDragStartCamera({ x: camera.x, y: camera.y })
+  }
+  
+  const handleMouseMove = (e) => {
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    
+    if (isDraggingNode && draggingNode) {
+      // Node dragging
+      const mouseDeltaX = mouseX - dragStartMouse.x
+      const mouseDeltaY = mouseY - dragStartMouse.y
+      
+      const worldDeltaX = mouseDeltaX / zoom
+      const worldDeltaY = mouseDeltaY / zoom
+      
+      const newWorldX = dragStartNodePos.x + worldDeltaX
+      const newWorldY = dragStartNodePos.y + worldDeltaY
+      
+      // DEBUG: Check for coordinate corruption during drag
+      if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
+        console.log('🚨 PREVENTING COORDINATE CORRUPTION DURING DRAG:', {
+          nodeId: draggingNode.id,
+          mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
+          worldDelta: { x: worldDeltaX, y: worldDeltaY },
+          dragStart: dragStartNodePos,
+          newWorld: { x: newWorldX, y: newWorldY },
+          zoom,
+          camera
+        })
+        return // Don't update coordinates if they're corrupted
+      }
+      
+      setNodes(nodes.map(node => 
+        node.id === draggingNode.id 
+          ? { ...node, worldX: newWorldX, worldY: newWorldY }
+          : node
+      ))
+      setDraggingNode({ ...draggingNode, worldX: newWorldX, worldY: newWorldY })
+      
+    } else if (isDraggingViewport) {
+      // Viewport dragging
+      const mouseDeltaX = mouseX - dragStartMouse.x
+      const mouseDeltaY = mouseY - dragStartMouse.y
+      
+      const cameraDeltaX = -mouseDeltaX / zoom
+      const cameraDeltaY = -mouseDeltaY / zoom
+      
+      setCamera({
+        x: dragStartCamera.x + cameraDeltaX,
+        y: dragStartCamera.y + cameraDeltaY
+      })
+    }
+  }
+  
+  const handleMouseUp = async () => {
+    if (isDraggingNode && draggingNode) {
+      // Save node position
+      const finalWorldX = draggingNode.worldX
+      const finalWorldY = draggingNode.worldY
+      const nodeToSave = draggingNode
+      
+      console.log('💾 SAVING NODE POSITION:', {
+        nodeId: nodeToSave.id,
+        finalWorld: { x: finalWorldX, y: finalWorldY },
+        finalScreen: worldToScreen(finalWorldX, finalWorldY),
+        dragStartWorld: dragStartNodePos,
+        camera,
+        zoom
+      })
+      
+      // Clear drag state immediately to prevent further updates
+      setIsDraggingNode(false)
+      setDraggingNode(null)
+      
+      try {
+        const pixelX = Math.round(finalWorldX)
+        const pixelY = Math.round(finalWorldY)
+        
+        // Prevent saving corrupted coordinates to database
+        if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
+          console.log('🚨 PREVENTED SAVING CORRUPTED COORDINATES:', {
+            nodeId: draggingNode.id,
+            worldPos: { x: finalWorldX, y: finalWorldY },
+            pixelPos: { x: pixelX, y: pixelY }
+          })
+          return
+        }
+        
+        await handleNodeUpdate(nodeToSave, {
+          x_pixel: pixelX,
+          y_pixel: pixelY
+        })
+        console.log('✅ Node position saved for node:', nodeToSave.id)
+      } catch (err) {
+        console.error('Failed to save node position:', err)
+        // Reset node position on error
+        setNodes(nodes.map(node => 
+          node.id === nodeToSave.id 
+            ? { ...node, worldX: dragStartNodePos.x, worldY: dragStartNodePos.y }
+            : node
+        ))
+      }
+    }
+    
+    
+    // Clear remaining drag states (node drag already cleared above)
+    setIsDraggingViewport(false)
+  }
+  
+  const handleWheel = (e) => {
+    e.preventDefault()
+    
+    // Viewport zoom
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+    const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor))
+    
+    // Zoom towards mouse position
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      const worldPos = screenToWorld(mouseX, mouseY)
+      setZoom(newZoom)
+      
+      // Adjust camera to keep mouse position fixed
+      const newScreenPos = worldToScreen(worldPos.x, worldPos.y)
+      const deltaX = (mouseX - newScreenPos.x) / newZoom
+      const deltaY = (mouseY - newScreenPos.y) / newZoom
+      
+      setCamera(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }))
+    }
+  }
+  
+  // Node operations
+  const handleMapClick = async (e) => {
+    if (!isAddingNode) return
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
+    const worldPos = screenToWorld(mouseX, mouseY)
+    
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      const newNodeData = {
+        title: `New ${nodeType === 'standard' ? 'Info' : 'Map'} Node`,
+        description: '',
+        content: 'Click to edit this node',
+        map_id: parseInt(mapId),
+        x_position: 0, // Keep for compatibility
+        y_position: 0,
+        x_pixel: Math.round(worldPos.x),
+        y_pixel: Math.round(worldPos.y),
+        event_type: nodeType,
+        start_time: 0,
+        end_time: 100,
+        timeline_enabled: false,
+        image_id: null
+      }
+      
+      const result = await eventService.createEvent(newNodeData)
+      const newNode = {
+        ...result.event,
+        worldX: Math.round(worldPos.x),
+        worldY: Math.round(worldPos.y)
+      }
+      
+      setNodes([...nodes, newNode])
+      setSelectedNode(newNode)
+      setIsAddingNode(false)
+    } catch (err) {
+      console.error('Failed to create node:', err)
+      setSaveError(err.message || 'Failed to create node')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  const handleNodeUpdate = async (node, updates) => {
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      console.log('📤 UPDATING NODE:', { nodeId: node.id, updates })
+      
+      const result = await eventService.updateEvent(node.id, updates)
+      const updatedNode = result.event
+      
+      console.log('📥 NODE UPDATE RESPONSE:', {
+        nodeId: updatedNode.id,
+        response: {
+          x: updatedNode.x,
+          y: updatedNode.y,
+          xPixel: updatedNode.xPixel,
+          yPixel: updatedNode.yPixel
+        }
+      })
+      
+      const newWorldX = updatedNode.xPixel !== undefined && updatedNode.xPixel !== null ? updatedNode.xPixel : updatedNode.x * 1000
+      const newWorldY = updatedNode.yPixel !== undefined && updatedNode.yPixel !== null ? updatedNode.yPixel : updatedNode.y * 1000
+      
+      console.log('🔄 APPLYING NODE UPDATE:', {
+        nodeId: updatedNode.id,
+        newWorldPos: { x: newWorldX, y: newWorldY },
+        newScreenPos: worldToScreen(newWorldX, newWorldY)
+      })
+      
+      setNodes(nodes.map(n => n.id === node.id ? {
+        ...updatedNode,
+        worldX: newWorldX,
+        worldY: newWorldY
+      } : n))
+      
+      if (selectedNode && selectedNode.id === node.id) {
+        setSelectedNode(updatedNode)
+      }
+    } catch (err) {
+      console.error('Failed to update node:', err)
+      setSaveError(err.message || 'Failed to update node')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  const handleNodeDelete = async (node) => {
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      await eventService.deleteEvent(node.id)
+      setNodes(nodes.filter(n => n.id !== node.id))
+      
+      if (selectedNode && selectedNode.id === node.id) {
+        setSelectedNode(null)
+      }
+      if (infoPanelNode && infoPanelNode.id === node.id) {
+        setShowInfoPanel(false)
+        setInfoPanelNode(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete node:', err)
+      setSaveError(err.message || 'Failed to delete node')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  // Timeline operations
+  const handleTimelineChange = (newTime) => {
+    const timeValue = parseInt(newTime)
+    console.log('⏰ Timeline changed to:', timeValue)
+    setCurrentTime(timeValue)
+    
+    clearTimeout(timelineUpdateTimeoutRef.current)
+    timelineUpdateTimeoutRef.current = setTimeout(async () => {
+      try {
+        await worldService.updateWorld(map.worldId, {
+          timeline_current_time: timeValue
+        })
+      } catch (err) {
+        console.error('Failed to save timeline position:', err)
+      }
+    }, 500)
+  }
+  
+  
+  if (loading) {
+    return <div className="map-viewer-loading">Loading map...</div>
+  }
+  
+  if (error) {
+    return (
+      <div className="map-viewer-error">
+        <h2>Error Loading Map</h2>
+        <p>{error}</p>
+        <Link to="/maps">← Back to Maps</Link>
+      </div>
+    )
+  }
+  
+  
+  return (
+    <div className="map-viewer">
+      {/* Header */}
+      <div className="map-header">
+        <div className="header-content">
+          <h1>{map?.title || 'Map Viewer'}</h1>
+          <div className="header-actions">
+            <Link to={`/map/${mapId}/settings`} className="settings-button">⚙️ Settings</Link>
+            <Link to="/maps" className="back-link">← Back to Maps</Link>
+          </div>
+        </div>
+        {map?.description && (
+          <p className="map-description">{map.description}</p>
+        )}
+      </div>
+      
+      {/* Controls */}
+      <div className="map-controls">
+        <div className="view-controls">
+          <button onClick={() => setZoom(1)}>Reset Zoom</button>
+          <button onClick={() => setCamera({ x: 500, y: 500 })}>Center</button>
+          <span className="zoom-level">Zoom: {Math.round(zoom * 100)}%</span>
+          
+          <button 
+            className={`mode-toggle ${interactionMode}`}
+            onClick={() => setInteractionMode(interactionMode === 'view' ? 'edit' : 'view')}
+          >
+            {interactionMode === 'view' ? 'View Mode' : 'Edit Mode'}
+          </button>
+          
+          {!timelineEnabled && (
+            <button
+              onClick={async () => {
+                try {
+                  const result = await worldService.updateWorld(map.worldId, { 
+                    timeline_enabled: true,
+                    timeline_min_time: 0,
+                    timeline_max_time: 100,
+                    timeline_current_time: 50,
+                    timeline_time_unit: 'years'
+                  })
+                  
+                  // Update local state without reloading
+                  setTimelineEnabled(true)
+                  setTimelineSettings({
+                    minTime: 0,
+                    maxTime: 100,
+                    timeUnit: 'years'
+                  })
+                  setCurrentTime(50)
+                  
+                  // Update the map object
+                  setMap(prev => ({
+                    ...prev,
+                    timelineEnabled: true,
+                    timelineMinTime: 0,
+                    timelineMaxTime: 100,
+                    timelineCurrentTime: 50,
+                    timelineTimeUnit: 'years'
+                  }))
+                  
+                } catch (err) {
+                  console.error('❌ Timeline enable error:', err)
+                  setSaveError(`Failed to enable timeline: ${err.message || err}`)
+                }
+              }}
+              className="enable-timeline-button"
+            >
+              Enable Timeline
+            </button>
+          )}
+        </div>
+        
+        {interactionMode === 'edit' && (
+          <div className="node-controls">
+            <label>
+              Node Type:
+              <select value={nodeType} onChange={(e) => setNodeType(e.target.value)}>
+                <option value="standard">Info Node</option>
+                <option value="map_link">Map Link</option>
+              </select>
+            </label>
+            
+            <button
+              className={`add-node-button ${isAddingNode ? 'active' : ''}`}
+              onClick={() => setIsAddingNode(!isAddingNode)}
+            >
+              {isAddingNode ? 'Cancel' : 'Add Node'}
+            </button>
+            
+            {saving && <span className="saving-indicator">Saving...</span>}
+          </div>
+        )}
+      </div>
+      
+      {/* Timeline */}
+      {timelineEnabled && (
+        <div className="timeline-container">
+          <div className="timeline-header">
+            <span className="timeline-label">Timeline: {currentTime} {timelineSettings.timeUnit}</span>
+            <div className="timeline-actions">
+            </div>
+          </div>
+          
+          <div className="timeline-controls">
+            <span className="timeline-min">{timelineSettings.minTime}</span>
+            <input
+              type="range"
+              min={timelineSettings.minTime}
+              max={timelineSettings.maxTime}
+              value={currentTime}
+              onChange={(e) => handleTimelineChange(e.target.value)}
+              className="timeline-slider"
+            />
+            <span className="timeline-max">{timelineSettings.maxTime}</span>
+          </div>
+          
+        </div>
+      )}
+      
+      {/* Map Container */}
+      <div 
+        ref={setContainerRef}
+        className={`map-container ${isAddingNode ? 'adding-node' : ''} ${isDraggingViewport ? 'dragging' : ''}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onWheel={handleWheel}
+        style={{
+          position: 'relative',
+          flex: 1,
+          overflow: 'hidden',
+          background: '#1a1a1a',
+          cursor: isDraggingViewport ? 'grabbing' : isAddingNode ? 'crosshair' : 'grab'
+        }}
+      >
+        
+        
+        {/* Background Map Nodes (render behind regular nodes) */}
+        {getVisibleNodes().filter(node => node.eventType === 'background_map').map(node => {
+          const screenPos = worldToScreen(node.worldX, node.worldY)
+          
+          return (
+            <div
+              key={`bg-${node.id}`}
+              className={`background-map-node ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+              style={{
+                position: 'absolute',
+                left: screenPos.x - (node.width * zoom) / 2,
+                top: screenPos.y - (node.height * zoom) / 2,
+                width: node.width * zoom,
+                height: node.height * zoom,
+                cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+                zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 1
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (interactionMode === 'view') {
+                  setInfoPanelNode(node)
+                  setShowInfoPanel(true)
+                } else {
+                  setSelectedNode(node)
+                  setEditFormData({
+                    title: node.title || '',
+                    description: node.description || '',
+                    content: node.content || '',
+                    linkToMapId: node.linkToMapId || null,
+                    startTime: node.startTime || 0,
+                    endTime: node.endTime || 100,
+                    timelineEnabled: node.timelineEnabled || false,
+                    imageId: node.imageId || null,
+                    isBackgroundMap: node.eventType === 'background_map',
+                    width: node.width || 400,
+                    height: node.height || 300
+                  })
+                  setHasUnsavedChanges(false)
+                }
+              }}
+            >
+              {node.imageUrl && (
+                <img 
+                  src={node.imageUrl} 
+                  alt={node.title}
+                  className="background-map-image"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    opacity: 0.8,
+                    borderRadius: '8px'
+                  }}
+                />
+              )}
+              <div className="background-map-label">{node.title}</div>
+            </div>
+          )
+        })}
+        
+        {/* Regular Nodes */}
+        {getVisibleNodes().filter(node => node.eventType !== 'background_map').map(node => {
+          const screenPos = worldToScreen(node.worldX, node.worldY)
+          
+          // DEBUG: Node dragging visibility
+          if (isDraggingNode && draggingNode?.id === node.id) {
+            console.log('🎯 DRAGGED NODE:', {
+              nodeId: node.id,
+              worldPos: { x: node.worldX, y: node.worldY },
+              screenPos,
+              visible: screenPos.x > -50 && screenPos.x < (containerRef.current?.getBoundingClientRect().width || 0) + 50 &&
+                      screenPos.y > -50 && screenPos.y < (containerRef.current?.getBoundingClientRect().height || 0) + 50,
+              containerSize: {
+                width: containerRef.current?.getBoundingClientRect().width,
+                height: containerRef.current?.getBoundingClientRect().height
+              }
+            })
+          }
+          
+          // DEBUG: Check for coordinate issues
+          if (screenPos.x > 10000 || screenPos.y > 10000) {
+            console.log('❌ NODE WITH BAD SCREEN POSITION:', {
+              nodeId: node.id,
+              key: `node-${node.id}`,
+              worldPos: { x: node.worldX, y: node.worldY },
+              screenPos,
+              isDragging: isDraggingNode && draggingNode?.id === node.id
+            })
+          }
+          
+          return (
+            <div
+              key={node.id}
+              className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+              style={{
+                position: 'absolute',
+                left: screenPos.x,
+                top: screenPos.y,
+                transform: 'translate(-50%, -50%)',
+                cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+                zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (interactionMode === 'view') {
+                  setInfoPanelNode(node)
+                  setShowInfoPanel(true)
+                } else {
+                  setSelectedNode(node)
+                  // Reset form data when selecting a different node
+                  setEditFormData({
+                    title: node.title || '',
+                    description: node.description || '',
+                    content: node.content || '',
+                    linkToMapId: node.linkToMapId || null,
+                    startTime: node.startTime || 0,
+                    endTime: node.endTime || 100,
+                    timelineEnabled: node.timelineEnabled || false,
+                    imageId: node.imageId || null,
+                    isBackgroundMap: node.eventType === 'background_map',
+                    width: node.width || 400,
+                    height: node.height || 300
+                  })
+                  setHasUnsavedChanges(false)
+                }
+              }}
+            >
+              <div className="node-marker">
+                {node.imageUrl ? (
+                  <img src={node.imageUrl} alt={node.title} className="node-image" />
+                ) : (
+                  node.eventType === 'map_link' ? '🗺️' : 'ℹ️'
+                )}
+              </div>
+              
+              <div className="node-tooltip">
+                <strong>{node.title}</strong>
+                {node.description && <p>{node.description}</p>}
+              </div>
+            </div>
+          )
+        })}
+        
+        {isAddingNode && (
+          <div className="adding-node-help">
+            <p>Click anywhere to place a new {nodeType === 'standard' ? 'info' : 'map link'} node</p>
+            <p><small>Press Escape to cancel</small></p>
+          </div>
+        )}
+        
+        {interactionMode === 'edit' && !isAddingNode && (
+          <div className="edit-mode-help">
+            <p><small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small></p>
+          </div>
+        )}
+        
+        {saveError && (
+          <div className="save-error">
+            {saveError}
+          </div>
+        )}
+      </div>
+      
+      {/* Info Panel */}
+      {showInfoPanel && infoPanelNode && (
+        <div className="info-panel">
+          <div className="info-panel-header">
+            <h3>{infoPanelNode.title}</h3>
+            <button 
+              className="close-button"
+              onClick={() => setShowInfoPanel(false)}
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="info-panel-content">
+            {infoPanelNode.imageUrl && (
+              <div className="info-section">
+                <h4>Image</h4>
+                <img 
+                  src={infoPanelNode.imageUrl} 
+                  alt={infoPanelNode.title}
+                  className="node-preview-image"
+                />
+              </div>
+            )}
+            
+            {infoPanelNode.description && (
+              <div className="info-section">
+                <h4>Description</h4>
+                <p className="content-text">{infoPanelNode.description}</p>
+              </div>
+            )}
+            
+            {infoPanelNode.content && (
+              <div className="info-section">
+                <h4>Details</h4>
+                <p className="content-text">{infoPanelNode.content}</p>
+              </div>
+            )}
+            
+            {infoPanelNode.eventType === 'map_link' && infoPanelNode.linkToMapId && (
+              <div className="info-section">
+                <h4>Navigation</h4>
+                <button
+                  className="edit-button"
+                  onClick={() => navigate(`/maps/${infoPanelNode.linkToMapId}`)}
+                >
+                  Go to Linked Map
+                </button>
+              </div>
+            )}
+            
+            {interactionMode === 'edit' && (
+              <div className="info-panel-actions">
+                <button
+                  className="edit-button"
+                  onClick={() => {
+                    setSelectedNode(infoPanelNode)
+                    setEditFormData({
+                      title: infoPanelNode.title || '',
+                      description: infoPanelNode.description || '',
+                      content: infoPanelNode.content || '',
+                      linkToMapId: infoPanelNode.linkToMapId || null,
+                      startTime: infoPanelNode.startTime || 0,
+                      endTime: infoPanelNode.endTime || 100,
+                      timelineEnabled: infoPanelNode.timelineEnabled || false,
+                      imageId: infoPanelNode.imageId || null,
+                      isBackgroundMap: infoPanelNode.eventType === 'background_map',
+                      width: infoPanelNode.width || 400,
+                      height: infoPanelNode.height || 300
+                    })
+                    setHasUnsavedChanges(false)
+                    setShowInfoPanel(false)
+                  }}
+                >
+                  Edit Node
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Node Editor */}
+      {selectedNode && interactionMode === 'edit' && (
+        <div className="node-editor">
+          <h3>Edit Node</h3>
+          
+          <div className="form-group">
+            <label>Title</label>
+            <input
+              type="text"
+              value={editFormData.title}
+              onChange={(e) => {
+                setEditFormData({...editFormData, title: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Node title"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Description</label>
+            <textarea
+              value={editFormData.description}
+              onChange={(e) => {
+                setEditFormData({...editFormData, description: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Brief description"
+              rows="3"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Content</label>
+            <textarea
+              value={editFormData.content}
+              onChange={(e) => {
+                setEditFormData({...editFormData, content: e.target.value})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Detailed content"
+              rows="4"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Node Image (optional)</label>
+            <ImageSelector
+              images={availableImages}
+              selectedImageId={editFormData.imageId}
+              onImageSelect={(imageId) => {
+                setEditFormData({...editFormData, imageId: imageId})
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="No image selected"
+              showPreview={false}
+            />
+          </div>
+          
+          {editFormData.imageId && (
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={editFormData.isBackgroundMap}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, isBackgroundMap: e.target.checked})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+                Background Map Node (image displays in background)
+              </label>
+            </div>
+          )}
+          
+          {editFormData.isBackgroundMap && editFormData.imageId && (
+            <>
+              <div className="form-group">
+                <label>Width: {editFormData.width}px</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="1000"
+                  value={editFormData.width}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, width: parseInt(e.target.value)})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Height: {editFormData.height}px</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="1000"
+                  value={editFormData.height}
+                  onChange={(e) => {
+                    setEditFormData({...editFormData, height: parseInt(e.target.value)})
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+            </>
+          )}
+          
+          {selectedNode.eventType === 'map_link' && (
+            <div className="form-group">
+              <label>Linked Map</label>
+              <select
+                value={editFormData.linkToMapId || ''}
+                onChange={(e) => {
+                  setEditFormData({...editFormData, linkToMapId: e.target.value || null})
+                  setHasUnsavedChanges(true)
+                }}
+              >
+                <option value="">Select a map...</option>
+                {availableMaps.map(map => (
+                  <option key={map.id} value={map.id}>{map.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {timelineEnabled && (
+            <>
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={editFormData.timelineEnabled}
+                    onChange={(e) => {
+                      setEditFormData({...editFormData, timelineEnabled: e.target.checked})
+                      setHasUnsavedChanges(true)
+                    }}
+                  />
+                  Enable for Timeline
+                </label>
+              </div>
+              
+              {editFormData.timelineEnabled && (
+                <>
+                  <div className="form-group">
+                    <label>Start Time: {editFormData.startTime}</label>
+                    <input
+                      type="range"
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      value={editFormData.startTime}
+                      onChange={(e) => {
+                        setEditFormData({...editFormData, startTime: parseInt(e.target.value)})
+                        setHasUnsavedChanges(true)
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>End Time: {editFormData.endTime}</label>
+                    <input
+                      type="range"
+                      min={timelineSettings.minTime}
+                      max={timelineSettings.maxTime}
+                      value={editFormData.endTime}
+                      onChange={(e) => {
+                        setEditFormData({...editFormData, endTime: parseInt(e.target.value)})
+                        setHasUnsavedChanges(true)
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+          </>
+          )}
+          
+          <div className="form-actions">
+            <button onClick={() => setSelectedNode(null)}>
+              Cancel
+            </button>
+            
+            <button
+              className="save-button"
+              disabled={saving}
+              onClick={async () => {
+                const updateData = {
+                  title: editFormData.title,
+                  description: editFormData.description,
+                  content: editFormData.content,
+                  image_id: editFormData.imageId,
+                  link_to_map_id: editFormData.linkToMapId,
+                  start_time: editFormData.startTime,
+                  end_time: editFormData.endTime,
+                  timeline_enabled: editFormData.timelineEnabled,
+                  event_type: editFormData.isBackgroundMap ? 'background_map' : (editFormData.linkToMapId ? 'map_link' : 'standard')
+                }
+                
+                // Store dimensions temporarily in tooltip_text as JSON for background maps
+                if (editFormData.isBackgroundMap) {
+                  updateData.tooltip_text = JSON.stringify({
+                    width: editFormData.width,
+                    height: editFormData.height
+                  })
+                }
+                
+                await handleNodeUpdate(selectedNode, updateData)
+                setSelectedNode(null)
+                setHasUnsavedChanges(false)
+              }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            
+            <button
+              className="delete-button"
+              onClick={async () => {
+                if (window.confirm('Delete this node?')) {
+                  await handleNodeDelete(selectedNode)
+                  setSelectedNode(null)
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+          
+          {hasUnsavedChanges && (
+            <div className="unsaved-changes-notice">
+              <small>You have unsaved changes</small>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default MapViewer
