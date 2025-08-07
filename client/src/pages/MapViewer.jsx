@@ -306,9 +306,7 @@ function MapViewer() {
     clearTimeout(timelineUpdateTimeoutRef.current)
     timelineUpdateTimeoutRef.current = setTimeout(async () => {
       try {
-        await worldService.updateWorld(map.worldId, {
-          timeline_current_time: timeValue
-        })
+        await worldService.updateTimelinePosition(map.worldId, timeValue)
       } catch (err) {
         console.error('Failed to save timeline position:', err)
       }
@@ -510,7 +508,7 @@ function MapViewer() {
             <button
               onClick={async () => {
                 try {
-                  await worldService.updateWorld(map.worldId, { 
+                  await worldService.updateWorldTimeline(map.worldId, { 
                     timeline_enabled: true,
                     timeline_min_time: 0,
                     timeline_max_time: 100,

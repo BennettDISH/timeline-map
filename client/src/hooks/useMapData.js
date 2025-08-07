@@ -19,7 +19,31 @@ export const useMapData = (mapId) => {
           eventService.getEvents(mapId)
         ])
         
-        setMap(mapResult.map)
+        const mapData = mapResult.map
+        
+        // Load world data to get timeline settings
+        let worldData = null
+        if (mapData.worldId) {
+          try {
+            const worldResult = await worldService.getWorld(mapData.worldId)
+            worldData = worldResult.world
+          } catch (err) {
+            console.error('Failed to load world data:', err)
+            // Continue without world data if it fails
+          }
+        }
+        
+        // Merge map data with world timeline settings
+        const enrichedMap = {
+          ...mapData,
+          timelineEnabled: worldData?.timelineEnabled || false,
+          timelineMinTime: worldData?.timelineSettings?.minTime || 0,
+          timelineMaxTime: worldData?.timelineSettings?.maxTime || 100,
+          timelineCurrentTime: worldData?.timelineSettings?.currentTime || 50,
+          timelineTimeUnit: worldData?.timelineSettings?.timeUnit || 'years'
+        }
+        
+        setMap(enrichedMap)
         
         // Convert coordinates to world pixels and parse background map data
         console.log('🔄 RAW EVENTS FROM API:', eventsResult.events)
