@@ -206,16 +206,25 @@ function MapViewer() {
         height = 100
       }
       
-      setNodes(nodes.map(n => n.id === node.id ? {
+      const processedUpdatedNode = {
         ...updatedNode,
         worldX: newWorldX,
         worldY: newWorldY,
         width,
         height
-      } : n))
+      }
+      
+      console.log('🔄 NODE UPDATE COMPLETE:', {
+        originalNode: node,
+        updatedFromAPI: updatedNode,
+        processedNode: processedUpdatedNode,
+        hasImage: !!processedUpdatedNode.imageUrl
+      })
+      
+      setNodes(nodes.map(n => n.id === node.id ? processedUpdatedNode : n))
       
       if (selectedNode && selectedNode.id === node.id) {
-        setSelectedNode(updatedNode)
+        setSelectedNode(processedUpdatedNode)
       }
     } catch (err) {
       console.error('Failed to update node:', err)
@@ -311,6 +320,32 @@ function MapViewer() {
     })
     setHasUnsavedChanges(false)
     setShowInfoPanel(false)
+  }
+
+  const handleFieldChange = (field, value) => {
+    setEditFormData({ ...editFormData, [field]: value })
+    setHasUnsavedChanges(true)
+    
+    // Update dimensions in real-time for visual feedback
+    if ((field === 'width' || field === 'height') && selectedNode) {
+      setNodes(nodes.map(n => n.id === selectedNode.id ? {
+        ...n,
+        [field]: value
+      } : n))
+    }
+    
+    // Update image immediately when imageId changes
+    if (field === 'imageId' && selectedNode) {
+      // Find the image URL from availableImages
+      const selectedImage = availableImages.find(img => img.id === value)
+      const imageUrl = selectedImage ? selectedImage.url : null
+      
+      setNodes(nodes.map(n => n.id === selectedNode.id ? {
+        ...n,
+        imageId: value,
+        imageUrl: imageUrl
+      } : n))
+    }
   }
 
   const handleEditorSave = async () => {
@@ -503,6 +538,7 @@ function MapViewer() {
           onSave={handleEditorSave}
           onCancel={() => setSelectedNode(null)}
           onDelete={() => handleNodeDelete(selectedNode)}
+          handleFieldChange={handleFieldChange}
         />
       )}
     </div>

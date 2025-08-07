@@ -14,14 +14,10 @@ function NodeEditor({
   saving,
   onSave,
   onCancel,
-  onDelete
+  onDelete,
+  handleFieldChange
 }) {
   if (!selectedNode) return null
-
-  const handleFieldChange = (field, value) => {
-    setEditFormData({...editFormData, [field]: value})
-    setHasUnsavedChanges(true)
-  }
 
   return (
     <div className="node-editor">
