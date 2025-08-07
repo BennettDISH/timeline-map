@@ -14,6 +14,8 @@ function MapContainer({
   selectedNode,
   isDraggingNode,
   draggingNode,
+  showGrid,
+  camera,
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -37,6 +39,28 @@ function MapContainer({
         cursor: isDraggingViewport ? 'grabbing' : isAddingNode ? 'crosshair' : 'grab'
       }}
     >
+      {/* Grid overlay */}
+      {showGrid && (
+        <div 
+          className="grid-overlay"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            pointerEvents: 'none',
+            backgroundImage: `
+              linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: `${50 * zoom}px ${50 * zoom}px`,
+            backgroundPosition: `${(-(camera.x * zoom) % (50 * zoom))}px ${(-(camera.y * zoom) % (50 * zoom))}px`,
+            zIndex: 1
+          }}
+        />
+      )}
+      
       <NodeRenderer
         nodes={visibleNodes}
         worldToScreen={worldToScreen}
@@ -62,8 +86,20 @@ function MapContainer({
       )}
       
       {interactionMode === 'edit' && !isAddingNode && (
-        <div className="edit-mode-help">
-          <p><small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small></p>
+        <div className="edit-mode-help" style={{ 
+          userSelect: 'none', 
+          pointerEvents: 'none',
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          background: 'rgba(0,0,0,0.7)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          zIndex: 1000
+        }}>
+          <small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small>
         </div>
       )}
       

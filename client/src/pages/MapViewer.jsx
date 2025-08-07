@@ -24,6 +24,7 @@ function MapViewer() {
   const [interactionMode, setInteractionMode] = useState('view')
   const [isAddingNode, setIsAddingNode] = useState(false)
   const [nodeType, setNodeType] = useState('info')
+  const [showGrid, setShowGrid] = useState(false)
 
   // Interactions
   const {
@@ -428,11 +429,58 @@ function MapViewer() {
           <button onClick={() => setCamera({ x: 500, y: 500 })}>Center</button>
           <span className="zoom-level">Zoom: {Math.round(zoom * 100)}%</span>
           
+          <label className="mode-toggle" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            userSelect: 'none'
+          }}>
+            <span style={{ fontSize: '14px' }}>View</span>
+            <div style={{
+              position: 'relative',
+              width: '50px',
+              height: '24px',
+              background: interactionMode === 'edit' ? '#4CAF50' : '#ccc',
+              borderRadius: '12px',
+              transition: 'background-color 0.3s'
+            }}>
+              <input
+                type="checkbox"
+                checked={interactionMode === 'edit'}
+                onChange={() => setInteractionMode(interactionMode === 'view' ? 'edit' : 'view')}
+                style={{ opacity: 0, position: 'absolute' }}
+              />
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                left: interactionMode === 'edit' ? '26px' : '2px',
+                width: '20px',
+                height: '20px',
+                background: 'white',
+                borderRadius: '50%',
+                transition: 'left 0.3s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }}></div>
+            </div>
+            <span style={{ fontSize: '14px' }}>Edit</span>
+          </label>
+          
           <button 
-            className={`mode-toggle ${interactionMode}`}
-            onClick={() => setInteractionMode(interactionMode === 'view' ? 'edit' : 'view')}
+            onClick={() => setShowGrid(!showGrid)}
+            className={`grid-toggle ${showGrid ? 'active' : ''}`}
+            style={{
+              padding: '6px 12px',
+              border: 'none',
+              borderRadius: '4px',
+              background: showGrid ? '#4CAF50' : '#f0f0f0',
+              color: showGrid ? 'white' : '#333',
+              cursor: 'pointer',
+              fontSize: '12px',
+              transition: 'all 0.2s'
+            }}
           >
-            {interactionMode === 'view' ? 'View Mode' : 'Edit Mode'}
+            📐 Grid
           </button>
           
           {!timelineEnabled && (
@@ -477,15 +525,6 @@ function MapViewer() {
         
         {interactionMode === 'edit' && (
           <div className="node-controls">
-            <label>
-              New Node Type:
-              <select value={nodeType} onChange={(e) => setNodeType(e.target.value)}>
-                <option value="info">Info Node</option>
-                <option value="map_link">Map Link Node</option>
-                <option value="background_map">Background Map Node</option>
-              </select>
-            </label>
-            
             <button
               className={`add-node-button ${isAddingNode ? 'active' : ''}`}
               onClick={() => setIsAddingNode(!isAddingNode)}
@@ -497,14 +536,6 @@ function MapViewer() {
           </div>
         )}
       </div>
-      
-      {/* Timeline */}
-      <Timeline
-        timelineEnabled={timelineEnabled}
-        currentTime={currentTime}
-        timelineSettings={timelineSettings}
-        onTimelineChange={handleTimelineChange}
-      />
       
       {/* Map Container */}
       <MapContainer
@@ -520,6 +551,8 @@ function MapViewer() {
         selectedNode={selectedNode}
         isDraggingNode={isDraggingNode}
         draggingNode={draggingNode}
+        showGrid={showGrid}
+        camera={camera}
         onMouseDown={(e) => isAddingNode ? handleMapClick(e) : handleMouseDown(e)}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -556,6 +589,14 @@ function MapViewer() {
           handleFieldChange={handleFieldChange}
         />
       )}
+      
+      {/* Timeline at bottom */}
+      <Timeline
+        timelineEnabled={timelineEnabled}
+        currentTime={currentTime}
+        timelineSettings={timelineSettings}
+        onTimelineChange={handleTimelineChange}
+      />
     </div>
   )
 }
