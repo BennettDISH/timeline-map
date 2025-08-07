@@ -222,18 +222,24 @@ function MapViewer() {
       
       // Parse dimensions for background maps and image nodes
       let width = 400, height = 300
+      
+      // Check if we have stored dimensions in tooltipText
+      let hasDimensions = false
       if ((updatedNode.eventType === 'background_map' || (updatedNode.eventType === 'standard' && updatedNode.imageUrl)) && updatedNode.tooltipText) {
         try {
           const dimensions = JSON.parse(updatedNode.tooltipText)
           width = dimensions.width || (updatedNode.eventType === 'standard' ? 100 : 400)
           height = dimensions.height || (updatedNode.eventType === 'standard' ? 100 : 300)
+          hasDimensions = true
         } catch (e) {
           // Fallback to defaults if JSON parsing fails
           width = updatedNode.eventType === 'standard' ? 100 : 400
           height = updatedNode.eventType === 'standard' ? 100 : 300
         }
-      } else if (updatedNode.eventType === 'standard' && updatedNode.imageUrl) {
-        // Default size for image nodes
+      }
+      
+      // Only set defaults if we don't have stored dimensions
+      if (!hasDimensions && updatedNode.eventType === 'standard' && updatedNode.imageUrl) {
         width = 100
         height = 100
       }
