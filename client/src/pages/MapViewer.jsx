@@ -316,7 +316,7 @@ function MapViewer() {
 
   // Helper function to get scale from node dimensions
   const getNodeScale = (node) => {
-    if (node.eventType !== 'standard' || !node.imageId) return 100
+    if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
     
     console.log('🔍 Getting scale for node:', {
       nodeId: node.id,
@@ -416,8 +416,8 @@ function MapViewer() {
       } : n))
     }
     
-    // Handle scale changes for info nodes with images
-    if (field === 'scale' && selectedNode && editFormData.nodeType === 'info' && editFormData.imageId) {
+    // Handle scale changes for info and map_link nodes with images
+    if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId) {
       const baseWidth = editFormData.width || 100
       const baseHeight = editFormData.height || 100
       const newWidth = Math.round(baseWidth * value / 100)
@@ -459,12 +459,14 @@ function MapViewer() {
     }
     
     // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
-    if (editFormData.nodeType === 'background_map' || (editFormData.nodeType === 'info' && editFormData.imageId)) {
+    if (editFormData.nodeType === 'background_map' || 
+        (editFormData.nodeType === 'info' && editFormData.imageId) ||
+        (editFormData.nodeType === 'map_link' && editFormData.imageId)) {
       let finalWidth = editFormData.width
       let finalHeight = editFormData.height
       
-      // For info nodes with images, apply the scale to get final dimensions
-      if (editFormData.nodeType === 'info' && editFormData.imageId && editFormData.scale) {
+      // For info and map_link nodes with images, apply the scale to get final dimensions
+      if ((editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId && editFormData.scale) {
         const baseWidth = editFormData.width || 100
         const baseHeight = editFormData.height || 100
         finalWidth = Math.round(baseWidth * editFormData.scale / 100)
@@ -474,7 +476,7 @@ function MapViewer() {
       const tooltipData = {
         width: finalWidth,
         height: finalHeight,
-        scale: editFormData.nodeType === 'info' ? editFormData.scale : undefined
+        scale: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? editFormData.scale : undefined
       }
       
       console.log('💾 Saving tooltip data:', tooltipData)

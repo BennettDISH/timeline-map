@@ -72,8 +72,8 @@ function NodeEditor({
           </div>
         </div>
       
-        {/* Show image selector for info and background map nodes */}
-        {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info') && (
+        {/* Show image selector for info, map link, and background map nodes */}
+        {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && (
           <div className="form-section">
             <div className="section-title">Image Settings</div>
             
@@ -88,8 +88,8 @@ function NodeEditor({
               />
             </div>
             
-            {/* Image scaling for info nodes */}
-            {editFormData.nodeType === 'info' && editFormData.imageId && (
+            {/* Image scaling for info and map link nodes */}
+            {(editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId && (
               <div className="form-group">
                 <label>Scale: {editFormData.scale || 100}% ({Math.round((editFormData.scale || 100) * editFormData.width / 100)}×{Math.round((editFormData.scale || 100) * editFormData.height / 100)}px)</label>
                 <input
