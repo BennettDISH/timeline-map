@@ -3,8 +3,10 @@ import axios from 'axios'
 
 function Migration() {
   const [migrating, setMigrating] = useState(false)
+  const [fixingConstraint, setFixingConstraint] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [constraintSuccess, setConstraintSuccess] = useState('')
 
   const handleMigration = async () => {
     setMigrating(true)
@@ -19,6 +21,23 @@ function Migration() {
       setError(error.response?.data?.message || 'Migration failed. Please try again.')
     } finally {
       setMigrating(false)
+    }
+  }
+
+  const handleConstraintFix = async () => {
+    setFixingConstraint(true)
+    setError('')
+    setConstraintSuccess('')
+
+    try {
+      const response = await axios.post('/api/setup/fix-constraint')
+      setConstraintSuccess(response.data.message)
+      console.log('Constraint fix details:', response.data)
+    } catch (error) {
+      console.error('Constraint fix error:', error)
+      setError(error.response?.data?.message || 'Constraint fix failed. Please try again.')
+    } finally {
+      setFixingConstraint(false)
     }
   }
 
@@ -55,18 +74,38 @@ function Migration() {
           </div>
         )}
 
+        {constraintSuccess && (
+          <div className="success-message">
+            ✅ {constraintSuccess}
+          </div>
+        )}
+
         <div className="migration-actions">
           <button 
             onClick={handleMigration} 
             className="setup-button" 
-            disabled={migrating}
+            disabled={migrating || fixingConstraint}
           >
             {migrating ? '🔄 Running migration...' : '🚀 Run Migration'}
+          </button>
+          
+          <button 
+            onClick={handleConstraintFix} 
+            className="setup-button constraint-fix-button" 
+            disabled={migrating || fixingConstraint}
+            style={{ 
+              backgroundColor: '#e74c3c', 
+              marginTop: '10px',
+              borderColor: '#c0392b'
+            }}
+          >
+            {fixingConstraint ? '🔄 Fixing constraint...' : '🔧 Fix Background Map Constraint'}
           </button>
         </div>
 
         <div className="setup-note">
           <p><strong>Note:</strong> This is safe to run multiple times. It will only add missing columns.</p>
+          <p><strong>Constraint Fix:</strong> Use the red button if you're getting "violates check constraint" errors when saving background map nodes. This specifically fixes the database constraint to allow background_map node types.</p>
         </div>
       </div>
     </div>
