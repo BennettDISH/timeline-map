@@ -39,6 +39,7 @@ function Migration() {
             <li>✅ Support for temporal events and node filtering</li>
             <li>✅ Image positioning columns for timeline image alignment</li>
             <li>✅ Visual alignment tools for background images</li>
+            <li>🆕 Background map node support (fixes constraint error)</li>
           </ul>
         </div>
 
