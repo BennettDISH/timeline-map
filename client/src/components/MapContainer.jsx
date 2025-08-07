@@ -94,12 +94,13 @@ function MapContainer({
           position: 'absolute',
           top: '10px',
           left: '10px',
-          background: 'rgba(0,0,0,0.7)',
-          color: 'white',
-          padding: '8px 12px',
+          background: 'rgba(0,0,0,0.3)',
+          color: 'rgba(255,255,255,0.6)',
+          padding: '6px 10px',
           borderRadius: '4px',
-          fontSize: '12px',
-          zIndex: 1000
+          fontSize: '11px',
+          zIndex: -1,
+          opacity: 0.7
         }}>
           <small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small>
         </div>
