@@ -335,6 +335,7 @@ function MapViewer() {
       })
     }
     
+    console.log('Sending update data:', updateData)
     await handleNodeUpdate(selectedNode, updateData)
     setSelectedNode(null)
     setHasUnsavedChanges(false)
