@@ -32,7 +32,7 @@ function MapViewer() {
   const [infoPanelNode, setInfoPanelNode] = useState(null)
   const [interactionMode, setInteractionMode] = useState('view')
   const [isAddingNode, setIsAddingNode] = useState(false)
-  const [nodeType, setNodeType] = useState('standard')
+  const [nodeType, setNodeType] = useState('info')
   
   // Timeline state
   const [currentTime, setCurrentTime] = useState(50)
@@ -53,7 +53,7 @@ function MapViewer() {
     endTime: 100,
     timelineEnabled: false,
     imageId: null,
-    isBackgroundMap: false,
+    nodeType: 'info',
     width: 400,
     height: 300
   })
@@ -139,8 +139,12 @@ function MapViewer() {
     setSaveError('')
     
     try {
+      const nodeTitle = nodeType === 'info' ? 'Info Node' : 
+                       nodeType === 'map_link' ? 'Map Link' :
+                       nodeType === 'background_map' ? 'Background Map' : 'Info Node'
+      
       const newNodeData = {
-        title: `New ${nodeType === 'standard' ? 'Info' : 'Map'} Node`,
+        title: `New ${nodeTitle}`,
         description: '',
         content: 'Click to edit this node',
         map_id: parseInt(mapId),
@@ -148,7 +152,7 @@ function MapViewer() {
         y_position: 0,
         x_pixel: Math.round(worldPos.x),
         y_pixel: Math.round(worldPos.y),
-        event_type: nodeType,
+        event_type: nodeType === 'info' ? 'standard' : nodeType,
         start_time: 0,
         end_time: 100,
         timeline_enabled: false,
@@ -274,7 +278,8 @@ function MapViewer() {
         endTime: node.endTime || 100,
         timelineEnabled: node.timelineEnabled || false,
         imageId: node.imageId || null,
-        isBackgroundMap: node.eventType === 'background_map',
+        nodeType: node.eventType === 'background_map' ? 'background_map' : 
+                 node.eventType === 'map_link' ? 'map_link' : 'info',
         width: node.width || 400,
         height: node.height || 300
       })
@@ -293,7 +298,8 @@ function MapViewer() {
       endTime: node.endTime || 100,
       timelineEnabled: node.timelineEnabled || false,
       imageId: node.imageId || null,
-      isBackgroundMap: node.eventType === 'background_map',
+      nodeType: node.eventType === 'background_map' ? 'background_map' : 
+               node.eventType === 'map_link' ? 'map_link' : 'info',
       width: node.width || 400,
       height: node.height || 300
     })
@@ -307,15 +313,16 @@ function MapViewer() {
       description: editFormData.description,
       content: editFormData.content,
       image_id: editFormData.imageId,
-      link_to_map_id: editFormData.linkToMapId,
+      link_to_map_id: editFormData.nodeType === 'map_link' ? editFormData.linkToMapId : null,
       start_time: editFormData.startTime,
       end_time: editFormData.endTime,
       timeline_enabled: editFormData.timelineEnabled,
-      event_type: editFormData.isBackgroundMap ? 'background_map' : (editFormData.linkToMapId ? 'map_link' : 'standard')
+      event_type: editFormData.nodeType === 'background_map' ? 'background_map' : 
+                  editFormData.nodeType === 'map_link' ? 'map_link' : 'standard'
     }
     
     // Store dimensions temporarily in tooltip_text as JSON for background maps
-    if (editFormData.isBackgroundMap) {
+    if (editFormData.nodeType === 'background_map') {
       updateData.tooltip_text = JSON.stringify({
         width: editFormData.width,
         height: editFormData.height
@@ -414,10 +421,11 @@ function MapViewer() {
         {interactionMode === 'edit' && (
           <div className="node-controls">
             <label>
-              Node Type:
+              New Node Type:
               <select value={nodeType} onChange={(e) => setNodeType(e.target.value)}>
-                <option value="standard">Info Node</option>
-                <option value="map_link">Map Link</option>
+                <option value="info">Info Node</option>
+                <option value="map_link">Map Link Node</option>
+                <option value="background_map">Background Map Node</option>
               </select>
             </label>
             

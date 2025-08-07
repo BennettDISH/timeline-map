@@ -28,6 +28,18 @@ function NodeEditor({
       <h3>Edit Node</h3>
       
       <div className="form-group">
+        <label>Node Type</label>
+        <select
+          value={editFormData.nodeType || 'info'}
+          onChange={(e) => handleFieldChange('nodeType', e.target.value)}
+        >
+          <option value="info">Info Node</option>
+          <option value="map_link">Map Link Node</option>
+          <option value="background_map">Background Map Node</option>
+        </select>
+      </div>
+      
+      <div className="form-group">
         <label>Title</label>
         <input
           type="text"
@@ -57,31 +69,22 @@ function NodeEditor({
         />
       </div>
       
-      <div className="form-group">
-        <label>Node Image (optional)</label>
-        <ImageSelector
-          images={availableImages}
-          selectedImageId={editFormData.imageId}
-          onImageSelect={(imageId) => handleFieldChange('imageId', imageId)}
-          placeholder="No image selected"
-          showPreview={false}
-        />
-      </div>
-      
-      {editFormData.imageId && (
+      {/* Show image selector for all node types except basic info */}
+      {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info') && (
         <div className="form-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={editFormData.isBackgroundMap}
-              onChange={(e) => handleFieldChange('isBackgroundMap', e.target.checked)}
-            />
-            Background Map Node (image displays in background)
-          </label>
+          <label>Node Image (optional)</label>
+          <ImageSelector
+            images={availableImages}
+            selectedImageId={editFormData.imageId}
+            onImageSelect={(imageId) => handleFieldChange('imageId', imageId)}
+            placeholder="No image selected"
+            showPreview={false}
+          />
         </div>
       )}
       
-      {editFormData.isBackgroundMap && editFormData.imageId && (
+      {/* Background map dimensions */}
+      {editFormData.nodeType === 'background_map' && editFormData.imageId && (
         <>
           <div className="form-group">
             <label>Width: {editFormData.width}px</label>
@@ -107,7 +110,8 @@ function NodeEditor({
         </>
       )}
       
-      {selectedNode.eventType === 'map_link' && (
+      {/* Map link selector */}
+      {editFormData.nodeType === 'map_link' && (
         <div className="form-group">
           <label>Linked Map</label>
           <select

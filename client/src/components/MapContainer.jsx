@@ -50,7 +50,11 @@ function MapContainer({
       
       {isAddingNode && (
         <div className="adding-node-help">
-          <p>Click anywhere to place a new {nodeType === 'standard' ? 'info' : 'map link'} node</p>
+          <p>Click anywhere to place a new {
+            nodeType === 'info' ? 'info' : 
+            nodeType === 'map_link' ? 'map link' :
+            nodeType === 'background_map' ? 'background map' : 'info'
+          } node</p>
           <p><small>Press Escape to cancel</small></p>
         </div>
       )}
