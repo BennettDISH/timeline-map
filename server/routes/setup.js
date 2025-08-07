@@ -357,6 +357,22 @@ router.post('/migrate', async (req, res) => {
     
     console.log('✅ Pixel coordinate system migration completed')
     
+    // Fix event_type constraint to support background_map nodes
+    console.log('🔄 Updating event_type constraint to support background_map...')
+    try {
+      await pool.query('ALTER TABLE events DROP CONSTRAINT IF EXISTS events_event_type_check')
+      console.log('✅ Dropped old event_type constraint')
+      
+      await pool.query(`
+        ALTER TABLE events ADD CONSTRAINT events_event_type_check 
+        CHECK (event_type IN ('standard', 'map_link', 'character', 'location', 'background_map'))
+      `)
+      console.log('✅ Added updated event_type constraint with background_map support')
+    } catch (error) {
+      console.log('❌ Failed to update event_type constraint:', error.message)
+      // Don't throw - this shouldn't stop the migration
+    }
+    
     // Check table counts for response
     const tablesResult = await pool.query(`
       SELECT COUNT(*) as table_count 
@@ -373,7 +389,8 @@ router.post('/migrate', async (req, res) => {
         'Timeline settings migrated from maps to worlds', 
         'World-level timeline system enabled',
         'Image positioning columns added to map_timeline_images table',
-        'Visual alignment tools for background images'
+        'Visual alignment tools for background images',
+        'Event type constraint updated to support background_map nodes'
       ]
     });
     
@@ -381,6 +398,56 @@ router.post('/migrate', async (req, res) => {
     console.error('Migration error:', error);
     res.status(500).json({ 
       message: 'Failed to run migrations: ' + error.message 
+    });
+  }
+});
+
+// POST /api/setup/fix-constraint - Fix event_type constraint specifically
+router.post('/fix-constraint', async (req, res) => {
+  try {
+    console.log('🔧 Running constraint fix...');
+    
+    // Check current constraint
+    const currentConstraint = await pool.query(`
+      SELECT conname, pg_get_constraintdef(oid) as definition
+      FROM pg_constraint 
+      WHERE conname = 'events_event_type_check'
+    `);
+    
+    console.log('Current constraint:', currentConstraint.rows);
+    
+    // Drop old constraint
+    await pool.query('ALTER TABLE events DROP CONSTRAINT IF EXISTS events_event_type_check');
+    console.log('✅ Dropped old constraint');
+    
+    // Add new constraint
+    await pool.query(`
+      ALTER TABLE events ADD CONSTRAINT events_event_type_check 
+      CHECK (event_type IN ('standard', 'map_link', 'character', 'location', 'background_map'))
+    `);
+    console.log('✅ Added new constraint with background_map support');
+    
+    // Verify the fix
+    const newConstraint = await pool.query(`
+      SELECT conname, pg_get_constraintdef(oid) as definition
+      FROM pg_constraint 
+      WHERE conname = 'events_event_type_check'
+    `);
+    
+    console.log('New constraint:', newConstraint.rows);
+    
+    res.json({
+      message: 'Constraint fixed successfully! You can now save background_map nodes.',
+      oldConstraint: currentConstraint.rows[0]?.definition || 'Not found',
+      newConstraint: newConstraint.rows[0]?.definition || 'Error creating constraint',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error('Constraint fix error:', error);
+    res.status(500).json({ 
+      message: 'Failed to fix constraint: ' + error.message,
+      success: false
     });
   }
 });
