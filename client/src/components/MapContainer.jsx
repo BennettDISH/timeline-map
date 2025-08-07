@@ -99,7 +99,7 @@ function MapContainer({
           padding: '6px 10px',
           borderRadius: '4px',
           fontSize: '11px',
-          zIndex: -1,
+          zIndex: 2,
           opacity: 0.7
         }}>
           <small>💡 Drag nodes to move them, click to edit. Drag empty space to pan.</small>
