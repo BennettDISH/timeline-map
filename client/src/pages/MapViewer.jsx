@@ -1047,6 +1047,7 @@ function MapViewer() {
                   </div>
                 </>
               )}
+            </>
           )}
           
           <div className="form-actions">
