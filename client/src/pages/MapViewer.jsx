@@ -304,6 +304,22 @@ function MapViewer() {
     }
   }
 
+  // Helper function to get scale from node dimensions
+  const getNodeScale = (node) => {
+    if (node.eventType !== 'standard' || !node.imageId) return 100
+    
+    try {
+      if (node.tooltipText) {
+        const dimensions = JSON.parse(node.tooltipText)
+        return dimensions.scale || 100
+      }
+    } catch (e) {
+      // Fallback if JSON parsing fails
+    }
+    
+    return 100
+  }
+
   const handleTimelineChange = (newTime) => {
     const timeValue = parseInt(newTime)
     console.log('⏰ Timeline changed to:', timeValue)
@@ -340,7 +356,7 @@ function MapViewer() {
                  node.eventType === 'map_link' ? 'map_link' : 'info',
         width: node.width || (node.eventType === 'background_map' ? 400 : 100),
         height: node.height || (node.eventType === 'background_map' ? 300 : 100),
-        scale: 100
+        scale: getNodeScale(node)
       })
       setHasUnsavedChanges(false)
     }
@@ -436,7 +452,8 @@ function MapViewer() {
       
       updateData.tooltip_text = JSON.stringify({
         width: finalWidth,
-        height: finalHeight
+        height: finalHeight,
+        scale: editFormData.nodeType === 'info' ? editFormData.scale : undefined
       })
     }
     
@@ -665,7 +682,7 @@ function MapViewer() {
                      node.eventType === 'map_link' ? 'map_link' : 'info',
             width: node.width || (node.eventType === 'background_map' ? 400 : 100),
             height: node.height || (node.eventType === 'background_map' ? 300 : 100),
-            scale: 100
+            scale: getNodeScale(node)
           })
           setHasUnsavedChanges(false)
         }}
