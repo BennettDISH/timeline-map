@@ -194,6 +194,21 @@ function NodeEditor({
             )}
           </div>
         )}
+
+        <div className="form-section">
+          <div className="section-title">Position Settings</div>
+          
+          <div className="form-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={editFormData.locked || false}
+                onChange={(e) => handleFieldChange('locked', e.target.checked)}
+              />
+              Lock Position (prevents accidental dragging)
+            </label>
+          </div>
+        </div>
       </div>
       
       <div className="editor-footer">

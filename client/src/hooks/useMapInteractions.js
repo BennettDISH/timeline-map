@@ -76,8 +76,8 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Only allow dragging in edit mode
-    if (interactionMode === 'edit') {
+    // Only allow dragging in edit mode and if node is not locked
+    if (interactionMode === 'edit' && !node.locked) {
       setIsDraggingNode(true)
       setDraggingNode(node)
       setDragStartMouse({ x: mouseX, y: mouseY })

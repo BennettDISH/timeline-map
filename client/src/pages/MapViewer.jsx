@@ -330,7 +330,8 @@ function MapViewer() {
                (node.width || (node.eventType === 'background_map' ? 400 : 100)),
         height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
                 (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-        scale: getNodeScale(node)
+        scale: getNodeScale(node),
+        locked: node.locked || false
       })
       
       console.log('📝 EDIT FORM DATA SET:', {
@@ -365,7 +366,8 @@ function MapViewer() {
              (node.width || (node.eventType === 'background_map' ? 400 : 100)),
       height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
               (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-      scale: getNodeScale(node)
+      scale: getNodeScale(node),
+      locked: node.locked || false
     })
     setHasUnsavedChanges(false)
     setShowInfoPanel(false)
@@ -423,7 +425,8 @@ function MapViewer() {
       end_time: editFormData.endTime,
       timeline_enabled: editFormData.timelineEnabled,
       event_type: editFormData.nodeType === 'background_map' ? 'background_map' : 
-                  editFormData.nodeType === 'map_link' ? 'map_link' : 'standard'
+                  editFormData.nodeType === 'map_link' ? 'map_link' : 'standard',
+      locked: editFormData.locked || false
     }
     
     // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
@@ -678,7 +681,8 @@ function MapViewer() {
                    (node.width || (node.eventType === 'background_map' ? 400 : 100)),
             height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
                     (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-            scale: getNodeScale(node)
+            scale: getNodeScale(node),
+            locked: node.locked || false
           })
           setHasUnsavedChanges(false)
         }}
