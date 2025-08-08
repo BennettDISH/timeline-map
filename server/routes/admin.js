@@ -152,8 +152,19 @@ router.post('/migrate', async (req, res) => {
       
       console.log('✅ All positioning columns processed successfully')
 
+      // Step 8: Add locked column to events table
+      console.log('Adding locked column to events table...')
+      try {
+        await pool.query('ALTER TABLE events ADD COLUMN locked BOOLEAN DEFAULT false')
+        console.log('✅ Added locked column to events table')
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('⏭️ locked column already exists in events table')
+        } else throw err
+      }
+
       console.log('✅ Database migration completed successfully!');
-      console.log('📊 Migration added: worlds table, world_id columns, default world for existing data, image positioning');
+      console.log('📊 Migration added: worlds table, world_id columns, default world for existing data, image positioning, node locking');
       
       // Test connection
       const result = await pool.query('SELECT COUNT(*) FROM users');
@@ -165,7 +176,7 @@ router.post('/migrate', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Database migration completed successfully! Added worlds table, world_id columns, default world, and image positioning support.',
+        message: 'Database migration completed successfully! Added worlds table, world_id columns, default world, image positioning support, and node locking.',
         output: output.join('\n'),
         userCount: result.rows[0].count
       });

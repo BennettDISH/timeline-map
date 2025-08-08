@@ -61,7 +61,8 @@ router.get('/', async (req, res) => {
       updatedAt: row.updated_at,
       tooltipText: row.tooltip_text,
       linkToMapId: row.link_to_map_id,
-      eventType: row.event_type
+      eventType: row.event_type,
+      locked: row.locked || false
     }));
 
     res.json({ 
@@ -139,7 +140,7 @@ router.post('/', async (req, res) => {
     const { 
       title, description, content, map_id, x_position, y_position, x_pixel = 0, y_pixel = 0,
       start_time = 0, end_time = 100, timeline_enabled = false, image_id, tooltip_text, 
-      link_to_map_id, event_type = 'standard' 
+      link_to_map_id, event_type = 'standard', locked = false
     } = req.body;
     
     if (!title || !map_id || x_position === undefined || y_position === undefined) {
@@ -193,14 +194,14 @@ router.post('/', async (req, res) => {
       INSERT INTO events (
         title, description, content, map_id, x_position, y_position, x_pixel, y_pixel,
         start_time, end_time, timeline_enabled, image_id, created_by, tooltip_text,
-        link_to_map_id, event_type
+        link_to_map_id, event_type, locked
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
       title, description, content, map_id, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id || null, req.user.id, tooltip_text || null,
-      link_to_map_id || null, event_type
+      link_to_map_id || null, event_type, locked
     ]);
 
     const newEvent = result.rows[0];
@@ -225,7 +226,8 @@ router.post('/', async (req, res) => {
         updatedAt: newEvent.updated_at,
         tooltipText: newEvent.tooltip_text,
         linkToMapId: newEvent.link_to_map_id,
-        eventType: newEvent.event_type
+        eventType: newEvent.event_type,
+        locked: newEvent.locked || false
       }
     });
     
@@ -242,7 +244,7 @@ router.put('/:id', async (req, res) => {
     const { 
       title, description, content, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id, tooltip_text, 
-      link_to_map_id, event_type 
+      link_to_map_id, event_type, locked
     } = req.body;
     
     console.log('🔍 SERVER RECEIVED UPDATE:', { 
@@ -314,13 +316,14 @@ router.put('/:id', async (req, res) => {
           tooltip_text = COALESCE($12, tooltip_text),
           link_to_map_id = COALESCE($13, link_to_map_id),
           event_type = COALESCE($14, event_type),
+          locked = COALESCE($15, locked),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
     `, [
       title, description, content, x_position, y_position, x_pixel, y_pixel,
       start_time, end_time, timeline_enabled, image_id, tooltip_text, 
-      link_to_map_id, event_type, id
+      link_to_map_id, event_type, locked, id
     ]);
 
     const updatedEvent = result.rows[0];
