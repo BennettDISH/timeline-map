@@ -41,6 +41,11 @@ router.get('/', async (req, res) => {
       ORDER BY e.start_time ASC, e.created_at DESC
     `, [mapId]);
     
+    console.log('🔍 SERVER - Raw DB result sample:', {
+      sampleRow: result.rows[0],
+      lockedFields: result.rows.map(r => ({ id: r.id, locked: r.locked }))
+    });
+    
     const events = result.rows.map(row => ({
       id: row.id,
       title: row.title,
@@ -64,6 +69,11 @@ router.get('/', async (req, res) => {
       eventType: row.event_type,
       locked: row.locked || false
     }));
+
+    console.log('🚀 SERVER - Sending events response:', {
+      sampleEvent: events[0],
+      lockedValues: events.map(e => ({ id: e.id, locked: e.locked }))
+    });
 
     res.json({ 
       events,
