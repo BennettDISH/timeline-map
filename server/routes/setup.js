@@ -452,4 +452,64 @@ router.post('/fix-constraint', async (req, res) => {
   }
 });
 
+// POST /api/setup/add-locked-field - Add locked column to events table
+router.post('/add-locked-field', async (req, res) => {
+  try {
+    console.log('🔒 Running locked field migration...');
+    
+    // Check if locked column already exists
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'events' AND column_name = 'locked'
+    `);
+    
+    if (columnCheck.rows.length > 0) {
+      return res.json({
+        message: 'Locked field already exists! Lock position feature is ready to use.',
+        success: true,
+        alreadyExists: true
+      });
+    }
+    
+    // Add the locked column
+    await pool.query('ALTER TABLE events ADD COLUMN locked BOOLEAN DEFAULT false');
+    console.log('✅ Added locked column to events table');
+    
+    // Verify the column was added
+    const verifyColumn = await pool.query(`
+      SELECT column_name, column_default, is_nullable, data_type
+      FROM information_schema.columns 
+      WHERE table_name = 'events' AND column_name = 'locked'
+    `);
+    
+    if (verifyColumn.rows.length === 0) {
+      throw new Error('Failed to add locked column - verification failed');
+    }
+    
+    const columnInfo = verifyColumn.rows[0];
+    console.log('📊 Column details:', columnInfo);
+    
+    res.json({
+      message: 'Lock position feature added successfully!',
+      success: true,
+      columnAdded: true,
+      details: {
+        columnName: columnInfo.column_name,
+        dataType: columnInfo.data_type,
+        defaultValue: columnInfo.column_default,
+        nullable: columnInfo.is_nullable
+      }
+    });
+    
+  } catch (error) {
+    console.error('Locked field migration error:', error);
+    res.status(500).json({ 
+      message: 'Failed to add lock position feature: ' + error.message,
+      success: false,
+      error: error.code || 'Unknown error'
+    });
+  }
+});
+
 module.exports = router;
