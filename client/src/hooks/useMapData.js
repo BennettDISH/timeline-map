@@ -71,19 +71,21 @@ export const useMapData = (mapId) => {
             worldY = 500 + (Math.random() - 0.5) * 200
           }
           
-          // Parse dimensions from tooltip_text for background_map and standard nodes with images
+          // Parse dimensions from tooltip_text for background_map, standard, and map_link nodes with images
           let width = 400, height = 300
-          if ((node.eventType === 'background_map' || (node.eventType === 'standard' && node.imageUrl)) && node.tooltipText) {
+          if ((node.eventType === 'background_map' || 
+               (node.eventType === 'standard' && node.imageUrl) || 
+               (node.eventType === 'map_link' && node.imageUrl)) && node.tooltipText) {
             try {
               const dimensions = JSON.parse(node.tooltipText)
-              width = dimensions.width || (node.eventType === 'standard' ? 100 : 400)
-              height = dimensions.height || (node.eventType === 'standard' ? 100 : 300)
+              width = dimensions.width || (node.eventType === 'standard' || node.eventType === 'map_link' ? 100 : 400)
+              height = dimensions.height || (node.eventType === 'standard' || node.eventType === 'map_link' ? 100 : 300)
             } catch (e) {
               // Fallback to defaults if JSON parsing fails
-              width = node.eventType === 'standard' ? 100 : 400
-              height = node.eventType === 'standard' ? 100 : 300
+              width = (node.eventType === 'standard' || node.eventType === 'map_link') ? 100 : 400
+              height = (node.eventType === 'standard' || node.eventType === 'map_link') ? 100 : 300
             }
-          } else if (node.eventType === 'standard' && node.imageUrl) {
+          } else if ((node.eventType === 'standard' || node.eventType === 'map_link') && node.imageUrl) {
             // Default size for image nodes
             width = 100
             height = 100
