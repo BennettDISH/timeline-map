@@ -50,16 +50,6 @@ export const useMapData = (mapId) => {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY
           
-            nodeId: node.id,
-            title: node.title,
-            rawData: { 
-              x: node.x, 
-              y: node.y, 
-              xPixel: node.xPixel, 
-              yPixel: node.yPixel 
-            }
-          })
-          
           if (node.xPixel !== undefined && node.xPixel !== null) {
             worldX = node.xPixel
             worldY = node.yPixel || 0
@@ -71,17 +61,11 @@ export const useMapData = (mapId) => {
           
           // Check if node is incorrectly at origin
           if (worldX === 0 && worldY === 0) {
-              nodeId: node.id, 
-              rawData: { x: node.x, y: node.y, xPixel: node.xPixel, yPixel: node.yPixel }
-            })
+            // Keep the coordinates as they are for now
           }
           
           // DEBUG: Check for corrupted coordinates from database
           if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
-              nodeId: node.id,
-              title: node.title,
-              converted: { worldX, worldY }
-            })
             // Reset to reasonable coordinates near camera center
             worldX = 500 + (Math.random() - 0.5) * 200
             worldY = 500 + (Math.random() - 0.5) * 200

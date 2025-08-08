@@ -103,14 +103,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       
       // DEBUG: Check for coordinate corruption during drag
       if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
-          nodeId: draggingNode.id,
-          mouseDelta: { x: mouseDeltaX, y: mouseDeltaY },
-          worldDelta: { x: worldDeltaX, y: worldDeltaY },
-          dragStart: dragStartNodePos,
-          newWorld: { x: newWorldX, y: newWorldY },
-          zoom,
-          camera
-        })
         return // Don't update coordinates if they're corrupted
       }
       
@@ -143,14 +135,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       const finalWorldY = draggingNode.worldY
       const nodeToSave = draggingNode
       
-        nodeId: nodeToSave.id,
-        finalWorld: { x: finalWorldX, y: finalWorldY },
-        finalScreen: worldToScreen(finalWorldX, finalWorldY),
-        dragStartWorld: dragStartNodePos,
-        camera,
-        zoom
-      })
-      
       // Clear drag state immediately to prevent further updates
       setIsDraggingNode(false)
       setDraggingNode(null)
@@ -161,10 +145,6 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
         
         // Prevent saving corrupted coordinates to database
         if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
-            nodeId: draggingNode.id,
-            worldPos: { x: finalWorldX, y: finalWorldY },
-            pixelPos: { x: pixelX, y: pixelY }
-          })
           return
         }
         

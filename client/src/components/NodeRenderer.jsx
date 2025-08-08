@@ -28,28 +28,14 @@ function NodeRenderer({
   const renderRegularNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
     
-    // DEBUG: Node dragging visibility
+    // DEBUG: Check node dragging visibility
     if (isDraggingNode && draggingNode?.id === node.id) {
-        nodeId: node.id,
-        worldPos: { x: node.worldX, y: node.worldY },
-        screenPos,
-        visible: screenPos.x > -50 && screenPos.x < (containerRef.current?.getBoundingClientRect().width || 0) + 50 &&
-                screenPos.y > -50 && screenPos.y < (containerRef.current?.getBoundingClientRect().height || 0) + 50,
-        containerSize: {
-          width: containerRef.current?.getBoundingClientRect().width,
-          height: containerRef.current?.getBoundingClientRect().height
-        }
-      })
+      // Node is being dragged
     }
     
     // DEBUG: Check for coordinate issues
     if (screenPos.x > 10000 || screenPos.y > 10000) {
-        nodeId: node.id,
-        key: `node-${node.id}`,
-        worldPos: { x: node.worldX, y: node.worldY },
-        screenPos,
-        isDragging: isDraggingNode && draggingNode?.id === node.id
-      })
+      // Coordinates seem corrupted
     }
     
     // Check if this is an image node (info or map_link node with image)
@@ -131,16 +117,6 @@ function NodeRenderer({
 
   const renderBackgroundNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
-    
-      nodeId: node.id,
-      title: node.title,
-      imageUrl: node.imageUrl,
-      imageId: node.imageId,
-      eventType: node.eventType,
-      width: node.width,
-      height: node.height,
-      screenPos
-    })
     
     return (
       <div

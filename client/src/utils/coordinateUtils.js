@@ -28,21 +28,9 @@ export const createCoordinateUtils = (containerRef, camera, zoom) => {
     const screenX = centerX + (worldX - camera.x) * zoom
     const screenY = centerY + (worldY - camera.y) * zoom
     
-    // DEBUG: Log coordinate conversion if it seems wrong
+    // DEBUG: Check coordinate conversion if it seems wrong
     if (screenX > 10000 || screenY > 10000 || screenX < -10000 || screenY < -10000) {
-        input: { worldX, worldY },
-        camera,
-        zoom,
-        rect: { width: rect.width, height: rect.height },
-        center: { centerX, centerY },
-        calculation: {
-          deltaX: worldX - camera.x,
-          deltaY: worldY - camera.y,
-          scaledDeltaX: (worldX - camera.x) * zoom,
-          scaledDeltaY: (worldY - camera.y) * zoom
-        },
-        output: { screenX, screenY }
-      })
+      // Coordinates seem corrupted
     }
     
     return { x: screenX, y: screenY }

@@ -72,15 +72,6 @@ function MapViewer() {
   // Load timeline data when map loads
   useEffect(() => {
     if (map) {
-        timelineEnabled: map.timelineEnabled,
-        currentTime: map.timelineCurrentTime,
-        settings: {
-          minTime: map.timelineMinTime,
-          maxTime: map.timelineMaxTime,
-          timeUnit: map.timelineTimeUnit
-        }
-      })
-      
       setTimelineEnabled(!!map.timelineEnabled)
       setTimelineActive(!!map.timelineEnabled) // Initially match the enabled state
       setCurrentTime(map.timelineCurrentTime || 50)
@@ -132,19 +123,6 @@ function MapViewer() {
     
     const visibleNodes = nodes.filter(node => {
       const isVisible = !node.timelineEnabled || (currentTime >= node.startTime && currentTime <= node.endTime)
-      
-      // Debug background map nodes specifically
-      if (node.eventType === 'background_map') {
-          nodeId: node.id,
-          title: node.title,
-          timelineEnabled: node.timelineEnabled,
-          startTime: node.startTime,
-          endTime: node.endTime,
-          currentTime,
-          isVisible
-        })
-      }
-      
       return isVisible
     })
     
@@ -245,10 +223,6 @@ function MapViewer() {
       if (updatedNode.imageId && !imageUrl && availableImages.length > 0) {
         const selectedImage = availableImages.find(img => img.id === updatedNode.imageId)
         imageUrl = selectedImage ? selectedImage.url : null
-          imageId: updatedNode.imageId,
-          imageUrl,
-          selectedImage: selectedImage?.name || 'not found'
-        })
       }
       
       const processedUpdatedNode = {
@@ -259,12 +233,6 @@ function MapViewer() {
         height,
         imageUrl
       }
-      
-        originalNode: node,
-        updatedFromAPI: updatedNode,
-        processedNode: processedUpdatedNode,
-        hasImage: !!processedUpdatedNode.imageUrl
-      })
       
       setNodes(nodes.map(n => n.id === node.id ? processedUpdatedNode : n))
       
@@ -305,12 +273,6 @@ function MapViewer() {
   // Helper function to get scale from node dimensions
   const getNodeScale = (node) => {
     if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
-    
-      nodeId: node.id,
-      eventType: node.eventType,
-      imageId: node.imageId,
-      tooltipText: node.tooltipText
-    })
     
     try {
       if (node.tooltipText) {
