@@ -312,7 +312,9 @@ function MapViewer() {
         imageId: node.imageId,
         currentDimensions: { width: node.width, height: node.height },
         tooltipText: node.tooltipText,
-        scale: getNodeScale(node)
+        scale: getNodeScale(node),
+        lockedFromDB: node.locked,
+        allNodeData: node
       })
       setSelectedNode(node)
       setEditFormData({
@@ -428,6 +430,13 @@ function MapViewer() {
                   editFormData.nodeType === 'map_link' ? 'map_link' : 'standard',
       locked: editFormData.locked || false
     }
+    
+    console.log('🚀 CLIENT SENDING UPDATE:', {
+      nodeId: selectedNode.id,
+      editFormData: editFormData,
+      updateData: updateData,
+      lockedValue: editFormData.locked
+    })
     
     // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
     if (editFormData.nodeType === 'background_map' || 
