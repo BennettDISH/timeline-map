@@ -71,19 +71,19 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
   }, [camera])
 
   const handleNodeMouseDown = useCallback((e, node) => {
-    e.stopPropagation() // Prevent map dragging
-    
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Only allow dragging in edit mode and if node is not locked
+    // Only allow node dragging in edit mode and if node is not locked
     if (interactionMode === 'edit' && !node.locked) {
+      e.stopPropagation() // Prevent map dragging for unlocked nodes
       setIsDraggingNode(true)
       setDraggingNode(node)
       setDragStartMouse({ x: mouseX, y: mouseY })
       setDragStartNodePos({ x: node.worldX, y: node.worldY })
       setIsDraggingViewport(false) // Stop viewport dragging
     }
+    // For locked nodes or view mode, don't stop propagation - allow viewport panning
   }, [interactionMode])
 
   const handleMouseMove = useCallback((e) => {
