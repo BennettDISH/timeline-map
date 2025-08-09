@@ -47,22 +47,31 @@ function MapViewer() {
   const [timelineEnabled, setTimelineEnabled] = useState(false)
   const [timelineActive, setTimelineActive] = useState(false) // Local toggle for temporarily disabling timeline
 
-  // Edit form state
-  const [editFormData, setEditFormData] = useState({
-    title: '',
-    description: '',
-    content: '',
-    linkToMapId: null,
-    startTime: 0,
-    endTime: 100,
-    timelineEnabled: false,
-    imageId: null,
-    nodeType: 'info',
-    width: 100,
-    height: 100,
-    scale: 100
-  })
+  // Global edit state - track unsaved changes for multiple nodes
+  const [unsavedChanges, setUnsavedChanges] = useState(new Map()) // nodeId -> formData
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
+  // Current edit form data (derived from unsavedChanges for selected node)
+  const editFormData = selectedNode && unsavedChanges.has(selectedNode.id) 
+    ? unsavedChanges.get(selectedNode.id)
+    : selectedNode ? {
+        title: selectedNode.title || '',
+        description: selectedNode.description || '',
+        content: selectedNode.content || '',
+        linkToMapId: selectedNode.linkToMapId || null,
+        startTime: selectedNode.startTime || 0,
+        endTime: selectedNode.endTime || 100,
+        timelineEnabled: selectedNode.timelineEnabled || false,
+        imageId: selectedNode.imageId || null,
+        nodeType: selectedNode.eventType === 'background_map' ? 'background_map' : 
+                 selectedNode.eventType === 'map_link' ? 'map_link' : 'info',
+        width: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
+               (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : 100)),
+        height: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
+                (selectedNode.height || (selectedNode.eventType === 'background_map' ? 300 : 100)),
+        scale: getNodeScale(selectedNode),
+        locked: selectedNode.locked || false
+      } : null
   
   // Image management
   const [availableImages, setAvailableImages] = useState([])
@@ -317,67 +326,25 @@ function MapViewer() {
         allNodeData: node
       })
       setSelectedNode(node)
-      setEditFormData({
-        title: node.title || '',
-        description: node.description || '',
-        content: node.content || '',
-        linkToMapId: node.linkToMapId || null,
-        startTime: node.startTime || 0,
-        endTime: node.endTime || 100,
-        timelineEnabled: node.timelineEnabled || false,
-        imageId: node.imageId || null,
-        nodeType: node.eventType === 'background_map' ? 'background_map' : 
-                 node.eventType === 'map_link' ? 'map_link' : 'info',
-        width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-               (node.width || (node.eventType === 'background_map' ? 400 : 100)),
-        height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-                (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-        scale: getNodeScale(node),
-        locked: node.locked || false
-      })
-      
-      console.log('📝 EDIT FORM DATA SET:', {
-        nodeType: node.eventType === 'background_map' ? 'background_map' : 
-                 node.eventType === 'map_link' ? 'map_link' : 'info',
-        imageId: node.imageId || null,
-        width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-               (node.width || (node.eventType === 'background_map' ? 400 : 100)),
-        height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-                (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-        scale: getNodeScale(node)
-      })
-      
-      setHasUnsavedChanges(false)
+      // editFormData will be automatically derived from unsavedChanges or selectedNode
     }
   }
 
   const handleInfoPanelEditNode = (node) => {
     setSelectedNode(node)
-    setEditFormData({
-      title: node.title || '',
-      description: node.description || '',
-      content: node.content || '',
-      linkToMapId: node.linkToMapId || null,
-      startTime: node.startTime || 0,
-      endTime: node.endTime || 100,
-      timelineEnabled: node.timelineEnabled || false,
-      imageId: node.imageId || null,
-      nodeType: node.eventType === 'background_map' ? 'background_map' : 
-               node.eventType === 'map_link' ? 'map_link' : 'info',
-      width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-             (node.width || (node.eventType === 'background_map' ? 400 : 100)),
-      height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-              (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-      scale: getNodeScale(node),
-      locked: node.locked || false
-    })
-    setHasUnsavedChanges(false)
     setShowInfoPanel(false)
+    // editFormData will be automatically derived from unsavedChanges or selectedNode
   }
 
   const handleFieldChange = (field, value) => {
-    setEditFormData({ ...editFormData, [field]: value })
-    setHasUnsavedChanges(true)
+    if (!selectedNode) return
+    
+    // Update unsaved changes for this node
+    const newUnsavedChanges = new Map(unsavedChanges)
+    const currentData = newUnsavedChanges.get(selectedNode.id) || editFormData
+    newUnsavedChanges.set(selectedNode.id, { ...currentData, [field]: value })
+    setUnsavedChanges(newUnsavedChanges)
+    setHasUnsavedChanges(newUnsavedChanges.size > 0)
     
     // Update dimensions in real-time for visual feedback
     if ((field === 'width' || field === 'height') && selectedNode) {
@@ -416,6 +383,80 @@ function MapViewer() {
     }
   }
 
+  // New global save function that saves all unsaved changes
+  const handleSaveAllChanges = async () => {
+    if (unsavedChanges.size === 0) return
+    
+    setSaving(true)
+    setSaveError('')
+    
+    try {
+      // Save all unsaved nodes
+      for (const [nodeId, formData] of unsavedChanges) {
+        const node = nodes.find(n => n.id === parseInt(nodeId))
+        if (!node) continue
+        
+        const updateData = {
+          title: formData.title,
+          description: formData.description,
+          content: formData.content,
+          image_id: formData.imageId,
+          link_to_map_id: formData.nodeType === 'map_link' ? formData.linkToMapId : null,
+          start_time: formData.startTime,
+          end_time: formData.endTime,
+          timeline_enabled: formData.timelineEnabled,
+          event_type: formData.nodeType === 'background_map' ? 'background_map' : 
+                      formData.nodeType === 'map_link' ? 'map_link' : 'standard',
+          locked: formData.locked || false
+        }
+
+        console.log('🚀 CLIENT SAVING NODE:', {
+          nodeId: nodeId,
+          formData: formData,
+          updateData: updateData
+        })
+
+        // Handle dimensions for background maps and image nodes
+        if (formData.nodeType === 'background_map' || 
+            (formData.nodeType === 'info' && formData.imageId) ||
+            (formData.nodeType === 'map_link' && formData.imageId)) {
+          let finalWidth = formData.width
+          let finalHeight = formData.height
+          
+          if ((formData.nodeType === 'info' || formData.nodeType === 'map_link') && formData.imageId && formData.scale) {
+            const baseWidth = 100
+            const baseHeight = 100
+            finalWidth = Math.round(baseWidth * formData.scale / 100)
+            finalHeight = Math.round(baseHeight * formData.scale / 100)
+          }
+          
+          const tooltipData = {
+            width: finalWidth,
+            height: finalHeight,
+            scale: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? formData.scale : undefined,
+            baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? 100 : undefined,
+            baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? 100 : undefined
+          }
+          
+          updateData.tooltip_text = JSON.stringify(tooltipData)
+        }
+        
+        await handleNodeUpdate(node, updateData)
+      }
+      
+      // Clear all unsaved changes after successful save
+      setUnsavedChanges(new Map())
+      setHasUnsavedChanges(false)
+      setSelectedNode(null)
+      
+    } catch (error) {
+      setSaveError(error.message || 'Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Legacy function - keeping for now but will remove individual save buttons
   const handleEditorSave = async () => {
     const updateData = {
       title: editFormData.title,
@@ -560,6 +601,28 @@ function MapViewer() {
           >
             📐 Grid
           </button>
+
+          {/* Global Save All Changes button - only show in edit mode when there are unsaved changes */}
+          {interactionMode === 'edit' && hasUnsavedChanges && (
+            <button 
+              onClick={handleSaveAllChanges}
+              disabled={saving}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '4px',
+                background: '#4CAF50',
+                color: 'white',
+                cursor: saving ? 'wait' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                transition: 'all 0.2s',
+                opacity: saving ? 0.7 : 1
+              }}
+            >
+              {saving ? '💾 Saving...' : `💾 Save All Changes (${unsavedChanges.size})`}
+            </button>
+          )}
           
           <button 
             onClick={() => setShowNodesPanel(!showNodesPanel)}
@@ -655,6 +718,7 @@ function MapViewer() {
         onWheel={handleWheel}
         onNodeClick={handleNodeClick}
         onNodeMouseDown={handleNodeMouseDown}
+        unsavedChanges={unsavedChanges}
       />
       
       {/* Info Panel */}
@@ -673,28 +737,7 @@ function MapViewer() {
         selectedNode={selectedNode}
         interactionMode={interactionMode}
         onClose={() => setShowNodesPanel(false)}
-        onNodeSelect={(node) => {
-          setSelectedNode(node)
-          setEditFormData({
-            title: node.title || '',
-            description: node.description || '',
-            content: node.content || '',
-            linkToMapId: node.linkToMapId || null,
-            startTime: node.startTime || 0,
-            endTime: node.endTime || 100,
-            timelineEnabled: node.timelineEnabled || false,
-            imageId: node.imageId || null,
-            nodeType: node.eventType === 'background_map' ? 'background_map' : 
-                     node.eventType === 'map_link' ? 'map_link' : 'info',
-            width: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-                   (node.width || (node.eventType === 'background_map' ? 400 : 100)),
-            height: (node.eventType === 'standard' && node.imageId) || (node.eventType === 'map_link' && node.imageId) ? 100 : 
-                    (node.height || (node.eventType === 'background_map' ? 300 : 100)),
-            scale: getNodeScale(node),
-            locked: node.locked || false
-          })
-          setHasUnsavedChanges(false)
-        }}
+        onNodeSelect={(node) => setSelectedNode(node)}
         onNodeClick={handleNodeClick}
       />
       
@@ -703,18 +746,14 @@ function MapViewer() {
         <NodeEditor
           selectedNode={selectedNode}
           editFormData={editFormData}
-          setEditFormData={setEditFormData}
-          hasUnsavedChanges={hasUnsavedChanges}
-          setHasUnsavedChanges={setHasUnsavedChanges}
           timelineEnabled={timelineEnabled}
           timelineSettings={timelineSettings}
           availableMaps={availableMaps}
           availableImages={availableImages}
-          saving={saving}
-          onSave={handleEditorSave}
           onCancel={() => setSelectedNode(null)}
           onDelete={() => handleNodeDelete(selectedNode)}
           handleFieldChange={handleFieldChange}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
       )}
       

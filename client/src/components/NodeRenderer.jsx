@@ -11,7 +11,8 @@ function NodeRenderer({
   onNodeClick,
   onNodeMouseDown,
   containerRef,
-  containerReady
+  containerReady,
+  unsavedChanges
 }) {
   // Only skip rendering if container explicitly has zero dimensions
   // This prevents the "nothing shows" issue while still preventing bad positioning
@@ -27,6 +28,7 @@ function NodeRenderer({
 
   const renderRegularNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
+    const hasUnsavedChanges = unsavedChanges && unsavedChanges.has(node.id)
     
     // DEBUG: Check node dragging visibility
     if (isDraggingNode && draggingNode?.id === node.id) {
@@ -83,6 +85,19 @@ function NodeRenderer({
             <strong>{node.title}</strong>
             {node.description && <p>{node.description}</p>}
           </div>
+          {hasUnsavedChanges && (
+            <div className="unsaved-indicator" style={{
+              position: 'absolute',
+              top: '-5px',
+              right: '-5px',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ff6b35',
+              borderRadius: '50%',
+              border: '2px solid white',
+              zIndex: 30
+            }} />
+          )}
         </div>
       )
     } else {
@@ -110,6 +125,19 @@ function NodeRenderer({
             <strong>{node.title}</strong>
             {node.description && <p>{node.description}</p>}
           </div>
+          {hasUnsavedChanges && (
+            <div className="unsaved-indicator" style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ff6b35',
+              borderRadius: '50%',
+              border: '2px solid white',
+              zIndex: 30
+            }} />
+          )}
         </div>
       )
     }
@@ -117,6 +145,7 @@ function NodeRenderer({
 
   const renderBackgroundNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
+    const hasUnsavedChanges = unsavedChanges && unsavedChanges.has(node.id)
     
     return (
       <div
@@ -157,6 +186,19 @@ function NodeRenderer({
           />
         )}
         <div className="background-map-label">{node.title}</div>
+        {hasUnsavedChanges && (
+          <div className="unsaved-indicator" style={{
+            position: 'absolute',
+            top: '5px',
+            right: '5px',
+            width: '12px',
+            height: '12px',
+            backgroundColor: '#ff6b35',
+            borderRadius: '50%',
+            border: '2px solid white',
+            zIndex: 30
+          }} />
+        )}
       </div>
     )
   }

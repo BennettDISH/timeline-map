@@ -22,7 +22,8 @@ function MapContainer({
   onMouseUp,
   onWheel,
   onNodeClick,
-  onNodeMouseDown
+  onNodeMouseDown,
+  unsavedChanges
 }) {
   return (
     <div 
@@ -74,6 +75,7 @@ function MapContainer({
         onNodeMouseDown={onNodeMouseDown}
         containerRef={containerRef}
         containerReady={containerReady}
+        unsavedChanges={unsavedChanges}
       />
       
       {isAddingNode && (

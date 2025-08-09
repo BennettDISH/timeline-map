@@ -4,18 +4,14 @@ import ImageSelector from './ImageSelector'
 function NodeEditor({ 
   selectedNode,
   editFormData,
-  setEditFormData,
-  hasUnsavedChanges,
-  setHasUnsavedChanges,
   timelineEnabled,
   timelineSettings,
   availableMaps,
   availableImages,
-  saving,
-  onSave,
   onCancel,
   onDelete,
-  handleFieldChange
+  handleFieldChange,
+  hasUnsavedChanges
 }) {
   if (!selectedNode) return null
 
@@ -214,15 +210,7 @@ function NodeEditor({
       <div className="editor-footer">
         <div className="form-actions">
           <button onClick={onCancel}>
-            Cancel
-          </button>
-          
-          <button
-            className="save-button"
-            disabled={saving}
-            onClick={onSave}
-          >
-            {saving ? 'Saving...' : 'Save'}
+            Close
           </button>
           
           <button
