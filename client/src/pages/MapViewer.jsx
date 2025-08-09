@@ -47,6 +47,22 @@ function MapViewer() {
   const [timelineEnabled, setTimelineEnabled] = useState(false)
   const [timelineActive, setTimelineActive] = useState(false) // Local toggle for temporarily disabling timeline
 
+  // Helper function to get scale from node dimensions
+  const getNodeScale = (node) => {
+    if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
+    
+    try {
+      if (node.tooltipText) {
+        const dimensions = JSON.parse(node.tooltipText)
+        const scale = dimensions.scale || 100
+        return scale
+      }
+    } catch (e) {
+    }
+    
+    return 100
+  }
+
   // Global edit state - track unsaved changes for multiple nodes
   const [unsavedChanges, setUnsavedChanges] = useState(new Map()) // nodeId -> formData
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -277,22 +293,6 @@ function MapViewer() {
     } finally {
       setSaving(false)
     }
-  }
-
-  // Helper function to get scale from node dimensions
-  const getNodeScale = (node) => {
-    if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
-    
-    try {
-      if (node.tooltipText) {
-        const dimensions = JSON.parse(node.tooltipText)
-        const scale = dimensions.scale || 100
-        return scale
-      }
-    } catch (e) {
-    }
-    
-    return 100
   }
 
   const handleTimelineChange = (newTime) => {
