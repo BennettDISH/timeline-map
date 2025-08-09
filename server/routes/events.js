@@ -358,7 +358,8 @@ router.put('/:id', async (req, res) => {
         updatedAt: updatedEvent.updated_at,
         tooltipText: updatedEvent.tooltip_text,
         linkToMapId: updatedEvent.link_to_map_id,
-        eventType: updatedEvent.event_type
+        eventType: updatedEvent.event_type,
+        locked: updatedEvent.locked || false
       }
     });
     
