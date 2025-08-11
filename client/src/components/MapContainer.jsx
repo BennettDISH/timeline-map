@@ -82,6 +82,8 @@ function MapContainer({
         <div className="adding-node-help">
           <p>Click anywhere to place a new {
             nodeType === 'info' ? 'info' : 
+            nodeType === 'npc' ? 'NPC' :
+            nodeType === 'item' ? 'item' :
             nodeType === 'map_link' ? 'map link' :
             nodeType === 'background_map' ? 'background map' : 'info'
           } node</p>

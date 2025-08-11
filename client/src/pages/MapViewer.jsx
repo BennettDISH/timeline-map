@@ -63,6 +63,22 @@ function MapViewer() {
     return 100
   }
 
+  // Helper function to get node type from metadata
+  const getNodeType = (node) => {
+    if (node.eventType === 'background_map') return 'background_map'
+    if (node.eventType === 'map_link') return 'map_link'
+    
+    try {
+      if (node.tooltipText) {
+        const metadata = JSON.parse(node.tooltipText)
+        return metadata.nodeType || 'info'
+      }
+    } catch (e) {
+    }
+    
+    return 'info'
+  }
+
   // Global edit state - track unsaved changes for multiple nodes
   const [unsavedChanges, setUnsavedChanges] = useState(new Map()) // nodeId -> formData
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -79,8 +95,7 @@ function MapViewer() {
         endTime: selectedNode.endTime || 100,
         timelineEnabled: selectedNode.timelineEnabled || false,
         imageId: selectedNode.imageId || null,
-        nodeType: selectedNode.eventType === 'background_map' ? 'background_map' : 
-                 selectedNode.eventType === 'map_link' ? 'map_link' : 'info',
+        nodeType: getNodeType(selectedNode),
         width: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
                (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : 100)),
         height: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
@@ -170,6 +185,8 @@ function MapViewer() {
     
     try {
       const nodeTitle = nodeType === 'info' ? 'Info Node' : 
+                       nodeType === 'npc' ? 'NPC' :
+                       nodeType === 'item' ? 'Item' :
                        nodeType === 'map_link' ? 'Map Link' :
                        nodeType === 'background_map' ? 'Background Map' : 'Info Node'
       
@@ -182,11 +199,12 @@ function MapViewer() {
         y_position: 0,
         x_pixel: Math.round(worldPos.x),
         y_pixel: Math.round(worldPos.y),
-        event_type: nodeType === 'info' ? 'standard' : nodeType,
+        event_type: (nodeType === 'info' || nodeType === 'npc' || nodeType === 'item') ? 'standard' : nodeType,
         start_time: 0,
         end_time: 100,
         timeline_enabled: false,
-        image_id: null
+        image_id: null,
+        tooltip_text: (nodeType === 'npc' || nodeType === 'item') ? JSON.stringify({ nodeType: nodeType }) : null
       }
       
       const result = await eventService.createEvent(newNodeData)
@@ -355,7 +373,7 @@ function MapViewer() {
     }
     
     // Handle scale changes for info and map_link nodes with images
-    if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId) {
+    if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link') && editFormData.imageId) {
       // Use fixed base dimensions for consistent scaling
       const baseWidth = 100
       const baseHeight = 100
@@ -419,11 +437,13 @@ function MapViewer() {
         // Handle dimensions for background maps and image nodes
         if (formData.nodeType === 'background_map' || 
             (formData.nodeType === 'info' && formData.imageId) ||
+            (formData.nodeType === 'npc' && formData.imageId) ||
+            (formData.nodeType === 'item' && formData.imageId) ||
             (formData.nodeType === 'map_link' && formData.imageId)) {
           let finalWidth = formData.width
           let finalHeight = formData.height
           
-          if ((formData.nodeType === 'info' || formData.nodeType === 'map_link') && formData.imageId && formData.scale) {
+          if ((formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') && formData.imageId && formData.scale) {
             const baseWidth = 100
             const baseHeight = 100
             finalWidth = Math.round(baseWidth * formData.scale / 100)
@@ -433,9 +453,10 @@ function MapViewer() {
           const tooltipData = {
             width: finalWidth,
             height: finalHeight,
-            scale: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? formData.scale : undefined,
-            baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? 100 : undefined,
-            baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'map_link') ? 100 : undefined
+            scale: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? formData.scale : undefined,
+            baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
+            baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
+            nodeType: formData.nodeType // Store the specific node type
           }
           
           updateData.tooltip_text = JSON.stringify(tooltipData)

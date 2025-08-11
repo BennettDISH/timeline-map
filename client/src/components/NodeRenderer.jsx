@@ -14,6 +14,31 @@ function NodeRenderer({
   containerReady,
   unsavedChanges
 }) {
+  
+  // Helper function to get node type from metadata
+  const getNodeType = (node) => {
+    if (node.eventType === 'background_map') return 'background_map'
+    if (node.eventType === 'map_link') return 'map_link'
+    
+    try {
+      if (node.tooltipText) {
+        const metadata = JSON.parse(node.tooltipText)
+        return metadata.nodeType || 'info'
+      }
+    } catch (e) {
+    }
+    
+    return 'info'
+  }
+  
+  // Helper function to get node icon
+  const getNodeIcon = (node) => {
+    const nodeType = getNodeType(node)
+    if (nodeType === 'npc') return '👤'
+    if (nodeType === 'item') return '⚔️'
+    if (nodeType === 'map_link') return '🗺️'
+    return 'ℹ️' // info icon
+  }
   // Only skip rendering if container explicitly has zero dimensions
   // This prevents the "nothing shows" issue while still preventing bad positioning
   if (containerRef && containerRef.current) {
@@ -118,7 +143,7 @@ function NodeRenderer({
           onClick={(e) => onNodeClick(e, node)}
         >
           <div className="node-marker">
-            {node.eventType === 'map_link' ? '🗺️' : 'ℹ️'}
+            {getNodeIcon(node)}
           </div>
           
           <div className="node-tooltip">

@@ -10,6 +10,42 @@ function NodesListPanel({
   onNodeClick 
 }) {
   if (!showNodesPanel) return null
+  
+  // Helper function to get node type from metadata
+  const getNodeType = (node) => {
+    if (node.eventType === 'background_map') return 'background_map'
+    if (node.eventType === 'map_link') return 'map_link'
+    
+    try {
+      if (node.tooltipText) {
+        const metadata = JSON.parse(node.tooltipText)
+        return metadata.nodeType || 'info'
+      }
+    } catch (e) {
+    }
+    
+    return 'info'
+  }
+  
+  // Helper function to get node icon
+  const getNodeIcon = (node) => {
+    const nodeType = getNodeType(node)
+    if (nodeType === 'npc') return '👤'
+    if (nodeType === 'item') return '⚔️'
+    if (nodeType === 'map_link') return '🗺️'
+    if (nodeType === 'background_map') return '🖼️'
+    return node.imageUrl ? '📷' : 'ℹ️'
+  }
+  
+  // Helper function to get node type label
+  const getNodeTypeLabel = (node) => {
+    const nodeType = getNodeType(node)
+    if (nodeType === 'npc') return 'NPC'
+    if (nodeType === 'item') return 'Item'
+    if (nodeType === 'map_link') return 'Map Link'
+    if (nodeType === 'background_map') return 'Background Map'
+    return 'Info Node'
+  }
 
   const sortedNodes = [...nodes].sort((a, b) => a.title?.localeCompare(b.title) || 0)
 
@@ -40,9 +76,7 @@ function NodesListPanel({
               >
                 <div className="node-item-header">
                   <div className="node-type-icon">
-                    {node.eventType === 'map_link' ? '🗺️' : 
-                     node.eventType === 'background_map' ? '🖼️' : 
-                     node.imageUrl ? '📷' : 'ℹ️'}
+                    {getNodeIcon(node)}
                   </div>
                   <div className="node-title">
                     {node.title || 'Untitled Node'}
@@ -57,9 +91,7 @@ function NodesListPanel({
                 
                 <div className="node-meta">
                   <span className="node-type">
-                    {node.eventType === 'map_link' ? 'Map Link' : 
-                     node.eventType === 'background_map' ? 'Background Map' : 
-                     'Info Node'}
+                    {getNodeTypeLabel(node)}
                   </span>
                   
                   {node.timelineEnabled && (

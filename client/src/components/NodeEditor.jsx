@@ -16,6 +16,7 @@ function NodeEditor({
   if (!selectedNode) return null
 
   const [expandedSections, setExpandedSections] = useState({
+    nodeType: true,
     content: true,
     image: true,
     link: true,
@@ -29,6 +30,8 @@ function NodeEditor({
 
   const nodeTypeOptions = [
     { value: 'info', label: 'Info Node', icon: 'ℹ️', description: 'Information point with rich content' },
+    { value: 'npc', label: 'NPC', icon: '👤', description: 'Non-player character with personality' },
+    { value: 'item', label: 'Item', icon: '⚔️', description: 'Legendary items, artifacts, or equipment' },
     { value: 'map_link', label: 'Map Link', icon: '🗺️', description: 'Portal to another map' },
     { value: 'background_map', label: 'Background Map', icon: '🖼️', description: 'Large background image' }
   ]
@@ -57,8 +60,12 @@ function NodeEditor({
       
       <div className="editor-content">
         <div className="form-section node-type-section">
-          <div className="section-title">Node Type</div>
-          <div className="node-type-selector">
+          <div className="section-header" onClick={() => toggleSection('nodeType')}>
+            <div className="section-title">Node Type {expandedSections.nodeType ? '▼' : '▶'}</div>
+          </div>
+          {expandedSections.nodeType && (
+            <div className="section-content">
+              <div className="node-type-selector">
             {nodeTypeOptions.map(option => (
               <div
                 key={option.value}
@@ -71,8 +78,10 @@ function NodeEditor({
                   <div className="node-type-desc">{option.description}</div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="form-section">
@@ -119,7 +128,7 @@ function NodeEditor({
         </div>
       
         {/* Show image selector for info, map link, and background map nodes */}
-        {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && (
+        {(editFormData.nodeType === 'background_map' || editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item') && (
           <div className="form-section">
             <div className="section-header" onClick={() => toggleSection('image')}>
               <div className="section-title">Visual Settings {expandedSections.image ? '▼' : '▶'}</div>
@@ -141,7 +150,7 @@ function NodeEditor({
                   />
                 </div>
                 
-                {(editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId && (
+                {(editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link') && editFormData.imageId && (
                   <div className="form-group scale-control">
                     <label className="scale-label">
                       <span>Size</span>
