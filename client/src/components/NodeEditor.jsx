@@ -297,14 +297,14 @@ function NodeEditor({
               </div>
             )}
             
-            {(editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link') && editFormData.imageId && (
+            {(editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link' || editFormData.nodeType === 'background_map') && editFormData.imageId && (
               <div className="form-group scale-control">
                 <label className="scale-label">
                   <span>Size</span>
                   <span className="scale-value">
                     {editFormData.scale || 100}% 
                     <span className="scale-dimensions">
-                      ({Math.round((editFormData.scale || 100) * editFormData.width / 100)}×{Math.round((editFormData.scale || 100) * editFormData.height / 100)}px)
+                      ({Math.round((editFormData.scale || 100) * (editFormData.nodeType === 'background_map' ? 400 : 100) / 100)}×{Math.round((editFormData.scale || 100) * (editFormData.nodeType === 'background_map' ? 300 : 100) / 100)}px)
                     </span>
                   </span>
                 </label>
@@ -320,43 +320,6 @@ function NodeEditor({
                     className="scale-slider"
                   />
                   <span className="scale-max">Massive</span>
-                </div>
-              </div>
-            )}
-            
-            {editFormData.nodeType === 'background_map' && editFormData.imageId && (
-              <div className="dimensions-control">
-                <label className="dimensions-label">Background Dimensions</label>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="dimension-label">
-                      <span>Width</span>
-                      <span className="dimension-value">{editFormData.width}px</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="100"
-                      max="3000"
-                      value={editFormData.width}
-                      onChange={(e) => handleFieldChange('width', parseInt(e.target.value))}
-                      className="dimension-slider"
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="dimension-label">
-                      <span>Height</span>
-                      <span className="dimension-value">{editFormData.height}px</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="100"
-                      max="3000"
-                      value={editFormData.height}
-                      onChange={(e) => handleFieldChange('height', parseInt(e.target.value))}
-                      className="dimension-slider"
-                    />
-                  </div>
                 </div>
               </div>
             )}

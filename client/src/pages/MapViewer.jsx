@@ -51,7 +51,7 @@ function MapViewer() {
 
   // Helper function to get scale from node dimensions
   const getNodeScale = (node) => {
-    if ((node.eventType !== 'standard' && node.eventType !== 'map_link') || !node.imageId) return 100
+    if ((node.eventType !== 'standard' && node.eventType !== 'map_link' && node.eventType !== 'background_map') || !node.imageId) return 100
     
     try {
       if (node.tooltipText) {
@@ -442,11 +442,11 @@ function MapViewer() {
       } : n))
     }
     
-    // Handle scale changes for info and map_link nodes with images
-    if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link') && editFormData.imageId) {
+    // Handle scale changes for all image nodes
+    if (field === 'scale' && selectedNode && (editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link' || editFormData.nodeType === 'background_map') && editFormData.imageId) {
       // Use fixed base dimensions for consistent scaling
-      const baseWidth = 100
-      const baseHeight = 100
+      const baseWidth = editFormData.nodeType === 'background_map' ? 400 : 100
+      const baseHeight = editFormData.nodeType === 'background_map' ? 300 : 100
       const newWidth = Math.round(baseWidth * value / 100)
       const newHeight = Math.round(baseHeight * value / 100)
       
@@ -539,9 +539,9 @@ function MapViewer() {
           let finalWidth = formData.width
           let finalHeight = formData.height
           
-          if ((formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') && formData.imageId && formData.scale) {
-            const baseWidth = 100
-            const baseHeight = 100
+          if ((formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link' || formData.nodeType === 'background_map') && formData.imageId && formData.scale) {
+            const baseWidth = formData.nodeType === 'background_map' ? 400 : 100
+            const baseHeight = formData.nodeType === 'background_map' ? 300 : 100
             finalWidth = Math.round(baseWidth * formData.scale / 100)
             finalHeight = Math.round(baseHeight * formData.scale / 100)
           }
@@ -549,9 +549,9 @@ function MapViewer() {
           const tooltipData = {
             width: finalWidth,
             height: finalHeight,
-            scale: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? formData.scale : undefined,
-            baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
-            baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
+            scale: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link' || formData.nodeType === 'background_map') ? formData.scale : undefined,
+            baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : (formData.nodeType === 'background_map' ? 400 : undefined),
+            baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : (formData.nodeType === 'background_map' ? 300 : undefined),
             nodeType: formData.nodeType, // Store the specific node type
             connections: formData.connections || [], // Store connections
             // Text node properties
