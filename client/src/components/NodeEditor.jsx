@@ -40,6 +40,8 @@ function NodeEditor({
     position: false
   })
 
+  const [isExpanded, setIsExpanded] = useState(false)
+
   const toggleSection = (section) => {
     setExpandedSections(prev => ({...prev, [section]: !prev[section]}))
   }
@@ -114,19 +116,28 @@ function NodeEditor({
   }
 
   return (
-    <div className="node-editor">
+    <div className={`node-editor ${isExpanded ? 'expanded' : 'condensed'}`}>
       <div className="editor-header">
         <div className="header-main">
           <div className="node-type-badge">
             <span className="node-icon">{currentNodeType?.icon}</span>
             <span className="node-type-name">{currentNodeType?.label}</span>
           </div>
-          {hasUnsavedChanges && (
-            <div className="unsaved-indicator-header">
-              <span className="unsaved-dot">●</span>
-              <span className="unsaved-text">Unsaved</span>
-            </div>
-          )}
+          <div className="header-actions">
+            <button 
+              className="expand-toggle"
+              onClick={() => setIsExpanded(!isExpanded)}
+              title={isExpanded ? 'Compact view' : 'Expanded view'}
+            >
+              {isExpanded ? '📱' : '🖥️'}
+            </button>
+            {hasUnsavedChanges && (
+              <div className="unsaved-indicator-header">
+                <span className="unsaved-dot">●</span>
+                <span className="unsaved-text">Unsaved</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="header-subtitle">
           {editFormData.title || 'Untitled Node'}
@@ -134,6 +145,7 @@ function NodeEditor({
       </div>
       
       <div className="editor-content">
+        <div className={isExpanded ? "form-sections-container" : ""}>
         <div className="form-section node-type-section">
           <div className="section-header" onClick={() => toggleSection('nodeType')}>
             <div className="section-title">Node Type {expandedSections.nodeType ? '▼' : '▶'}</div>
@@ -531,6 +543,7 @@ function NodeEditor({
               </div>
             </div>
           )}
+        </div>
         </div>
       </div>
       
