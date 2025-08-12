@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import imageServiceBase64 from '../services/imageServiceBase64'
 
-function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false, accept = "image/*" }) {
+function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false, accept = "image/*", selectedFolder = null }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
@@ -26,11 +26,23 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = false
     setProgress(0)
 
     try {
+      // Auto-assign folder tag if a folder is selected
+      let folderTag = ''
+      if (selectedFolder && selectedFolder.id !== 'all' && selectedFolder.id !== 'uncategorized') {
+        const folderTagMap = {
+          'characters': 'characters',
+          'locations': 'locations', 
+          'items': 'items',
+          'maps': 'maps'
+        }
+        folderTag = folderTagMap[selectedFolder.id] || selectedFolder.id
+      }
+      
       const result = await imageServiceBase64.uploadImage(
         file, 
         worldId,
         '', // altText - can be added later
-        '', // tags - can be added later
+        folderTag, // auto-assign folder tag
         (progressPercent) => setProgress(progressPercent)
       )
 

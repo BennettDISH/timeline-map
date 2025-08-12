@@ -515,6 +515,46 @@
           }
         }
 
+        .folder-assignment {
+          margin-top: 1rem;
+          padding-top: 1rem;
+          border-top: 1px solid #eee;
+          
+          .folder-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            
+            .folder-move-btn {
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 0.4rem 0.8rem;
+              background: #f8f9fa;
+              border: 2px solid #dee2e6;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.85rem;
+              transition: all 0.2s;
+              
+              .folder-icon {
+                font-size: 14px;
+              }
+              
+              &:hover {
+                background: #e9ecef;
+                border-color: #4CAF50;
+                transform: translateY(-1px);
+              }
+              
+              &:active {
+                transform: translateY(0);
+              }
+            }
+          }
+        }
+
         .image-actions {
           margin-top: 1rem;
           display: flex;

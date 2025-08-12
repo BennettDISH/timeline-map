@@ -97,6 +97,22 @@ const imageServiceBase64 = {
     }
   },
 
+  // Update image metadata (tags, alt text, etc.)
+  async updateImage(id, updateData) {
+    try {
+      const token = localStorage.getItem('auth_token')
+      const api = axios.create({
+        baseURL: '/api/images',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      const response = await api.put(`/${id}`, updateData)
+      return response.data
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to update image' }
+    }
+  },
+
   // Delete image
   async deleteImage(id) {
     try {

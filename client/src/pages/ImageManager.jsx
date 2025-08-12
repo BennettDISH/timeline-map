@@ -4,6 +4,7 @@ import ImageUpload from '../components/ImageUpload'
 import ImageGallery from '../components/ImageGallery'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
+import imageServiceBase64 from '../services/imageServiceBase64'
 
 function ImageManager() {
   const [searchParams] = useSearchParams()
@@ -70,9 +71,61 @@ function ImageManager() {
 
   const loadFolders = async (worldId) => {
     try {
-      // For now, we'll create a simple folder system using tags/categories
-      // This could be enhanced with a dedicated folders API later
-      const mockFolders = [
+      // Get all images to calculate folder counts
+      const allImagesResult = await imageServiceBase64.getImages({ worldId, limit: 1000 })
+      const allImages = allImagesResult.images || []
+      
+      // Calculate counts for each folder
+      const folderCounts = {
+        all: allImages.length,
+        characters: 0,
+        locations: 0,
+        items: 0,
+        maps: 0,
+        uncategorized: 0
+      }
+      
+      allImages.forEach(image => {
+        const tags = image.tags ? image.tags.split(',').map(t => t.trim().toLowerCase()) : []
+        let categorized = false
+        
+        if (tags.includes('characters')) {
+          folderCounts.characters++
+          categorized = true
+        }
+        if (tags.includes('locations')) {
+          folderCounts.locations++
+          categorized = true
+        }
+        if (tags.includes('items')) {
+          folderCounts.items++
+          categorized = true
+        }
+        if (tags.includes('maps')) {
+          folderCounts.maps++
+          categorized = true
+        }
+        
+        // If image has no folder tags, count as uncategorized
+        if (!categorized) {
+          folderCounts.uncategorized++
+        }
+      })
+      
+      const folders = [
+        { id: 'all', name: 'All Images', count: folderCounts.all },
+        { id: 'characters', name: 'Characters', count: folderCounts.characters },
+        { id: 'locations', name: 'Locations', count: folderCounts.locations },
+        { id: 'items', name: 'Items & Objects', count: folderCounts.items },
+        { id: 'maps', name: 'Maps', count: folderCounts.maps },
+        { id: 'uncategorized', name: 'Uncategorized', count: folderCounts.uncategorized }
+      ]
+      
+      setFolders(folders)
+    } catch (error) {
+      console.error('Failed to load folders:', error)
+      // Fallback to empty folders if API call fails
+      const fallbackFolders = [
         { id: 'all', name: 'All Images', count: 0 },
         { id: 'characters', name: 'Characters', count: 0 },
         { id: 'locations', name: 'Locations', count: 0 },
@@ -80,9 +133,7 @@ function ImageManager() {
         { id: 'maps', name: 'Maps', count: 0 },
         { id: 'uncategorized', name: 'Uncategorized', count: 0 }
       ]
-      setFolders(mockFolders)
-    } catch (error) {
-      console.error('Failed to load folders:', error)
+      setFolders(fallbackFolders)
     }
   }
 
@@ -108,6 +159,64 @@ function ImageManager() {
 
   const handleImageSelect = (image) => {
     setSelectedImage(image)
+  }
+
+  const moveImageToFolder = async (imageId, folderId) => {
+    try {
+      // Map folder IDs to tags
+      const folderTagMap = {
+        'characters': 'characters',
+        'locations': 'locations', 
+        'items': 'items',
+        'maps': 'maps',
+        'uncategorized': ''
+      }
+      
+      const newTag = folderTagMap[folderId] || folderId
+      
+      // Get current image to preserve other properties
+      const currentImage = await imageServiceBase64.getImage(imageId)
+      
+      // Update the image's tags, replacing any existing folder tags
+      const existingTags = currentImage.tags ? currentImage.tags.split(',').map(t => t.trim()) : []
+      
+      // Remove existing folder tags
+      const nonFolderTags = existingTags.filter(tag => 
+        !['characters', 'locations', 'items', 'maps'].includes(tag)
+      )
+      
+      // Add new folder tag if it's not uncategorized
+      const updatedTags = newTag ? [...nonFolderTags, newTag] : nonFolderTags
+      
+      // Update the image with new tags
+      await imageServiceBase64.updateImage(imageId, {
+        tags: updatedTags.join(', ')
+      })
+      
+      // Update local state to reflect the change
+      if (selectedImage && selectedImage.id === imageId) {
+        setSelectedImage(prev => ({
+          ...prev,
+          tags: updatedTags
+        }))
+      }
+      
+      // Refresh the gallery to show changes
+      setRefreshGallery(prev => prev + 1)
+      
+      // Update folder counts
+      await loadFolders(currentWorld.id)
+      
+      // Show success message
+      const folderName = folders.find(f => f.id === folderId)?.name || 'folder'
+      setUploadSuccess(`Image moved to ${folderName}`)
+      setTimeout(() => setUploadSuccess(''), 3000)
+      
+    } catch (error) {
+      console.error('Error moving image:', error)
+      setUploadError(`Failed to move image: ${error.message}`)
+      setTimeout(() => setUploadError(''), 5000)
+    }
   }
 
   const copyImageUrl = () => {
@@ -251,6 +360,31 @@ function ImageManager() {
                 {selectedImage.tags && selectedImage.tags.length > 0 && (
                   <p><strong>Tags:</strong> {selectedImage.tags.join(', ')}</p>
                 )}
+                
+                {/* Folder Assignment */}
+                <div className="folder-assignment">
+                  <p><strong>Move to Folder:</strong></p>
+                  <div className="folder-buttons">
+                    {folders.filter(f => f.id !== 'all').map(folder => (
+                      <button
+                        key={folder.id}
+                        className="folder-move-btn"
+                        onClick={() => moveImageToFolder(selectedImage.id, folder.id)}
+                        title={`Move to ${folder.name}`}
+                      >
+                        <span className="folder-icon">
+                          {folder.id === 'characters' ? '👤' :
+                           folder.id === 'locations' ? '🗺️' :
+                           folder.id === 'items' ? '⚔️' :
+                           folder.id === 'maps' ? '🗾' :
+                           folder.id === 'uncategorized' ? '📄' : '📁'}
+                        </span>
+                        {folder.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
                 <div className="image-actions">
                   <button onClick={copyImageUrl} className="copy-url-button">
                     📋 Copy URL
