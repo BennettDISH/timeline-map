@@ -4,6 +4,7 @@ import ImageUpload from '../components/ImageUpload'
 import ImageGallery from '../components/ImageGallery'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
+import imageFolderService from '../services/imageFolderService'
 
 function ImageManager() {
   const [searchParams] = useSearchParams()
@@ -20,6 +21,8 @@ function ImageManager() {
   const [newFolderName, setNewFolderName] = useState('')
   const [allWorlds, setAllWorlds] = useState([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [customFolders, setCustomFolders] = useState([])
+  const [selectedCustomFolder, setSelectedCustomFolder] = useState(null)
 
   useEffect(() => {
     loadAllWorlds()
@@ -75,6 +78,7 @@ function ImageManager() {
       worldService.setCurrentWorld(result.world)
       setSelectedWorldFolder({ id: result.world.id, name: result.world.name })
       await loadCategoryFolders(worldId)
+      await loadCustomFolders(worldId)
     } catch (error) {
       console.error('Failed to load world:', error)
     }
@@ -102,6 +106,16 @@ function ImageManager() {
     // Load the world and its category folders
     await loadWorldById(worldFolder.id)
     setRefreshGallery(prev => prev + 1)
+  }
+
+  const loadCustomFolders = async (worldId) => {
+    try {
+      const result = await imageFolderService.getFolders(worldId)
+      setCustomFolders(result.folders || [])
+    } catch (error) {
+      console.error('Failed to load custom folders:', error)
+      setCustomFolders([])
+    }
   }
 
   const loadCategoryFolders = async (worldId) => {
@@ -180,25 +194,70 @@ function ImageManager() {
   const createFolder = async () => {
     if (!newFolderName.trim() || !currentWorld) return
     
-    const newFolder = {
-      id: newFolderName.toLowerCase().replace(/\s+/g, '-'),
-      name: newFolderName,
-      count: 0
+    try {
+      const folderData = {
+        name: newFolderName.trim(),
+        world_id: currentWorld.id,
+        parent_id: selectedCustomFolder?.id || null,
+        icon: '📁',
+        color: '#4CAF50'
+      }
+      
+      await imageFolderService.createFolder(folderData)
+      await loadCustomFolders(currentWorld.id)
+      
+      setNewFolderName('')
+      setShowNewFolderForm(false)
+      setUploadSuccess(`Folder "${newFolderName}" created successfully`)
+      setTimeout(() => setUploadSuccess(''), 3000)
+    } catch (error) {
+      console.error('Error creating folder:', error)
+      setUploadError(`Failed to create folder: ${error.message}`)
+      setTimeout(() => setUploadError(''), 5000)
     }
-    
-    setFolders(prev => [...prev, newFolder])
-    setNewFolderName('')
-    setShowNewFolderForm(false)
   }
 
   const handleCategoryFolderSelect = (folder) => {
     setSelectedFolder(folder)
+    setSelectedCustomFolder(null) // Clear custom folder selection
+    setSelectedImage(null) // Clear image selection when changing folders
+    setRefreshGallery(prev => prev + 1) // Trigger gallery refresh with folder filter
+  }
+
+  const handleCustomFolderSelect = (folder) => {
+    setSelectedCustomFolder(folder)
+    setSelectedFolder(null) // Clear category folder selection
     setSelectedImage(null) // Clear image selection when changing folders
     setRefreshGallery(prev => prev + 1) // Trigger gallery refresh with folder filter
   }
 
   const handleImageSelect = (image) => {
     setSelectedImage(image)
+  }
+
+  const renderFolderTree = (folder, depth) => {
+    const isSelected = selectedCustomFolder?.id === folder.id
+    const hasChildren = folder.children && folder.children.length > 0
+    
+    return (
+      <div key={folder.id} className="folder-tree-item">
+        <div 
+          className={`custom-folder-item ${isSelected ? 'active' : ''}`}
+          style={{ paddingLeft: `${depth * 1.2 + 0.6}rem` }}
+          onClick={() => handleCustomFolderSelect(folder)}
+        >
+          <span className="folder-icon">{folder.icon}</span>
+          <span className="folder-name">{folder.name}</span>
+          {hasChildren && <span className="folder-children-count">({folder.children.length})</span>}
+        </div>
+        
+        {hasChildren && (
+          <div className="folder-children">
+            {folder.children.map(child => renderFolderTree(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   const moveImageToFolder = async (imageId, folderId) => {
@@ -338,6 +397,74 @@ function ImageManager() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Custom Folders (only show when a world is selected and sidebar not collapsed) */}
+          {selectedWorldFolder && !sidebarCollapsed && customFolders.length > 0 && (
+            <div className="custom-folders-section">
+              <div className="custom-folders-header">
+                <h4>🗂️ Custom Folders</h4>
+                <button 
+                  className="new-folder-btn"
+                  onClick={() => setShowNewFolderForm(true)}
+                  title="Create new folder"
+                >
+                  ➕
+                </button>
+              </div>
+
+              {showNewFolderForm && (
+                <div className="new-folder-form">
+                  <input
+                    type="text"
+                    placeholder={selectedCustomFolder ? `New subfolder in ${selectedCustomFolder.name}...` : 'New folder name...'}
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && createFolder()}
+                    autoFocus
+                  />
+                  <div className="folder-form-actions">
+                    <button onClick={createFolder} className="create-btn">✓</button>
+                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName('')}} className="cancel-btn">✕</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="custom-folders-list">
+                {imageFolderService.buildFolderTree(customFolders).map(folder => 
+                  renderFolderTree(folder, 0)
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Add New Folder Button (when no custom folders exist) */}
+          {selectedWorldFolder && !sidebarCollapsed && customFolders.length === 0 && (
+            <div className="empty-custom-folders">
+              <button 
+                className="create-first-folder-btn"
+                onClick={() => setShowNewFolderForm(true)}
+              >
+                ➕ Create Your First Folder
+              </button>
+              
+              {showNewFolderForm && (
+                <div className="new-folder-form">
+                  <input
+                    type="text"
+                    placeholder="Folder name..."
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && createFolder()}
+                    autoFocus
+                  />
+                  <div className="folder-form-actions">
+                    <button onClick={createFolder} className="create-btn">✓</button>
+                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName('')}} className="cancel-btn">✕</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

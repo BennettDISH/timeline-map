@@ -94,6 +94,38 @@ router.post('/migrate', async (req, res) => {
         } else throw err
       }
 
+      // Step 4.5: Create custom folders table
+      console.log('Creating image_folders table...')
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS image_folders (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          parent_id INTEGER REFERENCES image_folders(id) ON DELETE CASCADE,
+          world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+          created_by INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          color VARCHAR(7) DEFAULT '#4CAF50',
+          icon VARCHAR(10) DEFAULT '📁',
+          UNIQUE(name, world_id, parent_id)
+        )
+      `)
+      
+      console.log('Creating indexes for image_folders...')
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_world ON image_folders(world_id)')
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_parent ON image_folders(parent_id)')
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_created_by ON image_folders(created_by)')
+      
+      // Step 4.6: Add folder_id column to images table
+      console.log('Adding folder_id column to images table...')
+      try {
+        await pool.query('ALTER TABLE images ADD COLUMN folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL')
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id)')
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log('folder_id column already exists in images table')
+        } else throw err
+      }
+
       // Step 5: Create default world and assign existing data
       console.log('Creating default world...');
       const defaultWorldResult = await pool.query(`

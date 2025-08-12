@@ -250,7 +250,7 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { alt_text, tags } = req.body;
+    const { alt_text, tags, folder_id } = req.body;
     
     // Get image info first to check ownership
     const imageResult = await pool.query('SELECT * FROM images WHERE id = $1', [id]);
@@ -266,15 +266,28 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to update this image' });
     }
 
+    // If folder_id is provided, verify it exists and belongs to the same world
+    if (folder_id) {
+      const folderCheck = await pool.query(
+        'SELECT id FROM image_folders WHERE id = $1 AND world_id = $2',
+        [folder_id, image.world_id]
+      );
+
+      if (folderCheck.rows.length === 0) {
+        return res.status(400).json({ message: 'Invalid folder ID or folder does not belong to this world' });
+      }
+    }
+
     // Update image metadata
     const updateResult = await pool.query(`
       UPDATE images 
-      SET alt_text = $1, tags = $2
-      WHERE id = $3
+      SET alt_text = $1, tags = $2, folder_id = $3
+      WHERE id = $4
       RETURNING *
     `, [
       alt_text || image.alt_text,
       tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()) : tags) : image.tags,
+      folder_id !== undefined ? folder_id : image.folder_id,
       id
     ]);
 

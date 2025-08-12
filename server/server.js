@@ -84,6 +84,7 @@ app.use('/api/maps', require('./routes/maps'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
+app.use('/api/image-folders', require('./routes/imageFolders'));
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
