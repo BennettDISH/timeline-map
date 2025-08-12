@@ -313,13 +313,13 @@ function NodeEditor({
                   <input
                     type="range"
                     min="25"
-                    max="300"
-                    step="5"
+                    max="900"
+                    step="25"
                     value={editFormData.scale || 100}
                     onChange={(e) => handleFieldChange('scale', parseInt(e.target.value))}
                     className="scale-slider"
                   />
-                  <span className="scale-max">Huge</span>
+                  <span className="scale-max">Massive</span>
                 </div>
               </div>
             )}
@@ -336,7 +336,7 @@ function NodeEditor({
                     <input
                       type="range"
                       min="100"
-                      max="1000"
+                      max="3000"
                       value={editFormData.width}
                       onChange={(e) => handleFieldChange('width', parseInt(e.target.value))}
                       className="dimension-slider"
@@ -351,7 +351,7 @@ function NodeEditor({
                     <input
                       type="range"
                       min="100"
-                      max="1000"
+                      max="3000"
                       value={editFormData.height}
                       onChange={(e) => handleFieldChange('height', parseInt(e.target.value))}
                       className="dimension-slider"
