@@ -71,6 +71,8 @@ function NodeEditor({
   })
   const [existingConnections, setExistingConnections] = useState(getNodeConnections())
   const [selectedSearchNode, setSelectedSearchNode] = useState(null)
+  const [editingConnectionIndex, setEditingConnectionIndex] = useState(null)
+  const [editingConnectionData, setEditingConnectionData] = useState({ description: '', timeContext: '' })
   
   const addConnection = () => {
     if (!selectedSearchNode) return
@@ -102,6 +104,36 @@ function NodeEditor({
     const updatedConnections = existingConnections.filter((_, i) => i !== index)
     setExistingConnections(updatedConnections)
     handleFieldChange('connections', updatedConnections)
+  }
+
+  const startEditingConnection = (index) => {
+    const connection = existingConnections[index]
+    setEditingConnectionIndex(index)
+    setEditingConnectionData({
+      description: connection.description || '',
+      timeContext: connection.timeContext || ''
+    })
+  }
+
+  const saveConnectionEdit = () => {
+    if (editingConnectionIndex === null) return
+    
+    const updatedConnections = [...existingConnections]
+    updatedConnections[editingConnectionIndex] = {
+      ...updatedConnections[editingConnectionIndex],
+      description: editingConnectionData.description,
+      timeContext: editingConnectionData.timeContext || null
+    }
+    
+    setExistingConnections(updatedConnections)
+    handleFieldChange('connections', updatedConnections)
+    setEditingConnectionIndex(null)
+    setEditingConnectionData({ description: '', timeContext: '' })
+  }
+
+  const cancelConnectionEdit = () => {
+    setEditingConnectionIndex(null)
+    setEditingConnectionData({ description: '', timeContext: '' })
   }
   
   const getNodeById = (nodeId) => {
@@ -297,6 +329,73 @@ function NodeEditor({
                     const isCurrentMap = !connection.mapId || connection.mapId === selectedNode.mapId
                     const connectedNode = isCurrentMap ? getNodeById(connection.nodeId) : null
                     
+                    if (editingConnectionIndex === index) {
+                      // Edit mode for this connection
+                      return (
+                        <div key={index} className={`connection-item editing ${!isCurrentMap ? 'cross-map' : ''}`}>
+                          <div className="connection-header">
+                            <span className="relationship-label">{relationshipLabel}</span>
+                            <span className="connected-node-name">
+                              {connection.targetTitle || connectedNode?.title || `Node #${connection.nodeId}`}
+                              {!isCurrentMap && (
+                                <span className="map-indicator">
+                                  📍 {connection.targetMapTitle || 'Other Map'}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          
+                          <div className="connection-edit-form">
+                            <div className="form-group">
+                              <label>Time Context (optional)</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 1420"
+                                value={editingConnectionData.timeContext}
+                                onChange={(e) => setEditingConnectionData({
+                                  ...editingConnectionData,
+                                  timeContext: e.target.value
+                                })}
+                                className="time-context-input"
+                              />
+                            </div>
+                            
+                            <div className="form-group">
+                              <label>Description (optional)</label>
+                              <textarea
+                                placeholder="Describe this relationship..."
+                                value={editingConnectionData.description}
+                                onChange={(e) => setEditingConnectionData({
+                                  ...editingConnectionData,
+                                  description: e.target.value
+                                })}
+                                className="connection-description-input"
+                                rows="2"
+                              />
+                            </div>
+                            
+                            <div className="connection-edit-actions">
+                              <button 
+                                type="button" 
+                                className="save-connection-edit-btn"
+                                onClick={saveConnectionEdit}
+                              >
+                                💾 Save
+                              </button>
+                              <button 
+                                type="button" 
+                                className="cancel-connection-edit-btn"
+                                onClick={cancelConnectionEdit}
+                              >
+                                ✕ Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    
+                    // Display mode for this connection
                     return (
                       <div key={index} className={`connection-item ${!isCurrentMap ? 'cross-map' : ''}`}>
                         <div className="connection-info">
@@ -318,14 +417,24 @@ function NodeEditor({
                             <small className="connection-description">{connection.description}</small>
                           )}
                         </div>
-                        <button 
-                          type="button" 
-                          className="remove-connection-btn"
-                          onClick={() => removeConnection(index)}
-                          title="Remove connection"
-                        >
-                          ✗
-                        </button>
+                        <div className="connection-actions">
+                          <button 
+                            type="button" 
+                            className="edit-connection-btn"
+                            onClick={() => startEditingConnection(index)}
+                            title="Edit connection"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            type="button" 
+                            className="remove-connection-btn"
+                            onClick={() => removeConnection(index)}
+                            title="Remove connection"
+                          >
+                            ✗
+                          </button>
+                        </div>
                       </div>
                     )
                   })}

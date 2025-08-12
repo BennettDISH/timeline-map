@@ -758,12 +758,6 @@ function MapViewer() {
         interactionMode={interactionMode}
         onClose={() => setShowInfoPanel(false)}
         onEditNode={handleInfoPanelEditNode}
-        onUpdateNode={async (nodeId, updates) => {
-          const node = nodes.find(n => n.id === nodeId)
-          if (node) {
-            await handleNodeUpdate(node, updates)
-          }
-        }}
       />
       
       {/* Nodes List Panel */}
