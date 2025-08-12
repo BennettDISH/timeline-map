@@ -19,12 +19,12 @@ function AdminPanel() {
     )
   }
 
-  const runMigration = async () => {
+  const enableFolders = async () => {
     setLoading(true)
-    setMigrationStatus('🔄 Running database migration...')
+    setMigrationStatus('🔄 Enabling custom folder system...')
     
     try {
-      const response = await axios.post('/api/admin/migrate', {}, {
+      const response = await axios.post('/api/admin/enable-folders', {}, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
@@ -32,7 +32,7 @@ function AdminPanel() {
       
       setMigrationStatus('✅ ' + response.data.message)
     } catch (error) {
-      setMigrationStatus('❌ Migration failed: ' + (error.response?.data?.message || error.message))
+      setMigrationStatus('❌ Failed to enable folders: ' + (error.response?.data?.message || error.message))
     } finally {
       setLoading(false)
     }
@@ -46,15 +46,15 @@ function AdminPanel() {
         <p>Welcome, {user.username}! Manage your database and system settings here.</p>
         
         <div className="admin-section">
-          <h2>Database Management</h2>
+          <h2>🗂️ Custom Folder System Setup</h2>
           
           <div className="admin-actions">
             <button 
-              onClick={runMigration} 
+              onClick={enableFolders} 
               disabled={loading}
               className="admin-button migration-button"
             >
-              {loading ? 'Running Migration...' : '🗂️ Enable Custom Folder System'}
+              {loading ? 'Enabling Folders...' : '🗂️ Enable Custom Folder System'}
             </button>
           </div>
           
