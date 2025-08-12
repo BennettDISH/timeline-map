@@ -6,7 +6,8 @@ function InfoPanel({
   infoPanelNode, 
   interactionMode,
   onClose,
-  onEditNode 
+  onEditNode,
+  onUpdateNode // New prop for updating node data
 }) {
   const navigate = useNavigate()
 
@@ -26,6 +27,29 @@ function InfoPanel({
   }
 
   const connections = getNodeConnections()
+
+  // Handle removing a connection
+  const handleRemoveConnection = async (connectionIndex) => {
+    if (!onUpdateNode) return
+    
+    const updatedConnections = connections.filter((_, index) => index !== connectionIndex)
+    
+    // Update the node's metadata
+    try {
+      const currentMetadata = infoPanelNode.tooltipText ? JSON.parse(infoPanelNode.tooltipText) : {}
+      const updatedMetadata = {
+        ...currentMetadata,
+        connections: updatedConnections
+      }
+      
+      // Call the update function
+      await onUpdateNode(infoPanelNode.id, {
+        tooltip_text: JSON.stringify(updatedMetadata)
+      })
+    } catch (error) {
+      console.error('Failed to remove connection:', error)
+    }
+  }
 
   return (
     <div className="info-panel">
@@ -67,7 +91,18 @@ function InfoPanel({
         
         {connections.length > 0 && (
           <div className="info-section">
-            <h4>Connected Nodes</h4>
+            <div className="info-section-header">
+              <h4>Connected Nodes</h4>
+              {interactionMode === 'edit' && (
+                <button
+                  className="edit-connections-btn"
+                  onClick={() => onEditNode(infoPanelNode, 'connections')}
+                  title="Edit connections"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
             <div className="connections-list">
               {connections.map((connection, index) => (
                 <div key={index} className="connection-item">
@@ -89,24 +124,54 @@ function InfoPanel({
                   {connection.description && (
                     <p className="connection-description">{connection.description}</p>
                   )}
-                  <button 
-                    className="connection-navigate-btn"
-                    onClick={() => {
-                      if (connection.mapId && connection.mapId !== infoPanelNode.mapId) {
-                        // Navigate to different map
-                        navigate(`/map/${connection.mapId}`)
-                      } else {
-                        // TODO: Scroll to node on same map
-                        console.log('Navigate to node on same map:', connection.nodeId)
-                      }
-                    }}
-                    title="Navigate to connected node"
-                  >
-                    →
-                  </button>
+                  <div className="connection-actions">
+                    <button 
+                      className="connection-navigate-btn"
+                      onClick={() => {
+                        if (connection.mapId && connection.mapId !== infoPanelNode.mapId) {
+                          // Navigate to different map
+                          navigate(`/map/${connection.mapId}`)
+                        } else {
+                          // TODO: Scroll to node on same map
+                          console.log('Navigate to node on same map:', connection.nodeId)
+                        }
+                      }}
+                      title="Navigate to connected node"
+                    >
+                      →
+                    </button>
+                    {interactionMode === 'edit' && (
+                      <button 
+                        className="connection-remove-btn"
+                        onClick={() => handleRemoveConnection(index)}
+                        title="Remove connection"
+                      >
+                        ✗
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Add Connection button when no connections exist and in edit mode */}
+        {interactionMode === 'edit' && connections.length === 0 && (
+          <div className="info-section">
+            <div className="info-section-header">
+              <h4>Connections</h4>
+              <button
+                className="add-connection-btn"
+                onClick={() => onEditNode(infoPanelNode, 'connections')}
+                title="Add connections"
+              >
+                + Add Connection
+              </button>
+            </div>
+            <p className="no-connections-hint">
+              <em>No connections yet. Click "Add Connection" to link this node to others.</em>
+            </p>
           </div>
         )}
         

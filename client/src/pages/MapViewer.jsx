@@ -349,10 +349,16 @@ function MapViewer() {
     }
   }
 
-  const handleInfoPanelEditNode = (node) => {
+  const handleInfoPanelEditNode = (node, targetTab = 'content') => {
     setSelectedNode(node)
     setShowInfoPanel(false)
-    // editFormData will be automatically derived from unsavedChanges or selectedNode
+    
+    // If NodeEditor is expanded and targetTab is specified, set the active tab
+    // We'll pass targetTab to NodeEditor through a ref or additional prop if needed
+    // For now, NodeEditor will handle opening the correct section
+    if (targetTab && window.localStorage) {
+      localStorage.setItem('nodeEditorTargetTab', targetTab)
+    }
   }
 
   const handleFieldChange = (field, value) => {
@@ -752,6 +758,12 @@ function MapViewer() {
         interactionMode={interactionMode}
         onClose={() => setShowInfoPanel(false)}
         onEditNode={handleInfoPanelEditNode}
+        onUpdateNode={async (nodeId, updates) => {
+          const node = nodes.find(n => n.id === nodeId)
+          if (node) {
+            await handleNodeUpdate(node, updates)
+          }
+        }}
       />
       
       {/* Nodes List Panel */}
