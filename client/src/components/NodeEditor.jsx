@@ -8,6 +8,7 @@ function NodeEditor({
   timelineSettings,
   availableMaps,
   availableImages,
+  nodes,
   onCancel,
   onDelete,
   handleFieldChange,
@@ -15,10 +16,23 @@ function NodeEditor({
 }) {
   if (!selectedNode) return null
 
+  // Get existing connections from node metadata
+  const getNodeConnections = () => {
+    try {
+      if (selectedNode.tooltipText) {
+        const metadata = JSON.parse(selectedNode.tooltipText)
+        return metadata.connections || []
+      }
+    } catch (e) {
+    }
+    return []
+  }
+
   const [expandedSections, setExpandedSections] = useState({
     nodeType: true,
     content: true,
     image: true,
+    connections: false,
     link: true,
     timeline: false,
     position: false
@@ -37,6 +51,61 @@ function NodeEditor({
   ]
 
   const currentNodeType = nodeTypeOptions.find(opt => opt.value === (editFormData.nodeType || 'info'))
+  
+  // Relationship type options
+  const relationshipTypes = [
+    { value: 'lives_at', label: '🏠 Lives at', category: 'location' },
+    { value: 'works_at', label: '💼 Works at', category: 'location' },
+    { value: 'found_at', label: '📍 Found at', category: 'location' },
+    { value: 'created_at', label: '⚒️ Created at', category: 'location' },
+    { value: 'allied_with', label: '🤝 Allied with', category: 'character' },
+    { value: 'enemy_of', label: '⚔️ Enemy of', category: 'character' },
+    { value: 'related_to', label: '👨‍👩‍👧‍👦 Related to', category: 'character' },
+    { value: 'owns', label: '💎 Owns', category: 'item' },
+    { value: 'created_by', label: '👤 Created by', category: 'creator' },
+    { value: 'guards', label: '🛡️ Guards', category: 'item' },
+    { value: 'connected_to', label: '🔗 Connected to', category: 'general' },
+    { value: 'part_of', label: '🏛️ Part of', category: 'general' },
+    { value: 'leads_to', label: '➡️ Leads to', category: 'general' }
+  ]
+  
+  // Get available nodes for connections (excluding current node)
+  const availableNodes = nodes ? nodes.filter(node => node.id !== selectedNode.id) : []
+  
+  // Connection management state
+  const [newConnection, setNewConnection] = useState({ nodeId: '', relationshipType: '', description: '' })
+  const [existingConnections, setExistingConnections] = useState(getNodeConnections())
+  
+  const addConnection = () => {
+    if (!newConnection.nodeId || !newConnection.relationshipType) return
+    
+    const connection = {
+      nodeId: parseInt(newConnection.nodeId),
+      relationshipType: newConnection.relationshipType,
+      description: newConnection.description || ''
+    }
+    
+    const updatedConnections = [...existingConnections, connection]
+    setExistingConnections(updatedConnections)
+    
+    // Update the form data with new connections
+    const updatedTooltipData = editFormData.tooltipData || {}
+    updatedTooltipData.connections = updatedConnections
+    handleFieldChange('connections', updatedConnections)
+    
+    // Reset form
+    setNewConnection({ nodeId: '', relationshipType: '', description: '' })
+  }
+  
+  const removeConnection = (index) => {
+    const updatedConnections = existingConnections.filter((_, i) => i !== index)
+    setExistingConnections(updatedConnections)
+    handleFieldChange('connections', updatedConnections)
+  }
+  
+  const getNodeById = (nodeId) => {
+    return availableNodes.find(node => node.id === nodeId)
+  }
 
   return (
     <div className="node-editor">
@@ -217,6 +286,108 @@ function NodeEditor({
             )}
           </div>
         )}
+        
+        {/* Universal Connections Section */}
+        <div className="form-section">
+          <div className="section-header" onClick={() => toggleSection('connections')}>
+            <div className="section-title">Connections & Relationships {expandedSections.connections ? '▼' : '▶'}</div>
+          </div>
+          {expandedSections.connections && (
+            <div className="section-content">
+              <div className="connections-help">
+                <small>🔗 Link this node to other nodes to show relationships and connections</small>
+              </div>
+              
+              {/* Existing Connections */}
+              {existingConnections.length > 0 && (
+                <div className="existing-connections">
+                  <label>Current Connections</label>
+                  <div className="connections-list">
+                    {existingConnections.map((connection, index) => {
+                      const connectedNode = getNodeById(connection.nodeId)
+                      const relationshipLabel = relationshipTypes.find(r => r.value === connection.relationshipType)?.label || connection.relationshipType
+                      
+                      return (
+                        <div key={index} className="connection-item">
+                          <div className="connection-info">
+                            <span className="relationship-label">{relationshipLabel}</span>
+                            <span className="connected-node-name">
+                              {connectedNode ? connectedNode.title : `Node #${connection.nodeId}`}
+                            </span>
+                            {connection.description && (
+                              <small className="connection-description">{connection.description}</small>
+                            )}
+                          </div>
+                          <button 
+                            type="button" 
+                            className="remove-connection-btn"
+                            onClick={() => removeConnection(index)}
+                            title="Remove connection"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Add New Connection */}
+              <div className="add-connection">
+                <label>Add Connection</label>
+                <div className="connection-form">
+                  <div className="form-group">
+                    <select
+                      value={newConnection.relationshipType}
+                      onChange={(e) => setNewConnection({...newConnection, relationshipType: e.target.value})}
+                      className="relationship-select"
+                    >
+                      <option value="">Choose relationship...</option>
+                      {relationshipTypes.map(rel => (
+                        <option key={rel.value} value={rel.value}>{rel.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <select
+                      value={newConnection.nodeId}
+                      onChange={(e) => setNewConnection({...newConnection, nodeId: e.target.value})}
+                      className="node-select"
+                    >
+                      <option value="">Select node...</option>
+                      {availableNodes.map(node => (
+                        <option key={node.id} value={node.id}>
+                          {node.title || `Untitled Node #${node.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      placeholder="Optional description"
+                      value={newConnection.description}
+                      onChange={(e) => setNewConnection({...newConnection, description: e.target.value})}
+                      className="connection-description-input"
+                    />
+                  </div>
+                  
+                  <button 
+                    type="button" 
+                    onClick={addConnection}
+                    className="add-connection-btn"
+                    disabled={!newConnection.nodeId || !newConnection.relationshipType}
+                  >
+                    🔗 Add Connection
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         
         {editFormData.nodeType === 'map_link' && (
           <div className="form-section">

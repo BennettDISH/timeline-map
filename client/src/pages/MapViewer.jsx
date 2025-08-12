@@ -434,12 +434,13 @@ function MapViewer() {
           updateData: updateData
         })
 
-        // Handle dimensions for background maps and image nodes
+        // Handle dimensions for background maps and image nodes, plus connections for all nodes
         if (formData.nodeType === 'background_map' || 
             (formData.nodeType === 'info' && formData.imageId) ||
             (formData.nodeType === 'npc' && formData.imageId) ||
             (formData.nodeType === 'item' && formData.imageId) ||
-            (formData.nodeType === 'map_link' && formData.imageId)) {
+            (formData.nodeType === 'map_link' && formData.imageId) ||
+            formData.connections) {
           let finalWidth = formData.width
           let finalHeight = formData.height
           
@@ -456,7 +457,8 @@ function MapViewer() {
             scale: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? formData.scale : undefined,
             baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
             baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
-            nodeType: formData.nodeType // Store the specific node type
+            nodeType: formData.nodeType, // Store the specific node type
+            connections: formData.connections || [] // Store connections
           }
           
           updateData.tooltip_text = JSON.stringify(tooltipData)
@@ -771,6 +773,7 @@ function MapViewer() {
           timelineSettings={timelineSettings}
           availableMaps={availableMaps}
           availableImages={availableImages}
+          nodes={nodes}
           onCancel={() => setSelectedNode(null)}
           onDelete={() => handleNodeDelete(selectedNode)}
           handleFieldChange={handleFieldChange}
