@@ -52,6 +52,7 @@ function NodeEditor({
     { value: 'info', label: 'Info Node', icon: 'ℹ️', description: 'Information point with rich content' },
     { value: 'npc', label: 'NPC', icon: '👤', description: 'Non-player character with personality' },
     { value: 'item', label: 'Item', icon: '⚔️', description: 'Legendary items, artifacts, or equipment' },
+    { value: 'text', label: 'Text Label', icon: '📝', description: 'Timeline-aware text annotation on the map' },
     { value: 'map_link', label: 'Map Link', icon: '🗺️', description: 'Portal to another map' },
     { value: 'background_map', label: 'Background Map', icon: '🖼️', description: 'Large background image' }
   ]
@@ -159,7 +160,7 @@ function NodeEditor({
     { id: 'position', label: 'Advanced', icon: '⚙️' }
   ].filter(tab => {
     // Filter tabs based on node type and features
-    if (tab.id === 'visual' && !['background_map', 'info', 'map_link', 'npc', 'item'].includes(editFormData.nodeType)) return false;
+    if (tab.id === 'visual' && !['background_map', 'info', 'map_link', 'npc', 'item', 'text'].includes(editFormData.nodeType)) return false;
     if (tab.id === 'timeline' && !timelineEnabled) return false;
     return true;
   })
@@ -229,20 +230,72 @@ function NodeEditor({
       case 'visual':
         return (
           <div className="tab-section-content">
-            <div className="form-group">
-              <label>
-                {editFormData.nodeType === 'background_map' ? 'Background Image' :
-                 editFormData.nodeType === 'map_link' ? 'Portal Image (optional)' :
-                 'Visual Element (optional)'}
-              </label>
-              <ImageSelector
-                images={availableImages}
-                selectedImageId={editFormData.imageId}
-                onImageSelect={(imageId) => handleFieldChange('imageId', imageId)}
-                placeholder={editFormData.nodeType === 'background_map' ? 'Choose a background image' : 'Add visual flair'}
-                showPreview={true}
-              />
-            </div>
+            {editFormData.nodeType === 'text' ? (
+              // Text node styling options
+              <>
+                <div className="form-group">
+                  <label className="text-size-label">
+                    <span>Text Size</span>
+                    <span className="size-value">{editFormData.fontSize || 16}px</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="12"
+                    max="48"
+                    value={editFormData.fontSize || 16}
+                    onChange={(e) => handleFieldChange('fontSize', parseInt(e.target.value))}
+                    className="text-size-slider"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="text-width-label">
+                    <span>Text Box Width</span>
+                    <span className="width-value">{editFormData.width || 200}px</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="100"
+                    max="500"
+                    value={editFormData.width || 200}
+                    onChange={(e) => handleFieldChange('width', parseInt(e.target.value))}
+                    className="text-width-slider"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Text Color</label>
+                  <select
+                    value={editFormData.textColor || 'white'}
+                    onChange={(e) => handleFieldChange('textColor', e.target.value)}
+                    className="text-color-select"
+                  >
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                    <option value="gold">Gold</option>
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                  </select>
+                </div>
+              </>
+            ) : (
+              // Regular node image options
+              <div className="form-group">
+                <label>
+                  {editFormData.nodeType === 'background_map' ? 'Background Image' :
+                   editFormData.nodeType === 'map_link' ? 'Portal Image (optional)' :
+                   'Visual Element (optional)'}
+                </label>
+                <ImageSelector
+                  images={availableImages}
+                  selectedImageId={editFormData.imageId}
+                  onImageSelect={(imageId) => handleFieldChange('imageId', imageId)}
+                  placeholder={editFormData.nodeType === 'background_map' ? 'Choose a background image' : 'Add visual flair'}
+                  showPreview={true}
+                />
+              </div>
+            )}
             
             {(editFormData.nodeType === 'info' || editFormData.nodeType === 'npc' || editFormData.nodeType === 'item' || editFormData.nodeType === 'map_link') && editFormData.imageId && (
               <div className="form-group scale-control">
@@ -665,7 +718,7 @@ function NodeEditor({
             </div>
 
             {/* Visual Section */}
-            {['background_map', 'info', 'map_link', 'npc', 'item'].includes(editFormData.nodeType) && (
+            {['background_map', 'info', 'map_link', 'npc', 'item', 'text'].includes(editFormData.nodeType) && (
               <div className="form-section">
                 <div className="section-header" onClick={() => toggleSection('image')}>
                   <div className="section-title">Visual Settings {expandedSections.image ? '▼' : '▶'}</div>

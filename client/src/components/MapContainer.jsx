@@ -84,6 +84,7 @@ function MapContainer({
             nodeType === 'info' ? 'info' : 
             nodeType === 'npc' ? 'NPC' :
             nodeType === 'item' ? 'item' :
+            nodeType === 'text' ? 'text label' :
             nodeType === 'map_link' ? 'map link' :
             nodeType === 'background_map' ? 'background map' : 'info'
           } node</p>

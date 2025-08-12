@@ -36,6 +36,7 @@ function NodeRenderer({
     const nodeType = getNodeType(node)
     if (nodeType === 'npc') return '👤'
     if (nodeType === 'item') return '⚔️'
+    if (nodeType === 'text') return '📝'
     if (nodeType === 'map_link') return '🗺️'
     return 'ℹ️' // info icon
   }
@@ -65,10 +66,87 @@ function NodeRenderer({
       // Coordinates seem corrupted
     }
     
-    // Check if this is an image node (info or map_link node with image)
+    // Check node type from metadata
+    const getNodeType = (node) => {
+      try {
+        if (node.tooltipText) {
+          const metadata = JSON.parse(node.tooltipText)
+          return metadata.nodeType || 'info'
+        }
+      } catch (e) {}
+      return 'info'
+    }
+
+    const nodeType = getNodeType(node)
     const isImageNode = (node.eventType === 'standard' || node.eventType === 'map_link') && node.imageUrl
+    const isTextNode = nodeType === 'text'
     
-    if (isImageNode) {
+    if (isTextNode) {
+      // Get text styling properties from metadata
+      const getTextProps = (node) => {
+        try {
+          if (node.tooltipText) {
+            const metadata = JSON.parse(node.tooltipText)
+            return {
+              fontSize: metadata.fontSize || 16,
+              textColor: metadata.textColor || 'white',
+              width: metadata.width || 200
+            }
+          }
+        } catch (e) {}
+        return { fontSize: 16, textColor: 'white', width: 200 }
+      }
+      
+      const textProps = getTextProps(node)
+      
+      // Render as text label
+      return (
+        <div
+          key={node.id}
+          data-node-id={node.id}
+          className={`text-node ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
+          style={{
+            position: 'absolute',
+            left: screenPos.x,
+            top: screenPos.y,
+            transform: 'translate(-50%, -50%)',
+            cursor: interactionMode === 'edit' ? 'grab' : 'pointer',
+            zIndex: isDraggingNode && draggingNode?.id === node.id ? 20 : 10,
+            width: textProps.width * zoom,
+            fontSize: textProps.fontSize * zoom,
+            color: textProps.textColor,
+            textAlign: 'center',
+            fontWeight: 'bold',
+            textShadow: textProps.textColor === 'white' ? '2px 2px 4px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(255,255,255,0.8)',
+            userSelect: 'none',
+            pointerEvents: 'auto',
+            wordWrap: 'break-word',
+            lineHeight: '1.2'
+          }}
+          onMouseDown={(e) => {
+            if (interactionMode === 'edit') {
+              onNodeMouseDown && onNodeMouseDown(e, node)
+            }
+          }}
+          onClick={(e) => onNodeClick(e, node)}
+        >
+          {node.title}
+          {hasUnsavedChanges && (
+            <div className="unsaved-indicator" style={{
+              position: 'absolute',
+              top: '-5px',
+              right: '-5px',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ff6b35',
+              borderRadius: '50%',
+              border: '2px solid white',
+              zIndex: 30
+            }} />
+          )}
+        </div>
+      )
+    } else if (isImageNode) {
       // Render as scalable image without node styling
       return (
         <div

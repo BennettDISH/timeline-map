@@ -65,6 +65,24 @@ function MapViewer() {
     return 100
   }
 
+  // Helper function to get text node properties
+  const getTextNodeProps = (node) => {
+    try {
+      if (node.tooltipText) {
+        const metadata = JSON.parse(node.tooltipText)
+        return {
+          fontSize: metadata.fontSize || 16,
+          textColor: metadata.textColor || 'white'
+        }
+      }
+    } catch (e) {
+    }
+    return {
+      fontSize: 16,
+      textColor: 'white'
+    }
+  }
+
   // Helper function to get node type from metadata
   const getNodeType = (node) => {
     if (node.eventType === 'background_map') return 'background_map'
@@ -98,11 +116,14 @@ function MapViewer() {
         imageId: selectedNode.imageId || null,
         nodeType: getNodeType(selectedNode),
         width: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
-               (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : 100)),
+               (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : (getNodeType(selectedNode) === 'text' ? 200 : 100))),
         height: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
                 (selectedNode.height || (selectedNode.eventType === 'background_map' ? 300 : 100)),
         scale: getNodeScale(selectedNode),
-        locked: selectedNode.locked || false
+        locked: selectedNode.locked || false,
+        // Text node specific properties
+        fontSize: getTextNodeProps(selectedNode).fontSize,
+        textColor: getTextNodeProps(selectedNode).textColor
       } : null
   
   // Image management
@@ -188,6 +209,7 @@ function MapViewer() {
       const nodeTitle = nodeType === 'info' ? 'Info Node' : 
                        nodeType === 'npc' ? 'NPC' :
                        nodeType === 'item' ? 'Item' :
+                       nodeType === 'text' ? 'Text Label' :
                        nodeType === 'map_link' ? 'Map Link' :
                        nodeType === 'background_map' ? 'Background Map' : 'Info Node'
       
@@ -200,12 +222,12 @@ function MapViewer() {
         y_position: 0,
         x_pixel: Math.round(worldPos.x),
         y_pixel: Math.round(worldPos.y),
-        event_type: (nodeType === 'info' || nodeType === 'npc' || nodeType === 'item') ? 'standard' : nodeType,
+        event_type: (nodeType === 'info' || nodeType === 'npc' || nodeType === 'item' || nodeType === 'text') ? 'standard' : nodeType,
         start_time: 0,
         end_time: 100,
         timeline_enabled: false,
         image_id: null,
-        tooltip_text: (nodeType === 'npc' || nodeType === 'item') ? JSON.stringify({ nodeType: nodeType }) : null
+        tooltip_text: (nodeType === 'npc' || nodeType === 'item' || nodeType === 'text') ? JSON.stringify({ nodeType: nodeType }) : null
       }
       
       const result = await eventService.createEvent(newNodeData)
@@ -481,12 +503,13 @@ function MapViewer() {
           updateData: updateData
         })
 
-        // Handle dimensions for background maps and image nodes, plus connections for all nodes
+        // Handle dimensions for background maps and image nodes, text nodes, plus connections for all nodes
         if (formData.nodeType === 'background_map' || 
             (formData.nodeType === 'info' && formData.imageId) ||
             (formData.nodeType === 'npc' && formData.imageId) ||
             (formData.nodeType === 'item' && formData.imageId) ||
             (formData.nodeType === 'map_link' && formData.imageId) ||
+            formData.nodeType === 'text' ||
             formData.connections) {
           let finalWidth = formData.width
           let finalHeight = formData.height
@@ -505,7 +528,10 @@ function MapViewer() {
             baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
             baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : undefined,
             nodeType: formData.nodeType, // Store the specific node type
-            connections: formData.connections || [] // Store connections
+            connections: formData.connections || [], // Store connections
+            // Text node properties
+            fontSize: formData.nodeType === 'text' ? formData.fontSize : undefined,
+            textColor: formData.nodeType === 'text' ? formData.textColor : undefined
           }
           
           updateData.tooltip_text = JSON.stringify(tooltipData)
