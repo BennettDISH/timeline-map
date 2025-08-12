@@ -84,13 +84,25 @@ function ImageManager() {
     }
   }
 
-  const handleUploadSuccess = (image) => {
-    setUploadSuccess(`Successfully uploaded: ${image.originalName}`)
+  const handleUploadSuccess = (result) => {
+    if (result.multiple) {
+      // Handle multiple upload result
+      const { successCount, errorCount, total } = result
+      if (errorCount === 0) {
+        setUploadSuccess(`Successfully uploaded all ${successCount} images!`)
+      } else {
+        setUploadSuccess(`Uploaded ${successCount} of ${total} images (${errorCount} failed)`)
+      }
+    } else {
+      // Handle single upload result  
+      setUploadSuccess(`Successfully uploaded: ${result.originalName}`)
+    }
+    
     setUploadError('')
     setRefreshGallery(prev => prev + 1) // Trigger gallery refresh
     
-    // Clear success message after 3 seconds
-    setTimeout(() => setUploadSuccess(''), 3000)
+    // Clear success message after 5 seconds for multiple uploads
+    setTimeout(() => setUploadSuccess(''), result.multiple ? 5000 : 3000)
   }
 
   const handleUploadError = (error) => {
