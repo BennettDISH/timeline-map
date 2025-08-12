@@ -1,8 +1,8 @@
-import eventService from './eventService'
+const API_BASE = '/api'
 
 class NodeSearchService {
   constructor() {
-    this.allNodesCache = new Map() // mapId -> nodes array
+    this.searchCache = new Map() // searchKey -> results
     this.lastCacheUpdate = 0
     this.cacheTimeout = 30000 // 30 seconds
   }
@@ -10,18 +10,55 @@ class NodeSearchService {
   // Search nodes across all maps in a world
   async searchNodes(worldId, searchQuery = '', options = {}) {
     try {
-      // For now, we'll need to get this data by fetching all maps for the world
-      // Then fetch nodes for each map
-      
-      const searchResults = []
-      
-      // This is a placeholder - we'll need to implement proper cross-map search
-      // For now, return empty array and we'll build this step by step
-      
-      return {
-        results: searchResults,
-        totalCount: 0
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('Authentication required')
       }
+
+      const searchKey = `${worldId}-${searchQuery}`
+      const now = Date.now()
+      
+      // Check cache
+      if (this.searchCache.has(searchKey) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
+        return this.searchCache.get(searchKey)
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams({
+        worldId: worldId.toString()
+      })
+      
+      if (searchQuery && searchQuery.trim().length > 0) {
+        params.append('query', searchQuery.trim())
+      }
+
+      // Make API request
+      const response = await fetch(`${API_BASE}/events/search?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      // Format results
+      const formattedResults = data.results.map(node => this.formatSearchResult(node, node.mapTitle))
+      
+      const result = {
+        results: formattedResults,
+        totalCount: data.totalCount
+      }
+      
+      // Cache the results
+      this.searchCache.set(searchKey, result)
+      this.lastCacheUpdate = now
+      
+      return result
     } catch (error) {
       console.error('Node search failed:', error)
       return {

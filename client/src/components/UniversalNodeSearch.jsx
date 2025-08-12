@@ -41,52 +41,18 @@ function UniversalNodeSearch({
   const performSearch = async (query) => {
     setIsSearching(true)
     try {
-      // For now, search through available maps
-      // Later we can optimize this with a proper API endpoint
-      const allResults = []
+      // Use the new API endpoint to search across all maps
+      const searchResult = await nodeSearchService.searchNodes(worldId, query)
       
-      for (const map of availableMaps) {
-        try {
-          const mapNodes = await nodeSearchService.getMapNodes(map.id)
-          const filteredNodes = mapNodes.filter(node => {
-            const title = (node.title || '').toLowerCase()
-            const description = (node.description || '').toLowerCase()
-            const searchLower = query.toLowerCase()
-            
-            return title.includes(searchLower) || description.includes(searchLower)
-          })
-          
-          // Format results with map context
-          const formattedResults = filteredNodes.map(node => 
-            nodeSearchService.formatSearchResult(node, map.title)
-          )
-          
-          allResults.push(...formattedResults)
-        } catch (error) {
-          console.error(`Failed to search map ${map.title}:`, error)
-        }
+      if (searchResult.error) {
+        console.error('Search error:', searchResult.error)
+        setSearchResults([])
+        setShowResults(false)
+        return
       }
       
-      // Sort by relevance (exact title matches first, then partial matches)
-      allResults.sort((a, b) => {
-        const queryLower = query.toLowerCase()
-        const aTitle = a.title.toLowerCase()
-        const bTitle = b.title.toLowerCase()
-        
-        // Exact matches first
-        if (aTitle === queryLower && bTitle !== queryLower) return -1
-        if (bTitle === queryLower && aTitle !== queryLower) return 1
-        
-        // Title starts with query
-        if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1
-        if (bTitle.startsWith(queryLower) && !aTitle.startsWith(queryLower)) return 1
-        
-        // Alphabetical
-        return aTitle.localeCompare(bTitle)
-      })
-      
-      setSearchResults(allResults.slice(0, 20)) // Limit to 20 results
-      setShowResults(allResults.length > 0)
+      setSearchResults(searchResult.results.slice(0, 20)) // Limit to 20 results
+      setShowResults(searchResult.results.length > 0)
       setSelectedIndex(-1)
     } catch (error) {
       console.error('Search failed:', error)

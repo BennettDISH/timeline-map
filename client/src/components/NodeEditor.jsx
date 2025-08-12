@@ -86,13 +86,13 @@ function NodeEditor({
   const [selectedSearchNode, setSelectedSearchNode] = useState(null)
   
   const addConnection = () => {
-    if (!selectedSearchNode || !newConnection.relationshipType) return
+    if (!selectedSearchNode) return
     
     const connection = {
       nodeId: selectedSearchNode.nodeId,
       mapId: selectedSearchNode.mapId,
       timeContext: newConnection.timeContext || null,
-      relationshipType: newConnection.relationshipType,
+      relationshipType: 'connected_to', // Default relationship
       description: newConnection.description || '',
       targetTitle: selectedSearchNode.title,
       targetMapTitle: selectedSearchNode.mapTitle
@@ -436,7 +436,7 @@ function NodeEditor({
                     type="button" 
                     onClick={addConnection}
                     className="add-connection-btn"
-                    disabled={!selectedSearchNode || !newConnection.relationshipType}
+                    disabled={!selectedSearchNode}
                   >
                     🔗 Add Connection
                   </button>

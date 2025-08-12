@@ -6,6 +6,70 @@ const router = express.Router();
 // All event routes require authentication
 router.use(authenticateToken);
 
+// GET /api/events/search?worldId=:worldId&query=:query - Search events across all maps in a world
+router.get('/search', async (req, res) => {
+  try {
+    const { worldId, query } = req.query;
+    
+    if (!worldId) {
+      return res.status(400).json({ message: 'World ID is required' });
+    }
+
+    // Verify user owns the world
+    const worldCheck = await pool.query(`
+      SELECT id, created_by FROM worlds WHERE id = $1 AND is_active = true
+    `, [worldId]);
+
+    if (worldCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'World not found' });
+    }
+
+    if (worldCheck.rows[0].created_by !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied to this world' });
+    }
+    
+    // Search events across all maps in this world
+    let searchQuery = `
+      SELECT e.*, m.title as map_title, m.id as map_id, i.file_path as image_url
+      FROM events e
+      JOIN maps m ON e.map_id = m.id
+      LEFT JOIN images i ON e.image_id = i.id
+      WHERE m.world_id = $1 AND e.is_active = true AND m.is_active = true
+    `;
+    
+    let queryParams = [worldId];
+    
+    // Add search filter if query provided
+    if (query && query.trim().length > 0) {
+      searchQuery += ` AND (LOWER(e.title) LIKE LOWER($2) OR LOWER(e.description) LIKE LOWER($2))`;
+      queryParams.push(`%${query.trim()}%`);
+    }
+    
+    searchQuery += ` ORDER BY e.title ASC LIMIT 50`;
+    
+    const result = await pool.query(searchQuery, queryParams);
+    
+    const searchResults = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      mapId: row.map_id,
+      mapTitle: row.map_title,
+      eventType: row.event_type,
+      tooltipText: row.tooltip_text,
+      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null
+    }));
+
+    res.json({
+      results: searchResults,
+      totalCount: result.rows.length
+    });
+  } catch (error) {
+    console.error('Search events error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // GET /api/events?mapId=:mapId - Get all events for a map
 router.get('/', async (req, res) => {
   try {
