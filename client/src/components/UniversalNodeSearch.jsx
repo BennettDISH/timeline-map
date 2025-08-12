@@ -10,6 +10,8 @@ function UniversalNodeSearch({
   value = "",
   className = ""
 }) {
+  console.log('🔍 UniversalNodeSearch props:', { worldId, currentMapId, availableMaps: availableMaps?.length })
+  
   const [searchQuery, setSearchQuery] = useState(value)
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
@@ -39,10 +41,12 @@ function UniversalNodeSearch({
   }, [searchQuery, availableMaps])
 
   const performSearch = async (query) => {
+    console.log('🔍 Starting search:', { query, worldId })
     setIsSearching(true)
     try {
       // Use the new API endpoint to search across all maps
       const searchResult = await nodeSearchService.searchNodes(worldId, query)
+      console.log('🔍 Search result:', searchResult)
       
       if (searchResult.error) {
         console.error('Search error:', searchResult.error)
@@ -51,6 +55,7 @@ function UniversalNodeSearch({
         return
       }
       
+      console.log('🔍 Setting results:', searchResult.results)
       setSearchResults(searchResult.results.slice(0, 20)) // Limit to 20 results
       setShowResults(searchResult.results.length > 0)
       setSelectedIndex(-1)

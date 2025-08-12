@@ -9,6 +9,7 @@ class NodeSearchService {
 
   // Search nodes across all maps in a world
   async searchNodes(worldId, searchQuery = '', options = {}) {
+    console.log('📡 NodeSearchService.searchNodes called:', { worldId, searchQuery })
     try {
       const token = localStorage.getItem('token')
       if (!token) {
@@ -20,6 +21,7 @@ class NodeSearchService {
       
       // Check cache
       if (this.searchCache.has(searchKey) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
+        console.log('📡 Using cached results')
         return this.searchCache.get(searchKey)
       }
 
@@ -32,22 +34,31 @@ class NodeSearchService {
         params.append('query', searchQuery.trim())
       }
 
+      const url = `${API_BASE}/events/search?${params}`
+      console.log('📡 Making API request to:', url)
+
       // Make API request
-      const response = await fetch(`${API_BASE}/events/search?${params}`, {
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
 
+      console.log('📡 API response status:', response.status)
+
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error('📡 API error response:', errorText)
         throw new Error(`Search failed: ${response.statusText}`)
       }
 
       const data = await response.json()
+      console.log('📡 API response data:', data)
       
       // Format results
       const formattedResults = data.results.map(node => this.formatSearchResult(node, node.mapTitle))
+      console.log('📡 Formatted results:', formattedResults)
       
       const result = {
         results: formattedResults,
