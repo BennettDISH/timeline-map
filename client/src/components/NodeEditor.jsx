@@ -54,23 +54,6 @@ function NodeEditor({
 
   const currentNodeType = nodeTypeOptions.find(opt => opt.value === (editFormData.nodeType || 'info'))
   
-  // Relationship type options
-  const relationshipTypes = [
-    { value: 'lives_at', label: '🏠 Lives at', category: 'location' },
-    { value: 'works_at', label: '💼 Works at', category: 'location' },
-    { value: 'found_at', label: '📍 Found at', category: 'location' },
-    { value: 'created_at', label: '⚒️ Created at', category: 'location' },
-    { value: 'allied_with', label: '🤝 Allied with', category: 'character' },
-    { value: 'enemy_of', label: '⚔️ Enemy of', category: 'character' },
-    { value: 'related_to', label: '👨‍👩‍👧‍👦 Related to', category: 'character' },
-    { value: 'owns', label: '💎 Owns', category: 'item' },
-    { value: 'created_by', label: '👤 Created by', category: 'creator' },
-    { value: 'guards', label: '🛡️ Guards', category: 'item' },
-    { value: 'connected_to', label: '🔗 Connected to', category: 'general' },
-    { value: 'part_of', label: '🏛️ Part of', category: 'general' },
-    { value: 'leads_to', label: '➡️ Leads to', category: 'general' }
-  ]
-  
   // Get available nodes for connections (excluding current node)
   const availableNodes = nodes ? nodes.filter(node => node.id !== selectedNode.id) : []
   
@@ -327,7 +310,7 @@ function NodeEditor({
                   <label>Current Connections</label>
                   <div className="connections-list">
                     {existingConnections.map((connection, index) => {
-                      const relationshipLabel = relationshipTypes.find(r => r.value === connection.relationshipType)?.label || connection.relationshipType
+                      const relationshipLabel = '🔗 Connected to'
                       const isCurrentMap = !connection.mapId || connection.mapId === selectedNode.mapId
                       const connectedNode = isCurrentMap ? getNodeById(connection.nodeId) : null
                       
@@ -371,19 +354,6 @@ function NodeEditor({
               <div className="add-connection">
                 <label>Add Connection</label>
                 <div className="connection-form">
-                  <div className="form-group">
-                    <select
-                      value={newConnection.relationshipType}
-                      onChange={(e) => setNewConnection({...newConnection, relationshipType: e.target.value})}
-                      className="relationship-select"
-                    >
-                      <option value="">Choose relationship...</option>
-                      {relationshipTypes.map(rel => (
-                        <option key={rel.value} value={rel.value}>{rel.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
                   <div className="form-group">
                     <label>Target Node</label>
                     <UniversalNodeSearch
