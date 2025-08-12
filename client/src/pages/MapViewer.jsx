@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useMapData } from '../hooks/useMapData'
 import { useMapInteractions } from '../hooks/useMapInteractions'
 import MapContainer from '../components/MapContainer'
@@ -15,6 +15,7 @@ import '../styles/universalSearch.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
+  const navigate = useNavigate()
   
   // Core data
   const { map, setMap, nodes, setNodes, loading, error, availableMaps } = useMapData(mapId)
@@ -358,6 +359,47 @@ function MapViewer() {
     // For now, NodeEditor will handle opening the correct section
     if (targetTab && window.localStorage) {
       localStorage.setItem('nodeEditorTargetTab', targetTab)
+    }
+  }
+
+  const handleConnectionNavigation = async (connection) => {
+    // If connection has a time context and timeline is enabled, navigate to that time
+    if (connection.timeContext && timelineEnabled) {
+      const targetTime = parseInt(connection.timeContext)
+      if (!isNaN(targetTime)) {
+        setCurrentTime(targetTime)
+        // Update server with new timeline position
+        try {
+          await worldService.updateTimelinePosition(map.worldId, targetTime)
+        } catch (err) {
+          // Silent fail for timeline update
+        }
+      }
+    }
+
+    // If connection is on a different map, navigate there
+    if (connection.mapId && connection.mapId !== parseInt(mapId)) {
+      navigate(`/map/${connection.mapId}`)
+      return
+    }
+
+    // If connection is on the same map, find and highlight the node
+    const targetNode = nodes.find(node => node.id === connection.nodeId)
+    if (targetNode) {
+      // Center camera on the target node
+      setCamera({ x: targetNode.worldX, y: targetNode.worldY })
+      
+      // Close info panel to see the node better
+      setShowInfoPanel(false)
+      
+      // Add a temporary highlight class to animate the node
+      const nodeElement = document.querySelector(`[data-node-id="${targetNode.id}"]`)
+      if (nodeElement) {
+        nodeElement.classList.add('connection-target-highlight')
+        setTimeout(() => {
+          nodeElement.classList.remove('connection-target-highlight')
+        }, 3000) // Remove highlight after 3 seconds
+      }
     }
   }
 
@@ -758,6 +800,14 @@ function MapViewer() {
         interactionMode={interactionMode}
         onClose={() => setShowInfoPanel(false)}
         onEditNode={handleInfoPanelEditNode}
+        onNavigateToConnection={(connection) => handleConnectionNavigation(connection)}
+        timelineEnabled={timelineEnabled}
+        currentTime={currentTime}
+        setCurrentTime={setCurrentTime}
+        nodes={nodes}
+        worldToScreen={worldToScreen}
+        setCamera={setCamera}
+        zoom={zoom}
       />
       
       {/* Nodes List Panel */}

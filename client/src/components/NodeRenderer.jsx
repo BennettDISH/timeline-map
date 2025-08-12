@@ -73,6 +73,7 @@ function NodeRenderer({
       return (
         <div
           key={node.id}
+          data-node-id={node.id}
           className={`image-node ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
           style={{
             position: 'absolute',
@@ -130,6 +131,7 @@ function NodeRenderer({
       return (
         <div
           key={node.id}
+          data-node-id={node.id}
           className={`map-node ${node.eventType} ${selectedNode?.id === node.id ? 'selected' : ''} ${isDraggingNode && draggingNode?.id === node.id ? 'dragging' : ''}`}
           style={{
             position: 'absolute',

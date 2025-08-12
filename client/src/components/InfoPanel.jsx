@@ -6,7 +6,11 @@ function InfoPanel({
   infoPanelNode, 
   interactionMode,
   onClose,
-  onEditNode
+  onEditNode,
+  onNavigateToConnection,
+  timelineEnabled,
+  currentTime,
+  nodes
 }) {
   const navigate = useNavigate()
 
@@ -104,18 +108,14 @@ function InfoPanel({
                   <div className="connection-actions">
                     <button 
                       className="connection-navigate-btn"
-                      onClick={() => {
-                        if (connection.mapId && connection.mapId !== infoPanelNode.mapId) {
-                          // Navigate to different map
-                          navigate(`/map/${connection.mapId}`)
-                        } else {
-                          // TODO: Scroll to node on same map
-                          console.log('Navigate to node on same map:', connection.nodeId)
-                        }
-                      }}
-                      title="Navigate to connected node"
+                      onClick={() => onNavigateToConnection && onNavigateToConnection(connection)}
+                      title={
+                        connection.timeContext && timelineEnabled 
+                          ? `Navigate to ${connection.targetTitle || `Node #${connection.nodeId}`} (Year ${connection.timeContext})` 
+                          : `Navigate to ${connection.targetTitle || `Node #${connection.nodeId}`}`
+                      }
                     >
-                      →
+                      {connection.timeContext && timelineEnabled ? '🕐→' : '→'}
                     </button>
                   </div>
                 </div>
