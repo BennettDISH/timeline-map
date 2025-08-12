@@ -608,6 +608,7 @@ function NodeEditor({
             {renderTabContent('content')}
           </>
         )}
+      </div>
       
       <div className="editor-footer">
         <div className="form-actions">
