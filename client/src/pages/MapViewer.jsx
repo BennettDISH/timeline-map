@@ -10,7 +10,8 @@ import NodesListPanel from '../components/NodesListPanel'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
-import '../styles/timelineStyles.scss'\nimport '../styles/universalSearch.scss'
+import '../styles/timelineStyles.scss'
+import '../styles/universalSearch.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
