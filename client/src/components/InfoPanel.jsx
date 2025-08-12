@@ -143,18 +143,6 @@ function InfoPanel({
           </div>
         )}
         
-        {infoPanelNode.eventType === 'map_link' && infoPanelNode.linkToMapId && (
-          <div className="info-section">
-            <h4>Navigation</h4>
-            <button
-              className="edit-button"
-              onClick={() => navigate(`/map/${infoPanelNode.linkToMapId}`)}
-            >
-              Go to Linked Map
-            </button>
-          </div>
-        )}
-        
         {interactionMode === 'edit' && (
           <div className="info-panel-actions">
             <button

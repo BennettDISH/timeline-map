@@ -155,13 +155,11 @@ function NodeEditor({
     { id: 'content', label: 'Content', icon: '📝' },
     { id: 'visual', label: 'Visual', icon: '🎨' },
     { id: 'connections', label: 'Connections', icon: '🔗' },
-    { id: 'link', label: 'Portal', icon: '🚪' },
     { id: 'timeline', label: 'Timeline', icon: '📅' },
     { id: 'position', label: 'Advanced', icon: '⚙️' }
   ].filter(tab => {
     // Filter tabs based on node type and features
     if (tab.id === 'visual' && !['background_map', 'info', 'map_link', 'npc', 'item'].includes(editFormData.nodeType)) return false;
-    if (tab.id === 'link' && editFormData.nodeType !== 'map_link') return false;
     if (tab.id === 'timeline' && !timelineEnabled) return false;
     return true;
   })
@@ -507,29 +505,6 @@ function NodeEditor({
           </div>
         )
 
-      case 'link':
-        return (
-          <div className="tab-section-content">
-            <div className="form-group">
-              <label>Destination Map</label>
-              <select
-                value={editFormData.linkToMapId || ''}
-                onChange={(e) => handleFieldChange('linkToMapId', e.target.value || null)}
-                className="destination-select"
-              >
-                <option value="">🚪 Choose destination...</option>
-                {availableMaps.map(map => (
-                  <option key={map.id} value={map.id}>🗺️ {map.title}</option>
-                ))}
-              </select>
-              {editFormData.linkToMapId && (
-                <div className="link-preview">
-                  <small>✨ Clicking this node will teleport users to the selected map</small>
-                </div>
-              )}
-            </div>
-          </div>
-        )
 
       case 'timeline':
         return (
@@ -715,19 +690,6 @@ function NodeEditor({
               )}
             </div>
 
-            {/* Map Link Section */}
-            {editFormData.nodeType === 'map_link' && (
-              <div className="form-section">
-                <div className="section-header" onClick={() => toggleSection('link')}>
-                  <div className="section-title">Portal Destination {expandedSections.link ? '▼' : '▶'}</div>
-                </div>
-                {expandedSections.link && (
-                  <div className="section-content">
-                    {renderTabContent('link')}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Timeline Section */}
             {timelineEnabled && (
