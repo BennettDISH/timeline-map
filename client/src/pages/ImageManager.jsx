@@ -333,6 +333,46 @@ function ImageManager() {
     }
   }
 
+  const handleBulkAction = async (action, data) => {
+    if (action === 'move') {
+      const { imageIds, folderId } = data
+      
+      try {
+        let successCount = 0
+        let errorCount = 0
+        
+        for (const imageId of imageIds) {
+          try {
+            await moveImageToFolder(imageId, folderId)
+            successCount++
+          } catch (error) {
+            errorCount++
+            console.error(`Failed to move image ${imageId}:`, error)
+          }
+        }
+        
+        // Update folder counts
+        if (currentWorld) {
+          await loadCategoryFolders(currentWorld.id)
+          await loadAllWorlds()
+        }
+        
+        // Show success message
+        const folderName = categoryFolders.find(f => f.id === folderId)?.name || 'folder'
+        if (errorCount === 0) {
+          setUploadSuccess(`Successfully moved ${successCount} images to ${folderName}`)
+        } else {
+          setUploadSuccess(`Moved ${successCount} of ${imageIds.length} images to ${folderName} (${errorCount} failed)`)
+        }
+        setTimeout(() => setUploadSuccess(''), 5000)
+        
+      } catch (error) {
+        setUploadError(`Bulk move failed: ${error.message}`)
+        setTimeout(() => setUploadError(''), 5000)
+      }
+    }
+  }
+
   const copyImageUrl = () => {
     if (selectedImage) {
       navigator.clipboard.writeText(selectedImage.url)
@@ -521,6 +561,8 @@ function ImageManager() {
                   selectedImageId={selectedImage?.id}
                   selectedFolder={selectedFolder}
                   showUpload={true}
+                  onBulkAction={handleBulkAction}
+                  categoryFolders={categoryFolders}
                 />
               </div>
             </>

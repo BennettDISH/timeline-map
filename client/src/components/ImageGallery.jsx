@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import imageServiceBase64 from '../services/imageServiceBase64'
 
-function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false, selectedFolder = null }) {
+function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false, selectedFolder = null, onBulkAction = null, categoryFolders = [] }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState('')
+  const [selectedImages, setSelectedImages] = useState(new Set())
+  const [bulkMode, setBulkMode] = useState(false)
 
   useEffect(() => {
     loadImages()
@@ -52,9 +54,55 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
     }
   }
 
-  const handleImageClick = (image) => {
-    if (onImageSelect) {
-      onImageSelect(image)
+  const handleImageClick = (image, e) => {
+    if (bulkMode) {
+      e.preventDefault()
+      toggleImageSelection(image.id)
+    } else {
+      if (onImageSelect) {
+        onImageSelect(image)
+      }
+    }
+  }
+
+  const toggleImageSelection = (imageId) => {
+    const newSelection = new Set(selectedImages)
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId)
+    } else {
+      newSelection.add(imageId)
+    }
+    setSelectedImages(newSelection)
+  }
+
+  const selectAllImages = () => {
+    setSelectedImages(new Set(images.map(img => img.id)))
+  }
+
+  const clearSelection = () => {
+    setSelectedImages(new Set())
+  }
+
+  const toggleBulkMode = () => {
+    setBulkMode(!bulkMode)
+    if (bulkMode) {
+      clearSelection()
+    }
+  }
+
+  const handleBulkFolderMove = async (folderId) => {
+    if (selectedImages.size === 0) return
+    
+    try {
+      const imageIds = Array.from(selectedImages)
+      if (onBulkAction) {
+        await onBulkAction('move', { imageIds, folderId })
+        // Reload images to show changes
+        await loadImages()
+        clearSelection()
+      }
+    } catch (error) {
+      setError(`Failed to move images: ${error.message}`)
     }
   }
 
@@ -98,7 +146,60 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
           <button onClick={loadImages} className="refresh-button">
             🔄 Refresh
           </button>
+          <button 
+            onClick={toggleBulkMode} 
+            className={`bulk-mode-button ${bulkMode ? 'active' : ''}`}
+          >
+            {bulkMode ? '✅ Bulk Mode' : '☑️ Select Multiple'}
+          </button>
         </div>
+        
+        {bulkMode && (
+          <div className="bulk-controls">
+            <div className="bulk-selection-info">
+              {selectedImages.size > 0 ? (
+                <span>{selectedImages.size} image{selectedImages.size !== 1 ? 's' : ''} selected</span>
+              ) : (
+                <span>Click images to select them</span>
+              )}
+            </div>
+            
+            <div className="bulk-actions">
+              {images.length > 0 && (
+                <>
+                  <button onClick={selectAllImages} className="bulk-action-btn">
+                    Select All ({images.length})
+                  </button>
+                  {selectedImages.size > 0 && (
+                    <button onClick={clearSelection} className="bulk-action-btn">
+                      Clear Selection
+                    </button>
+                  )}
+                </>
+              )}
+              
+              {selectedImages.size > 0 && categoryFolders.length > 0 && (
+                <div className="bulk-folder-actions">
+                  <span>Move to:</span>
+                  {categoryFolders.filter(f => f.id !== 'all').map(folder => (
+                    <button
+                      key={folder.id}
+                      onClick={() => handleBulkFolderMove(folder.id)}
+                      className="bulk-folder-btn"
+                      title={`Move ${selectedImages.size} images to ${folder.name}`}
+                    >
+                      {folder.id === 'characters' ? '👤' :
+                       folder.id === 'locations' ? '🗺️' :
+                       folder.id === 'items' ? '⚔️' :
+                       folder.id === 'maps' ? '🗾' :
+                       folder.id === 'uncategorized' ? '📄' : '📁'} {folder.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -116,9 +217,19 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
           images.map(image => (
             <div 
               key={image.id} 
-              className={`gallery-item ${selectedImageId === image.id ? 'selected' : ''}`}
-              onClick={() => handleImageClick(image)}
+              className={`gallery-item ${selectedImageId === image.id ? 'selected' : ''} ${bulkMode && selectedImages.has(image.id) ? 'bulk-selected' : ''} ${bulkMode ? 'bulk-mode' : ''}`}
+              onClick={(e) => handleImageClick(image, e)}
             >
+              {bulkMode && (
+                <div className="bulk-checkbox">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedImages.has(image.id)}
+                    onChange={() => toggleImageSelection(image.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
               <div className="image-container">
                 <img 
                   src={image.url} 
@@ -126,13 +237,15 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                   loading="lazy"
                 />
                 <div className="image-overlay">
-                  <button 
-                    className="delete-button"
-                    onClick={(e) => handleDelete(image.id, e)}
-                    title="Delete image"
-                  >
-                    🗑️
-                  </button>
+                  {!bulkMode && (
+                    <button 
+                      className="delete-button"
+                      onClick={(e) => handleDelete(image.id, e)}
+                      title="Delete image"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="image-info">

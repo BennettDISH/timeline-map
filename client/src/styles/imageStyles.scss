@@ -271,6 +271,96 @@
         background: #218838;
       }
     }
+
+    .bulk-mode-button {
+      padding: 0.5rem 1rem;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.2s;
+
+      &:hover {
+        background: #5a6fd8;
+      }
+
+      &.active {
+        background: #28a745;
+        
+        &:hover {
+          background: #218838;
+        }
+      }
+    }
+  }
+
+  .bulk-controls {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+
+    .bulk-selection-info {
+      margin-bottom: 0.75rem;
+      font-weight: 500;
+      color: #495057;
+    }
+
+    .bulk-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+
+      .bulk-action-btn {
+        padding: 0.4rem 0.8rem;
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+
+        &:hover {
+          background: #5a6268;
+        }
+      }
+
+      .bulk-folder-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-left: auto;
+
+        span {
+          font-weight: 500;
+          color: #495057;
+        }
+
+        .bulk-folder-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0.4rem 0.8rem;
+          background: #f8f9fa;
+          border: 2px solid #dee2e6;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.8rem;
+          transition: all 0.2s;
+
+          &:hover {
+            background: #e9ecef;
+            border-color: #4CAF50;
+            transform: translateY(-1px);
+          }
+        }
+      }
+    }
   }
 
   .gallery-error {
@@ -297,6 +387,7 @@
     transition: all 0.2s ease;
     background: white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative;
 
     &:hover {
       transform: translateY(-2px);
@@ -306,6 +397,38 @@
     &.selected {
       border-color: #667eea;
       box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+
+    &.bulk-mode {
+      cursor: pointer;
+      
+      &:hover {
+        border-color: #28a745;
+      }
+    }
+
+    &.bulk-selected {
+      border-color: #28a745;
+      box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+      background: #f8fff8;
+    }
+
+    .bulk-checkbox {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      padding: 4px;
+      backdrop-filter: blur(2px);
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #28a745;
+      }
     }
 
     .image-container {
