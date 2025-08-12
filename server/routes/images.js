@@ -246,6 +246,63 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// PUT /api/images/:id - Update image metadata
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { alt_text, tags } = req.body;
+    
+    // Get image info first to check ownership
+    const imageResult = await pool.query('SELECT * FROM images WHERE id = $1', [id]);
+    
+    if (imageResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
+
+    const image = imageResult.rows[0];
+    
+    // Check if user owns the image or is admin
+    if (image.uploaded_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to update this image' });
+    }
+
+    // Update image metadata
+    const updateResult = await pool.query(`
+      UPDATE images 
+      SET alt_text = $1, tags = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *
+    `, [
+      alt_text || image.alt_text,
+      tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()) : tags) : image.tags,
+      id
+    ]);
+
+    const updatedImage = updateResult.rows[0];
+    
+    res.json({ 
+      message: 'Image updated successfully',
+      image: {
+        id: updatedImage.id,
+        filename: updatedImage.filename,
+        originalName: updatedImage.original_name,
+        filePath: updatedImage.file_path,
+        fileSize: updatedImage.file_size,
+        mimeType: updatedImage.mime_type,
+        altText: updatedImage.alt_text,
+        tags: updatedImage.tags,
+        uploadedAt: updatedImage.created_at,
+        updatedAt: updatedImage.updated_at,
+        url: `${req.protocol}://${req.get('host')}${updatedImage.file_path}`
+      }
+    });
+    
+  } catch (error) {
+    console.error('Update image error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+});
+
 // DELETE /api/images/:id
 router.delete('/:id', async (req, res) => {
   try {

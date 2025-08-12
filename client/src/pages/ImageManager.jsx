@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import ImageUpload from '../components/ImageUpload'
 import ImageGallery from '../components/ImageGallery'
-import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 
@@ -14,36 +13,70 @@ function ImageManager() {
   const [refreshGallery, setRefreshGallery] = useState(0)
   const [currentWorld, setCurrentWorld] = useState(null)
   const [selectedFolder, setSelectedFolder] = useState(null)
-  const [folders, setFolders] = useState([])
+  const [worldFolders, setWorldFolders] = useState([]) // World-level organization
+  const [selectedWorldFolder, setSelectedWorldFolder] = useState(null)
+  const [categoryFolders, setCategoryFolders] = useState([]) // Category sub-folders
   const [showNewFolderForm, setShowNewFolderForm] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [allWorlds, setAllWorlds] = useState([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
-    // Check for world ID in URL params or localStorage
+    loadAllWorlds()
+    // Auto-select world from URL or storage
     const worldIdFromUrl = searchParams.get('world')
     const worldFromStorage = worldService.getCurrentWorld()
     
     if (worldIdFromUrl) {
-      // If world ID in URL, try to load that world
       loadWorldById(worldIdFromUrl)
     } else if (worldFromStorage) {
       setCurrentWorld(worldFromStorage)
+      setSelectedWorldFolder({ id: worldFromStorage.id, name: worldFromStorage.name })
     }
   }, [searchParams])
+
+  const loadAllWorlds = async () => {
+    try {
+      const result = await worldService.getWorlds()
+      setAllWorlds(result.worlds)
+      
+      // Create world folders with image counts
+      const worldFoldersWithCounts = await Promise.all(
+        result.worlds.map(async (world) => {
+          try {
+            const imagesResult = await imageServiceBase64.getImages({ worldId: world.id, limit: 1000 })
+            return {
+              id: world.id,
+              name: world.name,
+              count: imagesResult.images?.length || 0,
+              type: 'world'
+            }
+          } catch (error) {
+            return {
+              id: world.id,
+              name: world.name,
+              count: 0,
+              type: 'world'
+            }
+          }
+        })
+      )
+      
+      setWorldFolders(worldFoldersWithCounts)
+    } catch (error) {
+      console.error('Failed to load worlds:', error)
+    }
+  }
 
   const loadWorldById = async (worldId) => {
     try {
       const result = await worldService.getWorld(worldId)
       setCurrentWorld(result.world)
       worldService.setCurrentWorld(result.world)
-      loadFolders(worldId) // Load folders when world is loaded
+      setSelectedWorldFolder({ id: result.world.id, name: result.world.name })
+      await loadCategoryFolders(worldId)
     } catch (error) {
-      // Fallback to stored world or none
-      const storedWorld = worldService.getCurrentWorld()
-      setCurrentWorld(storedWorld)
-      if (storedWorld) {
-        loadFolders(storedWorld.id)
-      }
+      console.error('Failed to load world:', error)
     }
   }
 
@@ -61,21 +94,23 @@ function ImageManager() {
     setUploadSuccess('')
   }
 
-  const handleWorldSelect = (world) => {
-    setCurrentWorld(world)
-    setSelectedImage(null) // Clear selection when switching worlds
-    setSelectedFolder(null) // Clear folder selection
-    setRefreshGallery(prev => prev + 1) // Refresh gallery
-    loadFolders(world.id) // Load folders for new world
+  const handleWorldFolderSelect = async (worldFolder) => {
+    setSelectedWorldFolder(worldFolder)
+    setSelectedFolder(null) // Clear category folder selection
+    setSelectedImage(null) // Clear image selection
+    
+    // Load the world and its category folders
+    await loadWorldById(worldFolder.id)
+    setRefreshGallery(prev => prev + 1)
   }
 
-  const loadFolders = async (worldId) => {
+  const loadCategoryFolders = async (worldId) => {
     try {
-      // Get all images to calculate folder counts
+      // Get all images for this world to calculate folder counts
       const allImagesResult = await imageServiceBase64.getImages({ worldId, limit: 1000 })
       const allImages = allImagesResult.images || []
       
-      // Calculate counts for each folder
+      // Calculate counts for each category folder
       const folderCounts = {
         all: allImages.length,
         characters: 0,
@@ -112,28 +147,33 @@ function ImageManager() {
         }
       })
       
-      const folders = [
-        { id: 'all', name: 'All Images', count: folderCounts.all },
-        { id: 'characters', name: 'Characters', count: folderCounts.characters },
-        { id: 'locations', name: 'Locations', count: folderCounts.locations },
-        { id: 'items', name: 'Items & Objects', count: folderCounts.items },
-        { id: 'maps', name: 'Maps', count: folderCounts.maps },
-        { id: 'uncategorized', name: 'Uncategorized', count: folderCounts.uncategorized }
+      const categoryFolders = [
+        { id: 'all', name: 'All Images', count: folderCounts.all, type: 'category' },
+        { id: 'characters', name: 'Characters', count: folderCounts.characters, type: 'category' },
+        { id: 'locations', name: 'Locations', count: folderCounts.locations, type: 'category' },
+        { id: 'items', name: 'Items & Objects', count: folderCounts.items, type: 'category' },
+        { id: 'maps', name: 'Maps', count: folderCounts.maps, type: 'category' },
+        { id: 'uncategorized', name: 'Uncategorized', count: folderCounts.uncategorized, type: 'category' }
       ]
       
-      setFolders(folders)
+      setCategoryFolders(categoryFolders)
+      
+      // Auto-select "All Images" if no folder is selected
+      if (!selectedFolder) {
+        setSelectedFolder(categoryFolders[0])
+      }
     } catch (error) {
-      console.error('Failed to load folders:', error)
+      console.error('Failed to load category folders:', error)
       // Fallback to empty folders if API call fails
       const fallbackFolders = [
-        { id: 'all', name: 'All Images', count: 0 },
-        { id: 'characters', name: 'Characters', count: 0 },
-        { id: 'locations', name: 'Locations', count: 0 },
-        { id: 'items', name: 'Items & Objects', count: 0 },
-        { id: 'maps', name: 'Maps', count: 0 },
-        { id: 'uncategorized', name: 'Uncategorized', count: 0 }
+        { id: 'all', name: 'All Images', count: 0, type: 'category' },
+        { id: 'characters', name: 'Characters', count: 0, type: 'category' },
+        { id: 'locations', name: 'Locations', count: 0, type: 'category' },
+        { id: 'items', name: 'Items & Objects', count: 0, type: 'category' },
+        { id: 'maps', name: 'Maps', count: 0, type: 'category' },
+        { id: 'uncategorized', name: 'Uncategorized', count: 0, type: 'category' }
       ]
-      setFolders(fallbackFolders)
+      setCategoryFolders(fallbackFolders)
     }
   }
 
@@ -151,7 +191,7 @@ function ImageManager() {
     setShowNewFolderForm(false)
   }
 
-  const handleFolderSelect = (folder) => {
+  const handleCategoryFolderSelect = (folder) => {
     setSelectedFolder(folder)
     setSelectedImage(null) // Clear image selection when changing folders
     setRefreshGallery(prev => prev + 1) // Trigger gallery refresh with folder filter
@@ -204,11 +244,14 @@ function ImageManager() {
       // Refresh the gallery to show changes
       setRefreshGallery(prev => prev + 1)
       
-      // Update folder counts
-      await loadFolders(currentWorld.id)
+      // Update folder counts for current world
+      if (currentWorld) {
+        await loadCategoryFolders(currentWorld.id)
+        await loadAllWorlds() // Update world folder counts too
+      }
       
       // Show success message
-      const folderName = folders.find(f => f.id === folderId)?.name || 'folder'
+      const folderName = categoryFolders.find(f => f.id === folderId)?.name || 'folder'
       setUploadSuccess(`Image moved to ${folderName}`)
       setTimeout(() => setUploadSuccess(''), 3000)
       
@@ -227,62 +270,62 @@ function ImageManager() {
   }
 
   return (
-    <div className="image-manager">
+    <div className="image-manager-new">
       <div className="page-header">
         <div className="header-content">
-          <h1>Image Manager</h1>
+          <h1>📁 Image Library</h1>
           <Link to="/dashboard" className="back-link">← Back to Dashboard</Link>
         </div>
       </div>
 
-      <div className="manager-content">
-        <div className="world-section">
-          <WorldSelector 
-            onWorldSelect={handleWorldSelect}
-            currentWorldId={currentWorld?.id}
-          />
-        </div>
+      <div className="library-layout">
+        {/* Sidebar with world folders and category folders */}
+        <div className={`library-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          {/* Sidebar Toggle */}
+          <div className="sidebar-toggle">
+            <button 
+              className="toggle-btn"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? '▶️' : '◀️'}
+            </button>
+          </div>
 
-        {currentWorld ? (
-          <div className="manager-layout">
-            {/* Folders Sidebar */}
-            <div className="folders-sidebar">
-              <div className="folders-header">
-                <h3>📁 Folders</h3>
-                <button 
-                  className="new-folder-btn"
-                  onClick={() => setShowNewFolderForm(true)}
-                  title="Create new folder"
-                >
-                  ➕
-                </button>
-              </div>
-
-              {showNewFolderForm && (
-                <div className="new-folder-form">
-                  <input
-                    type="text"
-                    placeholder="Folder name..."
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && createFolder()}
-                    autoFocus
-                  />
-                  <div className="folder-form-actions">
-                    <button onClick={createFolder} className="create-btn">✓</button>
-                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName('')}} className="cancel-btn">✕</button>
-                  </div>
+          {!sidebarCollapsed && (
+            <>
+              {/* World Folders */}
+              <div className="world-folders-section">
+                <h3>🌍 Worlds</h3>
+                <div className="world-folders-list">
+                  {worldFolders.map(worldFolder => (
+                    <div 
+                      key={worldFolder.id}
+                      className={`world-folder-item ${selectedWorldFolder?.id === worldFolder.id ? 'active' : ''}`}
+                      onClick={() => handleWorldFolderSelect(worldFolder)}
+                    >
+                      <span className="world-icon">🌍</span>
+                      <span className="world-name">{worldFolder.name}</span>
+                      <span className="world-count">({worldFolder.count})</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+            </>
+          )}
 
-              <div className="folders-list">
-                {folders.map(folder => (
+          {/* Category Folders (only show when a world is selected and sidebar not collapsed) */}
+          {selectedWorldFolder && !sidebarCollapsed && (
+            <div className="category-folders-section">
+              <h4>📂 Categories</h4>
+              <div className="category-folders-list">
+                {categoryFolders.map(folder => (
                   <div 
                     key={folder.id}
-                    className={`folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
-                    onClick={() => handleFolderSelect(folder)}
+                    className={`category-folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
+                    onClick={() => handleCategoryFolderSelect(folder)}
                   >
-                    <span className="folder-icon">
+                    <span className="category-icon">
                       {folder.id === 'all' ? '📁' : 
                        folder.id === 'characters' ? '👤' :
                        folder.id === 'locations' ? '🗺️' :
@@ -290,19 +333,24 @@ function ImageManager() {
                        folder.id === 'maps' ? '🗾' :
                        folder.id === 'uncategorized' ? '📄' : '📁'}
                     </span>
-                    <span className="folder-name">{folder.name}</span>
-                    <span className="folder-count">({folder.count})</span>
+                    <span className="category-name">{folder.name}</span>
+                    <span className="category-count">({folder.count})</span>
                   </div>
                 ))}
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Main Content */}
-            <div className="main-content">
+        {/* Main Content Area */}
+        <div className="library-main">
+          {selectedWorldFolder ? (
+            <>
+              {/* Upload Section */}
               <div className="upload-section">
-                <h2>Upload Images to {currentWorld.name}</h2>
+                <h2>📤 Upload to {selectedWorldFolder.name}</h2>
                 <ImageUpload 
-                  worldId={currentWorld.id}
+                  worldId={selectedWorldFolder.id}
                   onUploadSuccess={handleUploadSuccess}
                   onUploadError={handleUploadError}
                   selectedFolder={selectedFolder}
@@ -321,51 +369,64 @@ function ImageManager() {
                 )}
               </div>
 
+              {/* Gallery Section */}
               <div className="gallery-section">
                 <h2>
-                  Images in {currentWorld.name}
-                  {selectedFolder && selectedFolder.id !== 'all' && ` - ${selectedFolder.name}`}
+                  🖼️ Images 
+                  {selectedFolder && selectedFolder.id !== 'all' && ` in ${selectedFolder.name}`}
                 </h2>
                 <ImageGallery 
-                  key={`${refreshGallery}-${currentWorld.id}-${selectedFolder?.id}`}
-                  worldId={currentWorld.id}
+                  key={`${refreshGallery}-${selectedWorldFolder.id}-${selectedFolder?.id}`}
+                  worldId={selectedWorldFolder.id}
                   onImageSelect={handleImageSelect}
                   selectedImageId={selectedImage?.id}
                   selectedFolder={selectedFolder}
                   showUpload={true}
                 />
               </div>
+            </>
+          ) : (
+            <div className="no-world-selected">
+              <h2>Select a World</h2>
+              <p>Choose a world from the sidebar to view and manage its images.</p>
             </div>
-          </div>
-        ) : (
-          <div className="no-world-selected">
-            <h2>No World Selected</h2>
-            <p>Please select a world to manage images, or create a new world to get started.</p>
-          </div>
-        )}
+          )}
+        </div>
 
+        {/* Image Details Panel (when image is selected) */}
         {selectedImage && (
-          <div className="image-details">
-            <h3>Selected Image</h3>
-            <div className="details-content">
+          <div className="image-details-panel">
+            <div className="panel-header">
+              <h3>🖼️ Image Details</h3>
+              <button 
+                className="close-panel-btn"
+                onClick={() => setSelectedImage(null)}
+                title="Close panel"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="panel-content">
               <div className="image-preview">
                 <img src={selectedImage.url} alt={selectedImage.altText || selectedImage.originalName} />
               </div>
+              
               <div className="image-info">
                 <p><strong>Name:</strong> {selectedImage.originalName}</p>
-                <p><strong>Size:</strong> {selectedImage.fileSize} bytes</p>
+                <p><strong>Size:</strong> {imageServiceBase64.formatFileSize(selectedImage.fileSize)}</p>
                 <p><strong>Type:</strong> {selectedImage.mimeType}</p>
                 <p><strong>Uploaded:</strong> {new Date(selectedImage.uploadedAt).toLocaleDateString()}</p>
                 {selectedImage.altText && <p><strong>Alt Text:</strong> {selectedImage.altText}</p>}
                 {selectedImage.tags && selectedImage.tags.length > 0 && (
-                  <p><strong>Tags:</strong> {selectedImage.tags.join(', ')}</p>
+                  <p><strong>Tags:</strong> {Array.isArray(selectedImage.tags) ? selectedImage.tags.join(', ') : selectedImage.tags}</p>
                 )}
                 
                 {/* Folder Assignment */}
                 <div className="folder-assignment">
-                  <p><strong>Move to Folder:</strong></p>
+                  <p><strong>Move to Category:</strong></p>
                   <div className="folder-buttons">
-                    {folders.filter(f => f.id !== 'all').map(folder => (
+                    {categoryFolders.filter(f => f.id !== 'all').map(folder => (
                       <button
                         key={folder.id}
                         className="folder-move-btn"
