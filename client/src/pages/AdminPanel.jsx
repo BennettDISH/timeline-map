@@ -38,24 +38,6 @@ function AdminPanel() {
     }
   }
 
-  const testDatabase = async () => {
-    setLoading(true)
-    setMigrationStatus('🔄 Testing database connection...')
-    
-    try {
-      const response = await axios.get('/api/admin/db-status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
-      })
-      
-      setMigrationStatus('✅ Database Status: ' + response.data.message)
-    } catch (error) {
-      setMigrationStatus('❌ Database test failed: ' + (error.response?.data?.message || error.message))
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="admin-panel">
@@ -72,15 +54,7 @@ function AdminPanel() {
               disabled={loading}
               className="admin-button migration-button"
             >
-              {loading ? 'Running Migration...' : '🗄️ Run Database Migration'}
-            </button>
-            
-            <button 
-              onClick={testDatabase} 
-              disabled={loading}
-              className="admin-button test-button"
-            >
-              {loading ? 'Testing...' : '🔍 Test Database Connection'}
+              {loading ? 'Running Migration...' : '🗂️ Enable Custom Folder System'}
             </button>
           </div>
           
@@ -92,30 +66,15 @@ function AdminPanel() {
           )}
           
           <div className="migration-info">
-            <h3>Latest Migration Includes:</h3>
-            <ul>
-              <li>✅ All core database tables (users, worlds, maps, images, events)</li>
-              <li>🗂️ <strong>NEW:</strong> Custom image folders with hierarchical structure</li>
-              <li>📁 <strong>NEW:</strong> Image folder assignments and organization</li>
-              <li>🔗 World-specific data organization and relationships</li>
-              <li>🖼️ Base64 image storage support for Railway compatibility</li>
-              <li>🔒 User authentication and authorization system</li>
-              <li>🛡️ Safe to run multiple times - skips existing structures</li>
-            </ul>
+            <h3>🗂️ Custom Folder System</h3>
+            <p>Click the button above to enable the new hierarchical folder system for organizing your images with unlimited sub-categories and custom organization.</p>
             
             <div className="migration-note">
-              <p><strong>🎯 Current Focus:</strong> Run this migration to enable the new custom folder system for organizing images with unlimited sub-categories!</p>
+              <p><strong>✨ What you'll get:</strong> Create custom folders, organize with unlimited sub-folders, and better image management across all your worlds!</p>
             </div>
           </div>
         </div>
 
-        <div className="admin-section">
-          <h2>Environment Check</h2>
-          <div className="env-status">
-            <p><strong>Database URL:</strong> {process.env.NODE_ENV === 'development' ? 'Check server logs' : 'Set via Railway'}</p>
-            <p><strong>JWT Secret:</strong> {localStorage.getItem('auth_token') ? '✅ Token present' : '❌ Not authenticated'}</p>
-          </div>
-        </div>
       </div>
     </div>
   )
