@@ -282,7 +282,7 @@ function NodeRenderer({
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               opacity: 0.8,
               borderRadius: '8px',
               userSelect: 'none',

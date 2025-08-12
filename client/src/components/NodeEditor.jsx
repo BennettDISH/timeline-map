@@ -321,6 +321,22 @@ function NodeEditor({
                   />
                   <span className="scale-max">Massive</span>
                 </div>
+                <div className="scale-input-container">
+                  <label>Precise Scale:</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="1000"
+                    step="1"
+                    value={editFormData.scale || 100}
+                    onChange={(e) => {
+                      const value = Math.max(10, Math.min(1000, parseInt(e.target.value) || 100))
+                      handleFieldChange('scale', value)
+                    }}
+                    className="scale-number-input"
+                  />
+                  <span>%</span>
+                </div>
               </div>
             )}
           </div>
