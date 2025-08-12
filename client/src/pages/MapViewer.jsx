@@ -469,6 +469,31 @@ function MapViewer() {
         imageUrl: imageUrl
       } : n))
     }
+    
+    // Handle real-time text node property updates
+    if ((field === 'fontSize' || field === 'textColor' || field === 'width' || field === 'title') && selectedNode && editFormData.nodeType === 'text') {
+      // Update the node's tooltipText with new properties for real-time preview
+      let currentMetadata = {}
+      try {
+        currentMetadata = selectedNode.tooltipText ? JSON.parse(selectedNode.tooltipText) : {}
+      } catch (e) {
+        currentMetadata = {}
+      }
+      
+      const updatedMetadata = {
+        ...currentMetadata,
+        fontSize: field === 'fontSize' ? value : (editFormData.fontSize || 16),
+        textColor: field === 'textColor' ? value : (editFormData.textColor || 'white'),
+        width: field === 'width' ? value : (editFormData.width || 200),
+        nodeType: 'text'
+      }
+      
+      setNodes(nodes.map(n => n.id === selectedNode.id ? {
+        ...n,
+        title: field === 'title' ? value : n.title,
+        tooltipText: JSON.stringify(updatedMetadata)
+      } : n))
+    }
   }
 
   // New global save function that saves all unsaved changes

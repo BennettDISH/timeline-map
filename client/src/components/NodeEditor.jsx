@@ -240,8 +240,8 @@ function NodeEditor({
                   </label>
                   <input
                     type="range"
-                    min="12"
-                    max="48"
+                    min="6"
+                    max="72"
                     value={editFormData.fontSize || 16}
                     onChange={(e) => handleFieldChange('fontSize', parseInt(e.target.value))}
                     className="text-size-slider"
