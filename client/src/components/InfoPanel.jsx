@@ -12,6 +12,21 @@ function InfoPanel({
 
   if (!showInfoPanel || !infoPanelNode) return null
 
+  // Get connections from node metadata
+  const getNodeConnections = () => {
+    try {
+      if (infoPanelNode.tooltipText) {
+        const metadata = JSON.parse(infoPanelNode.tooltipText)
+        return metadata.connections || []
+      }
+    } catch (e) {
+      // Ignore JSON parsing errors
+    }
+    return []
+  }
+
+  const connections = getNodeConnections()
+
   return (
     <div className="info-panel">
       <div className="info-panel-header">
@@ -47,6 +62,51 @@ function InfoPanel({
           <div className="info-section">
             <h4>Details</h4>
             <p className="content-text">{infoPanelNode.content}</p>
+          </div>
+        )}
+        
+        {connections.length > 0 && (
+          <div className="info-section">
+            <h4>Connected Nodes</h4>
+            <div className="connections-list">
+              {connections.map((connection, index) => (
+                <div key={index} className="connection-item">
+                  <div className="connection-info">
+                    <span className="connection-title">
+                      🔗 {connection.targetTitle || `Node #${connection.nodeId}`}
+                    </span>
+                    {connection.targetMapTitle && connection.mapId !== infoPanelNode.mapId && (
+                      <span className="connection-map">
+                        📍 {connection.targetMapTitle}
+                      </span>
+                    )}
+                    {connection.timeContext && (
+                      <span className="connection-time">
+                        🕐 Year {connection.timeContext}
+                      </span>
+                    )}
+                  </div>
+                  {connection.description && (
+                    <p className="connection-description">{connection.description}</p>
+                  )}
+                  <button 
+                    className="connection-navigate-btn"
+                    onClick={() => {
+                      if (connection.mapId && connection.mapId !== infoPanelNode.mapId) {
+                        // Navigate to different map
+                        navigate(`/map/${connection.mapId}`)
+                      } else {
+                        // TODO: Scroll to node on same map
+                        console.log('Navigate to node on same map:', connection.nodeId)
+                      }
+                    }}
+                    title="Navigate to connected node"
+                  >
+                    →
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         
