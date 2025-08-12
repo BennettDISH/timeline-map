@@ -6,16 +6,20 @@ function Migration() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const handleTooltipFieldMigration = async () => {
+  const enableFolders = async () => {
     setMigrating(true)
     setError('')
     setSuccess('')
 
     try {
-      const response = await axios.post('/api/setup/expand-tooltip-field')
-      setSuccess(response.data.message + ' Node connections and metadata can now be saved!')
+      const response = await axios.post('/api/admin/enable-folders', {}, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      })
+      setSuccess(response.data.message)
     } catch (error) {
-      setError(error.response?.data?.message || 'Migration failed. Please try again.')
+      setError(error.response?.data?.message || 'Failed to enable custom folder system. Please try again.')
     } finally {
       setMigrating(false)
     }
@@ -25,35 +29,35 @@ function Migration() {
     <div className="setup-page">
       <div className="setup-container">
         <div className="setup-header">
-          <h1>📝 Connection Data Storage Migration</h1>
-          <p>Expand database field to support node connections and metadata.</p>
+          <h1>🗂️ Enable Custom Folder System</h1>
+          <p>Create hierarchical folders for organizing your images with unlimited sub-categories.</p>
         </div>
         
         <div className="setup-info">
-          <h3>What this migration fixes:</h3>
+          <h3>What you'll get:</h3>
           <ul>
-            <li>📝 Expands tooltip_text field from VARCHAR(255) to TEXT</li>
-            <li>🔗 Enables unlimited connection data storage</li>
-            <li>✨ Supports complex node metadata and relationships</li>
-            <li>💾 Fixes "value too long" errors when saving nodes</li>
-            <li>🛡️ Includes automatic backup before changes</li>
+            <li>🗂️ Create custom folders for each world</li>
+            <li>📁 Unlimited hierarchical sub-folders</li>
+            <li>🎯 Better image organization and management</li>
+            <li>🔗 Works alongside existing category tags</li>
+            <li>✨ Drag-and-drop folder assignment</li>
           </ul>
           <div style={{ 
-            background: '#f8f9fa', 
-            border: '1px solid #dee2e6', 
-            borderRadius: '6px', 
-            padding: '12px', 
+            background: '#fff3cd', 
+            border: '2px solid #ffc107', 
+            borderRadius: '8px', 
+            padding: '15px', 
             margin: '16px 0',
             fontSize: '14px'
           }}>
-            <strong>Error this fixes:</strong><br/>
-            <code style={{ color: '#dc3545' }}>Server error: value too long for type character varying(255)</code>
+            <strong>🎯 Action Required:</strong><br/>
+            Click the button below to enable the custom folder system and start organizing your images better!
           </div>
         </div>
 
         {error && (
           <div className="error-message">
-            {error}
+            ❌ {error}
           </div>
         )}
 
@@ -65,24 +69,24 @@ function Migration() {
 
         <div className="migration-actions">
           <button 
-            onClick={handleTooltipFieldMigration} 
+            onClick={enableFolders} 
             className="setup-button" 
             disabled={migrating}
             style={{
-              backgroundColor: '#28a745',
+              backgroundColor: '#4CAF50',
               padding: '15px 30px',
               fontSize: '16px',
               fontWeight: 'bold'
             }}
           >
-            {migrating ? '📝 Expanding tooltip field...' : '📝 Fix Connection Data Storage'}
+            {migrating ? '🗂️ Enabling Custom Folders...' : '🗂️ Enable Custom Folder System'}
           </button>
         </div>
 
         <div className="setup-note">
-          <p><strong>Note:</strong> This migration is safe to run multiple times and includes automatic backup.</p>
-          <p><strong>After migration:</strong> You'll be able to create nodes with connections and complex metadata without field length errors.</p>
-          <p><strong>Backup:</strong> Creates <code>events_backup_tooltip_migration</code> table for rollback if needed.</p>
+          <p><strong>Safe to run:</strong> This migration is safe to run multiple times.</p>
+          <p><strong>After enabling:</strong> You'll see custom folder options in your Image Library where you can create and organize folders.</p>
+          <p><strong>Database changes:</strong> Creates <code>image_folders</code> table and adds <code>folder_id</code> column to images.</p>
         </div>
       </div>
     </div>
