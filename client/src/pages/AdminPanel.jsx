@@ -42,8 +42,8 @@ function AdminPanel() {
   return (
     <div className="admin-panel">
       <div className="admin-container">
-        <h1>Admin Panel</h1>
-        <p>Welcome, {user.username}! Manage your database and system settings here.</p>
+        <h1>Admin Panel - v2.0</h1>
+        <p>Welcome, {user.username}! Enable the new custom folder system below.</p>
         
         <div className="admin-section">
           <h2>🗂️ Custom Folder System Setup</h2>
@@ -66,11 +66,11 @@ function AdminPanel() {
           )}
           
           <div className="migration-info">
-            <h3>🗂️ Custom Folder System</h3>
-            <p>Click the button above to enable the new hierarchical folder system for organizing your images with unlimited sub-categories and custom organization.</p>
+            <h3>🚀 NEW FEATURE: Custom Folder System</h3>
+            <p><strong>IMPORTANT:</strong> Click the button above to enable the brand new hierarchical folder system for organizing your images with unlimited sub-categories!</p>
             
-            <div className="migration-note">
-              <p><strong>✨ What you'll get:</strong> Create custom folders, organize with unlimited sub-folders, and better image management across all your worlds!</p>
+            <div className="migration-note" style={{background: '#fff3cd', border: '2px solid #ffc107', padding: '15px', borderRadius: '8px'}}>
+              <p><strong>🎯 ACTION REQUIRED:</strong> This enables custom folders, unlimited sub-folders, and advanced image organization across all your worlds!</p>
             </div>
           </div>
         </div>
