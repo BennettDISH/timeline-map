@@ -1,4 +1,156 @@
 // Image upload component styles
+
+// Image Manager Layout
+.manager-layout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+}
+
+.folders-sidebar {
+  width: 250px;
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  
+  .folders-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    
+    h3 {
+      margin: 0;
+      color: #2d3748;
+      font-size: 18px;
+    }
+    
+    .new-folder-btn {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &:hover {
+        background: #45a049;
+      }
+    }
+  }
+  
+  .new-folder-form {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    
+    input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      
+      &:focus {
+        outline: none;
+        border-color: #4CAF50;
+      }
+    }
+    
+    .folder-form-actions {
+      display: flex;
+      gap: 5px;
+      
+      button {
+        padding: 5px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        
+        &.create-btn {
+          background: #4CAF50;
+          color: white;
+          
+          &:hover {
+            background: #45a049;
+          }
+        }
+        
+        &.cancel-btn {
+          background: #f44336;
+          color: white;
+          
+          &:hover {
+            background: #da190b;
+          }
+        }
+      }
+    }
+  }
+  
+  .folders-list {
+    .folder-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 2px;
+      transition: all 0.2s;
+      
+      &:hover {
+        background: #f1f5f9;
+      }
+      
+      &.active {
+        background: #4CAF50;
+        color: white;
+        
+        .folder-count {
+          color: rgba(255,255,255,0.8);
+        }
+      }
+      
+      .folder-icon {
+        margin-right: 10px;
+        font-size: 16px;
+      }
+      
+      .folder-name {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      
+      .folder-count {
+        font-size: 12px;
+        color: #666;
+      }
+    }
+  }
+}
+
+.main-content {
+  flex: 1;
+  
+  .upload-section,
+  .gallery-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+}
 .image-upload {
   margin: 1rem 0;
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import imageServiceBase64 from '../services/imageServiceBase64'
 
-function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false }) {
+function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false, selectedFolder = null }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -10,17 +10,39 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
 
   useEffect(() => {
     loadImages()
-  }, [worldId, search, selectedTags])
+  }, [worldId, search, selectedTags, selectedFolder])
 
   const loadImages = async () => {
     try {
       setLoading(true)
-      const result = await imageServiceBase64.getImages({
+      
+      // Build search parameters
+      let searchParams = {
         worldId: worldId || undefined,
         search: search || undefined,
-        tags: selectedTags || undefined,
         limit: 50
-      })
+      }
+      
+      // Handle folder filtering using tags
+      if (selectedFolder && selectedFolder.id !== 'all') {
+        if (selectedFolder.id === 'uncategorized') {
+          // For uncategorized, we'll show images without specific folder tags
+          searchParams.excludeTags = 'characters,locations,items,maps'
+        } else {
+          // Map folder IDs to tags
+          const folderTagMap = {
+            'characters': 'characters',
+            'locations': 'locations', 
+            'items': 'items',
+            'maps': 'maps'
+          }
+          searchParams.tags = folderTagMap[selectedFolder.id] || selectedFolder.id
+        }
+      } else if (selectedTags) {
+        searchParams.tags = selectedTags
+      }
+
+      const result = await imageServiceBase64.getImages(searchParams)
       setImages(result.images)
       setError('')
     } catch (err) {
