@@ -11,7 +11,7 @@ class NodeSearchService {
   async searchNodes(worldId, searchQuery = '', options = {}) {
     console.log('📡 NodeSearchService.searchNodes called:', { worldId, searchQuery })
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       if (!token) {
         throw new Error('Authentication required')
       }
