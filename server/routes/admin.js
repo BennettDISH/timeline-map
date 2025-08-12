@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-// POST /api/admin/enable-folders - Enable custom folder system
+// POST /api/admin/enable-folders - Enable custom folder system (admin only)
 router.post('/enable-folders', async (req, res) => {
   try {
     console.log('🗂️ Enabling custom folder system...');

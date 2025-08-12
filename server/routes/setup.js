@@ -604,4 +604,75 @@ router.post('/expand-tooltip-field', async (req, res) => {
   }
 });
 
+// POST /api/setup/enable-folders - Enable custom folder system (public endpoint)
+router.post('/enable-folders', async (req, res) => {
+  try {
+    console.log('🗂️ Enabling custom folder system...');
+    
+    // Step 1: Create custom folders table
+    console.log('Creating image_folders table...')
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS image_folders (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        parent_id INTEGER REFERENCES image_folders(id) ON DELETE CASCADE,
+        world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        color VARCHAR(7) DEFAULT '#4CAF50',
+        icon VARCHAR(10) DEFAULT '📁',
+        UNIQUE(name, world_id, parent_id)
+      )
+    `)
+    
+    console.log('Creating indexes for image_folders...')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_world ON image_folders(world_id)')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_parent ON image_folders(parent_id)')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_image_folders_created_by ON image_folders(created_by)')
+    
+    // Step 2: Add folder_id column to images table
+    console.log('Adding folder_id column to images table...')
+    try {
+      await pool.query('ALTER TABLE images ADD COLUMN folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL')
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id)')
+      console.log('✅ Added folder_id column to images table')
+    } catch (err) {
+      if (err.code === '42701') { // Column already exists
+        console.log('✅ folder_id column already exists in images table')
+      } else throw err
+    }
+
+    // Step 3: Verify tables were created
+    const tableCheck = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = 'image_folders'
+    `)
+    
+    if (tableCheck.rows.length === 0) {
+      throw new Error('Failed to create image_folders table')
+    }
+
+    console.log('✅ Custom folder system enabled successfully!');
+    
+    res.json({
+      success: true,
+      message: '✅ Custom folder system enabled! You can now create hierarchical folders for organizing your images.',
+      details: {
+        tablesCreated: ['image_folders'],
+        columnsAdded: ['images.folder_id'],
+        indexesCreated: ['idx_image_folders_world', 'idx_image_folders_parent', 'idx_image_folders_created_by', 'idx_images_folder']
+      }
+    })
+    
+  } catch (error) {
+    console.error('❌ Failed to enable folders:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to enable custom folder system: ' + error.message,
+      error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
+    });
+  }
+});
+
 module.exports = router;

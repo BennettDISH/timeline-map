@@ -12,11 +12,7 @@ function Migration() {
     setSuccess('')
 
     try {
-      const response = await axios.post('/api/admin/enable-folders', {}, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
-      })
+      const response = await axios.post('/api/setup/enable-folders')
       setSuccess(response.data.message)
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to enable custom folder system. Please try again.')
