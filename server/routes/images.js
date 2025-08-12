@@ -269,7 +269,7 @@ router.put('/:id', async (req, res) => {
     // Update image metadata
     const updateResult = await pool.query(`
       UPDATE images 
-      SET alt_text = $1, tags = $2, updated_at = CURRENT_TIMESTAMP
+      SET alt_text = $1, tags = $2
       WHERE id = $3
       RETURNING *
     `, [
@@ -292,7 +292,6 @@ router.put('/:id', async (req, res) => {
         altText: updatedImage.alt_text,
         tags: updatedImage.tags,
         uploadedAt: updatedImage.created_at,
-        updatedAt: updatedImage.updated_at,
         url: `${req.protocol}://${req.get('host')}${updatedImage.file_path}`
       }
     });
