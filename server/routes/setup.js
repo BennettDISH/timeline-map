@@ -512,4 +512,96 @@ router.post('/add-locked-field', async (req, res) => {
   }
 });
 
+// POST /api/setup/expand-tooltip-field - Expand tooltip_text field from VARCHAR(255) to TEXT
+router.post('/expand-tooltip-field', async (req, res) => {
+  try {
+    console.log('📝 Running tooltip_text field expansion migration...');
+    
+    // Check current column type
+    const columnCheck = await pool.query(`
+      SELECT column_name, data_type, character_maximum_length 
+      FROM information_schema.columns 
+      WHERE table_name = 'events' AND column_name = 'tooltip_text'
+    `);
+    
+    if (columnCheck.rows.length === 0) {
+      return res.status(400).json({
+        message: 'tooltip_text column not found in events table',
+        success: false
+      });
+    }
+    
+    const currentColumn = columnCheck.rows[0];
+    
+    // Check if already TEXT type
+    if (currentColumn.data_type === 'text') {
+      return res.json({
+        message: 'tooltip_text field is already TEXT type! Connection data storage is ready.',
+        success: true,
+        alreadyExpanded: true,
+        details: {
+          currentType: currentColumn.data_type,
+          maxLength: currentColumn.character_maximum_length || 'unlimited'
+        }
+      });
+    }
+    
+    // Create backup first
+    console.log('💾 Creating backup table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS events_backup_tooltip_migration AS 
+      SELECT * FROM events
+    `);
+    console.log('✅ Backup table created: events_backup_tooltip_migration');
+    
+    // Expand the column
+    console.log('🔄 Expanding tooltip_text from VARCHAR(255) to TEXT...');
+    await pool.query('ALTER TABLE events ALTER COLUMN tooltip_text TYPE TEXT');
+    
+    // Add comment
+    await pool.query(`
+      COMMENT ON COLUMN events.tooltip_text IS 
+      'JSON metadata for node including dimensions, connections, and node type. Expanded from VARCHAR(255) to TEXT to support larger metadata.'
+    `);
+    
+    // Verify the change
+    const verifyColumn = await pool.query(`
+      SELECT column_name, data_type, character_maximum_length 
+      FROM information_schema.columns 
+      WHERE table_name = 'events' AND column_name = 'tooltip_text'
+    `);
+    
+    if (verifyColumn.rows.length === 0 || verifyColumn.rows[0].data_type !== 'text') {
+      throw new Error('Failed to expand tooltip_text column - verification failed');
+    }
+    
+    const newColumnInfo = verifyColumn.rows[0];
+    console.log('📊 Updated column details:', newColumnInfo);
+    
+    res.json({
+      message: 'tooltip_text field expanded successfully! You can now save nodes with connection data.',
+      success: true,
+      columnExpanded: true,
+      migration: {
+        from: `${currentColumn.data_type}(${currentColumn.character_maximum_length})`,
+        to: `${newColumnInfo.data_type} (unlimited)`,
+        backupTable: 'events_backup_tooltip_migration'
+      },
+      details: {
+        columnName: newColumnInfo.column_name,
+        dataType: newColumnInfo.data_type,
+        maxLength: newColumnInfo.character_maximum_length || 'unlimited'
+      }
+    });
+    
+  } catch (error) {
+    console.error('tooltip_text expansion migration error:', error);
+    res.status(500).json({ 
+      message: 'Failed to expand tooltip_text field: ' + error.message,
+      success: false,
+      error: error.code || 'Unknown error'
+    });
+  }
+});
+
 module.exports = router;
