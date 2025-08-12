@@ -531,6 +531,20 @@ body {
       color: #333;
     }
   }
+
+  .migration-note {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+
+    p {
+      margin: 0;
+      color: #856404;
+      font-weight: 500;
+    }
+  }
 }
 
 .env-status {

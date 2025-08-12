@@ -92,14 +92,20 @@ function AdminPanel() {
           )}
           
           <div className="migration-info">
-            <h3>Migration Info:</h3>
+            <h3>Latest Migration Includes:</h3>
             <ul>
-              <li>Creates all required database tables</li>
-              <li>Sets up user authentication tables</li>
-              <li>Creates image and map management tables</li>
-              <li>Adds default admin user (admin/admin123)</li>
-              <li>Safe to run multiple times</li>
+              <li>✅ All core database tables (users, worlds, maps, images, events)</li>
+              <li>🗂️ <strong>NEW:</strong> Custom image folders with hierarchical structure</li>
+              <li>📁 <strong>NEW:</strong> Image folder assignments and organization</li>
+              <li>🔗 World-specific data organization and relationships</li>
+              <li>🖼️ Base64 image storage support for Railway compatibility</li>
+              <li>🔒 User authentication and authorization system</li>
+              <li>🛡️ Safe to run multiple times - skips existing structures</li>
             </ul>
+            
+            <div className="migration-note">
+              <p><strong>🎯 Current Focus:</strong> Run this migration to enable the new custom folder system for organizing images with unlimited sub-categories!</p>
+            </div>
           </div>
         </div>
 
