@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import ImageSelector from './ImageSelector'
+import UniversalNodeSearch from './UniversalNodeSearch'
 
 function NodeEditor({ 
   selectedNode,
@@ -9,6 +10,7 @@ function NodeEditor({
   availableMaps,
   availableImages,
   nodes,
+  worldId,
   onCancel,
   onDelete,
   handleFieldChange,
@@ -73,16 +75,27 @@ function NodeEditor({
   const availableNodes = nodes ? nodes.filter(node => node.id !== selectedNode.id) : []
   
   // Connection management state
-  const [newConnection, setNewConnection] = useState({ nodeId: '', relationshipType: '', description: '' })
+  const [newConnection, setNewConnection] = useState({ 
+    nodeId: '', 
+    mapId: '', 
+    timeContext: '', 
+    relationshipType: '', 
+    description: '' 
+  })
   const [existingConnections, setExistingConnections] = useState(getNodeConnections())
+  const [selectedSearchNode, setSelectedSearchNode] = useState(null)
   
   const addConnection = () => {
-    if (!newConnection.nodeId || !newConnection.relationshipType) return
+    if (!selectedSearchNode || !newConnection.relationshipType) return
     
     const connection = {
-      nodeId: parseInt(newConnection.nodeId),
+      nodeId: selectedSearchNode.nodeId,
+      mapId: selectedSearchNode.mapId,
+      timeContext: newConnection.timeContext || null,
       relationshipType: newConnection.relationshipType,
-      description: newConnection.description || ''
+      description: newConnection.description || '',
+      targetTitle: selectedSearchNode.title,
+      targetMapTitle: selectedSearchNode.mapTitle
     }
     
     const updatedConnections = [...existingConnections, connection]
@@ -94,7 +107,8 @@ function NodeEditor({
     handleFieldChange('connections', updatedConnections)
     
     // Reset form
-    setNewConnection({ nodeId: '', relationshipType: '', description: '' })
+    setNewConnection({ nodeId: '', mapId: '', timeContext: '', relationshipType: '', description: '' })
+    setSelectedSearchNode(null)
   }
   
   const removeConnection = (index) => {
@@ -105,6 +119,15 @@ function NodeEditor({
   
   const getNodeById = (nodeId) => {
     return availableNodes.find(node => node.id === nodeId)
+  }
+  
+  const handleNodeSearchSelect = (searchResult) => {
+    setSelectedSearchNode(searchResult)
+    setNewConnection(prev => ({ 
+      ...prev, 
+      nodeId: searchResult.nodeId, 
+      mapId: searchResult.mapId 
+    }))
   }
 
   return (
@@ -304,15 +327,26 @@ function NodeEditor({
                   <label>Current Connections</label>
                   <div className="connections-list">
                     {existingConnections.map((connection, index) => {
-                      const connectedNode = getNodeById(connection.nodeId)
                       const relationshipLabel = relationshipTypes.find(r => r.value === connection.relationshipType)?.label || connection.relationshipType
+                      const isCurrentMap = !connection.mapId || connection.mapId === selectedNode.mapId
+                      const connectedNode = isCurrentMap ? getNodeById(connection.nodeId) : null
                       
                       return (
-                        <div key={index} className="connection-item">
+                        <div key={index} className={`connection-item ${!isCurrentMap ? 'cross-map' : ''}`}>
                           <div className="connection-info">
                             <span className="relationship-label">{relationshipLabel}</span>
                             <span className="connected-node-name">
-                              {connectedNode ? connectedNode.title : `Node #${connection.nodeId}`}
+                              {connection.targetTitle || connectedNode?.title || `Node #${connection.nodeId}`}
+                              {!isCurrentMap && (
+                                <span className="map-indicator">
+                                  📍 {connection.targetMapTitle || 'Other Map'}
+                                </span>
+                              )}
+                              {connection.timeContext && (
+                                <span className="time-indicator">
+                                  🕐 Year {connection.timeContext}
+                                </span>
+                              )}
                             </span>
                             {connection.description && (
                               <small className="connection-description">{connection.description}</small>
@@ -351,18 +385,41 @@ function NodeEditor({
                   </div>
                   
                   <div className="form-group">
-                    <select
-                      value={newConnection.nodeId}
-                      onChange={(e) => setNewConnection({...newConnection, nodeId: e.target.value})}
-                      className="node-select"
-                    >
-                      <option value="">Select node...</option>
-                      {availableNodes.map(node => (
-                        <option key={node.id} value={node.id}>
-                          {node.title || `Untitled Node #${node.id}`}
-                        </option>
-                      ))}
-                    </select>
+                    <label>Target Node</label>
+                    <UniversalNodeSearch
+                      worldId={worldId}
+                      currentMapId={selectedNode.mapId}
+                      availableMaps={availableMaps}
+                      onNodeSelect={handleNodeSearchSelect}
+                      placeholder="Search for any node across all maps..."
+                      className="connection-search"
+                    />
+                    {selectedSearchNode && (
+                      <div className="selected-node-preview">
+                        <small>
+                          ✓ Selected: <strong>{selectedSearchNode.title}</strong> 
+                          {selectedSearchNode.mapId !== selectedNode.mapId && (
+                            <span className="cross-map-indicator">
+                              📍 on {selectedSearchNode.mapTitle}
+                            </span>
+                          )}
+                        </small>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Time Context (optional)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 1420 (year when this relationship applies)"
+                      value={newConnection.timeContext}
+                      onChange={(e) => setNewConnection({...newConnection, timeContext: e.target.value})}
+                      className="time-context-input"
+                    />
+                    <small className="time-context-help">
+                      💡 Specify when this relationship applies (useful for historical connections)
+                    </small>
                   </div>
                   
                   <div className="form-group">
@@ -379,7 +436,7 @@ function NodeEditor({
                     type="button" 
                     onClick={addConnection}
                     className="add-connection-btn"
-                    disabled={!newConnection.nodeId || !newConnection.relationshipType}
+                    disabled={!selectedSearchNode || !newConnection.relationshipType}
                   >
                     🔗 Add Connection
                   </button>

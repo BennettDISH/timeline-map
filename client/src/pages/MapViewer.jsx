@@ -10,7 +10,7 @@ import NodesListPanel from '../components/NodesListPanel'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
-import '../styles/timelineStyles.scss'
+import '../styles/timelineStyles.scss'\nimport '../styles/universalSearch.scss'
 
 function MapViewer() {
   const { mapId } = useParams()
@@ -774,6 +774,7 @@ function MapViewer() {
           availableMaps={availableMaps}
           availableImages={availableImages}
           nodes={nodes}
+          worldId={map?.worldId}
           onCancel={() => setSelectedNode(null)}
           onDelete={() => handleNodeDelete(selectedNode)}
           handleFieldChange={handleFieldChange}
