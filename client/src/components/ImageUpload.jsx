@@ -71,24 +71,25 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = true,
   }
 
   const uploadSingleFile = async (file) => {
-    // Auto-assign folder tag if a folder is selected
-    let folderTag = ''
-    if (selectedFolder && selectedFolder.id !== 'all' && selectedFolder.id !== 'uncategorized') {
-      const folderTagMap = {
-        'characters': 'characters',
-        'locations': 'locations', 
-        'items': 'items',
-        'maps': 'maps'
-      }
-      folderTag = folderTagMap[selectedFolder.id] || selectedFolder.id
-    }
-    
-    return await imageServiceBase64.uploadImage(
+    const result = await imageServiceBase64.uploadImage(
       file, 
       worldId,
       '', // altText - can be added later
-      folderTag // auto-assign folder tag
+      '' // tags
     )
+    
+    // If a custom folder is selected, assign the image to it
+    if (selectedFolder && result.image) {
+      try {
+        await imageServiceBase64.updateImage(result.image.id, { 
+          folder_id: selectedFolder.id 
+        })
+      } catch (error) {
+        console.error('Failed to assign image to folder:', error)
+      }
+    }
+    
+    return result
   }
 
   const uploadFile = async (file) => {

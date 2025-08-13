@@ -13,10 +13,8 @@ function ImageManager() {
   const [uploadError, setUploadError] = useState('')
   const [refreshGallery, setRefreshGallery] = useState(0)
   const [currentWorld, setCurrentWorld] = useState(null)
-  const [selectedFolder, setSelectedFolder] = useState(null)
   const [worldFolders, setWorldFolders] = useState([]) // World-level organization
   const [selectedWorldFolder, setSelectedWorldFolder] = useState(null)
-  const [categoryFolders, setCategoryFolders] = useState([]) // Category sub-folders
   const [showNewFolderForm, setShowNewFolderForm] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [allWorlds, setAllWorlds] = useState([])
@@ -77,7 +75,6 @@ function ImageManager() {
       setCurrentWorld(result.world)
       worldService.setCurrentWorld(result.world)
       setSelectedWorldFolder({ id: result.world.id, name: result.world.name })
-      await loadCategoryFolders(worldId)
       await loadCustomFolders(worldId)
     } catch (error) {
       console.error('Failed to load world:', error)
@@ -112,10 +109,10 @@ function ImageManager() {
 
   const handleWorldFolderSelect = async (worldFolder) => {
     setSelectedWorldFolder(worldFolder)
-    setSelectedFolder(null) // Clear category folder selection
+    setSelectedCustomFolder(null) // Clear custom folder selection
     setSelectedImage(null) // Clear image selection
     
-    // Load the world and its category folders
+    // Load the world and its custom folders
     await loadWorldById(worldFolder.id)
     setRefreshGallery(prev => prev + 1)
   }
@@ -130,78 +127,6 @@ function ImageManager() {
     }
   }
 
-  const loadCategoryFolders = async (worldId) => {
-    try {
-      // Get all images for this world to calculate folder counts
-      const allImagesResult = await imageServiceBase64.getImages({ worldId, limit: 1000 })
-      const allImages = allImagesResult.images || []
-      
-      // Calculate counts for each category folder
-      const folderCounts = {
-        all: allImages.length,
-        characters: 0,
-        locations: 0,
-        items: 0,
-        maps: 0,
-        uncategorized: 0
-      }
-      
-      allImages.forEach(image => {
-        const tags = image.tags ? image.tags.split(',').map(t => t.trim().toLowerCase()) : []
-        let categorized = false
-        
-        if (tags.includes('characters')) {
-          folderCounts.characters++
-          categorized = true
-        }
-        if (tags.includes('locations')) {
-          folderCounts.locations++
-          categorized = true
-        }
-        if (tags.includes('items')) {
-          folderCounts.items++
-          categorized = true
-        }
-        if (tags.includes('maps')) {
-          folderCounts.maps++
-          categorized = true
-        }
-        
-        // If image has no folder tags, count as uncategorized
-        if (!categorized) {
-          folderCounts.uncategorized++
-        }
-      })
-      
-      const categoryFolders = [
-        { id: 'all', name: 'All Images', count: folderCounts.all, type: 'category' },
-        { id: 'characters', name: 'Characters', count: folderCounts.characters, type: 'category' },
-        { id: 'locations', name: 'Locations', count: folderCounts.locations, type: 'category' },
-        { id: 'items', name: 'Items & Objects', count: folderCounts.items, type: 'category' },
-        { id: 'maps', name: 'Maps', count: folderCounts.maps, type: 'category' },
-        { id: 'uncategorized', name: 'Uncategorized', count: folderCounts.uncategorized, type: 'category' }
-      ]
-      
-      setCategoryFolders(categoryFolders)
-      
-      // Auto-select "All Images" if no folder is selected
-      if (!selectedFolder) {
-        setSelectedFolder(categoryFolders[0])
-      }
-    } catch (error) {
-      console.error('Failed to load category folders:', error)
-      // Fallback to empty folders if API call fails
-      const fallbackFolders = [
-        { id: 'all', name: 'All Images', count: 0, type: 'category' },
-        { id: 'characters', name: 'Characters', count: 0, type: 'category' },
-        { id: 'locations', name: 'Locations', count: 0, type: 'category' },
-        { id: 'items', name: 'Items & Objects', count: 0, type: 'category' },
-        { id: 'maps', name: 'Maps', count: 0, type: 'category' },
-        { id: 'uncategorized', name: 'Uncategorized', count: 0, type: 'category' }
-      ]
-      setCategoryFolders(fallbackFolders)
-    }
-  }
 
   const createFolder = async () => {
     if (!newFolderName.trim() || !currentWorld) return
@@ -229,16 +154,9 @@ function ImageManager() {
     }
   }
 
-  const handleCategoryFolderSelect = (folder) => {
-    setSelectedFolder(folder)
-    setSelectedCustomFolder(null) // Clear custom folder selection
-    setSelectedImage(null) // Clear image selection when changing folders
-    setRefreshGallery(prev => prev + 1) // Trigger gallery refresh with folder filter
-  }
 
   const handleCustomFolderSelect = (folder) => {
     setSelectedCustomFolder(folder)
-    setSelectedFolder(null) // Clear category folder selection
     setSelectedImage(null) // Clear image selection when changing folders
     setRefreshGallery(prev => prev + 1) // Trigger gallery refresh with folder filter
   }
@@ -320,70 +238,10 @@ function ImageManager() {
     )
   }
 
-  const moveImageToFolder = async (imageId, folderId) => {
-    try {
-      // Map folder IDs to tags
-      const folderTagMap = {
-        'characters': 'characters',
-        'locations': 'locations', 
-        'items': 'items',
-        'maps': 'maps',
-        'uncategorized': ''
-      }
-      
-      const newTag = folderTagMap[folderId] || folderId
-      
-      // Get current image to preserve other properties
-      const currentImage = await imageServiceBase64.getImage(imageId)
-      
-      // Update the image's tags, replacing any existing folder tags
-      const existingTags = currentImage.tags ? currentImage.tags.split(',').map(t => t.trim()) : []
-      
-      // Remove existing folder tags
-      const nonFolderTags = existingTags.filter(tag => 
-        !['characters', 'locations', 'items', 'maps'].includes(tag)
-      )
-      
-      // Add new folder tag if it's not uncategorized
-      const updatedTags = newTag ? [...nonFolderTags, newTag] : nonFolderTags
-      
-      // Update the image with new tags
-      await imageServiceBase64.updateImage(imageId, {
-        tags: updatedTags.join(', ')
-      })
-      
-      // Update local state to reflect the change
-      if (selectedImage && selectedImage.id === imageId) {
-        setSelectedImage(prev => ({
-          ...prev,
-          tags: updatedTags
-        }))
-      }
-      
-      // Refresh the gallery to show changes
-      setRefreshGallery(prev => prev + 1)
-      
-      // Update folder counts for current world
-      if (currentWorld) {
-        await loadCategoryFolders(currentWorld.id)
-        await loadAllWorlds() // Update world folder counts too
-      }
-      
-      // Show success message
-      const folderName = categoryFolders.find(f => f.id === folderId)?.name || 'folder'
-      setUploadSuccess(`Image moved to ${folderName}`)
-      setTimeout(() => setUploadSuccess(''), 3000)
-      
-    } catch (error) {
-      console.error('Error moving image:', error)
-      setUploadError(`Failed to move image: ${error.message}`)
-      setTimeout(() => setUploadError(''), 5000)
-    }
-  }
 
   const handleBulkAction = async (action, data) => {
     if (action === 'move') {
-      const { imageIds, folderId, isCustomFolder } = data
+      const { imageIds, folderId } = data
       
       try {
         let successCount = 0
@@ -391,13 +249,8 @@ function ImageManager() {
         
         for (const imageId of imageIds) {
           try {
-            if (isCustomFolder) {
-              // For custom folders, use the images API to set folder_id
-              await imageServiceBase64.updateImage(imageId, { folder_id: folderId })
-            } else {
-              // For category folders, use the existing tag-based system
-              await moveImageToFolder(imageId, folderId)
-            }
+            // Use the images API to set folder_id
+            await imageServiceBase64.updateImage(imageId, { folder_id: folderId })
             successCount++
           } catch (error) {
             errorCount++
@@ -407,30 +260,23 @@ function ImageManager() {
         
         // Update folder counts and refresh
         if (currentWorld) {
-          await loadCategoryFolders(currentWorld.id)
           await loadCustomFolders(currentWorld.id)
           await loadAllWorlds()
         }
         
-        // Show success message
-        let folderName = 'folder'
-        if (isCustomFolder) {
-          // Find custom folder name
-          const findFolderName = (folders) => {
-            for (const folder of folders) {
-              if (folder.id === folderId) return folder.name
-              if (folder.children) {
-                const childName = findFolderName(folder.children)
-                if (childName) return childName
-              }
+        // Find custom folder name
+        const findFolderName = (folders) => {
+          for (const folder of folders) {
+            if (folder.id === folderId) return folder.name
+            if (folder.children) {
+              const childName = findFolderName(folder.children)
+              if (childName) return childName
             }
-            return null
           }
-          const customFolderTree = imageFolderService.buildFolderTree(customFolders)
-          folderName = findFolderName(customFolderTree) || 'custom folder'
-        } else {
-          folderName = categoryFolders.find(f => f.id === folderId)?.name || 'category folder'
+          return null
         }
+        const customFolderTree = imageFolderService.buildFolderTree(customFolders)
+        const folderName = findFolderName(customFolderTree) || 'folder'
         
         if (errorCount === 0) {
           setUploadSuccess(`Successfully moved ${successCount} images to ${folderName}`)
@@ -498,32 +344,6 @@ function ImageManager() {
             </>
           )}
 
-          {/* Category Folders (only show when a world is selected and sidebar not collapsed) */}
-          {selectedWorldFolder && !sidebarCollapsed && (
-            <div className="category-folders-section">
-              <h4>📂 Categories</h4>
-              <div className="category-folders-list">
-                {categoryFolders.map(folder => (
-                  <div 
-                    key={folder.id}
-                    className={`category-folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
-                    onClick={() => handleCategoryFolderSelect(folder)}
-                  >
-                    <span className="category-icon">
-                      {folder.id === 'all' ? '📁' : 
-                       folder.id === 'characters' ? '👤' :
-                       folder.id === 'locations' ? '🗺️' :
-                       folder.id === 'items' ? '⚔️' :
-                       folder.id === 'maps' ? '🗾' :
-                       folder.id === 'uncategorized' ? '📄' : '📁'}
-                    </span>
-                    <span className="category-name">{folder.name}</span>
-                    <span className="category-count">({folder.count})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Custom Folders (only show when a world is selected and sidebar not collapsed) */}
           {selectedWorldFolder && !sidebarCollapsed && customFolders.length > 0 && (
@@ -629,7 +449,7 @@ function ImageManager() {
                   worldId={selectedWorldFolder.id}
                   onUploadSuccess={handleUploadSuccess}
                   onUploadError={handleUploadError}
-                  selectedFolder={selectedFolder}
+                  selectedFolder={selectedCustomFolder}
                 />
                 
                 {uploadSuccess && (
@@ -649,17 +469,16 @@ function ImageManager() {
               <div className="gallery-section">
                 <h2>
                   🖼️ Images 
-                  {selectedFolder && selectedFolder.id !== 'all' && ` in ${selectedFolder.name}`}
+                  {selectedCustomFolder && ` in ${selectedCustomFolder.name}`}
                 </h2>
                 <ImageGallery 
-                  key={`${refreshGallery}-${selectedWorldFolder.id}-${selectedFolder?.id}`}
+                  key={`${refreshGallery}-${selectedWorldFolder.id}-${selectedCustomFolder?.id}`}
                   worldId={selectedWorldFolder.id}
                   onImageSelect={handleImageSelect}
                   selectedImageId={selectedImage?.id}
-                  selectedFolder={selectedFolder}
+                  selectedFolder={selectedCustomFolder}
                   showUpload={true}
                   onBulkAction={handleBulkAction}
-                  categoryFolders={categoryFolders}
                   customFolders={imageFolderService.buildFolderTree(customFolders)}
                 />
               </div>
@@ -701,29 +520,33 @@ function ImageManager() {
                   <p><strong>Tags:</strong> {Array.isArray(selectedImage.tags) ? selectedImage.tags.join(', ') : selectedImage.tags}</p>
                 )}
                 
-                {/* Folder Assignment */}
-                <div className="folder-assignment">
-                  <p><strong>Move to Category:</strong></p>
-                  <div className="folder-buttons">
-                    {categoryFolders.filter(f => f.id !== 'all').map(folder => (
+                {/* Custom Folder Assignment */}
+                {customFolders.length > 0 && (
+                  <div className="folder-assignment">
+                    <p><strong>Move to Folder:</strong></p>
+                    <div className="folder-buttons">
+                      {imageFolderService.buildFolderTree(customFolders).map(folder => (
+                        <button
+                          key={folder.id}
+                          className="folder-move-btn"
+                          onClick={() => handleBulkAction('move', { imageIds: [selectedImage.id], folderId: folder.id })}
+                          title={`Move to ${folder.name}`}
+                        >
+                          <span className="folder-icon">{folder.icon}</span>
+                          {folder.name}
+                        </button>
+                      ))}
                       <button
-                        key={folder.id}
                         className="folder-move-btn"
-                        onClick={() => moveImageToFolder(selectedImage.id, folder.id)}
-                        title={`Move to ${folder.name}`}
+                        onClick={() => imageServiceBase64.updateImage(selectedImage.id, { folder_id: null }).then(() => setRefreshGallery(prev => prev + 1))}
+                        title="Remove from folder"
                       >
-                        <span className="folder-icon">
-                          {folder.id === 'characters' ? '👤' :
-                           folder.id === 'locations' ? '🗺️' :
-                           folder.id === 'items' ? '⚔️' :
-                           folder.id === 'maps' ? '🗾' :
-                           folder.id === 'uncategorized' ? '📄' : '📁'}
-                        </span>
-                        {folder.name}
+                        <span className="folder-icon">📄</span>
+                        Uncategorized
                       </button>
-                    ))}
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="image-actions">
                   <button onClick={copyImageUrl} className="copy-url-button">
