@@ -21,6 +21,7 @@ function ImageManager() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [customFolders, setCustomFolders] = useState([])
   const [selectedCustomFolder, setSelectedCustomFolder] = useState(null)
+  const [expandedFolders, setExpandedFolders] = useState(new Set())
 
   useEffect(() => {
     loadAllWorlds()
@@ -145,7 +146,22 @@ function ImageManager() {
         isDefault: true
       }
       
-      setCustomFolders([unassignedFolder, ...(result.folders || [])])
+      // Build folder tree structure
+      const folderTree = imageFolderService.buildFolderTree(result.folders || [])
+      setCustomFolders([unassignedFolder, ...folderTree])
+      
+      // Auto-expand all folders on initial load
+      const allFolderIds = new Set()
+      const collectFolderIds = (folders) => {
+        folders.forEach(folder => {
+          allFolderIds.add(folder.id)
+          if (folder.children && folder.children.length > 0) {
+            collectFolderIds(folder.children)
+          }
+        })
+      }
+      collectFolderIds(folderTree)
+      setExpandedFolders(allFolderIds)
       
       // Auto-select unassigned folder if no folder is currently selected
       if (!selectedCustomFolder) {
@@ -195,6 +211,16 @@ function ImageManager() {
     setSelectedImage(image)
   }
 
+  const toggleFolderExpansion = (folderId) => {
+    const newExpanded = new Set(expandedFolders)
+    if (newExpanded.has(folderId)) {
+      newExpanded.delete(folderId)
+    } else {
+      newExpanded.add(folderId)
+    }
+    setExpandedFolders(newExpanded)
+  }
+
   const deleteFolder = async (folderId, folderName) => {
     if (!confirm(`Are you sure you want to delete the folder "${folderName}"? All images in this folder will be moved to uncategorized.`)) {
       return
@@ -221,6 +247,7 @@ function ImageManager() {
   const renderFolderTree = (folder, depth) => {
     const isSelected = selectedCustomFolder?.id === folder.id
     const hasChildren = folder.children && folder.children.length > 0
+    const isExpanded = expandedFolders.has(folder.id)
     const isUnassigned = folder.id === 'unassigned'
     
     return (
@@ -230,6 +257,17 @@ function ImageManager() {
           style={{ paddingLeft: `${depth * 1.2 + 0.6}rem` }}
         >
           <div className="folder-main" onClick={() => handleCustomFolderSelect(folder)}>
+            {hasChildren && (
+              <span 
+                className="folder-expand-icon"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFolderExpansion(folder.id)
+                }}
+              >
+                {isExpanded ? '▼' : '▶'}
+              </span>
+            )}
             <span className="folder-icon">{folder.icon}</span>
             <span className="folder-name">{folder.name}</span>
             {hasChildren && <span className="folder-children-count">({folder.children.length})</span>}
@@ -263,7 +301,7 @@ function ImageManager() {
           )}
         </div>
         
-        {hasChildren && (
+        {hasChildren && isExpanded && (
           <div className="folder-children">
             {folder.children.map(child => renderFolderTree(child, depth + 1))}
           </div>

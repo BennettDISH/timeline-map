@@ -139,7 +139,85 @@
             text-align: center;
           }
 
-          .folder-filter-btn {
+          .folder-tree-item {
+            .folder-filter-btn {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              width: 100%;
+              padding: 6px 12px;
+              background: none;
+              border: none;
+              text-align: left;
+              cursor: pointer;
+              transition: background-color 0.2s;
+              font-size: 0.8rem;
+              position: relative;
+
+              &:hover {
+                background: #e9ecef;
+              }
+
+              &.active {
+                background: #667eea;
+                color: white;
+
+                .folder-count {
+                  color: rgba(255,255,255,0.9);
+                }
+              }
+
+              &.unassigned-folder {
+                background: #fff8dc;
+                border: 1px solid #f0e68c;
+                color: #8b7355;
+
+                &.active {
+                  background: #daa520;
+                  color: white;
+                }
+
+                &:hover:not(.active) {
+                  background: #fffacd;
+                }
+              }
+
+              .folder-expand-icon {
+                width: 12px;
+                font-size: 0.7rem;
+                color: #666;
+                cursor: pointer;
+                transition: transform 0.2s;
+
+                &:hover {
+                  color: #333;
+                }
+              }
+
+              .folder-icon {
+                font-size: 0.8rem;
+              }
+
+              .folder-name {
+                flex: 1;
+                font-weight: 500;
+              }
+
+              .folder-count {
+                font-size: 0.75rem;
+                color: #888;
+                font-weight: 400;
+              }
+            }
+
+            .folder-children {
+              border-left: 1px solid #ddd;
+              margin-left: 18px;
+            }
+          }
+
+          // Fallback for non-nested folder buttons (like "All Images")
+          .folder-filter-btn:not(.folder-tree-item .folder-filter-btn) {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -162,21 +240,6 @@
 
               .folder-count {
                 color: rgba(255,255,255,0.9);
-              }
-            }
-
-            &.unassigned-folder {
-              background: #fff8dc;
-              border: 1px solid #f0e68c;
-              color: #8b7355;
-
-              &.active {
-                background: #daa520;
-                color: white;
-              }
-
-              &:hover:not(.active) {
-                background: #fffacd;
               }
             }
 

@@ -984,6 +984,19 @@
             flex: 1;
             cursor: pointer;
 
+            .folder-expand-icon {
+              width: 16px;
+              font-size: 0.7rem;
+              color: #666;
+              cursor: pointer;
+              margin-right: 0.3rem;
+              transition: transform 0.2s;
+
+              &:hover {
+                color: #333;
+              }
+            }
+
             .folder-icon {
               margin-right: 0.5rem;
               font-size: 0.8rem;
@@ -994,11 +1007,17 @@
               font-weight: 500;
             }
 
-            .folder-children-count {
+            .folder-children-count, .folder-count {
               font-size: 0.7rem;
               color: #888;
               font-weight: 400;
             }
+          }
+
+          .folder-children {
+            border-left: 2px solid #e0e0e0;
+            margin-left: 1rem;
+            padding-left: 0.5rem;
           }
 
           .folder-actions {
