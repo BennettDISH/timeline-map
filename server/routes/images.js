@@ -113,6 +113,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
         mimeType: imageRecord.mime_type,
         altText: imageRecord.alt_text,
         tags: imageRecord.tags,
+        folderId: imageRecord.folder_id,
         uploadedAt: imageRecord.created_at,
         url: imageUrl
       }
@@ -137,7 +138,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 // GET /api/images
 router.get('/', async (req, res) => {
   try {
-    const { tags, search, limit = 50, offset = 0, world_id } = req.query;
+    const { tags, search, limit = 50, offset = 0, world_id, folder_id, unassigned } = req.query;
 
     if (!world_id) {
       return res.status(400).json({ message: 'World ID is required' });
@@ -176,6 +177,18 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
+    // Filter by folder
+    if (folder_id) {
+      paramCount++;
+      query += ` AND i.folder_id = $${paramCount}`;
+      params.push(folder_id);
+    }
+
+    // Filter for unassigned (no folder)
+    if (unassigned === 'true') {
+      query += ` AND i.folder_id IS NULL`;
+    }
+
     query += ` ORDER BY i.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
     params.push(parseInt(limit), parseInt(offset));
 
@@ -190,6 +203,7 @@ router.get('/', async (req, res) => {
       mimeType: row.mime_type,
       altText: row.alt_text,
       tags: row.tags,
+      folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
       url: `${req.protocol}://${req.get('host')}${row.file_path}`
@@ -233,6 +247,7 @@ router.get('/:id', async (req, res) => {
       mimeType: row.mime_type,
       altText: row.alt_text,
       tags: row.tags,
+      folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
       url: `${req.protocol}://${req.get('host')}${row.file_path}`
@@ -304,6 +319,7 @@ router.put('/:id', async (req, res) => {
         mimeType: updatedImage.mime_type,
         altText: updatedImage.alt_text,
         tags: updatedImage.tags,
+        folderId: updatedImage.folder_id,
         uploadedAt: updatedImage.created_at,
         url: `${req.protocol}://${req.get('host')}${updatedImage.file_path}`
       }
