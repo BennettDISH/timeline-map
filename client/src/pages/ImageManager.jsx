@@ -247,6 +247,29 @@ function ImageManager() {
     setSelectedImage(image)
   }
 
+  const deleteFolder = async (folderId, folderName) => {
+    if (!confirm(`Are you sure you want to delete the folder "${folderName}"? All images in this folder will be moved to uncategorized.`)) {
+      return
+    }
+    
+    try {
+      await imageFolderService.deleteFolder(folderId)
+      await loadCustomFolders(currentWorld.id)
+      
+      // Clear selection if the deleted folder was selected
+      if (selectedCustomFolder?.id === folderId) {
+        setSelectedCustomFolder(null)
+      }
+      
+      setUploadSuccess(`Folder "${folderName}" deleted successfully`)
+      setTimeout(() => setUploadSuccess(''), 3000)
+    } catch (error) {
+      console.error('Error deleting folder:', error)
+      setUploadError(`Failed to delete folder: ${error.message}`)
+      setTimeout(() => setUploadError(''), 5000)
+    }
+  }
+
   const renderFolderTree = (folder, depth) => {
     const isSelected = selectedCustomFolder?.id === folder.id
     const hasChildren = folder.children && folder.children.length > 0
@@ -256,11 +279,36 @@ function ImageManager() {
         <div 
           className={`custom-folder-item ${isSelected ? 'active' : ''}`}
           style={{ paddingLeft: `${depth * 1.2 + 0.6}rem` }}
-          onClick={() => handleCustomFolderSelect(folder)}
         >
-          <span className="folder-icon">{folder.icon}</span>
-          <span className="folder-name">{folder.name}</span>
-          {hasChildren && <span className="folder-children-count">({folder.children.length})</span>}
+          <div className="folder-main" onClick={() => handleCustomFolderSelect(folder)}>
+            <span className="folder-icon">{folder.icon}</span>
+            <span className="folder-name">{folder.name}</span>
+            {hasChildren && <span className="folder-children-count">({folder.children.length})</span>}
+          </div>
+          
+          <div className="folder-actions">
+            <button 
+              className="folder-action-btn nest-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedCustomFolder(folder)
+                setShowNewFolderForm(true)
+              }}
+              title={`Create subfolder in ${folder.name}`}
+            >
+              📁+
+            </button>
+            <button 
+              className="folder-action-btn delete-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                deleteFolder(folder.id, folder.name)
+              }}
+              title={`Delete ${folder.name}`}
+            >
+              🗑️
+            </button>
+          </div>
         </div>
         
         {hasChildren && (
@@ -493,6 +541,18 @@ function ImageManager() {
 
               {showNewFolderForm && (
                 <div className="new-folder-form">
+                  {selectedCustomFolder && (
+                    <div className="parent-folder-info">
+                      <span>Creating subfolder in: <strong>{selectedCustomFolder.name}</strong></span>
+                      <button 
+                        className="clear-parent-btn"
+                        onClick={() => setSelectedCustomFolder(null)}
+                        title="Create root folder instead"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   <input
                     type="text"
                     placeholder={selectedCustomFolder ? `New subfolder in ${selectedCustomFolder.name}...` : 'New folder name...'}
@@ -503,7 +563,7 @@ function ImageManager() {
                   />
                   <div className="folder-form-actions">
                     <button onClick={createFolder} className="create-btn">✓</button>
-                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName('')}} className="cancel-btn">✕</button>
+                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName(''); setSelectedCustomFolder(null)}} className="cancel-btn">✕</button>
                   </div>
                 </div>
               )}
@@ -528,9 +588,21 @@ function ImageManager() {
               
               {showNewFolderForm && (
                 <div className="new-folder-form">
+                  {selectedCustomFolder && (
+                    <div className="parent-folder-info">
+                      <span>Creating subfolder in: <strong>{selectedCustomFolder.name}</strong></span>
+                      <button 
+                        className="clear-parent-btn"
+                        onClick={() => setSelectedCustomFolder(null)}
+                        title="Create root folder instead"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   <input
                     type="text"
-                    placeholder="Folder name..."
+                    placeholder={selectedCustomFolder ? `New subfolder in ${selectedCustomFolder.name}...` : 'Folder name...'}
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && createFolder()}
@@ -538,7 +610,7 @@ function ImageManager() {
                   />
                   <div className="folder-form-actions">
                     <button onClick={createFolder} className="create-btn">✓</button>
-                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName('')}} className="cancel-btn">✕</button>
+                    <button onClick={() => {setShowNewFolderForm(false); setNewFolderName(''); setSelectedCustomFolder(null)}} className="cancel-btn">✕</button>
                   </div>
                 </div>
               )}

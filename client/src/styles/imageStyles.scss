@@ -933,14 +933,19 @@
         .custom-folder-item {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           padding: 0.35rem 0;
           border-radius: 4px;
-          cursor: pointer;
           transition: all 0.2s;
           font-size: 0.8rem;
+          position: relative;
 
           &:hover {
             background: #f8f9fa;
+            
+            .folder-actions {
+              opacity: 1;
+            }
           }
 
           &.active {
@@ -953,20 +958,60 @@
             }
           }
 
-          .folder-icon {
-            margin-right: 0.5rem;
-            font-size: 0.8rem;
-          }
-
-          .folder-name {
+          .folder-main {
+            display: flex;
+            align-items: center;
             flex: 1;
-            font-weight: 500;
+            cursor: pointer;
+
+            .folder-icon {
+              margin-right: 0.5rem;
+              font-size: 0.8rem;
+            }
+
+            .folder-name {
+              flex: 1;
+              font-weight: 500;
+            }
+
+            .folder-children-count {
+              font-size: 0.7rem;
+              color: #888;
+              font-weight: 400;
+            }
           }
 
-          .folder-children-count {
-            font-size: 0.7rem;
-            color: #888;
-            font-weight: 400;
+          .folder-actions {
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+
+            .folder-action-btn {
+              background: none;
+              border: none;
+              cursor: pointer;
+              padding: 0.2rem;
+              border-radius: 3px;
+              font-size: 0.7rem;
+              transition: background-color 0.2s;
+
+              &:hover {
+                background: rgba(0,0,0,0.1);
+              }
+
+              &.nest-btn {
+                &:hover {
+                  background: rgba(76, 175, 80, 0.2);
+                }
+              }
+
+              &.delete-btn {
+                &:hover {
+                  background: rgba(244, 67, 54, 0.2);
+                }
+              }
+            }
           }
         }
       }
@@ -995,6 +1040,35 @@
       padding: 0.6rem;
       border-radius: 4px;
       margin-top: 0.5rem;
+
+      .parent-folder-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #e9ecef;
+        padding: 0.4rem;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
+
+        .clear-parent-btn {
+          background: #dc3545;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          font-size: 0.7rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover {
+            background: #c82333;
+          }
+        }
+      }
 
       input {
         width: 100%;
