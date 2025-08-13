@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import imageServiceBase64 from '../services/imageServiceBase64'
 
-function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false, selectedFolder = null, onBulkAction = null, categoryFolders = [] }) {
+function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUpload = false, selectedFolder = null, onBulkAction = null, categoryFolders = [], customFolders = [] }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -90,13 +90,13 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
     }
   }
 
-  const handleBulkFolderMove = async (folderId) => {
+  const handleBulkFolderMove = async (folderId, isCustomFolder = false) => {
     if (selectedImages.size === 0) return
     
     try {
       const imageIds = Array.from(selectedImages)
       if (onBulkAction) {
-        await onBulkAction('move', { imageIds, folderId })
+        await onBulkAction('move', { imageIds, folderId, isCustomFolder })
         // Reload images to show changes
         await loadImages()
         clearSelection()
@@ -104,6 +104,24 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
     } catch (error) {
       setError(`Failed to move images: ${error.message}`)
     }
+  }
+
+  const renderCustomFolderButton = (folder, depth = 0) => {
+    const hasChildren = folder.children && folder.children.length > 0
+    
+    return (
+      <React.Fragment key={folder.id}>
+        <button
+          onClick={() => handleBulkFolderMove(folder.id, true)}
+          className="bulk-folder-btn custom-folder-btn"
+          style={{ marginLeft: `${depth * 0.5}rem` }}
+          title={`Move ${selectedImages.size} images to ${folder.name}`}
+        >
+          {folder.icon} {folder.name}
+        </button>
+        {hasChildren && folder.children.map(child => renderCustomFolderButton(child, depth + 1))}
+      </React.Fragment>
+    )
   }
 
   const handleDelete = async (imageId, e) => {
@@ -178,14 +196,16 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                 </>
               )}
               
-              {selectedImages.size > 0 && categoryFolders.length > 0 && (
+              {selectedImages.size > 0 && (categoryFolders.length > 0 || customFolders.length > 0) && (
                 <div className="bulk-folder-actions">
                   <span>Move to:</span>
+                  
+                  {/* Category Folders */}
                   {categoryFolders.filter(f => f.id !== 'all').map(folder => (
                     <button
                       key={folder.id}
-                      onClick={() => handleBulkFolderMove(folder.id)}
-                      className="bulk-folder-btn"
+                      onClick={() => handleBulkFolderMove(folder.id, false)}
+                      className="bulk-folder-btn category-folder-btn"
                       title={`Move ${selectedImages.size} images to ${folder.name}`}
                     >
                       {folder.id === 'characters' ? '👤' :
@@ -195,6 +215,13 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                        folder.id === 'uncategorized' ? '📄' : '📁'} {folder.name}
                     </button>
                   ))}
+                  
+                  {/* Custom Folders */}
+                  {customFolders.length > 0 && categoryFolders.length > 0 && (
+                    <div className="folder-separator">|</div>
+                  )}
+                  
+                  {customFolders.map(folder => renderCustomFolderButton(folder))}
                 </div>
               )}
             </div>

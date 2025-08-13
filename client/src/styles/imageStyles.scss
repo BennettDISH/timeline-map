@@ -358,6 +358,22 @@
             border-color: #4CAF50;
             transform: translateY(-1px);
           }
+
+          &.custom-folder-btn {
+            background: #fff3cd;
+            border-color: #ffc107;
+
+            &:hover {
+              background: #ffecb5;
+              border-color: #ffcd39;
+            }
+          }
+        }
+
+        .folder-separator {
+          color: #6c757d;
+          font-weight: bold;
+          padding: 0 0.5rem;
         }
       }
     }

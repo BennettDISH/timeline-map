@@ -335,7 +335,7 @@ function ImageManager() {
 
   const handleBulkAction = async (action, data) => {
     if (action === 'move') {
-      const { imageIds, folderId } = data
+      const { imageIds, folderId, isCustomFolder } = data
       
       try {
         let successCount = 0
@@ -343,7 +343,13 @@ function ImageManager() {
         
         for (const imageId of imageIds) {
           try {
-            await moveImageToFolder(imageId, folderId)
+            if (isCustomFolder) {
+              // For custom folders, use the images API to set folder_id
+              await imageServiceBase64.updateImage(imageId, { folder_id: folderId })
+            } else {
+              // For category folders, use the existing tag-based system
+              await moveImageToFolder(imageId, folderId)
+            }
             successCount++
           } catch (error) {
             errorCount++
@@ -351,14 +357,33 @@ function ImageManager() {
           }
         }
         
-        // Update folder counts
+        // Update folder counts and refresh
         if (currentWorld) {
           await loadCategoryFolders(currentWorld.id)
+          await loadCustomFolders(currentWorld.id)
           await loadAllWorlds()
         }
         
         // Show success message
-        const folderName = categoryFolders.find(f => f.id === folderId)?.name || 'folder'
+        let folderName = 'folder'
+        if (isCustomFolder) {
+          // Find custom folder name
+          const findFolderName = (folders) => {
+            for (const folder of folders) {
+              if (folder.id === folderId) return folder.name
+              if (folder.children) {
+                const childName = findFolderName(folder.children)
+                if (childName) return childName
+              }
+            }
+            return null
+          }
+          const customFolderTree = imageFolderService.buildFolderTree(customFolders)
+          folderName = findFolderName(customFolderTree) || 'custom folder'
+        } else {
+          folderName = categoryFolders.find(f => f.id === folderId)?.name || 'category folder'
+        }
+        
         if (errorCount === 0) {
           setUploadSuccess(`Successfully moved ${successCount} images to ${folderName}`)
         } else {
@@ -563,6 +588,7 @@ function ImageManager() {
                   showUpload={true}
                   onBulkAction={handleBulkAction}
                   categoryFolders={categoryFolders}
+                  customFolders={imageFolderService.buildFolderTree(customFolders)}
                 />
               </div>
             </>
