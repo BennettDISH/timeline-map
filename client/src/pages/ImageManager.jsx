@@ -148,6 +148,8 @@ function ImageManager() {
       
       // Build folder tree structure
       const folderTree = imageFolderService.buildFolderTree(result.folders || [])
+      console.log('Raw folders from API:', result.folders)
+      console.log('Built folder tree:', folderTree)
       setCustomFolders([unassignedFolder, ...folderTree])
       
       // Auto-expand all folders on initial load
@@ -161,6 +163,7 @@ function ImageManager() {
         })
       }
       collectFolderIds(folderTree)
+      console.log('Auto-expanding folder IDs:', allFolderIds)
       setExpandedFolders(allFolderIds)
       
       // Auto-select unassigned folder if no folder is currently selected
@@ -249,6 +252,8 @@ function ImageManager() {
     const hasChildren = folder.children && folder.children.length > 0
     const isExpanded = expandedFolders.has(folder.id)
     const isUnassigned = folder.id === 'unassigned'
+    
+    console.log(`Rendering folder: ${folder.name}, hasChildren: ${hasChildren}, isExpanded: ${isExpanded}, children:`, folder.children)
     
     return (
       <div key={folder.id} className="folder-tree-item">
