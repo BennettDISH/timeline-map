@@ -293,6 +293,8 @@ function NodeEditor({
                   onImageSelect={(imageId) => handleFieldChange('imageId', imageId)}
                   placeholder={editFormData.nodeType === 'background_map' ? 'Choose a background image' : 'Add visual flair'}
                   showPreview={true}
+                  worldId={worldId}
+                  showFolderFilter={true}
                 />
               </div>
             )}

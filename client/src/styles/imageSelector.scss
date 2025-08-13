@@ -99,6 +99,105 @@
       max-height: 300px;
       overflow-y: auto;
 
+      .folder-filter-section {
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8f9fa;
+
+        .folder-filter-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: #555;
+
+          .clear-filter-btn {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+
+            &:hover {
+              background: #e0e0e0;
+            }
+          }
+        }
+
+        .folder-filter-list {
+          max-height: 120px;
+          overflow-y: auto;
+          
+          .loading-folders {
+            padding: 8px 12px;
+            color: #666;
+            font-size: 0.8rem;
+            text-align: center;
+          }
+
+          .folder-filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 6px 12px;
+            background: none;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.8rem;
+
+            &:hover {
+              background: #e9ecef;
+            }
+
+            &.active {
+              background: #667eea;
+              color: white;
+
+              .folder-count {
+                color: rgba(255,255,255,0.9);
+              }
+            }
+
+            &.unassigned-folder {
+              background: #fff8dc;
+              border: 1px solid #f0e68c;
+              color: #8b7355;
+
+              &.active {
+                background: #daa520;
+                color: white;
+              }
+
+              &:hover:not(.active) {
+                background: #fffacd;
+              }
+            }
+
+            .folder-icon {
+              font-size: 0.8rem;
+            }
+
+            .folder-name {
+              flex: 1;
+              font-weight: 500;
+            }
+
+            .folder-count {
+              font-size: 0.75rem;
+              color: #888;
+              font-weight: 400;
+            }
+          }
+        }
+      }
+
       .no-images {
         padding: 20px;
         text-align: center;
