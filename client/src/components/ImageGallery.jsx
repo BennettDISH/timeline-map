@@ -27,7 +27,12 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
       
       // Handle custom folder filtering
       if (selectedFolder) {
-        searchParams.folderId = selectedFolder.id
+        if (selectedFolder.id === 'unassigned') {
+          // For unassigned folder, filter for images without folder_id
+          searchParams.unassigned = true
+        } else {
+          searchParams.folderId = selectedFolder.id
+        }
       } else if (selectedTags) {
         searchParams.tags = selectedTags
       }
@@ -191,13 +196,13 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                   {/* Custom Folders */}
                   {customFolders.map(folder => renderCustomFolderButton(folder))}
                   
-                  {/* Uncategorized option */}
+                  {/* Unassigned option */}
                   <button
-                    onClick={() => handleBulkFolderMove(null)}
-                    className="bulk-folder-btn uncategorized-btn"
-                    title={`Move ${selectedImages.size} images to uncategorized`}
+                    onClick={() => handleBulkFolderMove('unassigned')}
+                    className="bulk-folder-btn unassigned-btn"
+                    title={`Move ${selectedImages.size} images to unassigned`}
                   >
-                    📄 Uncategorized
+                    📄 Unassigned
                   </button>
                 </div>
               )}

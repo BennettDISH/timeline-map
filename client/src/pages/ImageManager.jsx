@@ -130,7 +130,27 @@ function ImageManager() {
   const loadCustomFolders = async (worldId) => {
     try {
       const result = await imageFolderService.getFolders(worldId)
-      setCustomFolders(result.folders || [])
+      
+      // Get count of unassigned images
+      const allImagesResult = await imageServiceBase64.getImages({ worldId, limit: 1000 })
+      const allImages = allImagesResult.images || []
+      const unassignedCount = allImages.filter(img => !img.folder_id).length
+      
+      // Create unassigned folder and combine with custom folders
+      const unassignedFolder = {
+        id: 'unassigned',
+        name: 'Unassigned',
+        icon: '📄',
+        count: unassignedCount,
+        isDefault: true
+      }
+      
+      setCustomFolders([unassignedFolder, ...(result.folders || [])])
+      
+      // Auto-select unassigned folder if no folder is currently selected
+      if (!selectedCustomFolder) {
+        setSelectedCustomFolder(unassignedFolder)
+      }
     } catch (error) {
       console.error('Failed to load custom folders:', error)
       setCustomFolders([])
@@ -201,42 +221,46 @@ function ImageManager() {
   const renderFolderTree = (folder, depth) => {
     const isSelected = selectedCustomFolder?.id === folder.id
     const hasChildren = folder.children && folder.children.length > 0
+    const isUnassigned = folder.id === 'unassigned'
     
     return (
       <div key={folder.id} className="folder-tree-item">
         <div 
-          className={`custom-folder-item ${isSelected ? 'active' : ''}`}
+          className={`custom-folder-item ${isSelected ? 'active' : ''} ${isUnassigned ? 'unassigned-folder' : ''}`}
           style={{ paddingLeft: `${depth * 1.2 + 0.6}rem` }}
         >
           <div className="folder-main" onClick={() => handleCustomFolderSelect(folder)}>
             <span className="folder-icon">{folder.icon}</span>
             <span className="folder-name">{folder.name}</span>
             {hasChildren && <span className="folder-children-count">({folder.children.length})</span>}
+            {folder.count !== undefined && !hasChildren && <span className="folder-count">({folder.count})</span>}
           </div>
           
-          <div className="folder-actions">
-            <button 
-              className="folder-action-btn nest-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedCustomFolder(folder)
-                setShowNewFolderForm(true)
-              }}
-              title={`Create subfolder in ${folder.name}`}
-            >
-              📁+
-            </button>
-            <button 
-              className="folder-action-btn delete-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                deleteFolder(folder.id, folder.name)
-              }}
-              title={`Delete ${folder.name}`}
-            >
-              🗑️
-            </button>
-          </div>
+          {!isUnassigned && (
+            <div className="folder-actions">
+              <button 
+                className="folder-action-btn nest-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedCustomFolder(folder)
+                  setShowNewFolderForm(true)
+                }}
+                title={`Create subfolder in ${folder.name}`}
+              >
+                📁+
+              </button>
+              <button 
+                className="folder-action-btn delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  deleteFolder(folder.id, folder.name)
+                }}
+                title={`Delete ${folder.name}`}
+              >
+                🗑️
+              </button>
+            </div>
+          )}
         </div>
         
         {hasChildren && (
@@ -259,8 +283,9 @@ function ImageManager() {
         
         for (const imageId of imageIds) {
           try {
-            // Use the images API to set folder_id
-            await imageServiceBase64.updateImage(imageId, { folder_id: folderId })
+            // Use the images API to set folder_id (null for unassigned)
+            const folderIdToSet = folderId === 'unassigned' ? null : folderId
+            await imageServiceBase64.updateImage(imageId, { folder_id: folderIdToSet })
             successCount++
           } catch (error) {
             errorCount++
@@ -274,19 +299,24 @@ function ImageManager() {
           await loadAllWorlds()
         }
         
-        // Find custom folder name
-        const findFolderName = (folders) => {
-          for (const folder of folders) {
-            if (folder.id === folderId) return folder.name
-            if (folder.children) {
-              const childName = findFolderName(folder.children)
-              if (childName) return childName
+        // Find folder name
+        let folderName = 'folder'
+        if (folderId === 'unassigned') {
+          folderName = 'Unassigned'
+        } else {
+          const findFolderName = (folders) => {
+            for (const folder of folders) {
+              if (folder.id === folderId) return folder.name
+              if (folder.children) {
+                const childName = findFolderName(folder.children)
+                if (childName) return childName
+              }
             }
+            return null
           }
-          return null
+          const customFolderTree = imageFolderService.buildFolderTree(customFolders.filter(f => f.id !== 'unassigned'))
+          folderName = findFolderName(customFolderTree) || 'folder'
         }
-        const customFolderTree = imageFolderService.buildFolderTree(customFolders)
-        const folderName = findFolderName(customFolderTree) || 'folder'
         
         if (errorCount === 0) {
           setUploadSuccess(`Successfully moved ${successCount} images to ${folderName}`)

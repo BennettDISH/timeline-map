@@ -65,12 +65,14 @@ const imageServiceBase64 = {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
-      const { worldId, tags, search, limit = 50, offset = 0 } = options
+      const { worldId, tags, search, limit = 50, offset = 0, folderId, unassigned } = options
       
       const params = new URLSearchParams()
       if (worldId) params.append('world_id', worldId)
       if (tags) params.append('tags', tags)
       if (search) params.append('search', search)
+      if (folderId) params.append('folder_id', folderId)
+      if (unassigned) params.append('unassigned', 'true')
       params.append('limit', limit)
       params.append('offset', offset)
 

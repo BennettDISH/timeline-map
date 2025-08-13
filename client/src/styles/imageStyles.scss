@@ -953,8 +953,28 @@
             color: white;
             box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
 
-            .folder-children-count {
+            .folder-children-count, .folder-count {
               color: rgba(255,255,255,0.9);
+            }
+          }
+
+          &.unassigned-folder {
+            background: #fff8dc;
+            border: 1px solid #f0e68c;
+            color: #8b7355;
+
+            &.active {
+              background: #daa520;
+              color: white;
+              box-shadow: 0 1px 3px rgba(218, 165, 32, 0.3);
+
+              .folder-count {
+                color: rgba(255,255,255,0.9);
+              }
+            }
+
+            &:hover:not(.active) {
+              background: #fffacd;
             }
           }
 
