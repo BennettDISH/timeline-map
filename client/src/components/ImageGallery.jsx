@@ -194,7 +194,7 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
                   <span>Move to:</span>
                   
                   {/* Custom Folders */}
-                  {customFolders.map(folder => renderCustomFolderButton(folder))}
+                  {customFolders.filter(folder => folder.id !== 'unassigned').map(folder => renderCustomFolderButton(folder))}
                   
                   {/* Unassigned option */}
                   <button

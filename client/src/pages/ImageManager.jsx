@@ -377,6 +377,25 @@ function ImageManager() {
     }
   }
 
+  const renderFolderMoveButton = (folder, depth = 0) => {
+    const hasChildren = folder.children && folder.children.length > 0
+    
+    return (
+      <React.Fragment key={folder.id}>
+        <button
+          className="folder-move-btn"
+          style={{ marginLeft: `${depth * 12}px` }}
+          onClick={() => handleBulkAction('move', { imageIds: [selectedImage.id], folderId: folder.id })}
+          title={`Move to ${folder.name}`}
+        >
+          <span className="folder-icon">{folder.icon}</span>
+          {folder.name}
+        </button>
+        {hasChildren && folder.children.map(child => renderFolderMoveButton(child, depth + 1))}
+      </React.Fragment>
+    )
+  }
+
   return (
     <div className="image-manager-new">
       <div className="page-header">
@@ -615,17 +634,7 @@ function ImageManager() {
                   <div className="folder-assignment">
                     <p><strong>Move to Folder:</strong></p>
                     <div className="folder-buttons">
-                      {customFolders.filter(f => f.id !== 'unassigned').map(folder => (
-                        <button
-                          key={folder.id}
-                          className="folder-move-btn"
-                          onClick={() => handleBulkAction('move', { imageIds: [selectedImage.id], folderId: folder.id })}
-                          title={`Move to ${folder.name}`}
-                        >
-                          <span className="folder-icon">{folder.icon}</span>
-                          {folder.name}
-                        </button>
-                      ))}
+                      {customFolders.filter(f => f.id !== 'unassigned').map(folder => renderFolderMoveButton(folder))}
                       <button
                         className="folder-move-btn"
                         onClick={() => imageServiceBase64.updateImage(selectedImage.id, { folder_id: null }).then(() => setRefreshGallery(prev => prev + 1))}
