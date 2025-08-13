@@ -60,44 +60,33 @@ const imageFolderService = {
 
   // Helper function to build folder tree structure
   buildFolderTree(folders) {
-    console.log('buildFolderTree input:', folders)
     const folderMap = new Map()
     const rootFolders = []
 
     // First pass: create all folder objects
     folders.forEach(folder => {
-      console.log(`Adding folder to map: ${folder.name} (id: ${folder.id}, parentId: ${folder.parentId})`)
       folderMap.set(folder.id, {
         ...folder,
         children: []
       })
     })
 
-    console.log('FolderMap after first pass:', folderMap)
-
     // Second pass: build hierarchy
     folders.forEach(folder => {
       if (folder.parentId) {
         const parent = folderMap.get(folder.parentId)
         const child = folderMap.get(folder.id)
-        console.log(`Trying to add child "${folder.name}" to parent "${parent?.name}"`)
         if (parent && child) {
           parent.children.push(child)
-          console.log(`Successfully added child. Parent now has ${parent.children.length} children`)
-        } else {
-          console.log(`Failed to add child. Parent exists: ${!!parent}, Child exists: ${!!child}`)
         }
       } else {
         const rootFolder = folderMap.get(folder.id)
         if (rootFolder) {
           rootFolders.push(rootFolder)
-          console.log(`Added root folder: ${rootFolder.name}`)
         }
       }
     })
 
-    console.log('Final rootFolders:', rootFolders)
-    console.log('Final folderMap with children:', folderMap)
     return rootFolders
   },
 

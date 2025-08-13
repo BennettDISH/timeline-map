@@ -148,8 +148,6 @@ function ImageManager() {
       
       // Build folder tree structure
       const folderTree = imageFolderService.buildFolderTree(result.folders || [])
-      console.log('Raw folders from API:', result.folders)
-      console.log('Built folder tree:', folderTree)
       setCustomFolders([unassignedFolder, ...folderTree])
       
       // Auto-expand all folders on initial load
@@ -163,7 +161,6 @@ function ImageManager() {
         })
       }
       collectFolderIds(folderTree)
-      console.log('Auto-expanding folder IDs:', allFolderIds)
       setExpandedFolders(allFolderIds)
       
       // Auto-select unassigned folder if no folder is currently selected
@@ -252,8 +249,6 @@ function ImageManager() {
     const hasChildren = folder.children && folder.children.length > 0
     const isExpanded = expandedFolders.has(folder.id)
     const isUnassigned = folder.id === 'unassigned'
-    
-    console.log(`Rendering folder: ${folder.name}, hasChildren: ${hasChildren}, isExpanded: ${isExpanded}, children:`, folder.children)
     
     return (
       <div key={folder.id} className="folder-tree-item">
@@ -357,7 +352,7 @@ function ImageManager() {
             }
             return null
           }
-          const customFolderTree = imageFolderService.buildFolderTree(customFolders.filter(f => f.id !== 'unassigned'))
+          const customFolderTree = customFolders.filter(f => f.id !== 'unassigned')
           folderName = findFolderName(customFolderTree) || 'folder'
         }
         
@@ -478,7 +473,7 @@ function ImageManager() {
               )}
 
               <div className="custom-folders-list">
-                {imageFolderService.buildFolderTree(customFolders).map(folder => 
+                {customFolders.map(folder => 
                   renderFolderTree(folder, 0)
                 )}
               </div>
@@ -574,7 +569,7 @@ function ImageManager() {
                   selectedFolder={selectedCustomFolder}
                   showUpload={true}
                   onBulkAction={handleBulkAction}
-                  customFolders={imageFolderService.buildFolderTree(customFolders)}
+                  customFolders={customFolders}
                 />
               </div>
             </>
@@ -620,7 +615,7 @@ function ImageManager() {
                   <div className="folder-assignment">
                     <p><strong>Move to Folder:</strong></p>
                     <div className="folder-buttons">
-                      {imageFolderService.buildFolderTree(customFolders).map(folder => (
+                      {customFolders.filter(f => f.id !== 'unassigned').map(folder => (
                         <button
                           key={folder.id}
                           className="folder-move-btn"
