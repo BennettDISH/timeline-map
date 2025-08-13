@@ -33,6 +33,7 @@ function ImageManager() {
     } else if (worldFromStorage) {
       setCurrentWorld(worldFromStorage)
       setSelectedWorldFolder({ id: worldFromStorage.id, name: worldFromStorage.name })
+      loadCustomFolders(worldFromStorage.id)
     }
   }, [searchParams])
 
@@ -64,6 +65,15 @@ function ImageManager() {
       )
       
       setWorldFolders(worldFoldersWithCounts)
+      
+      // Auto-select first world if none is currently selected
+      if (!currentWorld && !selectedWorldFolder && result.worlds.length > 0) {
+        const firstWorld = result.worlds[0]
+        setCurrentWorld(firstWorld)
+        setSelectedWorldFolder({ id: firstWorld.id, name: firstWorld.name })
+        worldService.setCurrentWorld(firstWorld)
+        await loadCustomFolders(firstWorld.id)
+      }
     } catch (error) {
       console.error('Failed to load worlds:', error)
     }
