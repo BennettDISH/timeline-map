@@ -181,7 +181,7 @@ function ImageManager() {
       const folderData = {
         name: newFolderName.trim(),
         world_id: currentWorld.id,
-        parent_id: selectedCustomFolder?.id || null,
+        parent_id: (selectedCustomFolder?.id && selectedCustomFolder.id !== 'unassigned') ? selectedCustomFolder.id : null,
         icon: '📁',
         color: '#4CAF50'
       }
@@ -430,7 +430,13 @@ function ImageManager() {
                 <h4>🗂️ Custom Folders</h4>
                 <button 
                   className="new-folder-btn"
-                  onClick={() => setShowNewFolderForm(true)}
+                  onClick={() => {
+                    setShowNewFolderForm(true)
+                    // Clear selection if it's the unassigned folder
+                    if (selectedCustomFolder?.id === 'unassigned') {
+                      setSelectedCustomFolder(null)
+                    }
+                  }}
                   title="Create new folder"
                 >
                   ➕
@@ -439,7 +445,7 @@ function ImageManager() {
 
               {showNewFolderForm && (
                 <div className="new-folder-form">
-                  {selectedCustomFolder && (
+                  {selectedCustomFolder && selectedCustomFolder.id !== 'unassigned' && (
                     <div className="parent-folder-info">
                       <span>Creating subfolder in: <strong>{selectedCustomFolder.name}</strong></span>
                       <button 
@@ -453,7 +459,7 @@ function ImageManager() {
                   )}
                   <input
                     type="text"
-                    placeholder={selectedCustomFolder ? `New subfolder in ${selectedCustomFolder.name}...` : 'New folder name...'}
+                    placeholder={(selectedCustomFolder && selectedCustomFolder.id !== 'unassigned') ? `New subfolder in ${selectedCustomFolder.name}...` : 'New folder name...'}
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && createFolder()}
@@ -479,14 +485,20 @@ function ImageManager() {
             <div className="empty-custom-folders">
               <button 
                 className="create-first-folder-btn"
-                onClick={() => setShowNewFolderForm(true)}
+                onClick={() => {
+                  setShowNewFolderForm(true)
+                  // Clear selection if it's the unassigned folder
+                  if (selectedCustomFolder?.id === 'unassigned') {
+                    setSelectedCustomFolder(null)
+                  }
+                }}
               >
                 ➕ Create Your First Folder
               </button>
               
               {showNewFolderForm && (
                 <div className="new-folder-form">
-                  {selectedCustomFolder && (
+                  {selectedCustomFolder && selectedCustomFolder.id !== 'unassigned' && (
                     <div className="parent-folder-info">
                       <span>Creating subfolder in: <strong>{selectedCustomFolder.name}</strong></span>
                       <button 
@@ -500,7 +512,7 @@ function ImageManager() {
                   )}
                   <input
                     type="text"
-                    placeholder={selectedCustomFolder ? `New subfolder in ${selectedCustomFolder.name}...` : 'Folder name...'}
+                    placeholder={(selectedCustomFolder && selectedCustomFolder.id !== 'unassigned') ? `New subfolder in ${selectedCustomFolder.name}...` : 'Folder name...'}
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && createFolder()}
