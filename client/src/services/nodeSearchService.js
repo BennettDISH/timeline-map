@@ -9,7 +9,6 @@ class NodeSearchService {
 
   // Search nodes across all maps in a world
   async searchNodes(worldId, searchQuery = '', options = {}) {
-    console.log('📡 NodeSearchService.searchNodes called:', { worldId, searchQuery })
     try {
       const token = localStorage.getItem('auth_token')
       if (!token) {
@@ -21,7 +20,6 @@ class NodeSearchService {
       
       // Check cache
       if (this.searchCache.has(searchKey) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
-        console.log('📡 Using cached results')
         return this.searchCache.get(searchKey)
       }
 
@@ -35,9 +33,7 @@ class NodeSearchService {
       }
 
       const url = `${API_BASE}/events/search?${params}`
-      console.log('📡 Making API request to:', url)
 
-      // Make API request
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -45,20 +41,13 @@ class NodeSearchService {
         }
       })
 
-      console.log('📡 API response status:', response.status)
-
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('📡 API error response:', errorText)
         throw new Error(`Search failed: ${response.statusText}`)
       }
 
       const data = await response.json()
-      console.log('📡 API response data:', data)
-      
-      // Format results
+
       const formattedResults = data.results.map(node => this.formatSearchResult(node, node.mapTitle))
-      console.log('📡 Formatted results:', formattedResults)
       
       const result = {
         results: formattedResults,
@@ -80,34 +69,8 @@ class NodeSearchService {
     }
   }
 
-  // Get all nodes for a specific map (with caching)
-  async getMapNodes(mapId) {
-    const now = Date.now()
-    
-    // Check cache
-    if (this.allNodesCache.has(mapId) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
-      return this.allNodesCache.get(mapId)
-    }
-
-    try {
-      // Fetch nodes for this map
-      const response = await eventService.getEvents(mapId)
-      const nodes = response.events || []
-      
-      // Cache the results
-      this.allNodesCache.set(mapId, nodes)
-      this.lastCacheUpdate = now
-      
-      return nodes
-    } catch (error) {
-      console.error(`Failed to fetch nodes for map ${mapId}:`, error)
-      return []
-    }
-  }
-
-  // Clear cache when needed
   clearCache() {
-    this.allNodesCache.clear()
+    this.searchCache.clear()
     this.lastCacheUpdate = 0
   }
 

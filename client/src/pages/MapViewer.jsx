@@ -10,6 +10,7 @@ import NodesListPanel from '../components/NodesListPanel'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
+import { getNodeType, getNodeScale, getTextNodeProps } from '../utils/nodeUtils'
 import '../styles/timelineStyles.scss'
 import '../styles/universalSearch.scss'
 
@@ -48,56 +49,6 @@ function MapViewer() {
   })
   const [timelineEnabled, setTimelineEnabled] = useState(false)
   const [timelineActive, setTimelineActive] = useState(false) // Local toggle for temporarily disabling timeline
-
-  // Helper function to get scale from node dimensions
-  const getNodeScale = (node) => {
-    if ((node.eventType !== 'standard' && node.eventType !== 'map_link' && node.eventType !== 'background_map') || !node.imageId) return 100
-    
-    try {
-      if (node.tooltipText) {
-        const dimensions = JSON.parse(node.tooltipText)
-        const scale = dimensions.scale || 100
-        return scale
-      }
-    } catch (e) {
-    }
-    
-    return 100
-  }
-
-  // Helper function to get text node properties
-  const getTextNodeProps = (node) => {
-    try {
-      if (node.tooltipText) {
-        const metadata = JSON.parse(node.tooltipText)
-        return {
-          fontSize: metadata.fontSize || 16,
-          textColor: metadata.textColor || 'white'
-        }
-      }
-    } catch (e) {
-    }
-    return {
-      fontSize: 16,
-      textColor: 'white'
-    }
-  }
-
-  // Helper function to get node type from metadata
-  const getNodeType = (node) => {
-    if (node.eventType === 'background_map') return 'background_map'
-    if (node.eventType === 'map_link') return 'map_link'
-    
-    try {
-      if (node.tooltipText) {
-        const metadata = JSON.parse(node.tooltipText)
-        return metadata.nodeType || 'info'
-      }
-    } catch (e) {
-    }
-    
-    return 'info'
-  }
 
   // Global edit state - track unsaved changes for multiple nodes
   const [unsavedChanges, setUnsavedChanges] = useState(new Map()) // nodeId -> formData
@@ -356,16 +307,6 @@ function MapViewer() {
       setInfoPanelNode(node)
       setShowInfoPanel(true)
     } else {
-      console.log('🎯 NODE CLICK - Setting editFormData for node:', {
-        nodeId: node.id,
-        eventType: node.eventType,
-        imageId: node.imageId,
-        currentDimensions: { width: node.width, height: node.height },
-        tooltipText: node.tooltipText,
-        scale: getNodeScale(node),
-        lockedFromDB: node.locked,
-        allNodeData: node
-      })
       setSelectedNode(node)
       // editFormData will be automatically derived from unsavedChanges or selectedNode
     }
@@ -522,12 +463,6 @@ function MapViewer() {
           locked: formData.locked || false
         }
 
-        console.log('🚀 CLIENT SAVING NODE:', {
-          nodeId: nodeId,
-          formData: formData,
-          updateData: updateData
-        })
-
         // Handle dimensions for background maps and image nodes, text nodes, plus connections for all nodes
         if (formData.nodeType === 'background_map' || 
             (formData.nodeType === 'info' && formData.imageId) ||
@@ -575,60 +510,6 @@ function MapViewer() {
     } finally {
       setSaving(false)
     }
-  }
-
-  // Legacy function - keeping for now but will remove individual save buttons
-  const handleEditorSave = async () => {
-    const updateData = {
-      title: editFormData.title,
-      description: editFormData.description,
-      content: editFormData.content,
-      image_id: editFormData.imageId,
-      start_time: editFormData.startTime,
-      end_time: editFormData.endTime,
-      timeline_enabled: editFormData.timelineEnabled,
-      event_type: editFormData.nodeType === 'background_map' ? 'background_map' : 
-                  editFormData.nodeType === 'map_link' ? 'map_link' : 'standard',
-      locked: editFormData.locked || false
-    }
-    
-    console.log('🚀 CLIENT SENDING UPDATE:', {
-      nodeId: selectedNode.id,
-      editFormData: editFormData,
-      updateData: updateData,
-      lockedValue: editFormData.locked
-    })
-    
-    // Store dimensions temporarily in tooltip_text as JSON for background maps and image nodes
-    if (editFormData.nodeType === 'background_map' || 
-        (editFormData.nodeType === 'info' && editFormData.imageId) ||
-        (editFormData.nodeType === 'map_link' && editFormData.imageId)) {
-      let finalWidth = editFormData.width
-      let finalHeight = editFormData.height
-      
-      // For info and map_link nodes with images, apply the scale to get final dimensions
-      if ((editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') && editFormData.imageId && editFormData.scale) {
-        // Use fixed base dimensions for scaling to prevent compounding
-        const baseWidth = 100  // Fixed base width
-        const baseHeight = 100 // Fixed base height
-        finalWidth = Math.round(baseWidth * editFormData.scale / 100)
-        finalHeight = Math.round(baseHeight * editFormData.scale / 100)
-      }
-      
-      const tooltipData = {
-        width: finalWidth,
-        height: finalHeight,
-        scale: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? editFormData.scale : undefined,
-        baseWidth: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? 100 : undefined,
-        baseHeight: (editFormData.nodeType === 'info' || editFormData.nodeType === 'map_link') ? 100 : undefined
-      }
-      
-      updateData.tooltip_text = JSON.stringify(tooltipData)
-    }
-    
-    await handleNodeUpdate(selectedNode, updateData)
-    setSelectedNode(null)
-    setHasUnsavedChanges(false)
   }
 
   if (loading) {

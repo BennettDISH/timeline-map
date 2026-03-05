@@ -1,51 +1,16 @@
 import React from 'react'
+import { getNodeIcon, getNodeTypeLabel } from '../utils/nodeUtils'
 
-function NodesListPanel({ 
-  showNodesPanel, 
-  nodes, 
-  selectedNode, 
+function NodesListPanel({
+  showNodesPanel,
+  nodes,
+  selectedNode,
   interactionMode,
-  onClose, 
+  onClose,
   onNodeSelect,
-  onNodeClick 
+  onNodeClick
 }) {
   if (!showNodesPanel) return null
-  
-  // Helper function to get node type from metadata
-  const getNodeType = (node) => {
-    if (node.eventType === 'background_map') return 'background_map'
-    if (node.eventType === 'map_link') return 'map_link'
-    
-    try {
-      if (node.tooltipText) {
-        const metadata = JSON.parse(node.tooltipText)
-        return metadata.nodeType || 'info'
-      }
-    } catch (e) {
-    }
-    
-    return 'info'
-  }
-  
-  // Helper function to get node icon
-  const getNodeIcon = (node) => {
-    const nodeType = getNodeType(node)
-    if (nodeType === 'npc') return '👤'
-    if (nodeType === 'item') return '⚔️'
-    if (nodeType === 'map_link') return '🗺️'
-    if (nodeType === 'background_map') return '🖼️'
-    return node.imageUrl ? '📷' : 'ℹ️'
-  }
-  
-  // Helper function to get node type label
-  const getNodeTypeLabel = (node) => {
-    const nodeType = getNodeType(node)
-    if (nodeType === 'npc') return 'NPC'
-    if (nodeType === 'item') return 'Item'
-    if (nodeType === 'map_link') return 'Map Link'
-    if (nodeType === 'background_map') return 'Background Map'
-    return 'Info Node'
-  }
 
   const sortedNodes = [...nodes].sort((a, b) => a.title?.localeCompare(b.title) || 0)
 

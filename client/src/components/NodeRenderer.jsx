@@ -1,8 +1,9 @@
 import React from 'react'
+import { getNodeType, getNodeIcon } from '../utils/nodeUtils'
 
-function NodeRenderer({ 
-  nodes, 
-  worldToScreen, 
+function NodeRenderer({
+  nodes,
+  worldToScreen,
   zoom,
   interactionMode,
   selectedNode,
@@ -14,32 +15,6 @@ function NodeRenderer({
   containerReady,
   unsavedChanges
 }) {
-  
-  // Helper function to get node type from metadata
-  const getNodeType = (node) => {
-    if (node.eventType === 'background_map') return 'background_map'
-    if (node.eventType === 'map_link') return 'map_link'
-    
-    try {
-      if (node.tooltipText) {
-        const metadata = JSON.parse(node.tooltipText)
-        return metadata.nodeType || 'info'
-      }
-    } catch (e) {
-    }
-    
-    return 'info'
-  }
-  
-  // Helper function to get node icon
-  const getNodeIcon = (node) => {
-    const nodeType = getNodeType(node)
-    if (nodeType === 'npc') return '👤'
-    if (nodeType === 'item') return '⚔️'
-    if (nodeType === 'text') return '📝'
-    if (nodeType === 'map_link') return '🗺️'
-    return 'ℹ️' // info icon
-  }
   // Only skip rendering if container explicitly has zero dimensions
   // This prevents the "nothing shows" issue while still preventing bad positioning
   if (containerRef && containerRef.current) {
@@ -55,27 +30,6 @@ function NodeRenderer({
   const renderRegularNode = (node) => {
     const screenPos = worldToScreen(node.worldX, node.worldY)
     const hasUnsavedChanges = unsavedChanges && unsavedChanges.has(node.id)
-    
-    // DEBUG: Check node dragging visibility
-    if (isDraggingNode && draggingNode?.id === node.id) {
-      // Node is being dragged
-    }
-    
-    // DEBUG: Check for coordinate issues
-    if (screenPos.x > 10000 || screenPos.y > 10000) {
-      // Coordinates seem corrupted
-    }
-    
-    // Check node type from metadata
-    const getNodeType = (node) => {
-      try {
-        if (node.tooltipText) {
-          const metadata = JSON.parse(node.tooltipText)
-          return metadata.nodeType || 'info'
-        }
-      } catch (e) {}
-      return 'info'
-    }
 
     const nodeType = getNodeType(node)
     const isImageNode = (node.eventType === 'standard' || node.eventType === 'map_link') && node.imageUrl

@@ -105,11 +105,6 @@ router.get('/', async (req, res) => {
       ORDER BY e.start_time ASC, e.created_at DESC
     `, [mapId]);
     
-    console.log('🔍 SERVER - Raw DB result sample:', {
-      sampleRow: result.rows[0],
-      lockedFields: result.rows.map(r => ({ id: r.id, locked: r.locked }))
-    });
-    
     const events = result.rows.map(row => ({
       id: row.id,
       title: row.title,
@@ -134,12 +129,7 @@ router.get('/', async (req, res) => {
       locked: row.locked || false
     }));
 
-    console.log('🚀 SERVER - Sending events response:', {
-      sampleEvent: events[0],
-      lockedValues: events.map(e => ({ id: e.id, locked: e.locked }))
-    });
-
-    res.json({ 
+    res.json({
       events,
       total: events.length 
     });
@@ -320,13 +310,6 @@ router.put('/:id', async (req, res) => {
       start_time, end_time, timeline_enabled, image_id, tooltip_text, 
       link_to_map_id, event_type, locked
     } = req.body;
-    
-    console.log('🔍 SERVER RECEIVED UPDATE:', { 
-      id, 
-      event_type, 
-      bodyKeys: Object.keys(req.body),
-      body: req.body 
-    });
     
     // Get current event to verify ownership
     const currentEvent = await pool.query(`

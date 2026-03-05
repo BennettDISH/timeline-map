@@ -8,7 +8,6 @@ import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
 import EnvSetup from './pages/EnvSetup'
-import Migration from './pages/Migration'
 import WorldSettings from './pages/WorldSettings'
 import MapSettings from './pages/MapSettings'
 import ImageManager from './pages/ImageManager'
@@ -46,10 +45,6 @@ function AppRoutes() {
         <Route 
           path="/env-setup" 
           element={<EnvSetup />} 
-        />
-        <Route 
-          path="/migration" 
-          element={<Migration />} 
         />
         <Route 
           path="/login" 

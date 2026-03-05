@@ -45,35 +45,6 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   }
 }));
 
-// Debug route to list uploaded files
-app.get('/api/debug/uploads', (req, res) => {
-  const fs = require('fs');
-  const uploadsDir = path.join(__dirname, 'uploads');
-  
-  try {
-    if (!fs.existsSync(uploadsDir)) {
-      return res.json({ 
-        message: 'Uploads directory does not exist',
-        path: uploadsDir 
-      });
-    }
-    
-    const files = fs.readdirSync(uploadsDir);
-    res.json({ 
-      message: 'Uploads directory contents',
-      path: uploadsDir,
-      files: files,
-      count: files.length
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Error reading uploads directory',
-      error: error.message,
-      path: uploadsDir
-    });
-  }
-});
-
 // API Routes
 app.use('/api/setup', require('./routes/setup'));
 app.use('/api/auth', require('./routes/auth'));

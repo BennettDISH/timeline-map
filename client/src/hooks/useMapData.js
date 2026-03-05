@@ -44,12 +44,6 @@ export const useMapData = (mapId) => {
         
         setMap(enrichedMap)
         
-        // Convert coordinates to world pixels and parse background map data
-        console.log('🔍 NODES FROM SERVER:', {
-          sampleNode: eventsResult.events[0],
-          lockedFields: eventsResult.events.map(n => ({ id: n.id, locked: n.locked }))
-        })
-        
         const convertedNodes = eventsResult.events.map(node => {
           // Priority: use pixel coordinates if they exist, otherwise use percentage * 1000
           let worldX, worldY

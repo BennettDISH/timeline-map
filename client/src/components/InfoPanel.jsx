@@ -1,5 +1,4 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
 
 function InfoPanel({ 
   showInfoPanel, 
@@ -12,8 +11,6 @@ function InfoPanel({
   currentTime,
   nodes
 }) {
-  const navigate = useNavigate()
-
   if (!showInfoPanel || !infoPanelNode) return null
 
   // Get connections from node metadata
