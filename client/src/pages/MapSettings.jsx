@@ -1,25 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import { useParams, Link } from 'react-router-dom'
+import mapService from '../services/mapService'
 import '../styles/mapSettings.scss'
 
 function MapSettings() {
   const { mapId } = useParams()
-  const navigate = useNavigate()
-  
+
   const [map, setMap] = useState(null)
-  const [world, setWorld] = useState(null)
-  const [availableImages, setAvailableImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  
+
   const [mapFormData, setMapFormData] = useState({
     title: '',
     description: ''
   })
-  
 
   useEffect(() => {
     if (mapId) {
@@ -27,43 +23,21 @@ function MapSettings() {
     }
   }, [mapId])
 
-  const createAuthAPI = () => {
-    const token = localStorage.getItem('auth_token')
-    return axios.create({
-      baseURL: '/api',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-  }
-
   const loadMapData = async () => {
     try {
       setLoading(true)
-      const api = createAuthAPI()
-      
-      // Load map data
-      const mapResponse = await api.get(`/maps/${mapId}`)
-      const mapData = mapResponse.data.map
+      const data = await mapService.getMap(mapId)
+      const mapData = data.map
       setMap(mapData)
-      
-      // Load world data for timeline settings
-      const worldResponse = await api.get(`/worlds/${mapData.worldId}`)
-      setWorld(worldResponse.data.world)
-      
-      // Load available images for this world
-      const imagesResponse = await api.get(`/images?world_id=${mapData.worldId}`)
-      setAvailableImages(imagesResponse.data.images || [])
-      
-      
+
       setMapFormData({
         title: mapData.title,
         description: mapData.description || ''
       })
-      
+
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load map data')
+      setError(err.message || 'Failed to load map data')
     } finally {
       setLoading(false)
     }
@@ -73,14 +47,13 @@ function MapSettings() {
     e.preventDefault()
     setSaving(true)
     setError('')
-    
+
     try {
-      const api = createAuthAPI()
-      await api.put(`/maps/${mapId}`, mapFormData)
+      await mapService.updateMap(mapId, mapFormData)
       setSuccess('Map details updated successfully!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update map')
+      setError(err.message || 'Failed to update map')
     } finally {
       setSaving(false)
     }

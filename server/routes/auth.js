@@ -161,16 +161,4 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/auth/logout
-router.post('/logout', authenticateToken, async (req, res) => {
-  try {
-    // In a more complex setup, you might want to blacklist the token
-    // For now, just send success (client should remove token)
-    res.json({ message: 'Logout successful' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 module.exports = router;

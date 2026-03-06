@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import { useParams, Link } from 'react-router-dom'
+import worldService from '../services/worldService'
 
 function WorldSettings() {
   const { worldId } = useParams()
-  const navigate = useNavigate()
-  
+
   const [world, setWorld] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  
+
   const [worldFormData, setWorldFormData] = useState({
     name: '',
     description: ''
   })
-  
+
   const [timelineFormData, setTimelineFormData] = useState({
     timelineEnabled: false,
     minTime: 0,
@@ -31,29 +30,18 @@ function WorldSettings() {
     }
   }, [worldId])
 
-  const createAuthAPI = () => {
-    const token = localStorage.getItem('auth_token')
-    return axios.create({
-      baseURL: '/api',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-  }
-
   const loadWorld = async () => {
     try {
       setLoading(true)
-      const api = createAuthAPI()
-      const response = await api.get(`/worlds/${worldId}`)
-      const worldData = response.data.world
-      
+      const data = await worldService.getWorld(worldId)
+      const worldData = data.world
+
       setWorld(worldData)
       setWorldFormData({
         name: worldData.name || '',
         description: worldData.description || ''
       })
-      
+
       setTimelineFormData({
         timelineEnabled: worldData.timelineEnabled || false,
         minTime: worldData.timelineSettings?.minTime || 0,
@@ -61,10 +49,10 @@ function WorldSettings() {
         currentTime: worldData.timelineSettings?.currentTime || 50,
         timeUnit: worldData.timelineSettings?.timeUnit || 'years'
       })
-      
+
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load world')
+      setError(err.message || 'Failed to load world')
     } finally {
       setLoading(false)
     }
@@ -77,12 +65,11 @@ function WorldSettings() {
     setSuccess('')
 
     try {
-      const api = createAuthAPI()
-      await api.put(`/worlds/${worldId}`, worldFormData)
+      await worldService.updateWorld(worldId, worldFormData)
       setSuccess('World details updated successfully!')
-      loadWorld() // Reload to get updated data
+      loadWorld()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update world details')
+      setError(err.message || 'Failed to update world details')
     } finally {
       setSaving(false)
     }
@@ -95,8 +82,7 @@ function WorldSettings() {
     setSuccess('')
 
     try {
-      const api = createAuthAPI()
-      await api.put(`/worlds/${worldId}/timeline`, {
+      await worldService.updateWorldTimeline(worldId, {
         timeline_enabled: timelineFormData.timelineEnabled,
         timeline_min_time: timelineFormData.minTime,
         timeline_max_time: timelineFormData.maxTime,
@@ -104,9 +90,9 @@ function WorldSettings() {
         timeline_time_unit: timelineFormData.timeUnit
       })
       setSuccess('Timeline settings updated successfully!')
-      loadWorld() // Reload to get updated data
+      loadWorld()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update timeline settings')
+      setError(err.message || 'Failed to update timeline settings')
     } finally {
       setSaving(false)
     }

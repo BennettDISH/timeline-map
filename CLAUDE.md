@@ -78,7 +78,7 @@ A full codebase audit was performed. Below is the complete list of cleanup tasks
 - [x] Removed dead `.mode-toggle-container` from `timelineStyles.scss`
 - [x] Fixed double import of `imageStyles.scss` (removed `@import` from `main.scss`)
 - [x] Removed invalid `truncate: true` from `imageSelector.scss`
-- [ ] Consolidate `@keyframes spin` — still defined 5 times (low priority, cosmetic)
+- [x] Consolidated `@keyframes spin` — single definition in `main.scss`, renamed variant to `spin-centered` in `universalSearch.scss`
 
 ### 5. Update schema.sql to Match Production — DONE
 - [x] Added `events.locked`, `events.x_pixel`, `events.y_pixel`, `images.base64_data`, `images.folder_id`
@@ -98,10 +98,12 @@ A full codebase audit was performed. Below is the complete list of cleanup tasks
 - [x] Fixed broken `nodeSearchService.js` (`getMapNodes` removed, `clearCache` fixed)
 - [x] Removed unused `useNavigate` import from `InfoPanel.jsx`
 
-### 8. Consolidate Overlapping Features (remaining)
-- [ ] Decide: keep `worldTimeline.js` routes OR just use `worlds.js` for timeline updates
-- [ ] Decide: keep disk-based image upload (`images.js` multer) OR remove it (frontend only uses base64)
-- [ ] Remove the no-op `POST /api/auth/logout` endpoint or implement real session invalidation
-- [ ] Make `MapSettings.jsx` use `mapService` instead of raw axios
-- [ ] Make `WorldSettings.jsx` use `worldService` instead of raw axios
-- [ ] Make `AdminPanel.jsx` use a service instead of raw axios
+### 8. Consolidate Overlapping Features — DONE
+- [x] Merged `worldTimeline.js` into `worlds.js`, deleted `worldTimeline.js`
+- [x] Removed multer disk upload from `images.js` (frontend only uses base64)
+- [x] Removed no-op `POST /api/auth/logout` endpoint, simplified client `authService.logout()`
+- [x] Made `MapSettings.jsx` use `mapService` instead of raw axios
+- [x] Made `WorldSettings.jsx` use `worldService` instead of raw axios
+- [x] Cleaned up `AdminPanel.jsx` — removed migration button, added db-status and user list views
+- [x] Removed `enable-folders` migration endpoint from `admin.js`
+- [x] Removed debug console.logs from `image-base64.js`

@@ -36,7 +36,7 @@
   top: 50%;
   transform: translateY(-50%);
   color: #63b3ed;
-  animation: spin 1s linear infinite;
+  animation: spin-centered 1s linear infinite;
 }
 
 .search-results {
@@ -273,7 +273,7 @@
   }
 }
 
-@keyframes spin {
+@keyframes spin-centered {
   from { transform: translateY(-50%) rotate(0deg); }
   to { transform: translateY(-50%) rotate(360deg); }
 }

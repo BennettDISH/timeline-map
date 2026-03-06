@@ -73,15 +73,10 @@ const authService = {
     }
   },
 
-  // Logout user
-  async logout() {
-    try {
-      await api.post('/auth/logout')
-    } catch (error) {
-    } finally {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
-    }
+  // Logout user (stateless JWT - just clear local storage)
+  logout() {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user')
   },
 
   // Get current user

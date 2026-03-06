@@ -16,6 +16,12 @@ body {
   min-height: 100vh;
 }
 
+// Shared animations
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 // Import component styles
 @import './mapStyles.scss';
 
