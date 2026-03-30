@@ -57,7 +57,7 @@ app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
 
 // One-time SSO user migration
-app.post('/api/admin/migrate-sso', async (req, res) => {
+app.post('/api/migrate-sso', async (req, res) => {
   try {
     const { secret } = req.body;
     if (secret !== process.env.SSO_CLIENT_SECRET) {
