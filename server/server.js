@@ -56,46 +56,6 @@ app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
 
-// One-time SSO user migration
-app.post('/api/migrate-sso', async (req, res) => {
-  try {
-    const { secret } = req.body;
-    if (secret !== process.env.SSO_CLIENT_SECRET) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    const pool = require('./config/database');
-    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE');
-    const { rows: users } = await pool.query(
-      'SELECT id, username, email, password_hash FROM users WHERE central_user_id IS NULL'
-    );
-    if (users.length === 0) {
-      return res.json({ message: 'No users to migrate', count: 0 });
-    }
-    const importRes = await fetch(`${process.env.AUTH_SERVICE_URL}/api/auth/proxy/import`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.SSO_CLIENT_ID,
-        client_secret: process.env.SSO_CLIENT_SECRET,
-        users: users.map(u => ({ username: u.username, email: u.email, password_hash: u.password_hash }))
-      })
-    });
-    const data = await importRes.json();
-    if (!importRes.ok) {
-      return res.status(500).json({ error: 'Import failed', details: data });
-    }
-    for (const result of data.results) {
-      if (result.central_user_id) {
-        await pool.query('UPDATE users SET central_user_id = $1 WHERE username = $2', [result.central_user_id, result.local_username]);
-      }
-    }
-    res.json({ message: 'Migration complete', results: data.results });
-  } catch (error) {
-    console.error('Migration error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
