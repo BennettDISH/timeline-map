@@ -64,6 +64,7 @@ app.post('/api/migrate-sso', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
     const pool = require('./config/database');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE');
     const { rows: users } = await pool.query(
       'SELECT id, username, email, password_hash FROM users WHERE central_user_id IS NULL'
     );
