@@ -3,12 +3,61 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { centralRegister, centralLogin, exchangeCode } = require('../config/sso');
 const router = express.Router();
+
+const SSO_ENABLED = !!process.env.AUTH_SERVICE_URL;
 
 // Generate JWT token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
+
+// Find or create a local user from central auth data, sync profile on login
+async function findOrCreateLocalUser(centralUser) {
+  // Check if we already have this central user linked
+  const existing = await pool.query(
+    'SELECT * FROM users WHERE central_user_id = $1',
+    [centralUser.central_user_id]
+  );
+
+  if (existing.rows.length > 0) {
+    const local = existing.rows[0];
+    // Sync profile data from central on each login
+    if (local.email !== centralUser.email || local.username !== centralUser.username) {
+      await pool.query(
+        'UPDATE users SET username = $1, email = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+        [centralUser.username, centralUser.email, local.id]
+      );
+      return { ...local, username: centralUser.username, email: centralUser.email };
+    }
+    return local;
+  }
+
+  // Check if there's a local user with matching email (pre-migration)
+  const byEmail = await pool.query(
+    'SELECT * FROM users WHERE email = $1',
+    [centralUser.email]
+  );
+
+  if (byEmail.rows.length > 0) {
+    await pool.query(
+      'UPDATE users SET central_user_id = $1 WHERE id = $2',
+      [centralUser.central_user_id, byEmail.rows[0].id]
+    );
+    return byEmail.rows[0];
+  }
+
+  // Create new local user with default role
+  const result = await pool.query(
+    `INSERT INTO users (username, email, password_hash, role, central_user_id)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [centralUser.username, centralUser.email, '', 'viewer', centralUser.central_user_id]
+  );
+
+  return result.rows[0];
+}
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -28,16 +77,30 @@ router.post('/register', async (req, res) => {
     try {
       await pool.query('SELECT 1 FROM users LIMIT 1');
     } catch (dbError) {
-      if (dbError.code === '42P01') { // Table does not exist
-        return res.status(503).json({ 
+      if (dbError.code === '42P01') {
+        return res.status(503).json({
           message: 'Database not initialized. Please contact an administrator to run the migration.',
           code: 'DB_NOT_INITIALIZED'
         });
       }
-      throw dbError; // Re-throw other database errors
+      throw dbError;
     }
 
-    // Check if user already exists
+    if (SSO_ENABLED) {
+      const centralRes = await centralRegister({ username, email, password });
+      if (!centralRes.ok) {
+        return res.status(centralRes.status).json({ message: centralRes.data.error || 'Registration failed' });
+      }
+      const localUser = await findOrCreateLocalUser(centralRes.data);
+      const token = generateToken(localUser.id);
+      return res.status(201).json({
+        message: 'User created successfully',
+        token,
+        user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
+      });
+    }
+
+    // Fallback: local auth
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE username = $1 OR email = $2',
       [username, email]
@@ -47,11 +110,7 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ message: 'Username or email already exists' });
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
       [username, email, hashedPassword, 'viewer']
@@ -63,13 +122,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'User created successfully',
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.created_at
-      }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role, createdAt: user.created_at }
     });
 
   } catch (error) {
@@ -91,16 +144,30 @@ router.post('/login', async (req, res) => {
     try {
       await pool.query('SELECT 1 FROM users LIMIT 1');
     } catch (dbError) {
-      if (dbError.code === '42P01') { // Table does not exist
-        return res.status(503).json({ 
+      if (dbError.code === '42P01') {
+        return res.status(503).json({
           message: 'Database not initialized. Please contact an administrator to run the migration.',
           code: 'DB_NOT_INITIALIZED'
         });
       }
-      throw dbError; // Re-throw other database errors
+      throw dbError;
     }
 
-    // Find user (allow login with username or email)
+    if (SSO_ENABLED) {
+      const centralRes = await centralLogin({ email: username, password });
+      if (!centralRes.ok) {
+        return res.status(centralRes.status).json({ message: centralRes.data.error || 'Invalid credentials' });
+      }
+      const localUser = await findOrCreateLocalUser(centralRes.data);
+      const token = generateToken(localUser.id);
+      return res.json({
+        message: 'Login successful',
+        token,
+        user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
+      });
+    }
+
+    // Fallback: local auth
     const result = await pool.query(
       'SELECT id, username, email, password_hash, role FROM users WHERE username = $1 OR email = $1',
       [username]
@@ -111,36 +178,50 @@ router.post('/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-
-    // Check password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Generate token
     const token = generateToken(user.id);
-
-    // Update last login (optional)
-    await pool.query(
-      'UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [user.id]
-    );
+    await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     res.json({
       message: 'Login successful',
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
 
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// POST /api/auth/sso-callback — exchange authorization code for user info
+router.post('/sso-callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ message: 'Authorization code is required' });
+    }
+
+    const result = await exchangeCode(code);
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.data.error || 'SSO login failed' });
+    }
+
+    const localUser = await findOrCreateLocalUser(result.data);
+    const token = generateToken(localUser.id);
+
+    res.json({
+      message: 'SSO login successful',
+      token,
+      user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
+    });
+  } catch (error) {
+    console.error('SSO callback error:', error);
+    res.status(500).json({ message: 'SSO login failed' });
   }
 });
 

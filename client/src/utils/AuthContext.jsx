@@ -105,6 +105,24 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const ssoLogin = async (code) => {
+    dispatch({ type: 'LOGIN_START' })
+    try {
+      const response = await authService.ssoLogin(code)
+      dispatch({
+        type: 'LOGIN_SUCCESS',
+        payload: { user: response.user }
+      })
+      return response
+    } catch (error) {
+      dispatch({
+        type: 'LOGIN_ERROR',
+        payload: error.message || 'SSO login failed'
+      })
+      throw error
+    }
+  }
+
   const logout = async () => {
     await authService.logout()
     dispatch({ type: 'LOGOUT' })
@@ -118,6 +136,7 @@ export const AuthProvider = ({ children }) => {
     ...state,
     login,
     register,
+    ssoLogin,
     logout,
     clearError
   }

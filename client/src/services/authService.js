@@ -100,6 +100,22 @@ const authService = {
     return user ? JSON.parse(user) : null
   },
 
+  // SSO login — exchange authorization code
+  async ssoLogin(code) {
+    try {
+      const response = await api.post('/auth/sso-callback', { code })
+
+      if (response.data.token) {
+        localStorage.setItem('auth_token', response.data.token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+
+      return response.data
+    } catch (error) {
+      throw error.response?.data || { message: 'SSO login failed' }
+    }
+  },
+
   // Get stored token
   getToken() {
     return localStorage.getItem('auth_token')

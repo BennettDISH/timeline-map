@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- SSO integration: link to central auth service
+ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
+
 -- Worlds table for organizing campaigns/projects
 CREATE TABLE IF NOT EXISTS worlds (
     id SERIAL PRIMARY KEY,

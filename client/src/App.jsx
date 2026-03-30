@@ -7,6 +7,7 @@ import MapManager from './pages/MapManager'
 import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
+import AuthCallback from './pages/AuthCallback'
 import EnvSetup from './pages/EnvSetup'
 import WorldSettings from './pages/WorldSettings'
 import MapSettings from './pages/MapSettings'
@@ -46,8 +47,9 @@ function AppRoutes() {
           path="/env-setup" 
           element={<EnvSetup />} 
         />
-        <Route 
-          path="/login" 
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route
+          path="/login"
           element={
             <PublicRoute>
               <Login />

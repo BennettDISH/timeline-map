@@ -123,6 +123,45 @@ body {
   }
 }
 
+.sso-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #ddd;
+  }
+
+  span {
+    color: #999;
+    padding: 0 1rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+}
+
+.sso-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  color: #333;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #e9ecef;
+    border-color: #667eea;
+    color: #667eea;
+  }
+}
+
 .auth-toggle {
   text-align: center;
   margin-top: 1.5rem;
