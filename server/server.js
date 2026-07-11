@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -66,19 +67,24 @@ app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
 
-// Serve static files from React build in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
-  });
-}
-
-// Health check endpoint
+// Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+
+// Serve the built React app whenever it exists — independent of NODE_ENV, so a missing
+// NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".
+const distPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(path.join(distPath, 'index.html'))) {
+  app.use(express.static(distPath));
+
+  // SPA fallback: serve index.html for any non-API GET so client-side routes work on direct
+  // navigation / refresh (e.g. /auth/callback, /map/:id).
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
