@@ -20,11 +20,20 @@ async function centralLogin({ email, password }) {
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
-async function exchangeCode(code) {
+async function exchangeCode(code, redirectUri) {
+  const body = {
+    grant_type: 'authorization_code',
+    code,
+    client_id: SSO_CLIENT_ID,
+    client_secret: SSO_CLIENT_SECRET
+  };
+  // The auth-service binds redirect_uri when present (RFC 6749 §4.1.3); send the exact value the
+  // authorize request used so we stay compatible when it becomes mandatory.
+  if (redirectUri) body.redirect_uri = redirectUri;
   const res = await fetch(`${AUTH_SERVICE_URL}/oauth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, client_id: SSO_CLIENT_ID, client_secret: SSO_CLIENT_SECRET })
+    body: JSON.stringify(body)
   });
   return { ok: res.ok, status: res.status, data: await res.json() };
 }

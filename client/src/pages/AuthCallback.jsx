@@ -25,7 +25,7 @@ function AuthCallback() {
 
     sessionStorage.removeItem('sso_state')
 
-    ssoLogin(code)
+    ssoLogin(code, `${window.location.origin}/auth/callback`)
       .then(() => navigate('/dashboard', { replace: true }))
       .catch(err => setError(err.message || 'SSO login failed'))
   }, [])

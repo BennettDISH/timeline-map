@@ -101,9 +101,9 @@ const authService = {
   },
 
   // SSO login — exchange authorization code
-  async ssoLogin(code) {
+  async ssoLogin(code, redirectUri) {
     try {
-      const response = await api.post('/auth/sso-callback', { code })
+      const response = await api.post('/auth/sso-callback', { code, redirect_uri: redirectUri })
 
       if (response.data.token) {
         localStorage.setItem('auth_token', response.data.token)

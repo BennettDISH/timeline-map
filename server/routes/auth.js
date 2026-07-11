@@ -213,12 +213,12 @@ router.post('/login', authLimiter, async (req, res) => {
 // POST /api/auth/sso-callback — exchange authorization code for user info
 router.post('/sso-callback', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, redirect_uri } = req.body;
     if (!code) {
       return res.status(400).json({ message: 'Authorization code is required' });
     }
 
-    const result = await exchangeCode(code);
+    const result = await exchangeCode(code, redirect_uri);
     if (!result.ok) {
       return res.status(result.status).json({ message: result.data.error || 'SSO login failed' });
     }

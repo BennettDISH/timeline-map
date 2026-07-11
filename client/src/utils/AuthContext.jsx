@@ -108,10 +108,10 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const ssoLogin = async (code) => {
+  const ssoLogin = async (code, redirectUri) => {
     dispatch({ type: 'LOGIN_START' })
     try {
-      const response = await authService.ssoLogin(code)
+      const response = await authService.ssoLogin(code, redirectUri)
       dispatch({
         type: 'LOGIN_SUCCESS',
         payload: { user: response.user }
