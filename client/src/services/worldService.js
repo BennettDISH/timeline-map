@@ -69,17 +69,6 @@ const worldService = {
     }
   },
 
-  // Duplicate world
-  async duplicateWorld(id, newName) {
-    try {
-      const api = createAuthAPI()
-      const response = await api.post(`/${id}/duplicate`, { name: newName })
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to duplicate world' }
-    }
-  },
-
   // Update world timeline settings
   async updateWorldTimeline(id, timelineData) {
     try {

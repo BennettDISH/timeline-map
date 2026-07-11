@@ -69,7 +69,7 @@ router.get('/', async (req, res) => {
     
   } catch (error) {
     console.error('Get maps error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -83,7 +83,7 @@ router.get('/:id', async (req, res) => {
       FROM maps m
       LEFT JOIN images i ON m.image_id = i.id
       LEFT JOIN users u ON m.created_by = u.id
-      WHERE m.id = $1
+      WHERE m.id = $1 AND m.is_active = true
     `, [id]);
 
     if (result.rows.length === 0) {
@@ -121,7 +121,7 @@ router.get('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Get map error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -155,7 +155,19 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ message: 'Image not found in this world' });
       }
     }
-    
+
+    // Verify parent map belongs to the same world if provided
+    if (parent_map_id) {
+      const parentCheck = await pool.query(
+        'SELECT id FROM maps WHERE id = $1 AND world_id = $2 AND is_active = true',
+        [parent_map_id, world_id]
+      );
+
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ message: 'Parent map not found in this world' });
+      }
+    }
+
     const result = await pool.query(`
       INSERT INTO maps (title, description, world_id, image_id, parent_map_id, created_by, zoom_level, map_order)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -182,7 +194,7 @@ router.post('/', async (req, res) => {
     
   } catch (error) {
     console.error('Create map error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -193,7 +205,7 @@ router.put('/:id', async (req, res) => {
     const { title, description, image_id, zoom_level, map_order } = req.body;
     
     // Get current map to verify ownership
-    const currentMap = await pool.query('SELECT * FROM maps WHERE id = $1', [id]);
+    const currentMap = await pool.query('SELECT * FROM maps WHERE id = $1 AND is_active = true', [id]);
     
     if (currentMap.rows.length === 0) {
       return res.status(404).json({ message: 'Map not found' });
@@ -255,7 +267,7 @@ router.put('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Update map error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -265,7 +277,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Get current map to verify ownership
-    const currentMap = await pool.query('SELECT * FROM maps WHERE id = $1', [id]);
+    const currentMap = await pool.query('SELECT * FROM maps WHERE id = $1 AND is_active = true', [id]);
     
     if (currentMap.rows.length === 0) {
       return res.status(404).json({ message: 'Map not found' });
@@ -290,7 +302,7 @@ router.delete('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Delete map error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

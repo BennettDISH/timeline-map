@@ -40,10 +40,11 @@ router.get('/search', async (req, res) => {
     
     let queryParams = [worldId];
     
-    // Add search filter if query provided
+    // Add search filter if query provided (escape LIKE wildcards so % and _ match literally)
     if (query && query.trim().length > 0) {
+      const escaped = query.trim().replace(/[\\%_]/g, (c) => '\\' + c);
       searchQuery += ` AND (LOWER(e.title) LIKE LOWER($2) OR LOWER(e.description) LIKE LOWER($2))`;
-      queryParams.push(`%${query.trim()}%`);
+      queryParams.push(`%${escaped}%`);
     }
     
     searchQuery += ` ORDER BY e.title ASC LIMIT 50`;
@@ -137,7 +138,7 @@ router.get('/', async (req, res) => {
     
   } catch (error) {
     console.error('Get events error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -195,7 +196,7 @@ router.get('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Get event error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -298,7 +299,7 @@ router.post('/', async (req, res) => {
     
   } catch (error) {
     console.error('Create event error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -418,7 +419,7 @@ router.put('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Update event error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -454,7 +455,7 @@ router.delete('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Delete event error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

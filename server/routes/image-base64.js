@@ -94,7 +94,7 @@ router.post('/upload', authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error('Base64 upload error:', error);
-    res.status(500).json({ message: 'Upload failed: ' + error.message });
+    res.status(500).json({ message: 'Upload failed' });
   }
 });
 
@@ -134,7 +134,7 @@ router.get('/serve/:filename', async (req, res) => {
 
   } catch (error) {
     console.error('Serve image error:', error);
-    res.status(500).json({ message: 'Error serving image: ' + error.message });
+    res.status(500).json({ message: 'Error serving image' });
   }
 });
 

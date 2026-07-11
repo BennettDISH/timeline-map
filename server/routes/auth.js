@@ -4,9 +4,18 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { centralRegister, centralLogin, exchangeCode } = require('../config/sso');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
 const SSO_ENABLED = !!process.env.AUTH_SERVICE_URL;
+
+// Throttle credential endpoints (login/register) to blunt brute-forcing, without touching the
+// frequently-hit /me check that the app calls on every load.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { message: 'Too many attempts. Please try again in a few minutes.' }
+});
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -60,7 +69,7 @@ async function findOrCreateLocalUser(centralUser) {
 }
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -132,7 +141,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 

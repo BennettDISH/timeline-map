@@ -90,7 +90,7 @@ router.get('/', async (req, res) => {
     
   } catch (error) {
     console.error('Get images error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -131,7 +131,7 @@ router.get('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Get image error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -201,7 +201,7 @@ router.put('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Update image error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -240,7 +240,7 @@ router.delete('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Delete image error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

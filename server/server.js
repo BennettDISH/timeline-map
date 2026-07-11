@@ -22,6 +22,9 @@ app.use(helmet({
 }));
 app.use(compression());
 
+// Behind Railway's proxy — trust the first hop so req.ip is the real client (for rate limiting)
+app.set('trust proxy', 1);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
     
   } catch (error) {
     console.error('Get folders error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -119,7 +119,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'A folder with this name already exists in this location' });
     }
     console.error('Create folder error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -172,7 +172,7 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ message: 'A folder with this name already exists in this location' });
     }
     console.error('Update folder error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -210,7 +210,7 @@ router.delete('/:id', async (req, res) => {
     
   } catch (error) {
     console.error('Delete folder error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

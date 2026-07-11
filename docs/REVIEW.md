@@ -12,13 +12,18 @@ Working assumptions (July 2026): site is in active development, **push/deploy fr
 existing data is **disposable test data** — no backfill, no data preservation, schema may
 be recreated freely.
 
-**Status (2026-07-11): Batches A–B shipped.**
+**Status (2026-07-11): Batches A–C shipped.**
 - **A** — R2 storage code (env-gated; awaiting an R2 bucket + the five `R2_*` Railway vars to
   activate — see `docs/R2-SETUP.md`), image IDOR fix, R2 delete-cascade, four P0 data-loss fixes.
 - **B** — auth deep-link bounce, gallery search focus + pagination, image-picker labels + a
   "No image" remove option, MapManager `:worldId`, unassigned-count field, event image/link clearing.
 
-Batches C–D remain.
+- **C** — real rate limiting (`trust proxy`) + auth throttle, generic 500s (no SQL leakage), SSO
+  `state` presence check, crypto JWT secret, real world delete (cascade + R2 prefix), maps
+  `is_active` + `parent_map_id` validation, generic-PUT timeline validation, `LIKE` escaping;
+  removed the dead "Duplicate World" feature.
+
+Batch D remains (plus the deferred JWT-in-localStorage/revocation redesign).
 
 ---
 
@@ -81,10 +86,10 @@ structural fix is to promote subtype/connections to real columns.
 ### 🔴 P1 — Security & auth
 - [x] **[high]** **IDOR**: `GET /api/images/:id` has no ownership check → cross-tenant image disclosure (metadata + bytes via the public `/serve`) — `server/routes/images.js:96`. Fix: `JOIN worlds w … WHERE i.id=$1 AND w.created_by=$2`.
 - [x] **[high]** **Authenticated users bounced off every deep link on refresh** — `client/src/utils/AuthContext.jsx:52`. `loading` never goes true during the initial `/auth/me` check, so `ProtectedRoute` redirects to `/login` before it resolves, dumping the user on `/dashboard`. Fix: `initialState.loading = true`; dispatch a terminal action (LOGIN_SUCCESS / LOGOUT) on **every** branch of `checkAuth`.
-- [ ] **[medium]** **SSO callback CSRF bypass** when `state` is absent (`null !== null` passes) — `client/src/pages/AuthCallback.jsx:21`. Fix: reject when `!state || !savedState`.
-- [ ] **[medium]** **Rate limiting inert** — `trust proxy` never set behind Railway, so all clients share one bucket — `server/server.js:19`. Fix: `app.set('trust proxy', 1)` + a stricter limiter on `/auth/login|register`.
-- [ ] **[medium]** **Raw Postgres error text leaked** on every 500 (~26 catch blocks bypass the `NODE_ENV` guard; `setup.js` even returns `error.stack`) — e.g. `server/routes/worlds.js:45`. Fix: return a generic message, route through the global handler.
-- [ ] **[medium]** **JWT secret generated with `Math.random()`** in the setup helper — `client/src/pages/EnvSetup.jsx:9`. Fix: `crypto.getRandomValues` (or instruct `openssl rand`).
+- [x] **[medium]** **SSO callback CSRF bypass** when `state` is absent (`null !== null` passes) — `client/src/pages/AuthCallback.jsx:21`. Fix: reject when `!state || !savedState`.
+- [x] **[medium]** **Rate limiting inert** — `trust proxy` never set behind Railway, so all clients share one bucket — `server/server.js:19`. Fix: `app.set('trust proxy', 1)` + a stricter limiter on `/auth/login|register`.
+- [x] **[medium]** **Raw Postgres error text leaked** on every 500 (~26 catch blocks bypass the `NODE_ENV` guard; `setup.js` even returns `error.stack`) — e.g. `server/routes/worlds.js:45`. Fix: return a generic message, route through the global handler.
+- [x] **[medium]** **JWT secret generated with `Math.random()`** in the setup helper — `client/src/pages/EnvSetup.jsx:9`. Fix: `crypto.getRandomValues` (or instruct `openssl rand`).
 - [ ] **[medium]** JWTs in `localStorage`, fixed 7-day expiry, **no revocation** — `client/src/services/authService.js:46`. Consider httpOnly cookie + shorter TTL + token version.
 - [ ] **[medium]** Setup success writes token to `localStorage` but **not to AuthContext** → new admin bounced to `/login` — `client/src/pages/Setup.jsx:48`. Fix: update context via a login action.
 
@@ -98,22 +103,22 @@ structural fix is to promote subtype/connections to real columns.
 
 ### 🟡 P3 — Correctness papercuts
 - [ ] **[medium]** "Save All Changes" **visually reverts all-but-last node** (stale-closure `setNodes(nodes.map…)` in a loop; persistence is fine) — `client/src/pages/MapViewer.jsx:449`. Fix: functional `setNodes(prev => …)`.
-- [ ] **[medium]** **"Duplicate World" copies nothing** — creates an empty world, hardcodes counts to 0 — `server/routes/worlds.js:302`. Also its client wrapper `worldService.duplicateWorld` is never called (dead). Finish it (deep copy in a txn) or remove it.
+- [x] **[medium]** ~~**"Duplicate World" copies nothing**~~ (removed the dead feature) — creates an empty world, hardcodes counts to 0 — `server/routes/worlds.js:302`. Also its client wrapper `worldService.duplicateWorld` is never called (dead). Finish it (deep copy in a txn) or remove it.
 - [ ] **[medium]** **1000-image fetch per world just to compute count badges**, and the query pulls the heavy `base64_data` column then discards it — `client/src/pages/ImageManager.jsx:47`. Fix: a `COUNT(*)` endpoint / stop selecting `i.*`.
 - [ ] **[medium]** Clickable list rows (**node/world/gallery**) aren't keyboard-operable; close buttons are icon-only with no label — `client/src/components/NodesListPanel.jsx:37` et al. (a11y).
 - [ ] **[low]** Timeline scrub position of exactly **`0` resets to 50** on reload (`|| 50` falsy fallback) — `client/src/hooks/useMapData.js:41` (+ `MapViewer.jsx:90`). Use `??`.
 - [ ] **[low]** New nodes default to **time range 0–100**, so a timeline-enabled node is invisible in a world ranged e.g. 1000–2000; slider fill divides by zero when `min==max` — `client/src/pages/MapViewer.jsx:177`. Default to world min/max + guard the divide.
-- [ ] **[low]** World **soft-delete never cascades**; confirm dialog falsely promises permanent deletion; orphan rows (incl. base64 blobs) accumulate — `server/routes/worlds.js:290`. Fix cascade + honest dialog.
-- [ ] **[low]** Single-map `GET/PUT/DELETE /:id` don't filter `is_active` — soft-deleted maps stay reachable by id — `server/routes/maps.js:85`.
-- [ ] **[low]** `POST /api/maps` doesn't validate `parent_map_id` ownership/world membership — `server/routes/maps.js:162`. Mirror the `link_to_map_id` check in `events.js`.
-- [ ] **[low]** `PUT /api/worlds/:id` **bypasses timeline range validation** the dedicated endpoints enforce (can persist min>max) — `server/routes/worlds.js:206`.
+- [x] **[low]** World **soft-delete never cascades**; confirm dialog falsely promises permanent deletion; orphan rows (incl. base64 blobs) accumulate — `server/routes/worlds.js:290`. Fix cascade + honest dialog.
+- [x] **[low]** Single-map `GET/PUT/DELETE /:id` don't filter `is_active` — soft-deleted maps stay reachable by id — `server/routes/maps.js:85`.
+- [x] **[low]** `POST /api/maps` doesn't validate `parent_map_id` ownership/world membership — `server/routes/maps.js:162`. Mirror the `link_to_map_id` check in `events.js`.
+- [x] **[low]** `PUT /api/worlds/:id` **bypasses timeline range validation** the dedicated endpoints enforce (can persist min>max) — `server/routes/worlds.js:206`.
 - [ ] **[low]** **Zoom-to-cursor is a no-op** — wheel always zooms to center (stale coord closures) — `client/src/hooks/useMapInteractions.js:187`.
 - [ ] **[low]** **Sticky drag**: mouseup outside the container leaves node/viewport following the cursor — `client/src/components/MapContainer.jsx:32`. Bind move/up to `window` (or pointer capture).
 - [ ] **[low]** Click-to-select in edit mode fires a **redundant position-save PUT** (no move threshold) — `client/src/hooks/useMapInteractions.js:131`.
 - [ ] **[low]** Wheel `preventDefault()` ignored (React passive listener) — page can scroll while zooming on short viewports — `client/src/hooks/useMapInteractions.js:171`.
 - [ ] **[low]** Search cache TTL is **global, never invalidated** — typeahead can serve stale/deleted nodes — `client/src/services/nodeSearchService.js:22`. Per-entry timestamp + `clearCache()` after mutations.
 - [ ] **[low]** Typeahead has **no request sequencing** — a slow earlier query can overwrite a newer one — `client/src/components/UniversalNodeSearch.jsx:41`.
-- [ ] **[low]** Search **`LIKE` doesn't escape `%`/`_`** — those behave as wildcards — `server/routes/events.js:44`.
+- [x] **[low]** Search **`LIKE` doesn't escape `%`/`_`** — those behave as wildcards — `server/routes/events.js:44`.
 - [ ] **[low]** Search results silently truncated; `totalCount` is post-LIMIT (≤50) and unused — `server/routes/events.js:65`.
 - [x] **[low]** `ImageSelector` selected-state compare is **type-inconsistent** (`parseInt` vs `toString`) so the chosen thumbnail isn't highlighted — `client/src/components/ImageSelector.jsx:239`.
 

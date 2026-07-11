@@ -39,7 +39,7 @@ router.get('/status', async (req, res) => {
     console.error('Setup status check error:', error);
     res.status(500).json({
       needsSetup: true,
-      message: 'Unable to check setup status: ' + error.message
+      message: 'Unable to check setup status'
     });
   }
 });
@@ -139,8 +139,8 @@ router.post('/init-admin', async (req, res) => {
   } catch (error) {
     console.error('Setup initialization error:', error);
     res.status(500).json({
-      message: 'Failed to initialize system: ' + error.message,
-      error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
+      message: 'Failed to initialize system',
+      error: 'Internal server error'
     });
   }
 });

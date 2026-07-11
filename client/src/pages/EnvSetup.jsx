@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 
 function EnvSetup() {
   const generateJWTSecret = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
-    let result = 'sk_'
-    for (let i = 0; i < 50; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
+    // Cryptographically secure random bytes -> base64url. Math.random() is not secure enough
+    // for a value that becomes the JWT signing key.
+    const bytes = new Uint8Array(48)
+    crypto.getRandomValues(bytes)
+    let bin = ''
+    bytes.forEach(b => { bin += String.fromCharCode(b) })
+    const b64url = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    return 'sk_' + b64url
   }
 
   const [jwtSecret] = React.useState(generateJWTSecret())

@@ -18,7 +18,7 @@ function AuthCallback() {
       return
     }
 
-    if (state !== savedState) {
+    if (!state || !savedState || state !== savedState) {
       setError('Invalid state parameter')
       return
     }

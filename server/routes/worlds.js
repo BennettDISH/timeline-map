@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { r2Enabled, deletePrefix } = require('../storage');
 const router = express.Router();
 
 // All world routes require authentication
@@ -42,7 +43,7 @@ router.get('/', async (req, res) => {
     res.json({ worlds });
   } catch (error) {
     console.error('Get worlds error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -88,7 +89,7 @@ router.get('/:id', async (req, res) => {
     res.json({ world });
   } catch (error) {
     console.error('Get world error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -138,7 +139,7 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Create world error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -163,12 +164,27 @@ router.put('/:id', async (req, res) => {
 
     // Check if world exists and user owns it
     const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id, timeline_min_time, timeline_max_time, timeline_current_time FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
       [id, req.user.id]
     );
 
     if (worldCheck.rows.length === 0) {
       return res.status(404).json({ message: 'World not found' });
+    }
+
+    // Validate timeline consistency if any timeline bound is being changed (the dedicated
+    // /timeline endpoint validates too; this closes the same gap on the generic update).
+    if (timeline_min_time !== undefined || timeline_max_time !== undefined || timeline_current_time !== undefined) {
+      const stored = worldCheck.rows[0];
+      const effMin = timeline_min_time !== undefined ? timeline_min_time : stored.timeline_min_time;
+      const effMax = timeline_max_time !== undefined ? timeline_max_time : stored.timeline_max_time;
+      const effCur = timeline_current_time !== undefined ? timeline_current_time : stored.timeline_current_time;
+      if (effMin >= effMax) {
+        return res.status(400).json({ message: 'Minimum time must be less than maximum time' });
+      }
+      if (effCur < effMin || effCur > effMax) {
+        return res.status(400).json({ message: 'Current time must be between minimum and maximum time' });
+      }
     }
 
     // Check if name conflicts with another world (only if name is being updated)
@@ -267,7 +283,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Update world error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -286,74 +302,22 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'World not found' });
     }
 
-    // Soft delete the world (this will cascade to all related data due to CASCADE constraints)
-    await pool.query(
-      'UPDATE worlds SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [id]
-    );
+    // Hard delete — ON DELETE CASCADE reclaims this world's maps, images, folders, and events.
+    await pool.query('DELETE FROM worlds WHERE id = $1 AND created_by = $2', [id, req.user.id]);
+
+    // Best-effort: remove this world's objects from R2
+    if (r2Enabled) {
+      try {
+        await deletePrefix(`worlds/${id}/`);
+      } catch (e) {
+        console.error('R2 world prefix delete failed:', e.message);
+      }
+    }
 
     res.json({ message: 'World deleted successfully' });
   } catch (error) {
     console.error('Delete world error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
-  }
-});
-
-// POST /api/worlds/:id/duplicate - Duplicate a world
-router.post('/:id/duplicate', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-
-    if (!name || name.trim().length === 0) {
-      return res.status(400).json({ message: 'New world name is required' });
-    }
-
-    // Check if source world exists and user owns it
-    const sourceWorld = await pool.query(
-      'SELECT * FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
-      [id, req.user.id]
-    );
-
-    if (sourceWorld.rows.length === 0) {
-      return res.status(404).json({ message: 'Source world not found' });
-    }
-
-    // Check if name conflicts
-    const nameCheck = await pool.query(
-      'SELECT id FROM worlds WHERE name = $1 AND created_by = $2 AND is_active = true',
-      [name.trim(), req.user.id]
-    );
-
-    if (nameCheck.rows.length > 0) {
-      return res.status(409).json({ message: 'You already have a world with this name' });
-    }
-
-    const source = sourceWorld.rows[0];
-
-    // Create new world
-    const newWorld = await pool.query(`
-      INSERT INTO worlds (name, description, created_by, settings)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `, [name.trim(), `Copy of ${source.description || source.name}`, req.user.id, source.settings]);
-
-    res.status(201).json({
-      message: 'World duplicated successfully',
-      world: {
-        id: newWorld.rows[0].id,
-        name: newWorld.rows[0].name,
-        description: newWorld.rows[0].description,
-        createdAt: newWorld.rows[0].created_at,
-        updatedAt: newWorld.rows[0].updated_at,
-        settings: newWorld.rows[0].settings,
-        mapCount: 0,
-        imageCount: 0
-      }
-    });
-  } catch (error) {
-    console.error('Duplicate world error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -418,7 +382,7 @@ router.put('/:id/timeline', async (req, res) => {
     });
   } catch (error) {
     console.error('Update timeline settings error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -462,7 +426,7 @@ router.post('/:id/timeline/time', async (req, res) => {
     });
   } catch (error) {
     console.error('Update timeline position error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
