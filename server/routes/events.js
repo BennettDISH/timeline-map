@@ -358,8 +358,13 @@ router.put('/:id', async (req, res) => {
       }
     }
     
+    // Allow explicitly clearing image_id / link_to_map_id — COALESCE would ignore a null,
+    // so distinguish "omitted" (keep existing) from "present but null" (clear) via key presence.
+    const newImageId = ('image_id' in req.body) ? image_id : event.image_id;
+    const newLinkToMapId = ('link_to_map_id' in req.body) ? link_to_map_id : event.link_to_map_id;
+
     const result = await pool.query(`
-      UPDATE events 
+      UPDATE events
       SET title = COALESCE($1, title),
           description = COALESCE($2, description),
           content = COALESCE($3, content),
@@ -370,9 +375,9 @@ router.put('/:id', async (req, res) => {
           start_time = COALESCE($8, start_time),
           end_time = COALESCE($9, end_time),
           timeline_enabled = COALESCE($10, timeline_enabled),
-          image_id = COALESCE($11, image_id),
+          image_id = $11,
           tooltip_text = COALESCE($12, tooltip_text),
-          link_to_map_id = COALESCE($13, link_to_map_id),
+          link_to_map_id = $13,
           event_type = COALESCE($14, event_type),
           locked = COALESCE($15, locked),
           updated_at = CURRENT_TIMESTAMP
@@ -380,8 +385,8 @@ router.put('/:id', async (req, res) => {
       RETURNING *
     `, [
       title, description, content, x_position, y_position, x_pixel, y_pixel,
-      start_time, end_time, timeline_enabled, image_id, tooltip_text, 
-      link_to_map_id, event_type, locked, id
+      start_time, end_time, timeline_enabled, newImageId, tooltip_text,
+      newLinkToMapId, event_type, locked, id
     ]);
 
     const updatedEvent = result.rows[0];

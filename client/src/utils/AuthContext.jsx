@@ -41,7 +41,7 @@ const authReducer = (state, action) => {
 const initialState = {
   isAuthenticated: false,
   user: null,
-  loading: false,
+  loading: true, // start true so route guards wait for the initial token check instead of bouncing to /login
   error: null
 }
 
@@ -63,9 +63,12 @@ export const AuthProvider = ({ children }) => {
           authService.logout()
           dispatch({ type: 'LOGOUT' })
         }
+      } else {
+        // No stored token — resolve the initial loading state so guards stop waiting
+        dispatch({ type: 'LOGOUT' })
       }
     }
-    
+
     checkAuth()
   }, [])
 

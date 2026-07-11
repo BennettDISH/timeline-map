@@ -9,22 +9,33 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
   const [selectedTags, setSelectedTags] = useState('')
   const [selectedImages, setSelectedImages] = useState(new Set())
   const [bulkMode, setBulkMode] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
+  const PAGE_SIZE = 50
+
+  // Debounce search/filter changes so typing doesn't fire a request (and re-render) per keystroke
   useEffect(() => {
-    loadImages()
+    const t = setTimeout(() => loadImages(true), 300)
+    return () => clearTimeout(t)
   }, [worldId, search, selectedTags, selectedFolder])
 
-  const loadImages = async () => {
+  const loadImages = async (reset = true) => {
     try {
-      setLoading(true)
-      
+      if (reset) setLoading(true)
+      else setLoadingMore(true)
+
+      const nextOffset = reset ? 0 : offset
+
       // Build search parameters
       let searchParams = {
         worldId: worldId || undefined,
         search: search || undefined,
-        limit: 50
+        limit: PAGE_SIZE,
+        offset: nextOffset
       }
-      
+
       // Handle custom folder filtering
       if (selectedFolder) {
         if (selectedFolder.id === 'unassigned') {
@@ -38,12 +49,15 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
       }
 
       const result = await imageServiceBase64.getImages(searchParams)
-      setImages(result.images)
+      setImages(prev => (reset ? result.images : [...prev, ...result.images]))
+      setOffset(nextOffset + result.images.length)
+      setHasMore(!!result.hasMore)
       setError('')
     } catch (err) {
       setError(err.message || 'Failed to load images')
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
@@ -132,10 +146,6 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
     }
   }
 
-  if (loading) {
-    return <div className="image-gallery-loading">Loading images...</div>
-  }
-
   return (
     <div className="image-gallery">
       <div className="gallery-header">
@@ -154,7 +164,7 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
             onChange={(e) => setSelectedTags(e.target.value)}
             className="tags-input"
           />
-          <button onClick={loadImages} className="refresh-button">
+          <button onClick={() => loadImages(true)} className="refresh-button">
             🔄 Refresh
           </button>
           <button 
@@ -218,7 +228,9 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
       )}
 
       <div className="gallery-grid">
-        {images.length === 0 ? (
+        {loading && images.length === 0 ? (
+          <div className="image-gallery-loading">Loading images...</div>
+        ) : images.length === 0 ? (
           <div className="no-images">
             <p>No images found. {showUpload ? 'Upload some images to get started!' : ''}</p>
           </div>
@@ -276,6 +288,13 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
           ))
         )}
       </div>
+      {hasMore && (
+        <div className="gallery-load-more">
+          <button onClick={() => loadImages(false)} disabled={loadingMore} className="load-more-button">
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

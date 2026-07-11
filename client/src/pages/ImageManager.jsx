@@ -135,7 +135,7 @@ function ImageManager() {
       // Get count of unassigned images
       const allImagesResult = await imageServiceBase64.getImages({ worldId, limit: 1000 })
       const allImages = allImagesResult.images || []
-      const unassignedCount = allImages.filter(img => !img.folder_id).length
+      const unassignedCount = allImages.filter(img => !img.folderId).length
       
       // Create unassigned folder and combine with custom folders
       const unassignedFolder = {

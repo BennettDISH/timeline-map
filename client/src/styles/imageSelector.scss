@@ -340,3 +340,38 @@
   bottom: 0;
   z-index: 999;
 }
+
+// "No image" (clear selection) tile in the picker grid
+.image-selector .image-grid .no-image-option {
+  .no-image-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: 1px dashed #cbd5e0;
+    border-radius: 4px;
+  }
+}
+
+// "Load more" control under the image gallery grid
+.gallery-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+
+  .load-more-button {
+    padding: 0.6rem 1.4rem;
+    border: none;
+    border-radius: 6px;
+    background: #4a5568;
+    color: #fff;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover { background: #2d3748; }
+    &:disabled { opacity: 0.6; cursor: wait; }
+  }
+}

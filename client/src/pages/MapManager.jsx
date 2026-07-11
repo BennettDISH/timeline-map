@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
 import mapService from '../services/mapService'
@@ -7,6 +7,7 @@ import '../styles/mapManager.scss'
 
 function MapManager() {
   const [searchParams] = useSearchParams()
+  const { worldId } = useParams()
   const [currentWorld, setCurrentWorld] = useState(null)
   const [maps, setMaps] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,16 +20,16 @@ function MapManager() {
   })
 
   useEffect(() => {
-    // Check for world ID in URL params or localStorage
-    const worldIdFromUrl = searchParams.get('world')
+    // Prefer the :worldId route param, then a ?world= query, then the last-used world
+    const worldIdFromUrl = worldId || searchParams.get('world')
     const worldFromStorage = worldService.getCurrentWorld()
-    
+
     if (worldIdFromUrl) {
       loadWorldById(worldIdFromUrl)
     } else if (worldFromStorage) {
       setCurrentWorld(worldFromStorage)
     }
-  }, [searchParams])
+  }, [worldId, searchParams])
 
   useEffect(() => {
     if (currentWorld) {

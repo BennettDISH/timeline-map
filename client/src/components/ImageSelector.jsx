@@ -179,8 +179,8 @@ function ImageSelector({
       <div className="image-selector-trigger" onClick={handleToggle}>
         {selectedImage ? (
           <div className="selected-image">
-            <img src={selectedImage.url || selectedImage.imageUrl} alt={selectedImage.filename || selectedImage.imageName} />
-            <span className="image-name">{selectedImage.filename || selectedImage.imageName}</span>
+            <img src={selectedImage.url || selectedImage.imageUrl} alt={selectedImage.originalName || selectedImage.filename} />
+            <span className="image-name">{selectedImage.originalName || selectedImage.filename}</span>
           </div>
         ) : (
           <div className="placeholder">
@@ -227,22 +227,31 @@ function ImageSelector({
               </div>
             )}
             
-            {filteredImages.length === 0 ? (
+            <div className="image-grid">
+              {selectedImageId && (
+                <div
+                  className="image-option no-image-option"
+                  onClick={() => handleImageSelect(null)}
+                  title="Remove image from this node"
+                >
+                  <span className="no-image-icon">🚫</span>
+                  <span className="image-name">No image</span>
+                </div>
+              )}
+              {filteredImages.map((image) => (
+                <div
+                  key={image.id}
+                  className={`image-option ${String(selectedImageId) === String(image.id) ? 'selected' : ''}`}
+                  onClick={() => handleImageSelect(image.id)}
+                >
+                  <img src={image.url || image.imageUrl} alt={image.originalName || image.filename} />
+                  <span className="image-name">{image.originalName || image.filename}</span>
+                </div>
+              ))}
+            </div>
+            {filteredImages.length === 0 && (
               <div className="no-images">
                 <p>{selectedFolder ? `No images in ${selectedFolder.name}` : 'No images available'}</p>
-              </div>
-            ) : (
-              <div className="image-grid">
-                {filteredImages.map((image) => (
-                  <div 
-                    key={image.id} 
-                    className={`image-option ${selectedImageId === image.id.toString() ? 'selected' : ''}`}
-                    onClick={() => handleImageSelect(image.id)}
-                  >
-                    <img src={image.url || image.imageUrl} alt={image.filename || image.imageName} />
-                    <span className="image-name">{image.filename || image.imageName}</span>
-                  </div>
-                ))}
               </div>
             )}
           </div>
@@ -251,7 +260,7 @@ function ImageSelector({
       
       {showPreview && selectedImage && (
         <div className="image-preview">
-          <img src={selectedImage.url || selectedImage.imageUrl} alt={selectedImage.filename || selectedImage.imageName} />
+          <img src={selectedImage.url || selectedImage.imageUrl} alt={selectedImage.originalName || selectedImage.filename} />
         </div>
       )}
     </div>
