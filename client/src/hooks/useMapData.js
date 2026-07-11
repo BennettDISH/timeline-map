@@ -62,12 +62,7 @@ export const useMapData = (mapId) => {
             // Keep the coordinates as they are for now
           }
           
-          // DEBUG: Check for corrupted coordinates from database
-          if (Math.abs(worldX) > 10000 || Math.abs(worldY) > 10000) {
-            // Reset to reasonable coordinates near camera center
-            worldX = 500 + (Math.random() - 0.5) * 200
-            worldY = 500 + (Math.random() - 0.5) * 200
-          }
+          // (coordinates are used as stored; no clamping)
           
           // Parse dimensions from tooltip_text for background_map, standard, and map_link nodes with images
           let width = 400, height = 300

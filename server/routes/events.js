@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
 // All event routes require authentication
@@ -57,7 +58,7 @@ router.get('/search', async (req, res) => {
       mapTitle: row.map_title,
       eventType: row.event_type,
       tooltipText: row.tooltip_text,
-      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null
+      imageUrl: resolveImageUrl(req, row.image_url)
     }));
 
     res.json({
@@ -119,7 +120,7 @@ router.get('/', async (req, res) => {
       endTime: row.end_time,
       timelineEnabled: row.timeline_enabled,
       imageId: row.image_id,
-      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
+      imageUrl: resolveImageUrl(req, row.image_url),
       createdBy: row.created_by_username,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -181,7 +182,7 @@ router.get('/:id', async (req, res) => {
       endTime: row.end_time,
       timelineEnabled: row.timeline_enabled,
       imageId: row.image_id,
-      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
+      imageUrl: resolveImageUrl(req, row.image_url),
       createdBy: row.created_by_username,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

@@ -101,10 +101,7 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
       const newWorldX = dragStartNodePos.x + worldDeltaX
       const newWorldY = dragStartNodePos.y + worldDeltaY
       
-      // DEBUG: Check for coordinate corruption during drag
-      if (Math.abs(newWorldX) > 10000 || Math.abs(newWorldY) > 10000) {
-        return // Don't update coordinates if they're corrupted
-      }
+      // (no coordinate clamping — positions used as dragged)
       
       setNodes(nodes.map(node => 
         node.id === draggingNode.id 
@@ -143,10 +140,7 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
         const pixelX = Math.round(finalWorldX)
         const pixelY = Math.round(finalWorldY)
         
-        // Prevent saving corrupted coordinates to database
-        if (Math.abs(pixelX) > 10000 || Math.abs(pixelY) > 10000) {
-          return
-        }
+        // (no coordinate clamping — positions saved as dragged)
         
         const dragUpdateData = {
           x_pixel: pixelX,

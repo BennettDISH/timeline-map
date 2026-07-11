@@ -1,6 +1,8 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { r2Enabled, deleteObject } = require('../storage');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
 // All image routes require authentication
@@ -77,7 +79,7 @@ router.get('/', async (req, res) => {
       folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
-      url: `${req.protocol}://${req.get('host')}${row.file_path}`
+      url: resolveImageUrl(req, row.file_path)
     }));
 
     res.json({ 
@@ -101,8 +103,9 @@ router.get('/:id', async (req, res) => {
       SELECT i.*, u.username as uploaded_by_username
       FROM images i
       LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE i.id = $1
-    `, [id]);
+      JOIN worlds w ON i.world_id = w.id
+      WHERE i.id = $1 AND w.created_by = $2 AND w.is_active = true
+    `, [id, req.user.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
@@ -121,7 +124,7 @@ router.get('/:id', async (req, res) => {
       folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
-      url: `${req.protocol}://${req.get('host')}${row.file_path}`
+      url: resolveImageUrl(req, row.file_path)
     };
 
     res.json({ image });
@@ -192,7 +195,7 @@ router.put('/:id', async (req, res) => {
         tags: updatedImage.tags,
         folderId: updatedImage.folder_id,
         uploadedAt: updatedImage.created_at,
-        url: `${req.protocol}://${req.get('host')}${updatedImage.file_path}`
+        url: resolveImageUrl(req, updatedImage.file_path)
       }
     });
     
@@ -221,8 +224,17 @@ router.delete('/:id', async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this image' });
     }
 
-    // Delete from database
-    await pool.query('DELETE FROM images WHERE id = $1', [id]);
+    // Delete from database, capturing the R2 key so we can remove the object too
+    const del = await pool.query('DELETE FROM images WHERE id = $1 RETURNING storage_key', [id]);
+
+    // Best-effort R2 cleanup — never block the DB delete on a storage hiccup
+    if (r2Enabled && del.rows[0] && del.rows[0].storage_key) {
+      try {
+        await deleteObject(del.rows[0].storage_key);
+      } catch (e) {
+        console.error('R2 delete failed (DB row already removed):', e.message);
+      }
+    }
 
     res.json({ message: 'Image deleted successfully' });
     

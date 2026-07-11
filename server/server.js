@@ -9,6 +9,13 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Ensure newer image columns exist even if `npm run migrate` hasn't been run on this DB.
+// Idempotent and safe on every boot; a missing table (fresh DB pre-init) just logs and no-ops.
+const pool = require('./config/database');
+pool
+  .query('ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500)')
+  .catch((err) => console.error('storage_key column ensure skipped:', err.message));
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }

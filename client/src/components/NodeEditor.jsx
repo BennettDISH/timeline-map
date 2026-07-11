@@ -92,8 +92,6 @@ function NodeEditor({
     setExistingConnections(updatedConnections)
     
     // Update the form data with new connections
-    const updatedTooltipData = editFormData.tooltipData || {}
-    updatedTooltipData.connections = updatedConnections
     handleFieldChange('connections', updatedConnections)
     
     // Reset form

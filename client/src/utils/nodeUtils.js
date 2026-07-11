@@ -60,3 +60,13 @@ export const getNodeScale = (node) => {
 
   return 100
 }
+
+export const getNodeConnections = (node) => {
+  try {
+    if (node.tooltipText) {
+      const metadata = JSON.parse(node.tooltipText)
+      return metadata.connections || []
+    }
+  } catch (e) {}
+  return []
+}

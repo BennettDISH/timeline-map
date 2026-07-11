@@ -1,6 +1,8 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { r2Enabled, putObject } = require('../storage');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
 // POST /api/images-base64/upload - Upload image as base64 (requires auth)
@@ -42,26 +44,37 @@ router.post('/upload', authenticateToken, async (req, res) => {
     const extension = mimeType === 'jpeg' ? 'jpg' : mimeType;
     const filename = `img-${timestamp}-${randomString}.${extension}`;
 
-    // Save to database with base64 data
+    // Store to R2 when configured, else fall back to base64-in-Postgres.
+    let filePathValue = `/api/images-base64/serve/${filename}`; // legacy serve endpoint
+    let storageKey = null;
+    let base64ToStore = imageData;
+    if (r2Enabled) {
+      const buffer = Buffer.from(base64Data, 'base64');
+      storageKey = `worlds/${world_id}/${filename}`;
+      filePathValue = await putObject(storageKey, buffer, `image/${mimeType}`); // absolute R2 URL
+      base64ToStore = null; // don't duplicate bytes in Postgres
+    }
+
     const result = await pool.query(`
-      INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       filename,
       originalName,
-      `/api/images-base64/serve/${filename}`, // Custom serve endpoint
+      filePathValue,
       fileSize,
       `image/${mimeType}`,
       world_id,
       req.user.id,
       alt_text || null,
       tags ? tags.split(',').map(tag => tag.trim()) : null,
-      imageData // Store full base64 data
+      base64ToStore,
+      storageKey
     ]);
 
     const imageRecord = result.rows[0];
-    const imageUrl = `${req.protocol}://${req.get('host')}/api/images-base64/serve/${filename}`;
+    const imageUrl = resolveImageUrl(req, imageRecord.file_path);
 
     res.json({
       message: 'File uploaded successfully',

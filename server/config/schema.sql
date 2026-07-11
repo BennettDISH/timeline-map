@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS images (
     folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL
 );
 
+-- R2 object storage key for the uploaded image (NULL for legacy base64-in-Postgres rows)
+ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500);
+
 -- Maps table with hierarchical structure
 CREATE TABLE IF NOT EXISTS maps (
     id SERIAL PRIMARY KEY,

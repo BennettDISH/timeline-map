@@ -10,7 +10,7 @@ import NodesListPanel from '../components/NodesListPanel'
 import eventService from '../services/eventService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
-import { getNodeType, getNodeScale, getTextNodeProps } from '../utils/nodeUtils'
+import { getNodeType, getNodeScale, getTextNodeProps, getNodeConnections } from '../utils/nodeUtils'
 import '../styles/timelineStyles.scss'
 import '../styles/universalSearch.scss'
 
@@ -66,8 +66,9 @@ function MapViewer() {
         timelineEnabled: selectedNode.timelineEnabled || false,
         imageId: selectedNode.imageId || null,
         nodeType: getNodeType(selectedNode),
-        width: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
-               (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : (getNodeType(selectedNode) === 'text' ? 200 : 100))),
+        width: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 :
+               getNodeType(selectedNode) === 'text' ? getTextNodeProps(selectedNode).width :
+               (selectedNode.width || (selectedNode.eventType === 'background_map' ? 400 : 100)),
         height: (selectedNode.eventType === 'standard' && selectedNode.imageId) || (selectedNode.eventType === 'map_link' && selectedNode.imageId) ? 100 : 
                 (selectedNode.height || (selectedNode.eventType === 'background_map' ? 300 : 100)),
         scale: getNodeScale(selectedNode),
@@ -488,7 +489,7 @@ function MapViewer() {
             baseWidth: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : (formData.nodeType === 'background_map' ? 400 : undefined),
             baseHeight: (formData.nodeType === 'info' || formData.nodeType === 'npc' || formData.nodeType === 'item' || formData.nodeType === 'map_link') ? 100 : (formData.nodeType === 'background_map' ? 300 : undefined),
             nodeType: formData.nodeType, // Store the specific node type
-            connections: formData.connections || [], // Store connections
+            connections: formData.connections !== undefined ? formData.connections : getNodeConnections(node), // preserve existing connections when not edited this session
             // Text node properties
             fontSize: formData.nodeType === 'text' ? formData.fontSize : undefined,
             textColor: formData.nodeType === 'text' ? formData.textColor : undefined
@@ -753,6 +754,7 @@ function MapViewer() {
       {/* Node Editor */}
       {interactionMode === 'edit' && (
         <NodeEditor
+          key={selectedNode?.id}
           selectedNode={selectedNode}
           editFormData={editFormData}
           timelineEnabled={timelineEnabled}

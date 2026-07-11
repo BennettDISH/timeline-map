@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
 // All map routes require authentication
@@ -52,7 +53,7 @@ router.get('/', async (req, res) => {
       description: row.description,
       worldId: row.world_id,
       imageId: row.image_id,
-      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
+      imageUrl: resolveImageUrl(req, row.image_url),
       parentMapId: row.parent_map_id,
       createdBy: row.created_by_username,
       createdAt: row.created_at,
@@ -107,7 +108,7 @@ router.get('/:id', async (req, res) => {
       description: row.description,
       worldId: row.world_id,
       imageId: row.image_id,
-      imageUrl: row.image_url ? `${req.protocol}://${req.get('host')}${row.image_url}` : null,
+      imageUrl: resolveImageUrl(req, row.image_url),
       parentMapId: row.parent_map_id,
       createdBy: row.created_by_username,
       createdAt: row.created_at,
