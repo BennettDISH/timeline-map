@@ -12,6 +12,11 @@ Working assumptions (July 2026): site is in active development, **push/deploy fr
 existing data is **disposable test data** — no backfill, no data preservation, schema may
 be recreated freely.
 
+**Status (2026-07-11): Batch A shipped** — R2 storage code (env-gated; awaiting an R2 bucket
++ the five `R2_*` Railway vars to actually activate — see `docs/R2-SETUP.md`), the image
+IDOR fix, R2 delete-cascade, and the four P0 data-loss fixes are done and pushed to `main`.
+Batches B–D remain.
+
 ---
 
 ## R2 image migration — plan
@@ -65,13 +70,13 @@ Root cause of the top three: `tooltip_text` is overloaded as a JSON blob (subtyp
 scale, connections, colors). CLAUDE.md already flags it. Immediate fixes are tiny; the
 structural fix is to promote subtype/connections to real columns.
 
-- [ ] **[high]** Saving any tooltip-bearing node **wipes all its connections** — `client/src/pages/MapViewer.jsx:491`. `formData.connections` is never seeded from the node, so editing any field on a text/image node and saving writes `connections: []`. Fix: seed `connections` into `editFormData` (`getNodeConnections(selectedNode)`), or preserve existing when `undefined`.
-- [ ] **[high]** Editor **writes the wrong node's connections** when switching nodes with the panel open — `client/src/components/NodeEditor.jsx:73`. `existingConnections` is `useState`'d once, never re-synced. Fix: `key={selectedNode.id}` on `<NodeEditor>` in `MapViewer.jsx:755` (remounts per node).
-- [ ] **[high]** **±10000 "corruption guard" randomizes far nodes** on load and blocks large maps — `client/src/hooks/useMapData.js:66` (+ `useMapInteractions.js:105,147`; create path `MapViewer.jsx:174` has no guard). Leftover debug scaffolding; overwrites persisted coords with `Math.random()`. Fix: remove the ±10000 guards (or clamp to real bounds, never randomize).
-- [ ] **[medium]** Text-node **width loaded from wrong source, reset to 400 on save** — `client/src/pages/MapViewer.jsx:70`. Seed width from `getTextNodeProps(selectedNode).width` in `editFormData`.
+- [x] **[high]** Saving any tooltip-bearing node **wipes all its connections** — `client/src/pages/MapViewer.jsx:491`. `formData.connections` is never seeded from the node, so editing any field on a text/image node and saving writes `connections: []`. Fix: seed `connections` into `editFormData` (`getNodeConnections(selectedNode)`), or preserve existing when `undefined`.
+- [x] **[high]** Editor **writes the wrong node's connections** when switching nodes with the panel open — `client/src/components/NodeEditor.jsx:73`. `existingConnections` is `useState`'d once, never re-synced. Fix: `key={selectedNode.id}` on `<NodeEditor>` in `MapViewer.jsx:755` (remounts per node).
+- [x] **[high]** **±10000 "corruption guard" randomizes far nodes** on load and blocks large maps — `client/src/hooks/useMapData.js:66` (+ `useMapInteractions.js:105,147`; create path `MapViewer.jsx:174` has no guard). Leftover debug scaffolding; overwrites persisted coords with `Math.random()`. Fix: remove the ±10000 guards (or clamp to real bounds, never randomize).
+- [x] **[medium]** Text-node **width loaded from wrong source, reset to 400 on save** — `client/src/pages/MapViewer.jsx:70`. Seed width from `getTextNodeProps(selectedNode).width` in `editFormData`.
 
 ### 🔴 P1 — Security & auth
-- [ ] **[high]** **IDOR**: `GET /api/images/:id` has no ownership check → cross-tenant image disclosure (metadata + bytes via the public `/serve`) — `server/routes/images.js:96`. Fix: `JOIN worlds w … WHERE i.id=$1 AND w.created_by=$2`.
+- [x] **[high]** **IDOR**: `GET /api/images/:id` has no ownership check → cross-tenant image disclosure (metadata + bytes via the public `/serve`) — `server/routes/images.js:96`. Fix: `JOIN worlds w … WHERE i.id=$1 AND w.created_by=$2`.
 - [ ] **[high]** **Authenticated users bounced off every deep link on refresh** — `client/src/utils/AuthContext.jsx:52`. `loading` never goes true during the initial `/auth/me` check, so `ProtectedRoute` redirects to `/login` before it resolves, dumping the user on `/dashboard`. Fix: `initialState.loading = true`; dispatch a terminal action (LOGIN_SUCCESS / LOGOUT) on **every** branch of `checkAuth`.
 - [ ] **[medium]** **SSO callback CSRF bypass** when `state` is absent (`null !== null` passes) — `client/src/pages/AuthCallback.jsx:21`. Fix: reject when `!state || !savedState`.
 - [ ] **[medium]** **Rate limiting inert** — `trust proxy` never set behind Railway, so all clients share one bucket — `server/server.js:19`. Fix: `app.set('trust proxy', 1)` + a stricter limiter on `/auth/login|register`.
