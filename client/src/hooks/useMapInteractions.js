@@ -127,67 +127,85 @@ export const useMapInteractions = (nodes, setNodes, mapId, interactionMode) => {
 
   const handleMouseUp = useCallback(async () => {
     if (isDraggingNode && draggingNode) {
-      // Save node position
       const finalWorldX = draggingNode.worldX
       const finalWorldY = draggingNode.worldY
       const nodeToSave = draggingNode
-      
+      const moved = finalWorldX !== dragStartNodePos.x || finalWorldY !== dragStartNodePos.y
+
       // Clear drag state immediately to prevent further updates
       setIsDraggingNode(false)
       setDraggingNode(null)
-      
-      try {
-        const pixelX = Math.round(finalWorldX)
-        const pixelY = Math.round(finalWorldY)
-        
-        // (no coordinate clamping — positions saved as dragged)
-        
-        const dragUpdateData = {
-          x_pixel: pixelX,
-          y_pixel: pixelY
+
+      // A click-to-select (no movement) must not issue a redundant position write
+      if (moved) {
+        try {
+          await eventService.updateEvent(nodeToSave.id, {
+            x_pixel: Math.round(finalWorldX),
+            y_pixel: Math.round(finalWorldY)
+          })
+        } catch (err) {
+          // Reset node position on error
+          setNodes(nodes.map(node =>
+            node.id === nodeToSave.id
+              ? { ...node, worldX: dragStartNodePos.x, worldY: dragStartNodePos.y }
+              : node
+          ))
         }
-        await eventService.updateEvent(nodeToSave.id, dragUpdateData)
-      } catch (err) {
-        // Reset node position on error
-        setNodes(nodes.map(node => 
-          node.id === nodeToSave.id 
-            ? { ...node, worldX: dragStartNodePos.x, worldY: dragStartNodePos.y }
-            : node
-        ))
       }
     }
-    
+
     // Clear remaining drag states
     setIsDraggingViewport(false)
-  }, [isDraggingNode, draggingNode, worldToScreen, dragStartNodePos, camera, zoom, nodes, setNodes])
+  }, [isDraggingNode, draggingNode, dragStartNodePos, nodes, setNodes])
 
   const handleWheel = useCallback((e) => {
     e.preventDefault()
-    
+
     // Viewport zoom
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
     const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor))
-    
-    // Zoom towards mouse position
+
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect()
       const mouseX = e.clientX - rect.left
       const mouseY = e.clientY - rect.top
-      
+
+      // Keep the world point under the cursor fixed while zooming. screenToWorld uses the OLD
+      // zoom; solve for the camera that maps that world point back to the cursor at newZoom:
+      //   worldPos = camera + (mouse - center) / zoom  ->  camera = worldPos - (mouse - center) / newZoom
       const worldPos = screenToWorld(mouseX, mouseY)
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
+
       setZoom(newZoom)
-      
-      // Adjust camera to keep mouse position fixed
-      const newScreenPos = worldToScreen(worldPos.x, worldPos.y)
-      const deltaX = (mouseX - newScreenPos.x) / newZoom
-      const deltaY = (mouseY - newScreenPos.y) / newZoom
-      
-      setCamera(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }))
+      setCamera({
+        x: worldPos.x - (mouseX - centerX) / newZoom,
+        y: worldPos.y - (mouseY - centerY) / newZoom
+      })
     }
-  }, [zoom, screenToWorld, worldToScreen])
+  }, [zoom, screenToWorld])
+
+  // Keep a drag alive when the pointer leaves the container: bind move/up to window for the
+  // duration of the drag so a release anywhere ends it (and saves). The container itself no
+  // longer wires onMouseMove/onMouseUp, so there is no double-handling.
+  useEffect(() => {
+    if (!isDraggingNode && !isDraggingViewport) return
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingNode, isDraggingViewport, handleMouseMove, handleMouseUp])
+
+  // Attach wheel natively with { passive: false } so preventDefault actually suppresses page
+  // scroll — React's synthetic onWheel is passive and ignores preventDefault.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel, { passive: false })
+  }, [handleWheel, containerReady])
 
   return {
     // State

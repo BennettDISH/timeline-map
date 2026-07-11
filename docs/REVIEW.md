@@ -29,11 +29,13 @@ be recreated freely.
   timeline scrub-0 + new-node default range + slider div-by-zero guard, universal-search
   empty/error states; dead-code removal (mapSettings.scss.backup, requireCreator, dead search
   props, bgMapCount, InfoPanel dead deep-link).
+- **Map-interaction follow-up** — sticky-drag off the container (bind move/up to window during a
+  drag), working zoom-to-cursor, non-passive wheel (preventDefault now stops page scroll), and no
+  redundant position write on click-to-select.
 
 **Remaining (lower-value or higher-risk — not done):** JWT-in-localStorage/revocation redesign;
-map-interaction papercuts I didn't want to change without a runtime test (sticky-drag off the
-container, zoom-to-cursor no-op, wheel passive-listener, redundant click-select PUT,
-getBoundingClientRect perf); search totalCount + cache-invalidation + request-sequencing;
+the `getBoundingClientRect`-per-node render perf micro-opt (too invasive to do safely untested);
+search totalCount + cache-invalidation + request-sequencing;
 timeline-bar/nodes-panel overlap; server event_type + coordinate-range validation; 403-vs-401
 semantics; ImageSelector loading/empty distinction; duplicate new-folder-form dedup.
 
@@ -124,10 +126,10 @@ structural fix is to promote subtype/connections to real columns.
 - [x] **[low]** Single-map `GET/PUT/DELETE /:id` don't filter `is_active` — soft-deleted maps stay reachable by id — `server/routes/maps.js:85`.
 - [x] **[low]** `POST /api/maps` doesn't validate `parent_map_id` ownership/world membership — `server/routes/maps.js:162`. Mirror the `link_to_map_id` check in `events.js`.
 - [x] **[low]** `PUT /api/worlds/:id` **bypasses timeline range validation** the dedicated endpoints enforce (can persist min>max) — `server/routes/worlds.js:206`.
-- [ ] **[low]** **Zoom-to-cursor is a no-op** — wheel always zooms to center (stale coord closures) — `client/src/hooks/useMapInteractions.js:187`.
-- [ ] **[low]** **Sticky drag**: mouseup outside the container leaves node/viewport following the cursor — `client/src/components/MapContainer.jsx:32`. Bind move/up to `window` (or pointer capture).
-- [ ] **[low]** Click-to-select in edit mode fires a **redundant position-save PUT** (no move threshold) — `client/src/hooks/useMapInteractions.js:131`.
-- [ ] **[low]** Wheel `preventDefault()` ignored (React passive listener) — page can scroll while zooming on short viewports — `client/src/hooks/useMapInteractions.js:171`.
+- [x] **[low]** **Zoom-to-cursor is a no-op** — wheel always zooms to center (stale coord closures) — `client/src/hooks/useMapInteractions.js:187`.
+- [x] **[low]** **Sticky drag**: mouseup outside the container leaves node/viewport following the cursor — `client/src/components/MapContainer.jsx:32`. Bind move/up to `window` (or pointer capture).
+- [x] **[low]** Click-to-select in edit mode fires a **redundant position-save PUT** (no move threshold) — `client/src/hooks/useMapInteractions.js:131`.
+- [x] **[low]** Wheel `preventDefault()` ignored (React passive listener) — page can scroll while zooming on short viewports — `client/src/hooks/useMapInteractions.js:171`.
 - [ ] **[low]** Search cache TTL is **global, never invalidated** — typeahead can serve stale/deleted nodes — `client/src/services/nodeSearchService.js:22`. Per-entry timestamp + `clearCache()` after mutations.
 - [ ] **[low]** Typeahead has **no request sequencing** — a slow earlier query can overwrite a newer one — `client/src/components/UniversalNodeSearch.jsx:41`.
 - [x] **[low]** Search **`LIKE` doesn't escape `%`/`_`** — those behave as wildcards — `server/routes/events.js:44`.

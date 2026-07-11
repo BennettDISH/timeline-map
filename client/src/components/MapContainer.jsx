@@ -30,9 +30,6 @@ function MapContainer({
       ref={containerRef}
       className={`map-container ${isAddingNode ? 'adding-node' : ''} ${isDraggingViewport ? 'dragging' : ''}`}
       onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onWheel={onWheel}
       style={{
         position: 'relative',
         flex: 1,
