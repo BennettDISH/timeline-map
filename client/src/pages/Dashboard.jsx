@@ -1,14 +1,25 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../utils/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
+import mapService from '../services/mapService'
 import '../styles/dashboard.scss'
 
 function Dashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [currentWorld, setCurrentWorld] = useState(worldService.getCurrentWorld())
+  const [recentMaps, setRecentMaps] = useState([])
+
+  useEffect(() => {
+    if (!currentWorld) { setRecentMaps([]); return }
+    let active = true
+    mapService.getMaps(currentWorld.id)
+      .then(res => { if (active) setRecentMaps((res.maps || []).slice(0, 5)) })
+      .catch(() => { if (active) setRecentMaps([]) })
+    return () => { active = false }
+  }, [currentWorld])
 
   const handleLogout = async () => {
     await logout()
@@ -82,7 +93,15 @@ function Dashboard() {
               
               <div className="recent-maps">
                 <h3>Recent Maps</h3>
-                <p>No maps created yet. Create your first map to get started!</p>
+                {recentMaps.length === 0 ? (
+                  <p>No maps created yet. Create your first map to get started!</p>
+                ) : (
+                  <ul className="recent-maps-list">
+                    {recentMaps.map(m => (
+                      <li key={m.id}><Link to={`/map/${m.id}`}>{m.title}</Link></li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           ) : (

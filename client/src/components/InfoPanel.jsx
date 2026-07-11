@@ -33,9 +33,10 @@ function InfoPanel({
     <div className="info-panel">
       <div className="info-panel-header">
         <h3>{infoPanelNode.title}</h3>
-        <button 
+        <button
           className="close-button"
           onClick={onClose}
+          aria-label="Close"
         >
           ×
         </button>

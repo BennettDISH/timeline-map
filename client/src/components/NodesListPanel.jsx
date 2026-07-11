@@ -18,7 +18,7 @@ function NodesListPanel({
     <div className="nodes-list-panel">
       <div className="nodes-panel-header">
         <h3>All Nodes ({nodes.length})</h3>
-        <button onClick={onClose} className="close-button">
+        <button onClick={onClose} className="close-button" aria-label="Close">
           ✕
         </button>
       </div>
@@ -34,10 +34,13 @@ function NodesListPanel({
         ) : (
           <div className="nodes-list">
             {sortedNodes.map(node => (
-              <div 
-                key={node.id} 
+              <div
+                key={node.id}
                 className={`node-item ${selectedNode?.id === node.id ? 'selected' : ''}`}
+                role="button"
+                tabIndex={0}
                 onClick={() => onNodeClick && onNodeClick({stopPropagation: () => {}}, node)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNodeClick && onNodeClick({stopPropagation: () => {}}, node) } }}
               >
                 <div className="node-item-header">
                   <div className="node-type-icon">

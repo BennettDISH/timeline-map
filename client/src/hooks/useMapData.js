@@ -36,9 +36,9 @@ export const useMapData = (mapId) => {
         const enrichedMap = {
           ...mapData,
           timelineEnabled: worldData?.timelineEnabled || false,
-          timelineMinTime: worldData?.timelineSettings?.minTime || 0,
-          timelineMaxTime: worldData?.timelineSettings?.maxTime || 100,
-          timelineCurrentTime: worldData?.timelineSettings?.currentTime || 50,
+          timelineMinTime: worldData?.timelineSettings?.minTime ?? 0,
+          timelineMaxTime: worldData?.timelineSettings?.maxTime ?? 100,
+          timelineCurrentTime: worldData?.timelineSettings?.currentTime ?? 50,
           timelineTimeUnit: worldData?.timelineSettings?.timeUnit || 'years'
         }
         

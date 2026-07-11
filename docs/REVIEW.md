@@ -12,7 +12,7 @@ Working assumptions (July 2026): site is in active development, **push/deploy fr
 existing data is **disposable test data** — no backfill, no data preservation, schema may
 be recreated freely.
 
-**Status (2026-07-11): Batches A–C shipped.**
+**Status (2026-07-11): Batches A–D shipped.**
 - **A** — R2 storage code (env-gated; awaiting an R2 bucket + the five `R2_*` Railway vars to
   activate — see `docs/R2-SETUP.md`), image IDOR fix, R2 delete-cascade, four P0 data-loss fixes.
 - **B** — auth deep-link bounce, gallery search focus + pagination, image-picker labels + a
@@ -23,7 +23,19 @@ be recreated freely.
   `is_active` + `parent_map_id` validation, generic-PUT timeline validation, `LIKE` escaping;
   removed the dead "Duplicate World" feature.
 
-Batch D remains (plus the deferred JWT-in-localStorage/revocation redesign).
+- **D** — error boundary, catch-all route, keyboard/aria on list rows + labeled close buttons,
+  real upload progress, WorldSettings no-reload + inputs that accept 0, Dashboard recent maps,
+  WorldSelector count refresh, responsive toolbars, styled Settings link, Save-All state fix,
+  timeline scrub-0 + new-node default range + slider div-by-zero guard, universal-search
+  empty/error states; dead-code removal (mapSettings.scss.backup, requireCreator, dead search
+  props, bgMapCount, InfoPanel dead deep-link).
+
+**Remaining (lower-value or higher-risk — not done):** JWT-in-localStorage/revocation redesign;
+map-interaction papercuts I didn't want to change without a runtime test (sticky-drag off the
+container, zoom-to-cursor no-op, wheel passive-listener, redundant click-select PUT,
+getBoundingClientRect perf); search totalCount + cache-invalidation + request-sequencing;
+timeline-bar/nodes-panel overlap; server event_type + coordinate-range validation; 403-vs-401
+semantics; ImageSelector loading/empty distinction; duplicate new-folder-form dedup.
 
 ---
 
@@ -102,12 +114,12 @@ structural fix is to promote subtype/connections to real columns.
 - [x] **[medium]** **"Unassigned" folder count reads `folder_id`** (server sends `folderId`) so it always equals the world total — `client/src/pages/ImageManager.jsx:138`. One-char fix.
 
 ### 🟡 P3 — Correctness papercuts
-- [ ] **[medium]** "Save All Changes" **visually reverts all-but-last node** (stale-closure `setNodes(nodes.map…)` in a loop; persistence is fine) — `client/src/pages/MapViewer.jsx:449`. Fix: functional `setNodes(prev => …)`.
+- [x] **[medium]** "Save All Changes" **visually reverts all-but-last node** (stale-closure `setNodes(nodes.map…)` in a loop; persistence is fine) — `client/src/pages/MapViewer.jsx:449`. Fix: functional `setNodes(prev => …)`.
 - [x] **[medium]** ~~**"Duplicate World" copies nothing**~~ (removed the dead feature) — creates an empty world, hardcodes counts to 0 — `server/routes/worlds.js:302`. Also its client wrapper `worldService.duplicateWorld` is never called (dead). Finish it (deep copy in a txn) or remove it.
 - [ ] **[medium]** **1000-image fetch per world just to compute count badges**, and the query pulls the heavy `base64_data` column then discards it — `client/src/pages/ImageManager.jsx:47`. Fix: a `COUNT(*)` endpoint / stop selecting `i.*`.
-- [ ] **[medium]** Clickable list rows (**node/world/gallery**) aren't keyboard-operable; close buttons are icon-only with no label — `client/src/components/NodesListPanel.jsx:37` et al. (a11y).
-- [ ] **[low]** Timeline scrub position of exactly **`0` resets to 50** on reload (`|| 50` falsy fallback) — `client/src/hooks/useMapData.js:41` (+ `MapViewer.jsx:90`). Use `??`.
-- [ ] **[low]** New nodes default to **time range 0–100**, so a timeline-enabled node is invisible in a world ranged e.g. 1000–2000; slider fill divides by zero when `min==max` — `client/src/pages/MapViewer.jsx:177`. Default to world min/max + guard the divide.
+- [x] **[medium]** Clickable list rows (**node/world/gallery**) aren't keyboard-operable; close buttons are icon-only with no label — `client/src/components/NodesListPanel.jsx:37` et al. (a11y).
+- [x] **[low]** Timeline scrub position of exactly **`0` resets to 50** on reload (`|| 50` falsy fallback) — `client/src/hooks/useMapData.js:41` (+ `MapViewer.jsx:90`). Use `??`.
+- [x] **[low]** New nodes default to **time range 0–100**, so a timeline-enabled node is invisible in a world ranged e.g. 1000–2000; slider fill divides by zero when `min==max` — `client/src/pages/MapViewer.jsx:177`. Default to world min/max + guard the divide.
 - [x] **[low]** World **soft-delete never cascades**; confirm dialog falsely promises permanent deletion; orphan rows (incl. base64 blobs) accumulate — `server/routes/worlds.js:290`. Fix cascade + honest dialog.
 - [x] **[low]** Single-map `GET/PUT/DELETE /:id` don't filter `is_active` — soft-deleted maps stay reachable by id — `server/routes/maps.js:85`.
 - [x] **[low]** `POST /api/maps` doesn't validate `parent_map_id` ownership/world membership — `server/routes/maps.js:162`. Mirror the `link_to_map_id` check in `events.js`.
@@ -123,25 +135,25 @@ structural fix is to promote subtype/connections to real columns.
 - [x] **[low]** `ImageSelector` selected-state compare is **type-inconsistent** (`parseInt` vs `toString`) so the chosen thumbnail isn't highlighted — `client/src/components/ImageSelector.jsx:239`.
 
 ### ⚪ P4 — Polish, feedback & dead code
-- [ ] **[low]** **No error boundary** anywhere — a render throw blanks the app — `client/src/App.jsx:137`. (JSON.parse paths are guarded, so no known crash — best-practice gap.)
-- [ ] **[low]** **No catch-all route** — unknown URLs render a blank shell — `client/src/App.jsx:131`. Add `<Route path="*">`.
-- [ ] **[low]** **Silent empty catches** hide image-load and timeline-save failures — `client/src/pages/MapViewer.jsx:105,298`; `useMapData.js:30,107`. Surface a toast.
+- [x] **[low]** **No error boundary** anywhere — a render throw blanks the app — `client/src/App.jsx:137`. (JSON.parse paths are guarded, so no known crash — best-practice gap.)
+- [x] **[low]** **No catch-all route** — unknown URLs render a blank shell — `client/src/App.jsx:131`. Add `<Route path="*">`.
+- [x] **[low]** **Silent empty catches** hide image-load and timeline-save failures — `client/src/pages/MapViewer.jsx:105,298`; `useMapData.js:30,107`. Surface a toast.
 - [ ] **[low]** Image list in the editor has **no loading/empty/error distinction** — `client/src/pages/MapViewer.jsx:101` / `ImageSelector.jsx:230`.
-- [ ] **[low]** Upload progress bar is **fake/frozen** (index-based, resets to 0, never 100); the real `onProgress` hook is dead — `client/src/components/ImageUpload.jsx:46`.
-- [ ] **[low]** `WorldSettings` **full-page reload after save hides the success banner** behind the spinner — `client/src/pages/WorldSettings.jsx:69`.
-- [ ] **[low]** `WorldSelector` map/image **counts go stale** after map CRUD — `client/src/pages/MapManager.jsx:89`.
-- [ ] **[low]** Dashboard **"Recent Maps" is a hardcoded empty state** — always claims no maps — `client/src/pages/Dashboard.jsx:85`.
-- [ ] **[low]** Timeline numeric inputs use `parseInt(…) || fallback` — **can't enter 0**, snaps mid-edit — `client/src/pages/WorldSettings.jsx:237`.
-- [ ] **[low]** Map toolbars **non-responsive** — control row overflows on narrow viewports (no `flex-wrap`/media query) — `client/src/styles/mapStyles.scss:85`.
+- [x] **[low]** Upload progress bar is **fake/frozen** (index-based, resets to 0, never 100); the real `onProgress` hook is dead — `client/src/components/ImageUpload.jsx:46`.
+- [x] **[low]** `WorldSettings` **full-page reload after save hides the success banner** behind the spinner — `client/src/pages/WorldSettings.jsx:69`.
+- [x] **[low]** `WorldSelector` map/image **counts go stale** after map CRUD — `client/src/pages/MapManager.jsx:89`.
+- [x] **[low]** Dashboard **"Recent Maps" is a hardcoded empty state** — always claims no maps — `client/src/pages/Dashboard.jsx:85`.
+- [x] **[low]** Timeline numeric inputs use `parseInt(…) || fallback` — **can't enter 0**, snaps mid-edit — `client/src/pages/WorldSettings.jsx:237`.
+- [x] **[low]** Map toolbars **non-responsive** — control row overflows on narrow viewports (no `flex-wrap`/media query) — `client/src/styles/mapStyles.scss:85`.
 - [ ] **[low]** Fixed **Timeline bar overlaps** the bottom of the nodes-list panel (`z-index` 40 vs 25) — `client/src/styles/timelineStyles.scss:2`.
-- [ ] **[low]** **Unstyled Settings link** in the dark map header (`.settings-button` has no rule) — `client/src/pages/MapViewer.jsx:536`.
-- [ ] **[low]** InfoPanel "Edit connections" / "Add Connection" **deep-link is dead** (writes `localStorage` nothing reads; editor opens collapsed) — `client/src/pages/MapViewer.jsx:322`.
+- [x] **[low]** **Unstyled Settings link** in the dark map header (`.settings-button` has no rule) — `client/src/pages/MapViewer.jsx:536`.
+- [x] **[low]** InfoPanel "Edit connections" / "Add Connection" **deep-link is dead** (writes `localStorage` nothing reads; editor opens collapsed) — `client/src/pages/MapViewer.jsx:322`.
 - [ ] **[low]** Node **subtype lives only in the blob**; any parse failure silently demotes NPC/Item/Text → generic Info (guarded, so conditional) — `client/src/utils/nodeUtils.js:7`.
 - [ ] **[low]** `403` overloaded for auth + permission; the `authService` interceptor hard-redirects; `AdminPanel`'s own axios swallows it — `client/src/services/authService.js:26`.
-- [ ] **[low]** Role system beyond `admin` is **dead** — `requireCreator` exported but never used; every user is effectively a creator on their own data — `server/middleware/auth.js:60`.
+- [x] **[low]** Role system beyond `admin` is **dead** — `requireCreator` exported but never used; every user is effectively a creator on their own data — `server/middleware/auth.js:60`.
 - [ ] **[low]** `init-admin` runs `schema.sql` via naive `;`-split, no transaction; `auth.js generateToken` lacks the missing-`JWT_SECRET` guard `setup.js` has — `server/routes/setup.js:101`.
 - [ ] **[low]** Schema-vs-code drift: `migrate.js` logs dead tables; `event_type` unvalidated vs its CHECK; `x_position/y_position` are `DECIMAL(5,2)` (±999.99) vs "infinite grid" comment — `server/config/migrate.js:29`.
-- [ ] **[low]** Dead code: **`client/src/styles/mapSettings.scss.backup` (773 lines)**; dead `mapLookup`/`currentMapId` in `UniversalNodeSearch.jsx:23`; dead `tooltipData` in `NodeEditor.jsx:95`; unused `bgMapCount` in `MapViewer.jsx:142`; duplicated new-folder form in `ImageManager.jsx:503`.
+- [x] **[low]** Dead code: **`client/src/styles/mapSettings.scss.backup` (773 lines)**; dead `mapLookup`/`currentMapId`, `bgMapCount`; dead `mapLookup`/`currentMapId` in `UniversalNodeSearch.jsx:23`; dead `tooltipData` in `NodeEditor.jsx:95`; unused `bgMapCount` in `MapViewer.jsx:142`; duplicated new-folder form in `ImageManager.jsx:503`.
 
 ---
 

@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import nodeSearchService from '../services/nodeSearchService'
 
-function UniversalNodeSearch({ 
-  worldId, 
-  currentMapId, 
-  availableMaps = [], 
-  onNodeSelect, 
+function UniversalNodeSearch({
+  worldId,
+  onNodeSelect,
   placeholder = "Search for any node across all maps...",
   value = "",
   className = ""
@@ -15,14 +13,10 @@ function UniversalNodeSearch({
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  
+  const [searchError, setSearchError] = useState('')
+
   const searchRef = useRef(null)
   const resultsRef = useRef(null)
-  
-  // Create a map lookup for map titles
-  const mapLookup = Object.fromEntries(
-    availableMaps.map(map => [map.id, map.title])
-  )
 
   // Debounced search function
   useEffect(() => {
@@ -32,11 +26,12 @@ function UniversalNodeSearch({
       } else {
         setSearchResults([])
         setShowResults(false)
+        setSearchError('')
       }
     }, 300)
 
     return () => clearTimeout(searchTimeout)
-  }, [searchQuery, availableMaps])
+  }, [searchQuery])
 
   const performSearch = async (query) => {
     setIsSearching(true)
@@ -45,16 +40,19 @@ function UniversalNodeSearch({
 
       if (searchResult.error) {
         setSearchResults([])
-        setShowResults(false)
+        setSearchError('Search failed. Please try again.')
+        setShowResults(true)
         return
       }
       setSearchResults(searchResult.results.slice(0, 20)) // Limit to 20 results
-      setShowResults(searchResult.results.length > 0)
+      setSearchError('')
+      setShowResults(true)
       setSelectedIndex(-1)
     } catch (error) {
       console.error('Search failed:', error)
       setSearchResults([])
-      setShowResults(false)
+      setSearchError('Search failed. Please try again.')
+      setShowResults(true)
     } finally {
       setIsSearching(false)
     }
@@ -127,7 +125,7 @@ function UniversalNodeSearch({
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => searchQuery.length >= 2 && setShowResults(searchResults.length > 0)}
+          onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
           placeholder={placeholder}
           className="universal-search-input"
         />
@@ -156,10 +154,14 @@ function UniversalNodeSearch({
             </div>
           ))}
           
-          {searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
-            <div className="no-results">
-              No nodes found matching "{searchQuery}"
-            </div>
+          {searchError ? (
+            <div className="no-results">{searchError}</div>
+          ) : (
+            searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
+              <div className="no-results">
+                No nodes found matching "{searchQuery}"
+              </div>
+            )
           )}
         </div>
       )}

@@ -65,9 +65,9 @@ function WorldSettings() {
     setSuccess('')
 
     try {
-      await worldService.updateWorld(worldId, worldFormData)
+      const data = await worldService.updateWorld(worldId, worldFormData)
+      if (data.world) setWorld(prev => ({ ...prev, ...data.world }))
       setSuccess('World details updated successfully!')
-      loadWorld()
     } catch (err) {
       setError(err.message || 'Failed to update world details')
     } finally {
@@ -82,15 +82,19 @@ function WorldSettings() {
     setSuccess('')
 
     try {
-      await worldService.updateWorldTimeline(worldId, {
+      const min = timelineFormData.minTime === '' ? 0 : Number(timelineFormData.minTime)
+      const max = timelineFormData.maxTime === '' ? 0 : Number(timelineFormData.maxTime)
+      const cur = timelineFormData.currentTime === '' ? 0 : Number(timelineFormData.currentTime)
+      const data = await worldService.updateWorldTimeline(worldId, {
         timeline_enabled: timelineFormData.timelineEnabled,
-        timeline_min_time: timelineFormData.minTime,
-        timeline_max_time: timelineFormData.maxTime,
-        timeline_current_time: timelineFormData.currentTime,
+        timeline_min_time: min,
+        timeline_max_time: max,
+        timeline_current_time: cur,
         timeline_time_unit: timelineFormData.timeUnit
       })
+      if (data.world) setWorld(prev => ({ ...prev, ...data.world }))
+      setTimelineFormData(f => ({ ...f, minTime: min, maxTime: max, currentTime: cur }))
       setSuccess('Timeline settings updated successfully!')
-      loadWorld()
     } catch (err) {
       setError(err.message || 'Failed to update timeline settings')
     } finally {
@@ -224,7 +228,7 @@ function WorldSettings() {
                   <input
                     type="number"
                     value={timelineFormData.minTime}
-                    onChange={(e) => setTimelineFormData({...timelineFormData, minTime: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setTimelineFormData({...timelineFormData, minTime: e.target.value === '' ? '' : Number(e.target.value)})}
                     disabled={saving}
                   />
                 </div>
@@ -234,7 +238,7 @@ function WorldSettings() {
                   <input
                     type="number"
                     value={timelineFormData.maxTime}
-                    onChange={(e) => setTimelineFormData({...timelineFormData, maxTime: parseInt(e.target.value) || 100})}
+                    onChange={(e) => setTimelineFormData({...timelineFormData, maxTime: e.target.value === '' ? '' : Number(e.target.value)})}
                     disabled={saving}
                   />
                 </div>
@@ -244,7 +248,7 @@ function WorldSettings() {
                   <input
                     type="number"
                     value={timelineFormData.currentTime}
-                    onChange={(e) => setTimelineFormData({...timelineFormData, currentTime: parseInt(e.target.value) || 50})}
+                    onChange={(e) => setTimelineFormData({...timelineFormData, currentTime: e.target.value === '' ? '' : Number(e.target.value)})}
                     min={timelineFormData.minTime}
                     max={timelineFormData.maxTime}
                     disabled={saving}

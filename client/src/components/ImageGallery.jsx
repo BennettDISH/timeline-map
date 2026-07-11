@@ -236,10 +236,13 @@ function ImageGallery({ worldId, onImageSelect, selectedImageId = null, showUplo
           </div>
         ) : (
           images.map(image => (
-            <div 
-              key={image.id} 
+            <div
+              key={image.id}
               className={`gallery-item ${selectedImageId === image.id ? 'selected' : ''} ${bulkMode && selectedImages.has(image.id) ? 'bulk-selected' : ''} ${bulkMode ? 'bulk-mode' : ''}`}
+              role="button"
+              tabIndex={0}
               onClick={(e) => handleImageClick(image, e)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleImageClick(image, e) } }}
             >
               {bulkMode && (
                 <div className="bulk-checkbox">

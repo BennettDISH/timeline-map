@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import worldService from '../services/worldService'
 import '../styles/worldSelector.scss'
 
-function WorldSelector({ onWorldSelect, currentWorldId = null }) {
+function WorldSelector({ onWorldSelect, currentWorldId = null, refreshKey = 0 }) {
   const [worlds, setWorlds] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -13,7 +13,7 @@ function WorldSelector({ onWorldSelect, currentWorldId = null }) {
 
   useEffect(() => {
     loadWorlds()
-  }, [])
+  }, [refreshKey])
 
   const loadWorlds = async () => {
     try {
@@ -166,10 +166,13 @@ function WorldSelector({ onWorldSelect, currentWorldId = null }) {
           </div>
         ) : (
           worlds.map(world => (
-            <div 
+            <div
               key={world.id}
               className={`world-item ${currentWorldId === world.id ? 'selected' : ''}`}
+              role="button"
+              tabIndex={0}
               onClick={() => handleWorldSelect(world)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleWorldSelect(world) } }}
             >
               <div className="world-info">
                 <div className="world-name">{world.name}</div>

@@ -9,6 +9,7 @@ function MapManager() {
   const [searchParams] = useSearchParams()
   const { worldId } = useParams()
   const [currentWorld, setCurrentWorld] = useState(null)
+  const [worldRefresh, setWorldRefresh] = useState(0)
   const [maps, setMaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -88,7 +89,8 @@ function MapManager() {
 
       // Add new map to list
       setMaps([result.map, ...maps])
-      
+      setWorldRefresh(x => x + 1)
+
       // Reset form
       setNewMapData({ title: '', description: '' })
       setShowCreateForm(false)
@@ -110,6 +112,7 @@ function MapManager() {
     try {
       await mapService.deleteMap(mapId)
       setMaps(maps.filter(m => m.id !== mapId))
+      setWorldRefresh(x => x + 1)
     } catch (err) {
       setError(err.message || 'Failed to delete map')
     }
@@ -126,9 +129,10 @@ function MapManager() {
 
       <div className="manager-content">
         <div className="world-section">
-          <WorldSelector 
+          <WorldSelector
             onWorldSelect={handleWorldSelect}
             currentWorldId={currentWorld?.id}
+            refreshKey={worldRefresh}
           />
         </div>
 

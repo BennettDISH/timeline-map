@@ -88,10 +88,10 @@ function MapViewer() {
     if (map) {
       setTimelineEnabled(!!map.timelineEnabled)
       setTimelineActive(!!map.timelineEnabled) // Initially match the enabled state
-      setCurrentTime(map.timelineCurrentTime || 50)
+      setCurrentTime(map.timelineCurrentTime ?? 50)
       setTimelineSettings({
-        minTime: map.timelineMinTime || 0,
-        maxTime: map.timelineMaxTime || 100,
+        minTime: map.timelineMinTime ?? 0,
+        maxTime: map.timelineMaxTime ?? 100,
         timeUnit: map.timelineTimeUnit || 'years'
       })
     }
@@ -104,6 +104,7 @@ function MapViewer() {
         const imagesResult = await imageServiceBase64.getImages({ worldId: map.worldId })
         setAvailableImages(imagesResult.images)
       } catch (err) {
+        setSaveError('Failed to load images')
       }
     }
   }
@@ -140,7 +141,6 @@ function MapViewer() {
       return isVisible
     })
     
-    const bgMapCount = visibleNodes.filter(n => n.eventType === 'background_map').length
     return visibleNodes
   }
 
@@ -175,8 +175,8 @@ function MapViewer() {
         x_pixel: Math.round(worldPos.x),
         y_pixel: Math.round(worldPos.y),
         event_type: (nodeType === 'info' || nodeType === 'npc' || nodeType === 'item' || nodeType === 'text') ? 'standard' : nodeType,
-        start_time: 0,
-        end_time: 100,
+        start_time: timelineSettings.minTime,
+        end_time: timelineSettings.maxTime,
         timeline_enabled: false,
         image_id: null,
         tooltip_text: (nodeType === 'npc' || nodeType === 'item' || nodeType === 'text') ? JSON.stringify({ nodeType: nodeType }) : null
@@ -252,8 +252,8 @@ function MapViewer() {
         imageUrl
       }
       
-      setNodes(nodes.map(n => n.id === node.id ? processedUpdatedNode : n))
-      
+      setNodes(prev => prev.map(n => n.id === node.id ? processedUpdatedNode : n))
+
       if (selectedNode && selectedNode.id === node.id) {
         setSelectedNode(processedUpdatedNode)
       }
@@ -297,6 +297,7 @@ function MapViewer() {
       try {
         await worldService.updateTimelinePosition(map.worldId, timeValue)
       } catch (err) {
+        setSaveError('Failed to save timeline position')
       }
     }, 500)
   }
@@ -313,16 +314,9 @@ function MapViewer() {
     }
   }
 
-  const handleInfoPanelEditNode = (node, targetTab = 'content') => {
+  const handleInfoPanelEditNode = (node) => {
     setSelectedNode(node)
     setShowInfoPanel(false)
-    
-    // If NodeEditor is expanded and targetTab is specified, set the active tab
-    // We'll pass targetTab to NodeEditor through a ref or additional prop if needed
-    // For now, NodeEditor will handle opening the correct section
-    if (targetTab && window.localStorage) {
-      localStorage.setItem('nodeEditorTargetTab', targetTab)
-    }
   }
 
   const handleConnectionNavigation = async (connection) => {

@@ -41,7 +41,7 @@ function Timeline({
           <div 
             className="slider-fill"
             style={{
-              width: timelineActive 
+              width: timelineActive && timelineSettings.maxTime > timelineSettings.minTime
                 ? `${((currentTime - timelineSettings.minTime) / (timelineSettings.maxTime - timelineSettings.minTime)) * 100}%`
                 : '0%'
             }}

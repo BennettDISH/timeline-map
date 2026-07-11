@@ -43,10 +43,10 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = true,
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       setCurrentUpload({ file: file.name, index: i + 1, total: files.length })
-      setProgress(((i) / files.length) * 100)
-      
+
       try {
-        await uploadSingleFile(file)
+        await uploadSingleFile(file, (p) => setProgress(((i + p / 100) / files.length) * 100))
+        setProgress(((i + 1) / files.length) * 100)
         successCount++
       } catch (error) {
         errorCount++
@@ -70,12 +70,13 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = true,
     }
   }
 
-  const uploadSingleFile = async (file) => {
+  const uploadSingleFile = async (file, onProgress = null) => {
     const result = await imageServiceBase64.uploadImage(
-      file, 
+      file,
       worldId,
       '', // altText - can be added later
-      '' // tags
+      '', // tags
+      onProgress
     )
     
     // If a custom folder is selected, assign the image to it
@@ -104,9 +105,9 @@ function ImageUpload({ worldId, onUploadSuccess, onUploadError, multiple = true,
     setProgress(0)
 
     try {
-      const result = await uploadSingleFile(file)
+      const result = await uploadSingleFile(file, (p) => setProgress(p))
       if (onUploadSuccess) onUploadSuccess(result.image)
-      
+
     } catch (error) {
       if (onUploadError) onUploadError(error.message || 'Upload failed')
     } finally {

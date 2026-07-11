@@ -26,8 +26,6 @@ async function runMigration() {
     console.log('  - images (file management)');
     console.log('  - maps (hierarchical maps)');
     console.log('  - events (timeline events)');
-    console.log('  - timeline_settings (timeline config)');
-    console.log('  - user_sessions (session management)');
     
     // Test connection
     const result = await pool.query('SELECT COUNT(*) FROM users');

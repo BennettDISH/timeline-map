@@ -56,12 +56,8 @@ const requireRole = (roles) => {
 // Middleware for admin-only routes
 const requireAdmin = requireRole(['admin']);
 
-// Middleware for creators and admins
-const requireCreator = requireRole(['admin', 'creator']);
-
 module.exports = {
   authenticateToken,
   requireRole,
-  requireAdmin,
-  requireCreator
+  requireAdmin
 };
