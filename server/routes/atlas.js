@@ -56,6 +56,21 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   } });
 }));
 
+// PATCH /worlds/:worldId — world name/description + timeline (enable, range, scrub position).
+router.patch('/worlds/:worldId', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const cols = {
+    name: 'name', description: 'description',
+    timeline_enabled: 'timeline_enabled', timeline_min_time: 'timeline_min_time',
+    timeline_max_time: 'timeline_max_time', timeline_current_time: 'timeline_current_time',
+    timeline_time_unit: 'timeline_time_unit',
+  };
+  const sets = [], vals = []; let i = 1;
+  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  if (sets.length) { vals.push(req.params.worldId); await pool.query(`UPDATE worlds SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  res.json({ ok: true });
+}));
+
 // GET /worlds/:worldId/maps — flat list for the nesting tree (client builds the tree from parentMapId).
 router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });

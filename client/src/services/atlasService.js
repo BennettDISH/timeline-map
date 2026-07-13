@@ -10,6 +10,7 @@ const atlasService = {
   getWorld: (worldId) => api().get(`/worlds/${worldId}`).then((r) => r.data.world),
   getMaps: (worldId) => api().get(`/worlds/${worldId}/maps`).then((r) => r.data.maps),
   getNodes: (worldId) => api().get(`/worlds/${worldId}/nodes`).then((r) => r.data.nodes),
+  patchWorld: (worldId, data) => api().patch(`/worlds/${worldId}`, data).then((r) => r.data),
 
   getMap: (mapId) => api().get(`/maps/${mapId}`).then((r) => r.data),
   patchMap: (mapId, data) => api().patch(`/maps/${mapId}`, data).then((r) => r.data),

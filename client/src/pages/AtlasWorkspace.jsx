@@ -27,7 +27,9 @@ function AtlasWorkspace() {
   const [loading, setLoading] = useState(true)
   const [savedAt, setSavedAt] = useState(0)
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
+  const [now, setNow] = useState(0) // current timeline position (scrub)
   const saveTimer = useRef(null)
+  const tlTimer = useRef(null)
   const canvasRef = useRef(null)
   const dragRef = useRef(null)
 
@@ -42,6 +44,7 @@ function AtlasWorkspace() {
       .then(async (w) => {
         if (!live) return
         setWorld(w)
+        setNow(w.timeline?.current ?? 0)
         const maps = await atlasService.getMaps(worldId).catch(() => [])
         if (live) setTree(maps)
         if (!mapId && w.rootMapId) navigate(`/w/${worldId}/m/${w.rootMapId}`, { replace: true })
@@ -94,6 +97,26 @@ function AtlasWorkspace() {
     const pk = picker; setPicker(null); if (!pk) return
     if (pk.kind === 'backdrop') setBackdrop(imageId)
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
+  }
+
+  // --- timeline (world clock + per-placement lifespans) ---
+  const tl = world?.timeline
+  const present = (p) => (!tl?.enabled ? true : (p.start == null || now >= p.start) && (p.end == null || now <= p.end))
+  const scrub = (v) => {
+    setNow(v)
+    clearTimeout(tlTimer.current)
+    tlTimer.current = setTimeout(() => atlasService.patchWorld(worldId, { timeline_current_time: v }).catch(() => {}), 300)
+  }
+  const enableTimeline = () => {
+    setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
+    setNow(0)
+    atlasService.patchWorld(worldId, {
+      timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 100, timeline_current_time: 0, timeline_time_unit: 'days',
+    }).catch(() => {})
+  }
+  const setLifespan = (placementId, start, end) => {
+    setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, start, end } : pp)) }))
+    atlasService.patchPlacement(placementId, { start_time: start, end_time: end }).then(() => setSavedAt(Date.now())).catch(() => {})
   }
 
   // --- drag to reposition a placement (stable handlers read live state from dragRef) ---
@@ -183,7 +206,7 @@ function AtlasWorkspace() {
           >
             {(data?.placements || []).map((p) => (
               <div key={p.id}
-                className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
+                className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''}`}
                 style={{ left: `${p.x}%`, top: `${p.y}%` }}
                 onPointerDown={(e) => onPinDown(e, p)}
                 onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
@@ -205,12 +228,21 @@ function AtlasWorkspace() {
             <button className={`tool ${placing ? 'on' : ''}`} onClick={() => setPlacing((v) => !v)}>＋ Add node</button>
             <button className="tool" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>🖼 Backdrop</button>
             {map?.backdropUrl && <button className="tool" onClick={() => setBackdrop(null)}>Remove backdrop</button>}
+            {!tl?.enabled && <button className="tool" onClick={enableTimeline}>🕓 Enable timeline</button>}
           </div>
-          <div className="hint">
+          <div className="hint" style={tl?.enabled ? { bottom: 64 } : undefined}>
             {placing
               ? 'Click the map to drop a node — set its category in the inspector.'
               : 'Click to inspect · drag to move · double-click a ◎ node to zoom in.'}
           </div>
+          {tl?.enabled && (
+            <div className="timebar">
+              <span className="tlabel">{tl.min}</span>
+              <input type="range" min={tl.min} max={tl.max} value={now} onChange={(e) => scrub(Number(e.target.value))} />
+              <span className="tlabel">{tl.max}</span>
+              <span className="tnow">{now}<em> {tl.unit}</em></span>
+            </div>
+          )}
         </div>
 
         <div className="insp">
@@ -222,6 +254,7 @@ function AtlasWorkspace() {
               onOpen={() => openInterior(sel.node)} onCreate={(v) => createInteriorAs(sel.node, v)}
               onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
               onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
+              timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
               onDelete={() => removeNode(sel.node)} savedAt={savedAt} />
           )}
         </div>
@@ -235,9 +268,11 @@ function AtlasWorkspace() {
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, onDelete, savedAt }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, onDelete, savedAt }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
+  const [start, setStart] = useState(p.start ?? '')
+  const [end, setEnd] = useState(p.end ?? '')
   const n = p.node
   return (
     <>
@@ -270,6 +305,18 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
           <button className="btn block" onClick={onImage}>＋ Add image</button>
         )}
       </div>
+      {timeline?.enabled && (
+        <div className="fld"><label>Lifespan — when it's present</label>
+          <div className="span">
+            <input type="number" placeholder="from" value={start}
+              onChange={(e) => { const v = e.target.value; setStart(v); onLifespan(v === '' ? null : Number(v), end === '' ? null : Number(end)) }} />
+            <span>→</span>
+            <input type="number" placeholder="to" value={end}
+              onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan(start === '' ? null : Number(start), v === '' ? null : Number(v)) }} />
+          </div>
+          <div className="muted">Blank = always present. Scrub the timeline to see it appear / disappear.</div>
+        </div>
+      )}
       <hr />
       {n.hasInterior
         ? <button className="btn primary block" onClick={onOpen}>◎ Open interior ▸</button>
