@@ -34,8 +34,8 @@
   .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:8px;text-align:center}
 
   .pin{position:absolute;transform:translate(-50%,-50%);z-index:3;display:flex;align-items:center;gap:6px;
-     background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:3px 10px 3px 7px;cursor:pointer;
-     box-shadow:0 2px 6px #0006;white-space:nowrap;max-width:220px;color:var(--ink)}
+     background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:3px 10px 3px 7px;cursor:grab;
+     touch-action:none;user-select:none;box-shadow:0 2px 6px #0006;white-space:nowrap;max-width:220px;color:var(--ink)}
   .pin .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
   .pin .lbl{overflow:hidden;text-overflow:ellipsis}
   .pin .open{color:var(--muted)}
@@ -58,4 +58,21 @@
   .saved{color:#6fcf97;font-size:11px}
 
   .loading{display:flex;align-items:center;justify-content:center;color:var(--muted)}
+
+  // node image thumbnail (inspector)
+  .nimg img{width:100%;border-radius:6px;border:1px solid var(--line);display:block}
+  .nimg-actions{display:flex;gap:6px;margin-top:6px}
+  .muted{color:var(--muted);font-style:italic}
+  label.btn{cursor:pointer}
+
+  // image picker modal
+  .modal-back{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(560px,92vw);max-height:82vh;overflow:auto;padding:14px}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .modal-head h4{margin:0}
+  .modal-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+  .pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:10px}
+  .pick{padding:0;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--panel2);aspect-ratio:1}
+  .pick img{width:100%;height:100%;object-fit:cover;display:block}
+  .pick:hover{border-color:var(--accent)}
 }

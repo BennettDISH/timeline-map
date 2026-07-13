@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
+import imageServiceBase64 from '../services/imageServiceBase64'
 import '../styles/atlas.scss'
 
 const CATS = {
@@ -12,6 +13,7 @@ const CATS = {
   event: { c: 'var(--event)', i: '✷', label: 'Event' },
 }
 const cat = (k) => CATS[k] || CATS.note
+const clamp = (v) => Math.max(0, Math.min(100, v))
 
 function AtlasWorkspace() {
   const { worldId, mapId } = useParams()
@@ -24,7 +26,10 @@ function AtlasWorkspace() {
   const [placing, setPlacing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savedAt, setSavedAt] = useState(0)
+  const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const saveTimer = useRef(null)
+  const canvasRef = useRef(null)
+  const dragRef = useRef(null)
 
   const reloadMap = () => (mapId ? atlasService.getMap(mapId).then(setData).catch(() => setData(null)) : Promise.resolve())
   const refreshTree = () => atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -50,7 +55,7 @@ function AtlasWorkspace() {
 
   const sel = data?.placements.find((p) => p.id === selId) || null
 
-  // --- actions ---
+  // --- node/placement actions ---
   const dropNode = async (x, y) => {
     const r = await atlasService.addNode(mapId, { x, y })
     await reloadMap(); refreshTree(); setSelId(r.placementId); setPlacing(false)
@@ -77,6 +82,44 @@ function AtlasWorkspace() {
   const removeNode = async (node) => {
     if (!window.confirm(`Delete "${node.title}" everywhere? This removes it from all maps and deletes its interior.`)) return
     await atlasService.deleteNode(node.id); setSelId(null); reloadMap(); refreshTree()
+  }
+
+  // --- images (reuse the R2-backed image pipeline) ---
+  const setNodeImage = (nodeId, imageId, imageUrl) => {
+    localPatchNode(nodeId, { imageUrl: imageUrl || null })
+    atlasService.patchNode(nodeId, { image_id: imageId }).then(() => setSavedAt(Date.now())).catch(() => {})
+  }
+  const setBackdrop = (imageId) => atlasService.patchMap(mapId, { image_id: imageId }).then(reloadMap).catch(() => {})
+  const handlePick = (imageId, imageUrl) => {
+    const pk = picker; setPicker(null); if (!pk) return
+    if (pk.kind === 'backdrop') setBackdrop(imageId)
+    else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
+  }
+
+  // --- drag to reposition a placement (stable handlers read live state from dragRef) ---
+  const onDragMove = useCallback((e) => {
+    const d = dragRef.current; if (!d) return
+    const nx = clamp(d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)
+    const ny = clamp(d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)
+    d.lastX = nx; d.lastY = ny
+    if (Math.abs(e.clientX - d.sx) > 3 || Math.abs(e.clientY - d.sy) > 3) d.moved = true
+    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: nx, y: ny } : pp)) }))
+  }, [])
+  const onDragUp = useCallback(() => {
+    const d = dragRef.current; dragRef.current = null
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragUp)
+    if (!d) return
+    if (d.moved) atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY }).catch(() => {})
+    else setSelId(d.id) // a click (no movement) just selects
+  }, [onDragMove])
+  const onPinDown = (e, p) => {
+    if (placing) return // in placing mode, let the press bubble so a click drops a node
+    e.stopPropagation()
+    const rect = canvasRef.current.getBoundingClientRect()
+    dragRef.current = { id: p.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, rect, moved: false, lastX: p.x, lastY: p.y }
+    window.addEventListener('pointermove', onDragMove)
+    window.addEventListener('pointerup', onDragUp)
   }
 
   // --- nesting tree ---
@@ -128,20 +171,21 @@ function AtlasWorkspace() {
 
         <div className="stage">
           <div
+            ref={canvasRef}
             className={`canvas ${map?.backdropUrl ? '' : 'grid'}`}
             style={map?.backdropUrl ? { backgroundImage: `url(${map.backdropUrl})` } : undefined}
+            onPointerDown={() => { if (!placing) setSelId(null) }}
             onClick={(e) => {
-              if (placing) {
-                const r = e.currentTarget.getBoundingClientRect()
-                dropNode(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100)
-              } else { setSelId(null) }
+              if (!placing) return
+              const r = e.currentTarget.getBoundingClientRect()
+              dropNode(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100)
             }}
           >
             {(data?.placements || []).map((p) => (
               <div key={p.id}
                 className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
                 style={{ left: `${p.x}%`, top: `${p.y}%` }}
-                onClick={(e) => { e.stopPropagation(); setSelId(p.id) }}
+                onPointerDown={(e) => onPinDown(e, p)}
                 onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
                 <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
                 <span className="lbl">{p.node.title}</span>
@@ -152,17 +196,20 @@ function AtlasWorkspace() {
               <div className="empty-map">
                 <div style={{ fontSize: '2rem' }}>🗺️</div>
                 <div>Empty map. Click <b>+ Add node</b>, then click here to drop your first node.</div>
+                <div className="muted">Tip: use <b>🖼 Backdrop</b> to drop in a map image first.</div>
               </div>
             )}
           </div>
 
           <div className="toolbar">
             <button className={`tool ${placing ? 'on' : ''}`} onClick={() => setPlacing((v) => !v)}>＋ Add node</button>
+            <button className="tool" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>🖼 Backdrop</button>
+            {map?.backdropUrl && <button className="tool" onClick={() => setBackdrop(null)}>Remove backdrop</button>}
           </div>
           <div className="hint">
             {placing
               ? 'Click the map to drop a node — set its category in the inspector.'
-              : 'Click a node to inspect · double-click a ◎ node to zoom in.'}
+              : 'Click to inspect · drag to move · double-click a ◎ node to zoom in.'}
           </div>
         </div>
 
@@ -173,15 +220,22 @@ function AtlasWorkspace() {
             <Inspector key={sel.node.id} p={sel} onSave={saveNode}
               onCat={(c) => saveNode(sel.node.id, { category: c })}
               onOpen={() => openInterior(sel.node)} onCreate={(v) => createInteriorAs(sel.node, v)}
+              onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
+              onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
               onDelete={() => removeNode(sel.node)} savedAt={savedAt} />
           )}
         </div>
       </div>
+
+      {picker && (
+        <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent}
+          onPick={handlePick} onClose={() => setPicker(null)} />
+      )}
     </div>
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onDelete, savedAt }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, onDelete, savedAt }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const n = p.node
@@ -203,6 +257,19 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onDelete, savedAt }) {
       <div className="fld"><label>Description</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
+      <div className="fld"><label>Image</label>
+        {n.imageUrl ? (
+          <div className="nimg">
+            <img src={n.imageUrl} alt="" />
+            <div className="nimg-actions">
+              <button className="btn" onClick={onImage}>Change</button>
+              <button className="btn danger" onClick={onRemoveImage}>Remove</button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn block" onClick={onImage}>＋ Add image</button>
+        )}
+      </div>
       <hr />
       {n.hasInterior
         ? <button className="btn primary block" onClick={onOpen}>◎ Open interior ▸</button>
@@ -218,6 +285,50 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onDelete, savedAt }) {
         <button className="btn danger" onClick={onDelete}>🗑 Delete node</button>
       </div>
     </>
+  )
+}
+
+// Upload a new image (to R2 via the existing pipeline) or pick an existing one from this world.
+function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
+  const [images, setImages] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    imageServiceBase64.getImages({ worldId }).then((r) => setImages(r.images || [])).catch(() => {})
+  }, [worldId])
+
+  const upload = async (file) => {
+    if (!file) return
+    setBusy(true); setErr('')
+    try {
+      const r = await imageServiceBase64.uploadImage(file, worldId)
+      onPick(r.image.id, r.image.url) // auto-select the freshly uploaded image
+    } catch (e) {
+      setBusy(false); setErr(e?.message || 'Upload failed')
+    }
+  }
+
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h4>Choose image</h4><button onClick={onClose}>✕</button></div>
+        <label className="btn primary block">
+          {busy ? 'Uploading…' : '⬆ Upload new image'}
+          <input type="file" accept="image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files[0])} />
+        </label>
+        {hasCurrent && <button className="btn block" onClick={() => onPick(null, null)}>Remove current image</button>}
+        {err && <div className="muted" style={{ color: '#ff9b9b' }}>{err}</div>}
+        <div className="pick-grid">
+          {images.map((im) => (
+            <button key={im.id} className="pick" title={im.originalName} onClick={() => onPick(im.id, im.url)}>
+              <img src={im.url} alt={im.originalName} loading="lazy" />
+            </button>
+          ))}
+          {images.length === 0 && <div className="muted">No images in this world yet — upload one above.</div>}
+        </div>
+      </div>
+    </div>
   )
 }
 
