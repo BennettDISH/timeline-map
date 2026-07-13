@@ -19,7 +19,16 @@ pool
 
 // Security middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  // Helmet's default CSP is img-src 'self' data:, which blocks cross-origin R2 image URLs
+  // (pub-*.r2.dev / custom domain). Allow images from any https host (+ data/blob) while
+  // keeping scripts/styles on the locked-down defaults.
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+    },
+  },
 }));
 app.use(compression());
 
