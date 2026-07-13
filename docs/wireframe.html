@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>timeline-map — redesign wireframe</title>
+<style>
+  :root{
+    --ink:#2b2b2b; --muted:#7a7a76; --line:#c8c8c2; --line2:#e2e2dc;
+    --bg:#f6f5f1; --panel:#fffffb; --accent:#3a6ea5;
+    --place:#2f6f4f; --person:#8a4b8a; --item:#b5791f; --lore:#3a6ea5; --event:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font:13px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+  button{font:inherit;cursor:pointer}
+  .app{display:grid;grid-template-rows:46px 1fr 78px;height:100vh}
+
+  /* top bar */
+  .top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:6px;font-weight:700}
+  .switch{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 8px;color:var(--ink)}
+  .crumbs{display:flex;align-items:center;gap:4px;color:var(--muted);flex:1;overflow:hidden;white-space:nowrap}
+  .crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+  .crumbs .sep{color:var(--line)}
+  .crumbs .here{color:var(--ink);font-weight:600}
+  .search{border:1px dashed var(--line);background:#fff;border-radius:6px;padding:4px 8px;color:var(--muted);width:180px}
+  .role{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .role button{border:0;background:#fff;padding:4px 10px;color:var(--muted)}
+  .role button.on{background:var(--accent);color:#fff}
+  .acct{width:24px;height:24px;border-radius:50%;background:var(--line);text-align:center;line-height:24px}
+
+  /* main */
+  .main{display:grid;grid-template-columns:230px 1fr 300px;min-height:0}
+  .rail{background:var(--panel);border-right:1px solid var(--line);padding:10px;overflow:auto}
+  .rail h4{margin:12px 6px 6px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .tree{list-style:none;margin:0;padding:0}
+  .tree li{padding:0}
+  .row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;color:var(--ink)}
+  .row:hover{background:var(--line2)}
+  .row.on{background:#e7eef6;font-weight:600}
+  .row .tw{color:var(--muted);width:10px;display:inline-block;text-align:center}
+  .rail .flat{padding:4px 6px;color:var(--muted);border-radius:5px;cursor:pointer}
+  .rail .flat:hover{background:var(--line2)}
+
+  /* canvas */
+  .stage{position:relative;overflow:hidden;min-height:0}
+  .canvas{position:absolute;inset:0}
+  .bk-kingdom{background:
+     radial-gradient(120% 90% at 50% 0%, #efe7d2, #e7dcc0);
+     background-color:#e7dcc0}
+  .bk-city{background:
+     repeating-linear-gradient(90deg,#dfe0dc 0 2px,transparent 2px 42px),
+     repeating-linear-gradient(0deg,#dfe0dc 0 2px,transparent 2px 42px),#e9e9e4}
+  .bk-room{background:
+     repeating-linear-gradient(90deg,#e7d8bf 0 34px,#e2d1b4 34px 36px);background-color:#e7d8bf}
+  .grain{position:absolute;inset:0;opacity:.5;pointer-events:none;
+     background-image:radial-gradient(#00000010 1px,transparent 1px);background-size:16px 16px}
+  .banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:6;
+     background:#2b2b2b;color:#fff;padding:3px 10px;border-radius:20px;font-size:11px;opacity:.85}
+
+  .palette{position:absolute;top:8px;left:8px;z-index:5;display:flex;gap:4px;background:var(--panel);
+     border:1px solid var(--line);border-radius:8px;padding:4px}
+  .palette b{align-self:center;color:var(--muted);font-weight:600;padding:0 4px;font-size:11px}
+  .tool{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 7px;font-size:11px;display:flex;gap:4px;align-items:center}
+  .tool.on{outline:2px solid var(--accent)}
+
+  .legend{position:absolute;bottom:8px;left:8px;z-index:5;background:var(--panel);border:1px solid var(--line);
+     border-radius:8px;padding:6px 8px;min-width:120px}
+  .legend h5{margin:0 0 4px;font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+  .legend label{display:flex;align-items:center;gap:6px;padding:1px 0;color:var(--ink);font-size:12px;cursor:pointer}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .ic{color:#fff;border-radius:50%;text-align:center;display:inline-block;flex:none}
+
+  .hint{position:absolute;bottom:8px;right:8px;z-index:5;color:var(--muted);font-size:11px;font-style:italic;
+     background:#ffffffcc;border:1px dashed var(--line);border-radius:6px;padding:4px 8px;max-width:230px}
+
+  .pin{position:absolute;transform:translate(-50%,-50%);z-index:3;display:flex;align-items:center;gap:5px;
+     background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:3px 9px 3px 7px;cursor:pointer;
+     box-shadow:0 1px 2px #0002;white-space:nowrap;max-width:200px}
+  .pin .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;text-align:center;line-height:16px;flex:none}
+  .pin .lbl{overflow:hidden;text-overflow:ellipsis}
+  .pin .open{color:var(--muted);font-weight:700}
+  .pin.sel{outline:2px solid var(--accent);outline-offset:1px}
+  .pin.open2{border-style:double;border-width:3px}
+  .pin.ghost{opacity:.32;filter:grayscale(.4)}
+  .pin.secret{border-style:dashed}
+  .pin .flag{font-size:9px;color:var(--muted)}
+  svg.links{position:absolute;inset:0;z-index:2;pointer-events:none}
+
+  /* list interior */
+  .listview{position:absolute;inset:0;padding:26px 22px;overflow:auto}
+  .listview h3{margin:0 0 4px}
+  .listview .sub{color:var(--muted);margin:0 0 14px}
+  .litem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+     border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;max-width:520px}
+  .litem:hover{background:var(--line2)}
+  .litem.sel{outline:2px solid var(--accent)}
+
+  /* inspector */
+  .insp{background:var(--panel);border-left:1px solid var(--line);padding:12px;overflow:auto}
+  .insp .empty{color:var(--muted);font-style:italic;margin-top:40px;text-align:center;padding:0 16px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+  .fld .val{border:1px solid var(--line2);border-radius:6px;padding:6px 8px;background:#fff}
+  .fld textarea,.fld input{width:100%;border:1px solid var(--line2);border-radius:6px;padding:6px 8px;font:inherit;color:var(--ink);background:#fff}
+  .catpick{display:inline-flex;align-items:center;gap:6px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 10px;color:var(--ink)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.block{display:block;width:100%;text-align:center;margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:11px;background:#fff;cursor:pointer;color:var(--accent)}
+  .vis{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .vis button{border:0;background:#fff;padding:5px 8px;color:var(--muted);flex:1}
+  .vis button.on{background:#2b2b2b;color:#fff}
+  .saved{color:#2f6f4f;font-size:11px}
+  .insp hr{border:0;border-top:1px solid var(--line2);margin:12px 0}
+
+  /* timeline */
+  .time{background:var(--panel);border-top:1px solid var(--line);display:grid;
+     grid-template-columns:auto auto 1fr auto;align-items:center;gap:14px;padding:0 16px}
+  .play{border:1px solid var(--line);background:#fff;border-radius:6px;width:30px;height:30px}
+  .tfilter{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .tfilter button{border:0;background:#fff;padding:5px 9px;color:var(--muted);font-size:12px}
+  .tfilter button.on{background:var(--accent);color:#fff}
+  .track{position:relative;padding-top:16px}
+  .hist{position:absolute;top:0;left:0;right:0;height:14px;display:flex;align-items:flex-end;gap:3px}
+  .hist .bar{flex:1;background:var(--line);border-radius:2px 2px 0 0}
+  .track input{width:100%}
+  .ticks{display:flex;justify-content:space-between;color:var(--muted);font-size:10px;margin-top:-2px}
+  .asof{font-weight:600;white-space:nowrap}
+  .asof small{display:block;color:var(--muted);font-weight:400}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">🗺️ timeline-map</div>
+    <button class="switch">🌍 Aldermoor ▾</button>
+    <div class="crumbs" id="crumbs"></div>
+    <div class="search">🔎 Search anything…</div>
+    <div class="role" id="role">
+      <button data-role="dm" class="on">DM</button>
+      <button data-role="player">Player</button>
+    </div>
+    <div class="acct">B</div>
+  </div>
+
+  <div class="main">
+    <div class="rail">
+      <h4>Maps</h4>
+      <ul class="tree" id="tree"></ul>
+      <h4>Library</h4>
+      <div class="flat">🖼️ Assets</div>
+      <div class="flat">🧑‍🤝‍🧑 All people</div>
+      <div class="flat">⚙️ World settings</div>
+    </div>
+
+    <div class="stage" id="stage"></div>
+
+    <div class="insp" id="insp"></div>
+  </div>
+
+  <div class="time">
+    <button class="play" title="Play through time">▶</button>
+    <div class="tfilter" id="tfilter">
+      <button data-f="on" class="on">Filter by time</button>
+      <button data-f="off">Show all</button>
+    </div>
+    <div class="track">
+      <div class="hist" id="hist"></div>
+      <input type="range" id="slider" min="1" max="5" step="1" value="1" />
+      <div class="ticks"><span>Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span><span>Day 5</span></div>
+    </div>
+    <div class="asof">Viewing as of Day <span id="asofN">1</span><small id="asofRole">DM — full truth</small></div>
+  </div>
+</div>
+
+<script>
+/* ---------- sample world ---------- */
+const CAT = {
+  note:{c:'#8a8a86',i:'•',label:'Note'},
+  place:{c:'var(--place)',i:'▲',label:'Place'},
+  person:{c:'var(--person)',i:'☻',label:'Person'},
+  item:{c:'var(--item)',i:'◆',label:'Item'},
+  lore:{c:'var(--lore)',i:'✦',label:'Lore/Info'},
+  event:{c:'var(--event)',i:'✷',label:'Event'},
+};
+// maps: id -> {title, bk, view, parent:{map,label}}
+const maps = {
+  kingdom:{title:'Kingdom of Aldermoor', bk:'bk-kingdom', view:'map', parent:null},
+  greyhollow:{title:'Greyhollow', bk:'bk-city', view:'map', parent:{map:'kingdom',label:'Greyhollow'}},
+  tavern:{title:'The Prancing Pony', bk:'bk-room', view:'map', parent:{map:'greyhollow',label:'The Prancing Pony'}},
+  house:{title:'House of Aldous', bk:'bk-room', view:'map', parent:{map:'greyhollow',label:'House of Aldous'}},
+  chest:{title:'Locked Chest', view:'list', parent:{map:'tavern',label:'Locked Chest'}},
+  kaelmind:{title:"Inside Kael's mind", view:'list', parent:{map:'tavern',label:"Kael's mind"}},
+};
+// nodes: each placed on one map
+let nodes = [
+  {id:'greyhollow', map:'kingdom', cat:'place', x:34,y:44, name:'Greyhollow', opens:'greyhollow', shared:true, body:'Capital city, built on the old ford.'},
+  {id:'blightwood', map:'kingdom', cat:'place', x:68,y:30, name:'The Blightwood', shared:true, body:'A cursed forest to the north.'},
+  {id:'sundering', map:'kingdom', cat:'event', x:52,y:66, name:'The Sundering', shared:true, life:[3,5], body:'The cataclysm that splits the realm.'},
+  {id:'cult', map:'kingdom', cat:'lore', x:20,y:72, name:'Cult cell (hidden)', shared:false, body:'Secret: agents of the Ashen Hand operate here.'},
+
+  {id:'pony', map:'greyhollow', cat:'place', x:30,y:40, name:'The Prancing Pony', opens:'tavern', shared:true, body:'A tavern on Market Street.'},
+  {id:'market', map:'greyhollow', cat:'place', x:60,y:34, name:'Market Square', shared:true, body:'Traders gather here at dawn.'},
+  {id:'aldous', map:'greyhollow', cat:'place', x:52,y:66, name:'House of Aldous', opens:'house', shared:true, body:'Home of the merchant Aldous.'},
+  {id:'founded', map:'greyhollow', cat:'lore', x:22,y:70, name:'“Founded after the Sundering”', shared:true, body:'Rebuilt by refugees.', links:[{to:'sundering',label:'The Sundering'}]},
+
+  {id:'kael', map:'tavern', cat:'person', x:38,y:38, name:'Kael', opens:'kaelmind', shared:true, life:[1,1], body:'A hooded traveller. Comes from the city of Greyhollow.', links:[{to:'greyhollow',label:'Greyhollow'}]},
+  {id:'mira', map:'tavern', cat:'person', x:64,y:50, name:'Barkeep Mira', shared:true, links:[{to:'kael',label:'Kael'}], body:'Runs the Pony. Knows everyone.'},
+  {id:'chestnode', map:'tavern', cat:'item', x:48,y:72, name:'Locked Chest', opens:'chest', shared:true, body:'Iron-banded, behind the bar.'},
+
+  {id:'aldous_self', map:'house', cat:'person', x:40,y:45, name:'Aldous', shared:true, body:'The merchant.'},
+  {id:'ledger', map:'house', cat:'item', x:62,y:60, name:'Hidden ledger', shared:false, body:'Secret: records payments to the cult.'},
+
+  {id:'gold', map:'chest', cat:'item', name:'240 gold', shared:true, body:''},
+  {id:'frag', map:'chest', cat:'item', name:'Map fragment', shared:true, links:[{to:'blightwood',label:'The Blightwood'}], body:'Points to the Blightwood.'},
+  {id:'ring', map:'chest', cat:'item', name:'Silver ring', shared:true, body:'Engraved with an ashen hand.'},
+
+  {id:'mem1', map:'kaelmind', cat:'lore', name:'Memory: the fire', shared:false, body:''},
+  {id:'mem2', map:'kaelmind', cat:'lore', name:'Secret: works for the cult', shared:false, body:''},
+];
+
+/* ---------- state ---------- */
+const st = { map:'kingdom', sel:null, time:1, role:'dm', filter:true, placing:null, hidden:{} };
+
+const byId = id => nodes.find(n=>n.id===id);
+const nodesOn = m => nodes.filter(n=>n.map===m);
+function present(n){ if(!n.life) return true; const [a,b]=n.life; return st.time>=a && st.time<=b; }
+function visible(n){
+  if(st.hidden[n.cat]) return false;
+  if(st.role==='player'){
+    if(!n.shared) return false;
+    if(n.life && st.time < n.life[0]) return false; // no future spoilers
+  }
+  return true;
+}
+
+/* ---------- render ---------- */
+function render(){
+  renderCrumbs(); renderTree(); renderStage(); renderInsp(); renderTime();
+}
+
+function renderCrumbs(){
+  const chain=[]; let m=st.map;
+  while(m){ chain.unshift(m); const p=maps[m].parent; m=p?p.map:null; }
+  const el=document.getElementById('crumbs'); el.innerHTML='';
+  el.appendChild(span('World','a',()=>{}));
+  chain.forEach((mid,i)=>{
+    el.appendChild(span('▸','sep'));
+    const last=i===chain.length-1;
+    el.appendChild(span(maps[mid].title, last?'here':'a', last?null:()=>go(mid)));
+  });
+}
+function span(t,cls,fn){const s=document.createElement('span');s.textContent=t;if(cls)s.className=cls;if(fn){s.onclick=fn;}return s;}
+
+function renderTree(){
+  const roots = nodes.filter(n=>n.opens && n.map==='kingdom');
+  const ul=document.getElementById('tree'); ul.innerHTML='';
+  ul.appendChild(treeRow('kingdom','Kingdom of Aldermoor',0));
+  function walk(mapId,depth){
+    nodes.filter(n=>n.map===mapId && n.opens).forEach(n=>{
+      ul.appendChild(treeRow(n.opens, n.name, depth));
+      walk(n.opens, depth+1);
+    });
+  }
+  walk('kingdom',1);
+}
+function treeRow(mapId,label,depth){
+  const li=document.createElement('li');
+  const r=document.createElement('div'); r.className='row'+(st.map===mapId?' on':'');
+  r.style.paddingLeft=(6+depth*14)+'px';
+  r.innerHTML='<span class="tw">'+(maps[mapId].view==='list'?'▤':'▸')+'</span>';
+  r.appendChild(document.createTextNode(label));
+  r.onclick=()=>go(mapId);
+  li.appendChild(r); return li;
+}
+
+function renderStage(){
+  const st_=document.getElementById('stage'); st_.innerHTML='';
+  const m=maps[st.map];
+  if(st.role==='player'){ const b=document.createElement('div'); b.className='banner'; b.textContent='PLAYER VIEW — shared content, as of Day '+st.time; st_.appendChild(b); }
+
+  if(m.view==='list'){ renderList(st_,m); return; }
+
+  const c=document.createElement('div'); c.className='canvas '+(m.bk||''); st_.appendChild(c);
+  const g=document.createElement('div'); g.className='grain'; st_.appendChild(g);
+
+  // link lines
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','links');
+  svg.style.width='100%'; svg.style.height='100%'; st_.appendChild(svg);
+
+  // add-node (DM only): ONE gesture; every node is the same — categorize (a swappable label) after
+  if(st.role==='dm'){
+    const pal=document.createElement('div'); pal.className='palette';
+    const b=document.createElement('button'); b.className='tool'+(st.placing?' on':'');
+    b.innerHTML='＋ Add node';
+    b.onclick=(e)=>{e.stopPropagation(); st.placing=!st.placing; renderStage();};
+    pal.appendChild(b);
+    st_.appendChild(pal);
+  }
+
+  // legend / filter
+  const leg=document.createElement('div'); leg.className='legend';
+  leg.innerHTML='<h5>Legend · click to filter</h5>';
+  Object.entries(CAT).forEach(([k,v])=>{
+    const lab=document.createElement('label');
+    lab.innerHTML='<span class="dot" style="background:'+v.c+'"></span>'+v.label;
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!st.hidden[k];
+    cb.onchange=()=>{ st.hidden[k]=!cb.checked; renderStage(); };
+    lab.prepend(cb); leg.appendChild(lab);
+  });
+  st_.appendChild(leg);
+
+  const hint=document.createElement('div'); hint.className='hint';
+  hint.textContent = st.placing ? 'Click the map to drop a node — set/change its category afterward in the inspector. (Esc to cancel)'
+    : 'Double-click a ◎ node to zoom in. Grey = not present at this time.';
+  st_.appendChild(hint);
+
+  c.onclick=(e)=>{
+    if(st.placing){
+      const r=c.getBoundingClientRect();
+      const x=((e.clientX-r.left)/r.width*100), y=((e.clientY-r.top)/r.height*100);
+      const id='n'+Date.now();
+      nodes.push({id, map:st.map, cat:'note', x, y, name:'New node', shared:true, body:''});
+      st.sel=id; st.placing=null; render();
+    } else { st.sel=null; renderInsp(); document.querySelectorAll('.pin.sel').forEach(p=>p.classList.remove('sel')); }
+  };
+
+  const pts={};
+  nodesOn(st.map).forEach(n=>{
+    if(!visible(n)) return;
+    const pin=document.createElement('div');
+    const ghost = st.filter && !present(n);
+    pin.className='pin'+(st.sel===n.id?' sel':'')+(n.opens?' open2':'')+(ghost?' ghost':'')+(!n.shared?' secret':'');
+    pin.style.left=n.x+'%'; pin.style.top=n.y+'%';
+    pin.innerHTML='<span class="ic" style="background:'+CAT[n.cat].c+'">'+CAT[n.cat].i+'</span>'+
+      '<span class="lbl">'+n.name+'</span>'+
+      (n.opens?' <span class="open">◎</span>':'')+
+      (!n.shared?' <span class="flag">🔒DM</span>':'')+
+      (n.life?' <span class="flag">🕑</span>':'');
+    pin.onclick=(e)=>{e.stopPropagation(); st.sel=n.id; renderStage(); renderInsp();};
+    pin.ondblclick=(e)=>{e.stopPropagation(); if(n.opens) go(n.opens);};
+    c.appendChild(pin);
+    pts[n.id]={x:n.x,y:n.y};
+  });
+  // draw links whose both ends are on this map (demo)
+  nodesOn(st.map).forEach(n=>{
+    (n.links||[]).forEach(l=>{ if(pts[n.id]&&pts[l.to]){ line(svg,pts[n.id],pts[l.to]); } });
+  });
+}
+function line(svg,a,b){
+  const el=document.createElementNS('http://www.w3.org/2000/svg','line');
+  el.setAttribute('x1',a.x+'%');el.setAttribute('y1',a.y+'%');el.setAttribute('x2',b.x+'%');el.setAttribute('y2',b.y+'%');
+  el.setAttribute('stroke','#3a6ea5');el.setAttribute('stroke-dasharray','4 3');el.setAttribute('stroke-width','1.5');
+  svg.appendChild(el);
+}
+
+function renderList(stage,m){
+  const wrap=document.createElement('div'); wrap.className='listview';
+  wrap.innerHTML='<h3>'+m.title+'</h3><p class="sub">Interior shown as a <b>list</b> (this node holds a collection, not a place). Toggle to map in the inspector.</p>';
+  nodesOn(st.map).forEach(n=>{
+    if(!visible(n)) return;
+    const it=document.createElement('div'); it.className='litem'+(st.sel===n.id?' sel':'');
+    it.innerHTML='<span class="ic" style="background:'+CAT[n.cat].c+'">'+CAT[n.cat].i+'</span>'+
+      '<b>'+n.name+'</b>'+(n.opens?' <span class="open">◎ opens</span>':'')+(!n.shared?' <span class="flag">🔒DM</span>':'')+
+      '<span style="color:var(--muted);margin-left:auto">'+(n.body||'')+'</span>';
+    it.onclick=()=>{st.sel=n.id; renderList0();};
+    it.ondblclick=()=>{ if(n.opens) go(n.opens); };
+    wrap.appendChild(it);
+  });
+  stage.appendChild(wrap);
+  function renderList0(){ renderStage(); renderInsp(); }
+}
+
+function renderInsp(){
+  const el=document.getElementById('insp'); el.innerHTML='';
+  const n=byId(st.sel);
+  if(!n){ el.innerHTML='<div class="empty">Nothing selected.<br><br>Click a node to inspect it'+(st.role==='dm'?', or pick a type above and click the map to place one.':'.')+'</div>'; return; }
+  const ro = st.role==='player';
+  const cat=CAT[n.cat];
+  el.innerHTML =
+    '<div class="fld"><label>Title</label>'+(ro?'<div class="val">'+n.name+'</div>':'<input value="'+n.name.replace(/"/g,'&quot;')+'">')+'</div>'+
+    '<div class="fld"><label>Category — a label; swap anytime, no consequences</label>'+
+      (ro ? '<div class="val catpick"><span class="ic" style="background:'+cat.c+'">'+cat.i+'</span> '+cat.label+'</div>'
+          : '<div class="chips" id="catpick">'+Object.entries(CAT).map(([k,v])=>'<button class="chip" data-cat="'+k+'" style="'+(n.cat===k?('background:'+v.c+';color:#fff;border-color:'+v.c):'')+'"><span class="ic" style="width:12px;height:12px;line-height:12px;font-size:8px;background:'+v.c+'">'+v.i+'</span>'+v.label+'</button>').join('')+'</div>')+
+    '</div>'+
+    '<div class="fld"><label>Description</label>'+(ro?'<div class="val">'+(n.body||'—')+'</div>':'<textarea rows="3" placeholder="Type @ to link another node…">'+(n.body||'')+'</textarea>')+'</div>';
+
+  // links / backlinks
+  const out=(n.links||[]);
+  const back=nodes.filter(x=>(x.links||[]).some(l=>l.to===n.id));
+  if(out.length||back.length){
+    let h='<div class="fld"><label>Links</label><div class="chips">';
+    out.forEach(l=>h+='<span class="chip" onclick="jump(\''+l.to+'\')">→ '+l.label+'</span>');
+    back.forEach(b=>h+='<span class="chip" onclick="jump(\''+b.id+'\')">← '+b.name+'</span>');
+    h+='</div></div>'; el.innerHTML+=h;
+  }
+
+  el.innerHTML+='<hr>';
+  // interior
+  if(n.opens){
+    el.innerHTML+='<button class="btn primary block" onclick="go(\''+n.opens+'\')">◎ Open interior ('+(maps[n.opens].view==='list'?'list':'map')+') ▸</button>';
+  } else if(!ro){
+    el.innerHTML+='<button class="btn block" onclick="createInterior(\''+n.id+'\')">＋ Give this node an interior…</button>';
+  }
+
+  // lifespan
+  el.innerHTML+='<div class="fld"><label>Lifespan (timeline)</label><div class="val">'+
+    (n.life? ('Day '+n.life[0]+' – Day '+n.life[1]) : 'Always present')+
+    (present(n)?'':' · <span style="color:var(--event)">not present on Day '+st.time+'</span>')+'</div></div>';
+
+  // visibility (DM only)
+  if(!ro){
+    el.innerHTML+='<div class="fld"><label>Visibility</label><div class="vis" id="vis">'+
+      '<button data-s="1" class="'+(n.shared?'on':'')+'">Shared</button>'+
+      '<button data-s="0" class="'+(!n.shared?'on':'')+'">DM-only</button></div></div>';
+  }
+
+  el.innerHTML+='<hr><div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<span class="saved">✓ Autosaved</span>'+(ro?'':'<button class="btn">🗑 Delete</button>')+'</div>';
+
+  const cp=el.querySelector('#catpick');
+  if(cp) cp.querySelectorAll('button').forEach(b=>b.onclick=()=>{ n.cat=b.dataset.cat; render(); });
+  const vis=el.querySelector('#vis');
+  if(vis) vis.querySelectorAll('button').forEach(b=>b.onclick=()=>{ n.shared=b.dataset.s==='1'; render(); });
+}
+
+function renderTime(){
+  document.getElementById('asofN').textContent=st.time;
+  document.getElementById('asofRole').textContent = st.role==='dm' ? 'DM — full truth' : 'Player — revealed only';
+  // histogram: nodes present per day across the world
+  const h=document.getElementById('hist'); h.innerHTML='';
+  for(let d=1; d<=5; d++){
+    const cnt=nodes.filter(n=>{ if(!n.life) return false; return d>=n.life[0]&&d<=n.life[1]; }).length + 2;
+    const bar=document.createElement('div'); bar.className='bar'; bar.style.height=(4+cnt*3)+'px';
+    bar.style.background = d===st.time ? 'var(--accent)' : 'var(--line)';
+    h.appendChild(bar);
+  }
+}
+
+/* ---------- actions ---------- */
+function go(mapId){ st.map=mapId; st.sel=null; st.placing=null; render(); }
+function jump(id){ const n=byId(id); if(!n) return; if(n.map!==st.map){ st.map=n.map; } st.sel=id; render(); }
+function createInterior(id){ const n=byId(id); const mid='m'+Date.now(); maps[mid]={title:n.name, bk:'bk-room', view:'map', parent:{map:n.map,label:n.name}}; n.opens=mid; go(mid); }
+window.jump=jump; window.go=go; window.createInterior=createInterior;
+
+document.getElementById('role').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  st.role=b.dataset.role; st.placing=null;
+  document.querySelectorAll('#role button').forEach(x=>x.classList.toggle('on', x.dataset.role===st.role));
+  render();
+});
+document.getElementById('tfilter').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  st.filter=b.dataset.f==='on';
+  document.querySelectorAll('#tfilter button').forEach(x=>x.classList.toggle('on', (x.dataset.f==='on')===st.filter));
+  renderStage();
+});
+document.getElementById('slider').oninput=(e)=>{ st.time=+e.target.value; render(); };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ st.placing=null; st.sel=null; render(); } });
+
+render();
+</script>
+</body>
+</html>
