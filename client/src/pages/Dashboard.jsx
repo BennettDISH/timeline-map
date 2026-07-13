@@ -70,8 +70,15 @@ function Dashboard() {
               <div className="quick-actions">
                 <h3>Quick Actions</h3>
                 <div className="action-grid">
-                  <Link 
-                    to={`/worlds/${currentWorld.id}/maps`} 
+                  <Link
+                    to={`/w/${currentWorld.id}`}
+                    className="action-card"
+                  >
+                    <h4>🧭 Open Atlas (new)</h4>
+                    <p>The reimagined nested, zoomable workspace</p>
+                  </Link>
+                  <Link
+                    to={`/worlds/${currentWorld.id}/maps`}
                     className="action-card"
                   >
                     <h4>Manage Maps</h4>

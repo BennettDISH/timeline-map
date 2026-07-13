@@ -13,6 +13,7 @@ import EnvSetup from './pages/EnvSetup'
 import WorldSettings from './pages/WorldSettings'
 import MapSettings from './pages/MapSettings'
 import ImageManager from './pages/ImageManager'
+import AtlasWorkspace from './pages/AtlasWorkspace'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -128,6 +129,14 @@ function AppRoutes() {
               <ImageManager />
             </ProtectedRoute>
           } 
+        />
+        <Route
+          path="/w/:worldId"
+          element={<ProtectedRoute><AtlasWorkspace /></ProtectedRoute>}
+        />
+        <Route
+          path="/w/:worldId/m/:mapId"
+          element={<ProtectedRoute><AtlasWorkspace /></ProtectedRoute>}
         />
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
