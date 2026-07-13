@@ -10,12 +10,17 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Ensure newer image columns exist even if `npm run migrate` hasn't been run on this DB.
-// Idempotent and safe on every boot; a missing table (fresh DB pre-init) just logs and no-ops.
+// Ensure the DB schema exists on every boot (idempotent CREATE/ALTER IF NOT EXISTS), so a deploy
+// needs no manual `npm run migrate`. Runs the full schema.sql; per-statement errors are logged, not fatal.
 const pool = require('./config/database');
-pool
-  .query('ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500)')
-  .catch((err) => console.error('storage_key column ensure skipped:', err.message));
+(async () => {
+  try {
+    const schemaSql = fs.readFileSync(path.join(__dirname, 'config/schema.sql'), 'utf8');
+    for (const stmt of schemaSql.split(';').map((s) => s.trim()).filter(Boolean)) {
+      try { await pool.query(stmt); } catch (e) { console.error('schema ensure stmt skipped:', e.message); }
+    }
+  } catch (e) { console.error('schema ensure skipped:', e.message); }
+})();
 
 // Security middleware
 app.use(helmet({
@@ -75,6 +80,7 @@ app.use('/api/events', require('./routes/events'));
 app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
+app.use('/api/atlas', require('./routes/atlas')); // redesigned model (nodes/placements/links)
 
 // Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {

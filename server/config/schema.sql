@@ -115,3 +115,69 @@ CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id);
 CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
 CREATE INDEX IF NOT EXISTS idx_events_map ON events(map_id);
 CREATE INDEX IF NOT EXISTS idx_events_time ON events(start_time, end_time);
+
+-- ============================================================================
+-- REDESIGN MODEL ("Atlas"): one world = a graph of typed nodes, seen through
+-- nested maps (spaces), filtered by the single world timeline, with a DM/Player
+-- reveal layer. Additive to the legacy tables above; served by /api/atlas.
+-- See docs/UX-REDESIGN.md.
+-- ============================================================================
+
+-- A node is the atomic "thing" (place, person, item, note, event…). Behaviour comes from
+-- optional facets (an interior map, an image, links, placements), not a fixed type; category
+-- is a swappable label only. A node has no position — that lives on its placements.
+CREATE TABLE IF NOT EXISTS nodes (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    title VARCHAR(255) NOT NULL DEFAULT 'New node',
+    body TEXT,
+    category VARCHAR(50) NOT NULL DEFAULT 'note',
+    interior_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL,
+    image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+    visibility VARCHAR(10) NOT NULL DEFAULT 'shared',
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- A placement positions a node on a map, with an optional lifespan (NULL = always present)
+-- and its own visibility. A node may have many placements (same node, no copies).
+CREATE TABLE IF NOT EXISTS placements (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE NOT NULL,
+    x DOUBLE PRECISION NOT NULL DEFAULT 50,
+    y DOUBLE PRECISION NOT NULL DEFAULT 50,
+    start_time INTEGER,
+    end_time INTEGER,
+    visibility VARCHAR(10) NOT NULL DEFAULT 'shared',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- A first-class bidirectional edge between two nodes (reference or portal), optionally pinned
+-- to a moment in time.
+CREATE TABLE IF NOT EXISTS links (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    from_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
+    to_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'reference',
+    label VARCHAR(255),
+    time_context INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Maps gain: the node they are the interior of (NULL = a world root map), and whether they
+-- render as a spatial map or a list. (image_id already holds the backdrop.)
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS owner_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE;
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map';
+
+-- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
+CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
+CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);
+CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_node_id);
+CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_node_id);
+CREATE INDEX IF NOT EXISTS idx_maps_owner ON maps(owner_node_id);
