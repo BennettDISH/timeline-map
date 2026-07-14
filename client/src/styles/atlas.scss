@@ -13,6 +13,9 @@
   .crumbs .sep{color:var(--line)}
   .crumbs .here{color:var(--ink);font-weight:600}
   .top .exit{color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+  .mode{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .mode button{background:var(--panel2);border:0;color:var(--muted);padding:4px 10px;cursor:pointer;font:inherit}
+  .mode button.on{background:var(--accent);color:#08131f;font-weight:600}
 
   .main{display:grid;grid-template-columns:230px 1fr 310px;min-height:0}
 
@@ -41,6 +44,8 @@
   .pin .open{color:var(--muted)}
   .pin.sel{outline:2px solid var(--accent);outline-offset:1px}
   .pin.open2{border-style:double;border-width:3px}
+  .pin.secret{border-color:#b07bd0}
+  .pin .lock{font-size:10px}
 
   .insp{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:12px}
   .insp .empty{color:var(--muted);font-style:italic;text-align:center;margin-top:40px;padding:0 14px}
@@ -50,6 +55,7 @@
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:11px;background:var(--panel2);color:var(--ink);cursor:pointer}
   .chip .ic{width:12px;height:12px;border-radius:50%;color:#fff;font-size:8px;line-height:12px;text-align:center;flex:none}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#08131f}
   .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#08131f}
   .btn.block{display:block;width:100%;text-align:center;margin-bottom:6px}

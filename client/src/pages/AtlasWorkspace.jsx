@@ -28,6 +28,7 @@ function AtlasWorkspace() {
   const [savedAt, setSavedAt] = useState(0)
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const [now, setNow] = useState(0) // current timeline position (scrub)
+  const [mode, setMode] = useState(() => localStorage.getItem('atlas_mode') || 'dm') // DM sees all; Player sees shared + present
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
   const [nodePicker, setNodePicker] = useState(false) // "link to another node" modal
   const saveTimer = useRef(null)
@@ -130,8 +131,9 @@ function AtlasWorkspace() {
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
   }
 
-  // --- timeline (world clock + per-placement lifespans) ---
+  // --- reveal (DM vs Player) + timeline (world clock + per-placement lifespans) ---
   const tl = world?.timeline
+  const switchMode = (m) => { setMode(m); try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ } }
   const present = (p) => (!tl?.enabled ? true : (p.start == null || now >= p.start) && (p.end == null || now <= p.end))
   const scrub = (v) => {
     setNow(v)
@@ -208,6 +210,10 @@ function AtlasWorkspace() {
             </React.Fragment>
           ))}
         </div>
+        <div className="mode" title="DM sees everything; Player hides secrets and out-of-time nodes">
+          <button className={mode === 'dm' ? 'on' : ''} onClick={() => switchMode('dm')}>DM</button>
+          <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>Player</button>
+        </div>
         <Link to="/dashboard" className="exit">Exit</Link>
       </div>
 
@@ -235,14 +241,17 @@ function AtlasWorkspace() {
               dropNode(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100)
             }}
           >
-            {(data?.placements || []).map((p) => (
+            {(data?.placements || [])
+              .filter((p) => mode === 'dm' || (p.node.visibility !== 'dm' && present(p)))
+              .map((p) => (
               <div key={p.id}
-                className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''}`}
+                className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
                 style={{ left: `${p.x}%`, top: `${p.y}%` }}
                 onPointerDown={(e) => onPinDown(e, p)}
                 onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
                 <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
                 <span className="lbl">{p.node.title}</span>
+                {p.node.visibility === 'dm' && <span className="lock" title="DM only">🔒</span>}
                 {p.node.hasInterior && <span className="open">◎</span>}
               </div>
             ))}
@@ -287,6 +296,7 @@ function AtlasWorkspace() {
               onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
               timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
               links={nodeLinks} onLink={() => setNodePicker(true)} onUnlink={removeLink} onJump={jump}
+              onVis={(v) => saveNode(sel.node.id, { visibility: v })}
               onDelete={() => removeNode(sel.node)} savedAt={savedAt} />
           )}
         </div>
@@ -304,7 +314,7 @@ function AtlasWorkspace() {
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, links, onLink, onUnlink, onJump, onDelete, savedAt }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, links, onLink, onUnlink, onJump, onVis, onDelete, savedAt }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
@@ -323,6 +333,12 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
               <span className="ic" style={{ background: v.c }}>{v.i}</span>{v.label}
             </button>
           ))}
+        </div>
+      </div>
+      <div className="fld"><label>Who can see it</label>
+        <div className="chips">
+          <button className={`chip ${n.visibility !== 'dm' ? 'on' : ''}`} onClick={() => onVis('shared')}>👁 Everyone</button>
+          <button className={`chip ${n.visibility === 'dm' ? 'on' : ''}`} onClick={() => onVis('dm')}>🔒 DM only</button>
         </div>
       </div>
       <div className="fld"><label>Description</label>
