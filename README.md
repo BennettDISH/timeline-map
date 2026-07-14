@@ -25,6 +25,13 @@ Production: `npm run build` then `npm start`.
 - `server/routes/` — worlds, maps, events, images, imageFolders, **image-base64**, auth, admin, setup.
 - `server/config/migrate.js` — schema/migrations.
 
+## SSO
+Optional "Sign in with bennettdishman.com" is wired **entirely server-side** — the OAuth
+`/oauth/authorize` URL is built on the server from `AUTH_SERVICE_URL` + `SSO_CLIENT_ID`, so nothing
+is baked into the client bundle (no `VITE_` vars). Set `AUTH_SERVICE_URL`, `SSO_CLIENT_ID`, and
+`SSO_CLIENT_SECRET` on the server to enable it. The client discovers whether SSO is on via
+`GET /api/auth/config` and starts the flow at `GET /api/auth/sso/login`.
+
 ## Deploy
 Railway.
 

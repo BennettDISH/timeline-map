@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../utils/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
@@ -6,8 +6,25 @@ function Login() {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
+  const [ssoEnabled, setSsoEnabled] = useState(false)
   const { login, register, loading, error, clearError } = useAuth()
   const navigate = useNavigate()
+
+  // Ask the server whether SSO is configured — no build-time (VITE) vars needed.
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then(res => res.json())
+      .then(data => setSsoEnabled(!!data.ssoEnabled))
+      .catch(() => setSsoEnabled(false))
+  }, [])
+
+  // Start SSO: generate a random state, stash it for the callback to validate, then hand off to
+  // the server route that builds the authorize URL from server-held client_id / auth-service URL.
+  const startSso = () => {
+    const state = crypto.randomUUID()
+    sessionStorage.setItem('sso_state', state)
+    window.location.href = `/api/auth/sso/login?state=${encodeURIComponent(state)}`
+  }
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -137,26 +154,17 @@ function Login() {
           </form>
         )}
 
-        {import.meta.env.VITE_AUTH_SERVICE_URL && (
+        {ssoEnabled && (
           <div className="sso-divider">
             <span>or</span>
           </div>
         )}
 
-        {import.meta.env.VITE_AUTH_SERVICE_URL && (
+        {ssoEnabled && (
           <button
             type="button"
             className="sso-button"
-            onClick={() => {
-              const state = crypto.randomUUID()
-              sessionStorage.setItem('sso_state', state)
-              const params = new URLSearchParams({
-                client_id: import.meta.env.VITE_SSO_CLIENT_ID,
-                redirect_uri: `${window.location.origin}/auth/callback`,
-                state
-              })
-              window.location.href = `${import.meta.env.VITE_AUTH_SERVICE_URL}/oauth/authorize?${params}`
-            }}
+            onClick={startSso}
           >
             Sign in with bennettdishman.com
           </button>
