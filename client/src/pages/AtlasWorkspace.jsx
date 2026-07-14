@@ -28,10 +28,13 @@ function AtlasWorkspace() {
   const [savedAt, setSavedAt] = useState(0)
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const [now, setNow] = useState(0) // current timeline position (scrub)
+  const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
+  const [nodePicker, setNodePicker] = useState(false) // "link to another node" modal
   const saveTimer = useRef(null)
   const tlTimer = useRef(null)
   const canvasRef = useRef(null)
   const dragRef = useRef(null)
+  const pendingSelect = useRef(null) // placement to select after a cross-map jump
 
   const reloadMap = () => (mapId ? atlasService.getMap(mapId).then(setData).catch(() => setData(null)) : Promise.resolve())
   const refreshTree = () => atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -54,9 +57,37 @@ function AtlasWorkspace() {
     return () => { live = false }
   }, [worldId]) // eslint-disable-line
 
-  useEffect(() => { setSelId(null); if (mapId) reloadMap() }, [mapId]) // eslint-disable-line
+  useEffect(() => {
+    setSelId(null)
+    if (mapId) reloadMap().then(() => {
+      if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
+    })
+  }, [mapId]) // eslint-disable-line
 
   const sel = data?.placements.find((p) => p.id === selId) || null
+
+  // --- links (references between nodes) ---
+  const reloadLinks = (nodeId) => atlasService.getNode(nodeId).then((d) => setNodeLinks({ out: d.links, in: d.backlinks })).catch(() => {})
+  useEffect(() => {
+    if (!sel) { setNodeLinks({ out: [], in: [] }); return }
+    let live = true
+    atlasService.getNode(sel.node.id).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks }) }).catch(() => {})
+    return () => { live = false }
+  }, [selId]) // eslint-disable-line
+  const addLink = async (toId) => {
+    setNodePicker(false)
+    if (!sel) return
+    await atlasService.addLink({ from_node_id: sel.node.id, to_node_id: toId }).catch(() => {})
+    reloadLinks(sel.node.id)
+  }
+  const removeLink = async (id) => { await atlasService.deleteLink(id).catch(() => {}); if (sel) reloadLinks(sel.node.id) }
+  const jump = async (nodeId) => {
+    const loc = await atlasService.locateNode(nodeId).catch(() => null)
+    if (!loc || !loc.mapId) return
+    if (String(loc.mapId) === String(mapId)) { if (loc.placementId) setSelId(loc.placementId); return }
+    if (loc.placementId) pendingSelect.current = loc.placementId
+    navigate(`/w/${worldId}/m/${loc.mapId}`)
+  }
 
   // --- node/placement actions ---
   const dropNode = async (x, y) => {
@@ -255,6 +286,7 @@ function AtlasWorkspace() {
               onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
               onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
               timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
+              links={nodeLinks} onLink={() => setNodePicker(true)} onUnlink={removeLink} onJump={jump}
               onDelete={() => removeNode(sel.node)} savedAt={savedAt} />
           )}
         </div>
@@ -264,11 +296,15 @@ function AtlasWorkspace() {
         <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent}
           onPick={handlePick} onClose={() => setPicker(null)} />
       )}
+      {nodePicker && sel && (
+        <NodePicker worldId={worldId} excludeId={sel.node.id}
+          onPick={addLink} onClose={() => setNodePicker(false)} />
+      )}
     </div>
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, onDelete, savedAt }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, links, onLink, onUnlink, onJump, onDelete, savedAt }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
@@ -317,6 +353,24 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
           <div className="muted">Blank = always present. Scrub the timeline to see it appear / disappear.</div>
         </div>
       )}
+      <div className="fld"><label>Links — references to other nodes</label>
+        <div className="links">
+          {(links?.out || []).map((l) => (
+            <div key={`o${l.id}`} className="lrow">
+              <a className="lgo" onClick={() => onJump(l.otherId)}>→ {l.otherTitle}</a>
+              <button className="lx" title="Remove link" onClick={() => onUnlink(l.id)}>✕</button>
+            </div>
+          ))}
+          {(links?.in || []).map((l) => (
+            <div key={`i${l.id}`} className="lrow in">
+              <a className="lgo" onClick={() => onJump(l.otherId)}>← {l.otherTitle}</a>
+              <span className="lref">refers here</span>
+            </div>
+          ))}
+          {(!links?.out?.length && !links?.in?.length) && <div className="muted">No links yet.</div>}
+        </div>
+        <button className="btn block" onClick={onLink}>＋ Link to another node</button>
+      </div>
       <hr />
       {n.hasInterior
         ? <button className="btn primary block" onClick={onOpen}>◎ Open interior ▸</button>
@@ -373,6 +427,31 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
             </button>
           ))}
           {images.length === 0 && <div className="muted">No images in this world yet — upload one above.</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Pick an existing node in this world to link to (searchable; excludes the current node).
+function NodePicker({ worldId, excludeId, onPick, onClose }) {
+  const [nodes, setNodes] = useState([])
+  const [q, setQ] = useState('')
+  useEffect(() => { atlasService.getNodes(worldId).then((ns) => setNodes(ns || [])).catch(() => {}) }, [worldId])
+  const list = nodes.filter((n) => n.id !== excludeId && (n.title || '').toLowerCase().includes(q.toLowerCase()))
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h4>Link to…</h4><button onClick={onClose}>✕</button></div>
+        <input className="nsearch" autoFocus placeholder="Search nodes…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="nlist">
+          {list.map((n) => (
+            <button key={n.id} className="nrow" onClick={() => onPick(n.id)}>
+              <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
+              <span className="lbl">{n.title}</span>
+            </button>
+          ))}
+          {list.length === 0 && <div className="muted">No matching nodes.</div>}
         </div>
       </div>
     </div>

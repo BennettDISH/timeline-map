@@ -174,6 +174,16 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   });
 }));
 
+// GET /nodes/:id/locate — where to jump to this node: its interior, else a map it's placed on.
+router.get('/nodes/:id/locate', wrap(async (req, res) => {
+  const wid = await worldIdOfNode(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  if (n?.interior_map_id) return res.json({ mapId: n.interior_map_id });
+  const p = (await pool.query('SELECT id, map_id FROM placements WHERE node_id=$1 ORDER BY id LIMIT 1', [req.params.id])).rows[0];
+  res.json(p ? { mapId: p.map_id, placementId: p.id } : {});
+}));
+
 // PATCH /nodes/:id — title / body / category / visibility / image.
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);

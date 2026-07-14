@@ -86,4 +86,18 @@
   .pin.ghost{opacity:.28;filter:grayscale(.6)}
   .span{display:flex;align-items:center;gap:8px}
   .span input{width:80px}
+
+  // links (inspector) + node picker
+  .links{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+  .lrow{display:flex;align-items:center;gap:6px}
+  .lrow .lgo{color:var(--accent);cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lrow.in .lgo{color:var(--muted)}
+  .lrow .lx{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px}
+  .lrow .lref{color:var(--line);font-size:10px;font-style:italic}
+  .nsearch{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;margin-bottom:8px;font:inherit}
+  .nlist{display:flex;flex-direction:column;gap:3px;max-height:52vh;overflow:auto}
+  .nrow{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;color:var(--ink);cursor:pointer;text-align:left}
+  .nrow:hover{border-color:var(--accent)}
+  .nrow .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
+  .nrow .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }

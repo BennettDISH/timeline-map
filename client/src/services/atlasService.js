@@ -19,6 +19,7 @@ const atlasService = {
   placeNode: (mapId, data) => api().post(`/maps/${mapId}/placements`, data).then((r) => r.data),
 
   getNode: (id) => api().get(`/nodes/${id}`).then((r) => r.data),
+  locateNode: (id) => api().get(`/nodes/${id}/locate`).then((r) => r.data),
   patchNode: (id, data) => api().patch(`/nodes/${id}`, data).then((r) => r.data),
   createInterior: (id, view) => api().post(`/nodes/${id}/interior`, { view }).then((r) => r.data),
   deleteNode: (id) => api().delete(`/nodes/${id}`).then((r) => r.data),
