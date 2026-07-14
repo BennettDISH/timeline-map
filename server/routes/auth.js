@@ -3,11 +3,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { centralRegister, centralLogin, exchangeCode } = require('../config/sso');
+const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, exchangeCode } = require('../config/sso');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
 const SSO_ENABLED = !!process.env.AUTH_SERVICE_URL;
+
+// The client OAuth callback route (a client-side React route). Both the authorize redirect_uri
+// and the token-exchange redirect_uri point here.
+const CALLBACK_PATH = '/auth/callback';
+
+// Absolute base URL of this app — prefer an explicit env (exact match to the registered
+// redirect_uri), else the request origin (correct in prod behind Railway with trust proxy set).
+const baseUrl = (req) => (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
 
 // Throttle credential endpoints (login/register) to blunt brute-forcing, without touching the
 // frequently-hit /me check that the app calls on every load.
@@ -235,6 +243,26 @@ router.post('/sso-callback', async (req, res) => {
     console.error('SSO callback error:', error);
     res.status(500).json({ message: 'SSO login failed' });
   }
+});
+
+// GET /api/auth/config — public. Lets the client decide whether to show the SSO button
+// without any build-time (VITE) vars; SSO is configured entirely server-side now.
+router.get('/config', (req, res) => {
+  res.json({ ssoEnabled: SSO_ENABLED });
+});
+
+// GET /api/auth/sso/login — begin SSO. Bounce to the auth-service authorize endpoint with the
+// SERVER-held client_id, so the client_id / auth-service URL never get baked into the browser
+// bundle. State is generated client-side and stored in sessionStorage before landing here; it is
+// echoed back to the callback for validation.
+router.get('/sso/login', (req, res) => {
+  if (!SSO_ENABLED) return res.status(503).send('SSO is not configured');
+  const state = req.query.state || '';
+  const url = new URL(`${AUTH_SERVICE_URL}/oauth/authorize`);
+  url.searchParams.set('client_id', SSO_CLIENT_ID);
+  url.searchParams.set('redirect_uri', `${baseUrl(req)}${CALLBACK_PATH}`);
+  url.searchParams.set('state', state);
+  res.redirect(url.toString());
 });
 
 // GET /api/auth/me

@@ -38,4 +38,4 @@ async function exchangeCode(code, redirectUri) {
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
-module.exports = { centralRegister, centralLogin, exchangeCode };
+module.exports = { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, exchangeCode };
