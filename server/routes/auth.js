@@ -54,18 +54,22 @@ async function findOrCreateLocalUser(centralUser) {
     return local;
   }
 
-  // Check if there's a local user with matching email (pre-migration)
-  const byEmail = await pool.query(
-    'SELECT * FROM users WHERE email = $1',
-    [centralUser.email]
-  );
-
-  if (byEmail.rows.length > 0) {
-    await pool.query(
-      'UPDATE users SET central_user_id = $1 WHERE id = $2',
-      [centralUser.central_user_id, byEmail.rows[0].id]
+  // Check if there's a local user with matching email (pre-migration). Central accounts may
+  // have no email, so only match when there IS one — otherwise every emailless user would
+  // link onto the same local row.
+  if (centralUser.email) {
+    const byEmail = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [centralUser.email]
     );
-    return byEmail.rows[0];
+
+    if (byEmail.rows.length > 0) {
+      await pool.query(
+        'UPDATE users SET central_user_id = $1 WHERE id = $2',
+        [centralUser.central_user_id, byEmail.rows[0].id]
+      );
+      return byEmail.rows[0];
+    }
   }
 
   // Create new local user with default role
@@ -73,7 +77,7 @@ async function findOrCreateLocalUser(centralUser) {
     `INSERT INTO users (username, email, password_hash, role, central_user_id)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [centralUser.username, centralUser.email, '', 'viewer', centralUser.central_user_id]
+    [centralUser.username, centralUser.email || null, '', 'viewer', centralUser.central_user_id]
   );
 
   return result.rows[0];
