@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) DEFAULT 'viewer' CHECK (role IN ('admin', 'creator', 'viewer')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- SSO integration: link to central auth service
 ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
+
+-- Central accounts may have no email (the auth-service made it optional), so the local
+-- mirror must accept NULL. The UNIQUE index stays: Postgres allows multiple NULLs, so any
+-- number of emailless users coexist. Storing '' instead would collide on that index.
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 
 -- Worlds table for organizing campaigns/projects
 CREATE TABLE IF NOT EXISTS worlds (
