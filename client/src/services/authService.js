@@ -100,6 +100,20 @@ const authService = {
     return user ? JSON.parse(user) : null
   },
 
+  // One-click guest sign-in — the server mints a central guest account and returns a token.
+  async guest() {
+    try {
+      const response = await api.post('/auth/guest')
+      if (response.data.token) {
+        localStorage.setItem('auth_token', response.data.token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+      return response.data
+    } catch (error) {
+      throw error.response?.data || { message: 'Could not start a guest session' }
+    }
+  },
+
   // SSO login — exchange authorization code
   async ssoLogin(code, redirectUri) {
     try {

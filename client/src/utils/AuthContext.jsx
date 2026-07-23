@@ -126,6 +126,18 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const guestLogin = async () => {
+    dispatch({ type: 'LOGIN_START' })
+    try {
+      const response = await authService.guest()
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
+      return response
+    } catch (error) {
+      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Could not start a guest session' })
+      throw error
+    }
+  }
+
   const logout = async () => {
     await authService.logout()
     dispatch({ type: 'LOGOUT' })
@@ -140,6 +152,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     ssoLogin,
+    guestLogin,
     logout,
     clearError
   }

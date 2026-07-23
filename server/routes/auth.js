@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, exchangeCode } = require('../config/sso');
+const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, exchangeCode } = require('../config/sso');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
@@ -246,6 +246,27 @@ router.post('/sso-callback', async (req, res) => {
   } catch (error) {
     console.error('SSO callback error:', error);
     res.status(500).json({ message: 'SSO login failed' });
+  }
+});
+
+// POST /api/auth/guest — one-click guest: mint a central guest account and sign in as it.
+router.post('/guest', async (req, res) => {
+  if (!SSO_ENABLED) return res.status(503).json({ message: 'Guest sign-in is not available' });
+  try {
+    const result = await centralGuest();
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.data.error || 'Could not start a guest session' });
+    }
+    const localUser = await findOrCreateLocalUser(result.data);
+    const token = generateToken(localUser.id);
+    res.json({
+      message: 'Guest session started',
+      token,
+      user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
+    });
+  } catch (error) {
+    console.error('Guest login error:', error);
+    res.status(500).json({ message: 'Could not start a guest session' });
   }
 });
 

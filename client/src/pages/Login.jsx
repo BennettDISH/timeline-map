@@ -7,8 +7,18 @@ function Login() {
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
   const [ssoEnabled, setSsoEnabled] = useState(false)
-  const { login, register, loading, error, clearError } = useAuth()
+  const { login, register, guestLogin, loading, error, clearError } = useAuth()
   const navigate = useNavigate()
+
+  const handleGuest = async () => {
+    clearError()
+    try {
+      await guestLogin()
+      navigate('/dashboard')
+    } catch {
+      // errors surfaced via context
+    }
+  }
 
   // Ask the server whether SSO is configured — no build-time (VITE) vars needed.
   useEffect(() => {
@@ -168,6 +178,22 @@ function Login() {
           >
             Sign in with bennettdishman.com
           </button>
+        )}
+
+        {ssoEnabled && (
+          <>
+            <button
+              type="button"
+              onClick={handleGuest}
+              disabled={loading}
+              style={{ width: '100%', marginTop: '0.5rem' }}
+            >
+              {loading ? 'Starting…' : 'Continue as guest'}
+            </button>
+            <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', opacity: 0.7 }}>
+              No account needed. Keep it later by adding a username and password.
+            </p>
+          </>
         )}
 
         <div className="auth-toggle">
