@@ -32,6 +32,9 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      // Bug-tracker feedback widget: loads widget.js and posts reports back to its API
+      'script-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
+      'connect-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
     },
   },
 }));
