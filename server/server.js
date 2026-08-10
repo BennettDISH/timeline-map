@@ -16,7 +16,11 @@ const pool = require('./config/database');
 (async () => {
   try {
     const schemaSql = fs.readFileSync(path.join(__dirname, 'config/schema.sql'), 'utf8');
-    for (const stmt of schemaSql.split(';').map((s) => s.trim()).filter(Boolean)) {
+    // Strip comment lines BEFORE splitting on ';' — a semicolon inside a comment shears the
+    // following statement into unparseable fragments, which the per-statement tolerance then
+    // skips forever (this silently kept the atlas tables out of production).
+    const cleaned = schemaSql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    for (const stmt of cleaned.split(';').map((s) => s.trim()).filter(Boolean)) {
       try { await pool.query(stmt); } catch (e) { console.error('schema ensure stmt skipped:', e.message); }
     }
   } catch (e) { console.error('schema ensure skipped:', e.message); }
