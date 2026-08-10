@@ -103,15 +103,21 @@ router.get('/serve/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
     
-    const result = await pool.query('SELECT base64_data, mime_type FROM images WHERE filename = $1', [filename]);
-    
+    const result = await pool.query('SELECT base64_data, mime_type, file_path FROM images WHERE filename = $1', [filename]);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    const { base64_data, mime_type } = result.rows[0];
+    const { base64_data, mime_type, file_path } = result.rows[0];
 
     if (!base64_data) {
+      // R2-backed rows store the absolute R2 URL in file_path. Legacy references to this
+      // serve endpoint (including URLs embedded in event tooltip blobs) keep working via
+      // redirect after the bytes move out of Postgres.
+      if (file_path && /^https?:\/\//i.test(file_path)) {
+        return res.redirect(file_path);
+      }
       return res.status(404).json({ message: 'Image data not found' });
     }
 
