@@ -3,7 +3,7 @@ import { useAuth } from '../utils/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import WorldSelector from '../components/WorldSelector'
 import worldService from '../services/worldService'
-import mapService from '../services/mapService'
+import atlasService from '../services/atlasService'
 import '../styles/dashboard.scss'
 
 function Dashboard() {
@@ -15,8 +15,8 @@ function Dashboard() {
   useEffect(() => {
     if (!currentWorld) { setRecentMaps([]); return }
     let active = true
-    mapService.getMaps(currentWorld.id)
-      .then(res => { if (active) setRecentMaps((res.maps || []).slice(0, 5)) })
+    atlasService.getMaps(currentWorld.id)
+      .then(maps => { if (active) setRecentMaps((maps || []).slice(0, 6)) })
       .catch(() => { if (active) setRecentMaps([]) })
     return () => { active = false }
   }, [currentWorld])
@@ -74,15 +74,8 @@ function Dashboard() {
                     to={`/w/${currentWorld.id}`}
                     className="action-card"
                   >
-                    <h4>🧭 Open Atlas (new)</h4>
-                    <p>The reimagined nested, zoomable workspace</p>
-                  </Link>
-                  <Link
-                    to={`/worlds/${currentWorld.id}/maps`}
-                    className="action-card"
-                  >
-                    <h4>Manage Maps</h4>
-                    <p>Create and edit maps for this world</p>
+                    <h4>🧭 Open Atlas</h4>
+                    <p>The nested, zoomable world workspace</p>
                   </Link>
                   <Link 
                     to={`/worlds/${currentWorld.id}/images`} 
@@ -91,21 +84,17 @@ function Dashboard() {
                     <h4>Manage Images</h4>
                     <p>Upload and organize images</p>
                   </Link>
-                  <button className="action-card" disabled>
-                    <h4>Timeline Events</h4>
-                    <p>Coming soon - manage timeline events</p>
-                  </button>
                 </div>
               </div>
               
               <div className="recent-maps">
-                <h3>Recent Maps</h3>
+                <h3>Maps in this world</h3>
                 {recentMaps.length === 0 ? (
-                  <p>No maps created yet. Create your first map to get started!</p>
+                  <p>No maps yet. Open the Atlas to start building.</p>
                 ) : (
                   <ul className="recent-maps-list">
                     {recentMaps.map(m => (
-                      <li key={m.id}><Link to={`/map/${m.id}`}>{m.title}</Link></li>
+                      <li key={m.id}><Link to={`/w/${currentWorld.id}/m/${m.id}`}>{m.title}</Link></li>
                     ))}
                   </ul>
                 )}
@@ -119,9 +108,9 @@ function Dashboard() {
                 <h3>Getting Started:</h3>
                 <ol>
                   <li>Create or select a world for your campaign</li>
-                  <li>Upload map images for your world</li>
-                  <li>Create interactive maps with timeline events</li>
-                  <li>Plot events and characters across time and space</li>
+                  <li>Open the Atlas and drop a map image as the backdrop</li>
+                  <li>Cover it with nodes — places, people, lore — and zoom into any of them</li>
+                  <li>Enable the timeline to scrub your world through time</li>
                 </ol>
               </div>
             </div>

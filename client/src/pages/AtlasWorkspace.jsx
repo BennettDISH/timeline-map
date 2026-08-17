@@ -28,6 +28,7 @@ function AtlasWorkspace() {
   const [savedAt, setSavedAt] = useState(0)
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const [now, setNow] = useState(0) // current timeline position (scrub)
+  const [tlEdit, setTlEdit] = useState(false) // timeline range editor open
   const [mode, setMode] = useState(() => localStorage.getItem('atlas_mode') || 'dm') // DM sees all; Player sees shared + present
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
   const [nodePicker, setNodePicker] = useState(false) // "link to another node" modal
@@ -146,6 +147,22 @@ function AtlasWorkspace() {
     atlasService.patchWorld(worldId, {
       timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 100, timeline_current_time: 0, timeline_time_unit: 'days',
     }).catch(() => {})
+    setTlEdit(true) // fresh timeline → open the range editor so 0–100 days isn't silently kept
+  }
+  const saveTimeline = (min, max, unit) => {
+    if (!(min < max)) return
+    const cur = Math.min(Math.max(now, min), max)
+    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: cur } }))
+    setNow(cur)
+    setTlEdit(false)
+    atlasService.patchWorld(worldId, {
+      timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit, timeline_current_time: cur,
+    }).catch(() => {})
+  }
+  const disableTimeline = () => {
+    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
+    setTlEdit(false)
+    atlasService.patchWorld(worldId, { timeline_enabled: false }).catch(() => {})
   }
   const setLifespan = (placementId, start, end) => {
     setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, start, end } : pp)) }))
@@ -281,8 +298,10 @@ function AtlasWorkspace() {
               <input type="range" min={tl.min} max={tl.max} value={now} onChange={(e) => scrub(Number(e.target.value))} />
               <span className="tlabel">{tl.max}</span>
               <span className="tnow">{now}<em> {tl.unit}</em></span>
+              <button className="tgear" title="Timeline range & unit" onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
+          {tl?.enabled && tlEdit && <TimelineConfig tl={tl} onSave={saveTimeline} onDisable={disableTimeline} onClose={() => setTlEdit(false)} />}
         </div>
 
         <div className="insp">
@@ -310,6 +329,24 @@ function AtlasWorkspace() {
         <NodePicker worldId={worldId} excludeId={sel.node.id}
           onPick={addLink} onClose={() => setNodePicker(false)} />
       )}
+    </div>
+  )
+}
+
+function TimelineConfig({ tl, onSave, onDisable, onClose }) {
+  const [min, setMin] = useState(tl.min)
+  const [max, setMax] = useState(tl.max)
+  const [unit, setUnit] = useState(tl.unit || 'days')
+  const bad = !(Number(min) < Number(max))
+  return (
+    <div className="tlcfg">
+      <label>From <input type="number" value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
+      <label>To <input type="number" value={max} onChange={(e) => setMax(e.target.value === '' ? '' : Number(e.target.value))} /></label>
+      <label>Unit <input type="text" value={unit} placeholder="days, years, sessions…" onChange={(e) => setUnit(e.target.value)} /></label>
+      <button className="tool on" disabled={bad} title={bad ? 'Start must be before end' : ''}
+        onClick={() => onSave(Number(min), Number(max), unit.trim() || 'days')}>Save</button>
+      <button className="tool" onClick={onClose}>Cancel</button>
+      <button className="tool danger" onClick={onDisable}>Disable timeline</button>
     </div>
   )
 }

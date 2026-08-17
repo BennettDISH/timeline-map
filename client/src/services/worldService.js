@@ -47,17 +47,6 @@ const worldService = {
     }
   },
 
-  // Update world
-  async updateWorld(id, worldData) {
-    try {
-      const api = createAuthAPI()
-      const response = await api.put(`/${id}`, worldData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to update world' }
-    }
-  },
-
   // Delete world
   async deleteWorld(id) {
     try {
@@ -66,28 +55,6 @@ const worldService = {
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to delete world' }
-    }
-  },
-
-  // Update world timeline settings
-  async updateWorldTimeline(id, timelineData) {
-    try {
-      const api = createAuthAPI()
-      const response = await api.put(`/${id}/timeline`, timelineData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to update world timeline settings' }
-    }
-  },
-
-  // Update world timeline position
-  async updateTimelinePosition(id, currentTime) {
-    try {
-      const api = createAuthAPI()
-      const response = await api.post(`/${id}/timeline/time`, { current_time: currentTime })
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to update timeline position' }
     }
   },
 

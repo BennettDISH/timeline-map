@@ -180,31 +180,35 @@ Because capturing this density is the cost, v1 lives or dies on these:
 
 Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 
+> **Status 2026-08-17** — checkboxes below were trued up after driving the live deployment
+> end-to-end. The legacy map system (MapViewer/NodeEditor/events, ~3.5k lines) is deleted;
+> Atlas is the only map UI. The big missing piece is Phase 4's Player View / share link.
+
 ### Phase 0 — Shell & IA  *(pure UI; wraps existing pages; immediate "where am I" win)*
-- [ ] Persistent shell; world in the URL (`/w/:worldId/...`)
-- [ ] Left **nesting tree** + breadcrumb (with one-click "up") + world switcher + global search + account menu
+- [x] Persistent shell; world in the URL (`/w/:worldId/...`)
+- [x] Left **nesting tree** + breadcrumb (with one-click "up") + world switcher + global search + account menu *(tree+breadcrumb done; world switcher, global search, account menu not)*
 - [ ] Land in last map on login; one canonical route per screen; real 404; remove dead routes/cards/dead-ends
 
 ### Phase 1 — The nested canvas  *(the headline interaction)*
-- [ ] Map renders its own backdrop; real thumbnails
-- [ ] **Open a node → enter its interior; create-on-open; unbounded depth; back/up**
-- [ ] Interior as **Map or List** toggle
-- [ ] "+ Add node" (one gesture) + one-click category swap in the inspector + always-on legend/filter (shared icon+color vocabulary; category survives images)
-- [ ] One Inspector; fit-to-content + zoom controls; selection frames on map
+- [x] Map renders its own backdrop; real thumbnails *(backdrop done; tree thumbnails not)*
+- [x] **Open a node → enter its interior; create-on-open; unbounded depth; back/up**
+- [x] Interior as **Map or List** toggle *(API done; UI only asks on create)*
+- [x] "+ Add node" (one gesture) + one-click category swap in the inspector + always-on legend/filter (shared icon+color vocabulary; category survives images) *(add + category swap done; legend/filter not)*
+- [x] One Inspector; fit-to-content + zoom controls; selection frames on map *(inspector done; fit/zoom controls not)*
 
 ### Phase 2 — Model & save  *(the clean schema — cheap, disposable data)*
-- [ ] New schema: nodes + placements + links + maps; kill `tooltip_text`; one coordinate system
-- [ ] **Entity/placement split** (one node, many placements/references, no copies)
-- [ ] Autosave + Undo (kill split-brain save)
-- [ ] Links as first-class bidirectional edges; **@-mention-to-link/create**; portals click-to-travel; backlinks
+- [x] New schema: nodes + placements + links + maps; kill `tooltip_text`; one coordinate system
+- [x] **Entity/placement split** (one node, many placements/references, no copies)
+- [x] Autosave + Undo (kill split-brain save) *(autosave done; undo not)*
+- [x] Links as first-class bidirectional edges; **@-mention-to-link/create**; portals click-to-travel; backlinks *(links/backlinks/jump done; @-mention not)*
 
 ### Phase 3 — Time
-- [ ] Lifespans (unbounded default); one "Filter by time / Show all" switch
-- [ ] Histogram + era labels + fade-not-vanish + real Play + inline config
-- [ ] One-click time-stamp; playhead-as-lens vs "set canon moment"
+- [x] Lifespans (unbounded default); one "Filter by time / Show all" switch *(lifespans done; explicit filter switch not — player mode + ghosts cover it)*
+- [ ] Histogram + era labels + real Play *(fade-not-vanish and inline range/unit config are done)*
+- [x] One-click time-stamp; playhead-as-lens vs "set canon moment" *(scrub-as-lens done; canon-moment framing implicit — scrub writes timeline_current_time)*
 
 ### Phase 4 — Reveal (DM vs Player)
-- [ ] Per-node/placement visibility; one-click reveal
+- [x] Per-node/placement visibility; one-click reveal
 - [ ] Player View lens (shared-only, up-to-now); later: shareable link
 
 ### Phase 5 — Assets, onboarding & friction polish

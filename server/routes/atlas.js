@@ -59,6 +59,16 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
 // PATCH /worlds/:worldId — world name/description + timeline (enable, range, scrub position).
 router.patch('/worlds/:worldId', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  // Keep the timeline invariant (min < max, current within range) against partial updates.
+  if ('timeline_min_time' in req.body || 'timeline_max_time' in req.body || 'timeline_current_time' in req.body) {
+    const stored = (await pool.query(
+      'SELECT timeline_min_time, timeline_max_time, timeline_current_time FROM worlds WHERE id=$1', [req.params.worldId])).rows[0];
+    const min = req.body.timeline_min_time ?? stored.timeline_min_time;
+    const max = req.body.timeline_max_time ?? stored.timeline_max_time;
+    const cur = req.body.timeline_current_time ?? stored.timeline_current_time;
+    if (min >= max) return res.status(400).json({ message: 'Timeline start must be before its end' });
+    if (cur < min || cur > max) req.body.timeline_current_time = Math.min(Math.max(cur, min), max);
+  }
   const cols = {
     name: 'name', description: 'description',
     timeline_enabled: 'timeline_enabled', timeline_min_time: 'timeline_min_time',

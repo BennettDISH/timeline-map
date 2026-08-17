@@ -83,31 +83,6 @@ CREATE TABLE IF NOT EXISTS maps (
     map_order INTEGER DEFAULT 0
 );
 
--- Events table (nodes on maps)
-CREATE TABLE IF NOT EXISTS events (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    content TEXT,
-    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
-    x_position DECIMAL(5,2) NOT NULL DEFAULT 0,
-    y_position DECIMAL(5,2) NOT NULL DEFAULT 0,
-    x_pixel INTEGER DEFAULT 0,
-    y_pixel INTEGER DEFAULT 0,
-    start_time INTEGER NOT NULL DEFAULT 0,
-    end_time INTEGER NOT NULL DEFAULT 100,
-    image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT true,
-    tooltip_text TEXT,
-    link_to_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL,
-    event_type VARCHAR(50) DEFAULT 'standard' CHECK (event_type IN ('standard', 'map_link', 'character', 'location', 'background_map')),
-    timeline_enabled BOOLEAN DEFAULT false,
-    locked BOOLEAN DEFAULT false
-);
-
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_worlds_created_by ON worlds(created_by);
 CREATE INDEX IF NOT EXISTS idx_image_folders_world ON image_folders(world_id);
@@ -118,8 +93,6 @@ CREATE INDEX IF NOT EXISTS idx_images_uploaded_by ON images(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
 CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id);
 CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
-CREATE INDEX IF NOT EXISTS idx_events_map ON events(map_id);
-CREATE INDEX IF NOT EXISTS idx_events_time ON events(start_time, end_time);
 
 -- ============================================================================
 -- REDESIGN MODEL ("Atlas"): one world = a graph of typed nodes, seen through

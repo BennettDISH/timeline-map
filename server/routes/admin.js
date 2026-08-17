@@ -20,7 +20,7 @@ router.get('/db-status', async (req, res) => {
     `);
 
     const tables = tablesResult.rows.map(row => row.table_name);
-    const expectedTables = ['users', 'worlds', 'images', 'image_folders', 'maps', 'events'];
+    const expectedTables = ['users', 'worlds', 'images', 'image_folders', 'maps', 'nodes', 'placements', 'links'];
     const missingTables = expectedTables.filter(table => !tables.includes(table));
 
     let userCount = 0;

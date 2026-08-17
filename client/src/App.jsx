@@ -4,14 +4,10 @@ import { AuthProvider, useAuth } from './utils/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import MapManager from './pages/MapManager'
-import MapViewer from './pages/MapViewer'
 import AdminPanel from './pages/AdminPanel'
 import Setup from './pages/Setup'
 import AuthCallback from './pages/AuthCallback'
 import EnvSetup from './pages/EnvSetup'
-import WorldSettings from './pages/WorldSettings'
-import MapSettings from './pages/MapSettings'
 import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
 
@@ -63,46 +59,6 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/worlds/:worldId/maps" 
-          element={
-            <ProtectedRoute>
-              <MapManager />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/maps" 
-          element={
-            <ProtectedRoute>
-              <MapManager />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/map/:mapId" 
-          element={
-            <ProtectedRoute>
-              <MapViewer />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/map/:mapId/settings" 
-          element={
-            <ProtectedRoute>
-              <MapSettings />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/world/:worldId/settings" 
-          element={
-            <ProtectedRoute>
-              <WorldSettings />
             </ProtectedRoute>
           } 
         />

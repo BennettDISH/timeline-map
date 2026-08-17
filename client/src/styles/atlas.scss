@@ -89,6 +89,14 @@
   .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
   .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;text-align:right}
   .timebar .tnow em{color:var(--muted);font-style:normal;font-weight:400}
+  .timebar .tgear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
+  .timebar .tgear:hover{color:var(--ink)}
+  .tlcfg{position:absolute;left:0;right:0;bottom:37px;z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+     padding:8px 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
+  .tlcfg label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+  .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
+  .tlcfg input[type=text]{width:140px}
+  .tlcfg .danger{margin-left:auto;color:#e66}
   .pin.ghost{opacity:.28;filter:grayscale(.6)}
   .span{display:flex;align-items:center;gap:8px}
   .span input{width:80px}
