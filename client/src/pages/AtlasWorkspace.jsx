@@ -2,17 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
 import imageServiceBase64 from '../services/imageServiceBase64'
+import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
-
-const CATS = {
-  note: { c: 'var(--note)', i: '•', label: 'Note' },
-  place: { c: 'var(--place)', i: '▲', label: 'Place' },
-  person: { c: 'var(--person)', i: '☻', label: 'Person' },
-  item: { c: 'var(--item)', i: '◆', label: 'Item' },
-  lore: { c: 'var(--lore)', i: '✦', label: 'Lore' },
-  event: { c: 'var(--event)', i: '✷', label: 'Event' },
-}
-const cat = (k) => CATS[k] || CATS.note
 const clamp = (v) => Math.max(0, Math.min(100, v))
 
 function AtlasWorkspace() {
@@ -29,6 +20,8 @@ function AtlasWorkspace() {
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const [now, setNow] = useState(0) // current timeline position (scrub)
   const [tlEdit, setTlEdit] = useState(false) // timeline range editor open
+  const [sharePop, setSharePop] = useState(false) // share popover open
+  const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState(() => localStorage.getItem('atlas_mode') || 'dm') // DM sees all; Player sees shared + present
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
   const [nodePicker, setNodePicker] = useState(false) // "link to another node" modal
@@ -164,6 +157,18 @@ function AtlasWorkspace() {
     setTlEdit(false)
     atlasService.patchWorld(worldId, { timeline_enabled: false }).catch(() => {})
   }
+
+  // --- the share link (Player View) ---
+  const shareUrl = world?.shareToken ? `${window.location.origin}/p/${world.shareToken}` : null
+  const shareOn = () => atlasService.createShare(worldId)
+    .then(({ token }) => { setWorld((w) => w && ({ ...w, shareToken: token })); setCopied(false) }).catch(() => {})
+  const shareOff = () => atlasService.deleteShare(worldId)
+    .then(() => { setWorld((w) => w && ({ ...w, shareToken: null })); setCopied(false) }).catch(() => {})
+  const copyShare = () => {
+    navigator.clipboard?.writeText(shareUrl).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
   const setLifespan = (placementId, start, end) => {
     setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, start, end } : pp)) }))
     atlasService.patchPlacement(placementId, { start_time: start, end_time: end }).then(() => setSavedAt(Date.now())).catch(() => {})
@@ -227,11 +232,34 @@ function AtlasWorkspace() {
             </React.Fragment>
           ))}
         </div>
-        <div className="mode" title="DM sees everything; Player hides secrets and out-of-time nodes">
+        <div className="mode" title="DM sees everything; Player previews what the share link shows">
           <button className={mode === 'dm' ? 'on' : ''} onClick={() => switchMode('dm')}>DM</button>
           <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>Player</button>
         </div>
+        <button className={`sharebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
+          🔗 Share
+        </button>
         <Link to="/dashboard" className="exit">Exit</Link>
+        {sharePop && (
+          <div className="sharepop" onClick={(e) => e.stopPropagation()}>
+            {shareUrl ? (
+              <>
+                <div className="surl">{shareUrl}</div>
+                <div className="srow">
+                  <button className="tool on" onClick={copyShare}>{copied ? 'Copied ✓' : 'Copy link'}</button>
+                  <button className="tool" onClick={shareOn} title="Makes a new link; the old one stops working">Regenerate</button>
+                  <button className="tool danger" onClick={shareOff}>Turn off</button>
+                </div>
+                <div className="muted">Anyone with the link sees the Player view: shared nodes only, at the current moment. No account needed.</div>
+              </>
+            ) : (
+              <>
+                <div className="muted">Give your players a read-only link to this world. Secrets and the future stay hidden — the server filters them, not the browser.</div>
+                <button className="tool on" onClick={shareOn}>Create share link</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="main">
@@ -259,7 +287,7 @@ function AtlasWorkspace() {
             }}
           >
             {(data?.placements || [])
-              .filter((p) => mode === 'dm' || (p.node.visibility !== 'dm' && present(p)))
+              .filter((p) => mode === 'dm' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p)))
               .map((p) => (
               <div key={p.id}
                 className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}

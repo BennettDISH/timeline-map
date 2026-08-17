@@ -50,9 +50,18 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path
 
+## Sharing (Player View)
+- The DM mints a share link in the Atlas Share popover → `/p/:token` (public route, no account).
+- `worlds.share_token` is the whole capability; regenerate rotates it, delete revokes it.
+- `server/routes/share.js` is the public read-only API. **All secrecy is enforced there,
+  server-side**: DM-only nodes/placements and out-of-time placements never leave the DB; links
+  are pruned when either end is hidden; deep links into hidden/future branches 404 via the
+  owner-chain walk (`walkUp`). The DM-side "Player" toggle is only a preview of these rules.
+- `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
+  Player View polls every 45s).
+
 ## Known gaps (the honest list)
-- **No sharing**: every Atlas route is gated on `worlds.created_by = caller`. The DM/Player toggle
-  is a client-side preview; the server still returns DM-only nodes. Player View / share links are
-  UX-REDESIGN Phase 4 and the top missing feature.
 - No undo, no world switcher inside the workspace, no category legend/filter
 - Interior-as-List: API supports `view: 'list'`, UI barely surfaces it
+- Player View is locked to the DM's current moment (no scrubbing the revealed past) — deliberate
+  v1 choice, revisit if players want history

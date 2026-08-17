@@ -10,6 +10,7 @@ import AuthCallback from './pages/AuthCallback'
 import EnvSetup from './pages/EnvSetup'
 import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
+import PlayerView from './pages/PlayerView'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -94,6 +95,9 @@ function AppRoutes() {
           path="/w/:worldId/m/:mapId"
           element={<ProtectedRoute><AtlasWorkspace /></ProtectedRoute>}
         />
+        {/* Public Player View — the share link. No auth on purpose. */}
+        <Route path="/p/:token" element={<PlayerView />} />
+        <Route path="/p/:token/m/:mapId" element={<PlayerView />} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

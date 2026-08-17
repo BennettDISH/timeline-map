@@ -152,6 +152,7 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map
 
 -- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS share_token VARCHAR(64) UNIQUE;
 
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);

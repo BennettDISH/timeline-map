@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
@@ -51,9 +52,24 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   }
   res.json({ world: {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
+    shareToken: w.share_token || null,
     timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time,
                 current: w.timeline_current_time, unit: w.timeline_time_unit },
   } });
+}));
+
+// POST /worlds/:worldId/share — mint (or rotate, revoking the old link) the share token.
+// DELETE /worlds/:worldId/share — turn sharing off.
+router.post('/worlds/:worldId/share', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const token = crypto.randomBytes(18).toString('base64url');
+  await pool.query('UPDATE worlds SET share_token=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [token, req.params.worldId]);
+  res.status(201).json({ token });
+}));
+router.delete('/worlds/:worldId/share', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  await pool.query('UPDATE worlds SET share_token=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.worldId]);
+  res.json({ ok: true });
 }));
 
 // PATCH /worlds/:worldId — world name/description + timeline (enable, range, scrub position).

@@ -47,12 +47,15 @@ app.use(compression());
 // Behind Railway's proxy — trust the first hop so req.ip is the real client (for rate limiting)
 app.set('trust proxy', 1);
 
-// Rate limiting
+// Rate limiting. The whole table sits behind one venue IP and the Player View polls, so
+// /api/share gets its own (laxer) bucket instead of the global one.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300 // limit each IP to 300 requests per windowMs
+  max: 300, // limit each IP to 300 requests per windowMs
+  skip: (req) => req.path.startsWith('/share'),
 });
 app.use('/api/', limiter);
+app.use('/api/share', rateLimit({ windowMs: 15 * 60 * 1000, max: 2400 }));
 
 // CORS configuration
 app.use(cors({
@@ -86,6 +89,7 @@ app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
 app.use('/api/atlas', require('./routes/atlas')); // redesigned model (nodes/placements/links)
+app.use('/api/share', require('./routes/share')); // public Player View (tokened, read-only, server-filtered)
 
 // Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {
