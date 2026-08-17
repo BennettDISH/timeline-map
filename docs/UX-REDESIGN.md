@@ -209,7 +209,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 
 ### Phase 4 — Reveal (DM vs Player)
 - [x] Per-node/placement visibility; one-click reveal
-- [ ] Player View lens (shared-only, up-to-now); later: shareable link
+- [x] Player View lens (shared-only, up-to-now) **and** the shareable link (`/p/:token`, server-side filtering, rotate/revoke)
 
 ### Phase 5 — Assets, onboarding & friction polish
 - [ ] Unified assets + upload-at-point-of-need + usage-before-delete
