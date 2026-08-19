@@ -13,7 +13,7 @@
     "postinstall": "npm run install-all"
   },
   "keywords": ["fantasy", "map", "timeline", "events", "storytelling"],
-  "author": "Bennett Dishman",
+  "author": "",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

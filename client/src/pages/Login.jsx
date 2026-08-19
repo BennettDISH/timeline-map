@@ -176,7 +176,7 @@ function Login() {
             className="sso-button"
             onClick={startSso}
           >
-            Sign in with bennettdishman.com
+            Sign in with Waypoint
           </button>
         )}
 
