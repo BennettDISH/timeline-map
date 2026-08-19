@@ -27,9 +27,10 @@ router.get('/', async (req, res) => {
 
     // Get all folders for this world
     const result = await pool.query(`
-      SELECT f.*, 
+      SELECT f.*,
              parent.name as parent_name,
-             COUNT(DISTINCT child.id) as child_count
+             COUNT(DISTINCT child.id) as child_count,
+             (SELECT COUNT(*) FROM images i WHERE i.folder_id = f.id) as image_count
       FROM image_folders f
       LEFT JOIN image_folders parent ON f.parent_id = parent.id
       LEFT JOIN image_folders child ON f.id = child.parent_id
@@ -48,10 +49,16 @@ router.get('/', async (req, res) => {
       createdAt: row.created_at,
       color: row.color,
       icon: row.icon,
-      childCount: parseInt(row.child_count)
+      childCount: parseInt(row.child_count),
+      imageCount: parseInt(row.image_count)
     }));
 
-    res.json({ folders });
+    // World-level counts so the rail's "All art" / "Unsorted" rows don't need an image fetch.
+    const totals = (await pool.query(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE folder_id IS NULL) as unsorted
+       FROM images WHERE world_id = $1`, [world_id])).rows[0];
+
+    res.json({ folders, total: parseInt(totals.total), unsorted: parseInt(totals.unsorted) });
     
   } catch (error) {
     console.error('Get folders error:', error);

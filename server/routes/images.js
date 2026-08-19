@@ -27,46 +27,55 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ message: 'World not found or access denied' });
     }
     
-    let query = `
-      SELECT i.*, u.username as uploaded_by_username
-      FROM images i
-      LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE i.world_id = $1
-    `;
+    // Shared WHERE fragments so the page query and the total-count query always agree.
+    let filters = '';
     const params = [world_id];
     let paramCount = 1;
 
     // Filter by tags if provided
     if (tags) {
       paramCount++;
-      query += ` AND i.tags && $${paramCount}`;
+      filters += ` AND i.tags && $${paramCount}`;
       params.push(tags.split(',').map(tag => tag.trim()));
     }
 
     // Search in filename or alt_text
     if (search) {
       paramCount++;
-      query += ` AND (i.original_name ILIKE $${paramCount} OR i.alt_text ILIKE $${paramCount})`;
+      filters += ` AND (i.original_name ILIKE $${paramCount} OR i.alt_text ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
     // Filter by folder
     if (folder_id) {
       paramCount++;
-      query += ` AND i.folder_id = $${paramCount}`;
+      filters += ` AND i.folder_id = $${paramCount}`;
       params.push(folder_id);
     }
 
     // Filter for unassigned (no folder)
     if (unassigned === 'true') {
-      query += ` AND i.folder_id IS NULL`;
+      filters += ` AND i.folder_id IS NULL`;
     }
 
-    query += ` ORDER BY i.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM images i WHERE i.world_id = $1${filters}`, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // map_uses/node_uses: where this image is placed in the world (backdrop / node art),
+    // so the UI can say "in use" before anyone deletes it.
+    const query = `
+      SELECT i.*, u.username as uploaded_by_username,
+             (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id AND m.is_active = true) as map_uses,
+             (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses
+      FROM images i
+      LEFT JOIN users u ON i.uploaded_by = u.id
+      WHERE i.world_id = $1${filters}
+      ORDER BY i.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
     params.push(parseInt(limit), parseInt(offset));
 
     const result = await pool.query(query, params);
-    
+
     const images = result.rows.map(row => ({
       id: row.id,
       filename: row.filename,
@@ -79,13 +88,14 @@ router.get('/', async (req, res) => {
       folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
+      usage: { maps: parseInt(row.map_uses), nodes: parseInt(row.node_uses) },
       url: resolveImageUrl(req, row.file_path)
     }));
 
-    res.json({ 
+    res.json({
       images,
-      total: images.length,
-      hasMore: images.length === parseInt(limit)
+      total,
+      hasMore: parseInt(offset) + images.length < total
     });
     
   } catch (error) {

@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deletePrefix } = require('../storage');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
 // All world routes require authentication
@@ -10,15 +11,19 @@ router.use(authenticateToken);
 // GET /api/worlds - Get all worlds for the current user
 router.get('/', async (req, res) => {
   try {
+    // Counts as subselects (not joins) so the three one-to-many tables don't multiply rows.
+    // cover_path: the root map's backdrop is the world's face; fall back to its newest image.
     const result = await pool.query(`
-      SELECT w.*, 
-             COUNT(DISTINCT m.id) as map_count,
-             COUNT(DISTINCT i.id) as image_count
+      SELECT w.*,
+             (SELECT COUNT(*) FROM maps m WHERE m.world_id = w.id AND m.is_active = true) as map_count,
+             (SELECT COUNT(*) FROM images i WHERE i.world_id = w.id) as image_count,
+             (SELECT COUNT(*) FROM nodes n WHERE n.world_id = w.id) as node_count,
+             (SELECT ci.file_path FROM maps rm JOIN images ci ON ci.id = rm.image_id
+                WHERE rm.id = w.root_map_id) as cover_path,
+             (SELECT li.file_path FROM images li WHERE li.world_id = w.id
+                ORDER BY li.created_at DESC LIMIT 1) as cover_fallback
       FROM worlds w
-      LEFT JOIN maps m ON w.id = m.world_id AND m.is_active = true
-      LEFT JOIN images i ON w.id = i.world_id
       WHERE w.created_by = $1 AND w.is_active = true
-      GROUP BY w.id
       ORDER BY w.updated_at DESC
     `, [req.user.id]);
 
@@ -31,6 +36,9 @@ router.get('/', async (req, res) => {
       settings: row.settings,
       mapCount: parseInt(row.map_count),
       imageCount: parseInt(row.image_count),
+      nodeCount: parseInt(row.node_count),
+      coverUrl: resolveImageUrl(req, row.cover_path || row.cover_fallback),
+      shared: !!row.share_token,
       timelineEnabled: row.timeline_enabled,
       timelineSettings: {
         minTime: row.timeline_min_time,
