@@ -1,0 +1,319 @@
+// The Archive — a world's art. Tokens come from shell.scss (.shell).
+.shell.arch {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+
+  // ---- header under the top bar -------------------------------------------------
+  .archhead {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    .atitle { display: flex; flex-direction: column; gap: 2px; }
+    .worldsel {
+      appearance: none;
+      background: transparent;
+      border: 0;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 27px;
+      letter-spacing: .015em;
+      cursor: pointer;
+      padding: 0 22px 0 0;
+      max-width: 46vw;
+      text-overflow: ellipsis;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%239a9a94'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right center;
+      &:focus { outline: none; }
+      option { background: var(--panel2); color: var(--ink); font-size: 15px; font-family: var(--sans); }
+    }
+    .asearch { width: min(300px, 34vw); }
+    label.sbtn input { display: none; }
+  }
+
+  // ---- main: folder rail + gallery ----------------------------------------------
+  .archmain {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    min-height: 0;
+  }
+
+  .frail {
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+    overflow-y: auto;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .frow {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-radius: 7px;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    padding: 6px 8px;
+    cursor: pointer;
+    position: relative;
+    &:hover { background: #ffffff0d; }
+    &.on { background: var(--gold-soft); color: var(--gold); font-weight: 600; }
+    .fico { color: var(--gold); opacity: .75; width: 15px; text-align: center; flex: none; }
+    .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fcount { color: var(--muted); font-size: 11px; }
+    .caret {
+      width: 13px; flex: none; color: var(--muted); font-size: 10px; text-align: center;
+      &.blank { pointer-events: none; }
+    }
+    &.newf { color: var(--muted); font-style: italic; margin-top: 6px; &:hover { color: var(--gold); } }
+    .fmenu { position: relative; }
+    .fdots {
+      background: none; border: 0; color: var(--muted); cursor: pointer;
+      padding: 0 3px; border-radius: 4px; opacity: 0; font: inherit;
+      &:hover { color: var(--ink); }
+    }
+    &:hover .fdots, .fmenu:has(.menupop) .fdots { opacity: 1; }
+  }
+  .fsep { height: 1px; background: var(--line); margin: 8px 6px; flex: none; }
+
+  .agallery {
+    overflow-y: auto;
+    padding: 18px 20px 90px;
+    min-height: 0;
+  }
+  .tilegrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+    gap: 12px;
+  }
+  .tile {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+    background: var(--panel);
+    cursor: pointer;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
+    img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s ease; }
+    .tname {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 18px 9px 7px;
+      background: linear-gradient(180deg, transparent, rgba(8, 10, 13, .88));
+      color: var(--ink);
+      font-size: 11.5px;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .inuse {
+      position: absolute;
+      top: 7px; left: 7px;
+      color: var(--gold);
+      font-size: 13px;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, .9);
+    }
+    .pickmark {
+      position: absolute;
+      top: 7px; right: 7px;
+      width: 21px; height: 21px;
+      border-radius: 50%;
+      border: 1.5px solid #fffc;
+      background: rgba(8, 10, 13, .5);
+      color: #171207;
+      font-size: 13px;
+      line-height: 19px;
+      text-align: center;
+      &.on { background: var(--gold); border-color: var(--gold); }
+    }
+    &:hover {
+      border-color: var(--gold);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+      img { transform: scale(1.06); }
+      .tname { opacity: 1; }
+    }
+    &.selmode img { transform: none; }
+    &.picked { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); img { opacity: .75; } }
+  }
+  .tile-skel { aspect-ratio: 1; border-radius: 9px; }
+  .loadmore { display: flex; justify-content: center; padding: 22px 0 6px; }
+
+  // ---- full-page drop veil -------------------------------------------------------
+  .dropveil {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(8, 10, 13, .82);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    .dropframe {
+      border: 2px dashed var(--gold);
+      border-radius: 16px;
+      padding: 46px 64px;
+      text-align: center;
+      color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      .void-rose { color: var(--gold); opacity: .8; }
+      h2 { margin: 0; font-family: var(--serif); font-weight: 600; font-size: 26px; color: var(--ink); }
+      p { margin: 0; }
+    }
+  }
+
+  // ---- upload progress toast -------------------------------------------------------
+  .upltoast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 75;
+    width: min(320px, 86vw);
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 11px 13px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
+    .upl-line {
+      font-size: 12.5px; color: var(--muted); margin-bottom: 7px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      em { color: var(--ink); font-style: normal; }
+    }
+    .upl-bar {
+      height: 4px; border-radius: 2px; background: var(--panel); overflow: hidden;
+      div { height: 100%; background: var(--gold); border-radius: 2px; transition: width .2s; }
+    }
+  }
+
+  // ---- bulk action bar -------------------------------------------------------------
+  .bulkbar {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--panel2);
+    border: 1px solid var(--gold-soft);
+    border-radius: 12px;
+    padding: 9px 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+    .bcount { color: var(--gold); font-weight: 600; white-space: nowrap; }
+    .bmove { position: relative; }
+    .menupop.up { top: auto; bottom: calc(100% + 6px); max-height: 46vh; overflow: auto; }
+  }
+
+  // ---- lightbox ---------------------------------------------------------------------
+  .modal-back.lightbox { padding: 26px; gap: 10px; }
+  .lbframe {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    width: min(1060px, 96vw);
+    max-height: 88vh;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+  }
+  .lbimg {
+    background: #0b0d11;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    img { max-width: 100%; max-height: 88vh; object-fit: contain; display: block; }
+  }
+  .lbside {
+    position: relative;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    overflow-y: auto;
+    border-left: 1px solid var(--line);
+    .lbtitle {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 21px;
+      line-height: 1.2;
+      padding-right: 26px;
+      overflow-wrap: anywhere;
+    }
+    .lbmeta { color: var(--muted); font-size: 12.5px; }
+    .lbuse {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-style: italic;
+      &.live { color: var(--gold); font-style: normal; }
+      .inuse-dot { margin-right: 5px; }
+    }
+    .fld label {
+      display: block; font-size: 10.5px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+    }
+    .lbactions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; padding-top: 8px; }
+    .lbclose { position: absolute; top: 12px; right: 10px; }
+  }
+  .lbnav {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 42px; height: 42px;
+    color: var(--muted);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    flex: none;
+    &:hover { color: var(--gold); border-color: var(--gold); }
+  }
+
+  // ---- responsive ---------------------------------------------------------------------
+  @media (max-width: 860px) {
+    height: auto;
+    overflow: visible;
+    .archmain { grid-template-columns: 1fr; }
+    .frail {
+      flex-direction: row;
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+      padding: 8px 10px;
+      .frow { width: auto; white-space: nowrap; flex: none; padding-left: 10px !important; }
+      .caret, .fmenu { display: none; }
+      .fsep { width: 1px; height: auto; margin: 2px 4px; }
+    }
+    .archhead {
+      .asearch { order: 5; width: 100%; }
+      .worldsel { max-width: 70vw; font-size: 23px; }
+    }
+    .agallery { padding: 12px 12px 110px; }
+    .tilegrid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
+    .tile .tname { opacity: 1; font-size: 10px; }
+    .lbframe { grid-template-columns: 1fr; max-height: 92vh; overflow-y: auto; }
+    .lbimg img { max-height: 48vh; }
+    .lbside { border-left: 0; border-top: 1px solid var(--line); }
+    .lbnav { display: none; }
+  }
+}

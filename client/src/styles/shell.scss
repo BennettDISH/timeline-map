@@ -1,0 +1,311 @@
+// ============================================================================
+// The cartographer's study — shared shell for the pages around the Atlas
+// (Dashboard, Archive). Same palette as atlas.scss so the whole app is one
+// continuous place; plus the warmth chrome pages can afford: a bookish serif,
+// aged-gold ornament, neatline frames, faint paper grain.
+// ============================================================================
+
+.shell {
+  // palette (mirrors .atlas)
+  --bg: #12151a;
+  --panel: #1b1f25;
+  --panel2: #232830;
+  --ink: #e8e8e6;
+  --muted: #9a9a94;
+  --line: #3a3f47;
+  --accent: #5b9bd5;
+  --gold: #c9a35f;
+  --gold-soft: rgba(201, 163, 95, .16);
+  --danger: #d0716b;
+  --ok: #6fcf97;
+  --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --sans: -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 var(--sans);
+  position: relative;
+
+  // faint paper grain + candlelight vignette
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(120% 90% at 50% 0%, rgba(201, 163, 95, .05), transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+  }
+  > * { position: relative; z-index: 1; }
+
+  // ---- top bar --------------------------------------------------------------
+  .shellbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    height: 56px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(27, 31, 37, .85);
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    backdrop-filter: blur(6px);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    .rose { color: var(--gold); transition: transform .6s cubic-bezier(.2, .8, .3, 1); }
+    &:hover .rose { transform: rotate(45deg); }
+    .wm-text {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 19px;
+      letter-spacing: .04em;
+    }
+  }
+  .shellcrumb {
+    color: var(--muted);
+    display: flex; align-items: center; gap: 10px;
+    .sep { color: var(--line); }
+  }
+  .spacer { flex: 1; }
+  .usermenu { position: relative; }
+  .userbtn {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    padding: 5px 14px;
+    cursor: pointer;
+    font: inherit;
+    .chev { font-size: 10px; opacity: .7; }
+    &:hover { color: var(--ink); border-color: var(--muted); }
+  }
+
+  // ---- primitives ------------------------------------------------------------
+  .menupop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 170px;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    z-index: 40;
+    a, button {
+      background: none;
+      border: 0;
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
+      text-decoration: none;
+      padding: 7px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      &:hover { background: #ffffff12; }
+      &.dngr { color: var(--danger); }
+    }
+  }
+
+  .sbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color .15s, background .15s;
+    &:hover { border-color: var(--muted); }
+    &.primary {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #171207;
+      font-weight: 600;
+      &:hover { background: #d8b573; }
+    }
+    &.danger { color: var(--danger); border-color: #5a2f2c; &:hover { border-color: var(--danger); } }
+    &.ghost { background: none; }
+    &:disabled { opacity: .45; cursor: default; }
+  }
+
+  .sinput, .stext, .sselect {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    padding: 8px 11px;
+    font: inherit;
+    &:focus { outline: none; border-color: var(--gold); }
+    &::placeholder { color: var(--muted); opacity: .7; }
+  }
+  .stext { resize: vertical; min-height: 70px; }
+
+  // letterspaced small-cap section label, with a hairline trailing rule
+  .kicker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+    &::before { content: '◆'; font-size: 7px; }
+    &.rule::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--line), transparent);
+    }
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--gold-soft);
+    background: rgba(201, 163, 95, .08);
+    color: var(--gold);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+
+  .muted { color: var(--muted); }
+
+  // ---- modal -----------------------------------------------------------------
+  .modal-back {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 8, 11, .72);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    padding: 18px;
+  }
+  .smodal {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    width: min(460px, 94vw);
+    max-height: 86vh;
+    overflow: auto;
+    padding: 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+    position: relative;
+    // neatline
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 5px;
+      border: 1px solid var(--gold-soft);
+      border-radius: 8px;
+      pointer-events: none;
+    }
+    > * { position: relative; z-index: 1; }
+    .mhead {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      h3 {
+        margin: 0;
+        font-family: var(--serif);
+        font-weight: 600;
+        font-size: 22px;
+        letter-spacing: .02em;
+      }
+      .mclose {
+        background: none; border: 0; color: var(--muted);
+        font-size: 16px; cursor: pointer; padding: 2px 6px;
+        &:hover { color: var(--ink); }
+      }
+    }
+    .fld { margin-bottom: 13px; }
+    .fld label {
+      display: block;
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .mrow { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .mnote { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .mwarn { color: var(--danger); font-size: 13px; }
+  }
+
+  // ---- flash toast -----------------------------------------------------------
+  .flash {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 80;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ok);
+    border-radius: 9px;
+    padding: 10px 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    max-width: min(480px, 92vw);
+    animation: flashin .18s ease-out;
+    &.err { border-left-color: var(--danger); }
+  }
+  @keyframes flashin { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+  // ---- loading skeleton ------------------------------------------------------
+  .skel {
+    background: linear-gradient(100deg, var(--panel) 40%, var(--panel2) 50%, var(--panel) 60%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  // ---- big empty state ---------------------------------------------------------
+  .voidstate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+    padding: 60px 20px;
+    color: var(--muted);
+    .void-rose { color: var(--gold); opacity: .5; margin-bottom: 6px; }
+    h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 28px;
+      color: var(--ink);
+      letter-spacing: .02em;
+    }
+    p { margin: 0; max-width: 420px; }
+    .sbtn { margin-top: 12px; }
+  }
+}

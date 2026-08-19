@@ -1,258 +1,248 @@
-.dashboard-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+// The shelf of worlds — dashboard-specific styles. Tokens come from shell.scss (.shell).
+.shell.dash {
+  .dashmain {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 26px 22px 70px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
 
-  .dashboard-header {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    padding: 20px 0;
-    margin-bottom: 30px;
+  // ---- featured world (the "continue" panel) ----------------------------------
+  .featured {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 300px;
+    display: flex;
+    align-items: stretch;
+    cursor: pointer;
+    isolation: isolate;
+    transition: border-color .2s;
+    &::after { // neatline
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border: 1px solid var(--gold-soft);
+      border-radius: 9px;
+      pointer-events: none;
+      z-index: 3;
+      transition: border-color .2s;
+    }
+    &:hover { border-color: var(--gold); }
+    &:hover::after { border-color: rgba(201, 163, 95, .4); }
+    &:focus-visible { outline: 2px solid var(--accent); }
 
-    .header-content {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 20px;
+    .cover {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: transform .5s ease;
+      z-index: 0;
+    }
+    &:hover .cover { transform: scale(1.025); }
+    .fscrim {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: linear-gradient(88deg, rgba(10, 12, 16, .93) 22%, rgba(10, 12, 16, .55) 58%, rgba(10, 12, 16, .18));
+    }
+    .fbody {
+      position: relative;
+      z-index: 2;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      justify-content: center;
+      gap: 9px;
+      padding: 34px 40px;
+      max-width: 60%;
+    }
+    .fname {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: clamp(30px, 4.4vw, 44px);
+      line-height: 1.08;
+      letter-spacing: .015em;
+      text-shadow: 0 2px 18px rgba(0, 0, 0, .6);
+    }
+    .fdesc {
+      margin: 0;
+      color: var(--ink);
+      opacity: .82;
+      max-width: 46ch;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .wmeta { color: var(--muted); font-size: 13px; }
+    .wbadges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .factions { display: flex; gap: 9px; margin-top: 10px; flex-wrap: wrap; }
+  }
 
-      .header-left {
-        h1 {
-          font-size: 2.5rem;
-          color: #2d3748;
-          margin: 0;
-          font-weight: 700;
-          background: linear-gradient(135deg, #2d3748, #4a5568);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
+  // ---- the shelf ---------------------------------------------------------------
+  .shelf { display: flex; flex-direction: column; gap: 16px; }
 
-        p {
-          color: #718096;
-          margin: 5px 0 0 0;
-          font-size: 1.1rem;
-        }
-      }
+  .wgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 18px;
+  }
 
-      .header-right {
-        display: flex;
-        gap: 16px;
-        align-items: center;
+  .wcard {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    transition: transform .18s ease, border-color .18s, box-shadow .18s;
+    &::after { // neatline
+      content: '';
+      position: absolute;
+      inset: 5px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      pointer-events: none;
+      z-index: 3;
+      transition: border-color .18s;
+    }
+    &:hover {
+      transform: translateY(-3px);
+      border-color: var(--gold);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, .45);
+      &::after { border-color: var(--gold-soft); }
+      .cover { transform: scale(1.05); }
+    }
+    &:focus-visible { outline: 2px solid var(--accent); }
 
-        .admin-link {
-          background: #f56565;
-          color: white;
-          text-decoration: none;
-          padding: 10px 16px;
-          border-radius: 8px;
-          font-weight: 600;
-          transition: all 0.2s;
+    .cover {
+      aspect-ratio: 5 / 3;
+      background-size: cover;
+      background-position: center;
+      transition: transform .5s ease;
+      flex: none;
+    }
+    .wbody {
+      padding: 13px 15px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+    .wname {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 21px;
+      line-height: 1.15;
+      letter-spacing: .015em;
+    }
+    .wdesc {
+      margin: 0;
+      font-size: 12.5px;
+      color: var(--ink);
+      opacity: .78;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 2.6em;
+      &.muted { opacity: .5; font-style: italic; }
+    }
+    .wmeta { color: var(--muted); font-size: 12px; }
+    .wbadges { display: flex; gap: 5px; flex-wrap: wrap; }
+  }
 
-          &:hover {
-            background: #e53e3e;
-            transform: translateY(-1px);
-          }
-        }
+  // tinted plate for worlds without art
+  .cover.ph {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    .ph-rose {
+      position: absolute;
+      color: var(--gold);
+      opacity: .16;
+      transform: rotate(12deg) translate(28%, 18%);
+      right: 0; bottom: 0;
+    }
+    .ph-initial {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 64px;
+      color: var(--gold);
+      opacity: .5;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, .4);
+    }
+  }
+  .featured .cover.ph .ph-initial { font-size: 120px; opacity: .3; }
 
-        .logout-button {
-          background: #4a5568;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
+  // the ⋯ options button, floating over the cover
+  .cardmenu {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    z-index: 5;
+    .dots {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(10, 12, 16, .62);
+      backdrop-filter: blur(4px);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .15s;
+      &:hover { border-color: var(--gold); color: var(--gold); }
+    }
+  }
+  .wcard:hover .dots, .featured:hover .dots, .cardmenu .dots:focus-visible,
+  .cardmenu:has(.menupop) .dots { opacity: 1; }
 
-          &:hover {
-            background: #2d3748;
-            transform: translateY(-1px);
-          }
-        }
-      }
+  // the "found a new world" ghost card
+  .ghostcard {
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 240px;
+    background: transparent;
+    border-style: dashed;
+    color: var(--muted);
+    font: inherit;
+    .g-rose { color: var(--gold); opacity: .4; transition: opacity .2s, transform .5s; }
+    .gtitle { font-family: var(--serif); font-weight: 600; font-size: 20px; color: var(--ink); letter-spacing: .02em; }
+    .gsub { font-size: 12px; font-style: italic; }
+    &:hover {
+      transform: translateY(-3px);
+      .g-rose { opacity: .85; transform: rotate(45deg); }
     }
   }
 
-  .dashboard-content {
-    padding: 0 20px;
+  // skeletons
+  .featured-skel { min-height: 300px; border-radius: 14px; }
+  .card-skel { min-height: 280px; border-radius: 12px; }
 
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      gap: 24px;
-      max-width: 1400px;
-      margin: 0 auto;
-
-      @media (max-width: 768px) {
-        grid-template-columns: 1fr;
-        gap: 20px;
-      }
-
-      .world-section {
-        // WorldSelector styles will be handled separately
-      }
-
-      .world-actions {
-        .current-world-info {
-          background: white;
-          padding: 30px;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          margin-bottom: 30px;
-
-          h2 {
-            color: #2d3748;
-            margin: 0 0 10px 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-          }
-
-          p {
-            color: #718096;
-            margin: 0;
-            font-size: 1.1rem;
-            line-height: 1.6;
-          }
-        }
-
-        .quick-actions {
-          background: white;
-          padding: 30px;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          margin-bottom: 30px;
-
-          h3 {
-            color: #2d3748;
-            margin: 0 0 20px 0;
-            font-size: 1.4rem;
-            font-weight: 600;
-          }
-
-          .action-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 16px;
-
-            .action-card {
-              background: linear-gradient(135deg, #f7fafc, #edf2f7);
-              border: 2px solid #e2e8f0;
-              border-radius: 12px;
-              padding: 24px;
-              text-decoration: none;
-              color: inherit;
-              transition: all 0.3s;
-              cursor: pointer;
-              display: block;
-
-              &:hover:not(:disabled) {
-                transform: translateY(-4px);
-                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-                border-color: #4299e1;
-              }
-
-              &:disabled {
-                opacity: 0.6;
-                cursor: not-allowed;
-                
-                &:hover {
-                  transform: none;
-                  box-shadow: none;
-                  border-color: #e2e8f0;
-                }
-              }
-
-              h4 {
-                color: #2d3748;
-                margin: 0 0 8px 0;
-                font-size: 1.2rem;
-                font-weight: 600;
-              }
-
-              p {
-                color: #718096;
-                margin: 0;
-                font-size: 0.95rem;
-                line-height: 1.5;
-              }
-            }
-          }
-        }
-
-        .recent-maps {
-          background: white;
-          padding: 30px;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-
-          h3 {
-            color: #2d3748;
-            margin: 0 0 16px 0;
-            font-size: 1.4rem;
-            font-weight: 600;
-          }
-
-          p {
-            color: #718096;
-            margin: 0;
-            font-style: italic;
-          }
-        }
-      }
-
-      .no-world-selected {
-        background: white;
-        padding: 40px;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        text-align: center;
-
-        h2 {
-          color: #2d3748;
-          margin: 0 0 16px 0;
-          font-size: 2rem;
-          font-weight: 700;
-        }
-
-        > p {
-          color: #718096;
-          margin: 0 0 30px 0;
-          font-size: 1.2rem;
-        }
-
-        .getting-started {
-          background: #f7fafc;
-          padding: 30px;
-          border-radius: 12px;
-          margin-top: 20px;
-          text-align: left;
-
-          h3 {
-            color: #2d3748;
-            margin: 0 0 16px 0;
-            font-size: 1.3rem;
-            font-weight: 600;
-          }
-
-          ol {
-            color: #4a5568;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            margin: 0;
-            padding-left: 24px;
-
-            li {
-              margin-bottom: 8px;
-              
-              &:last-child {
-                margin-bottom: 0;
-              }
-            }
-          }
-        }
-      }
+  // ---- responsive ---------------------------------------------------------------
+  @media (max-width: 720px) {
+    .dashmain { padding: 16px 14px 60px; gap: 22px; }
+    .featured {
+      min-height: 0;
+      .fbody { max-width: 100%; padding: 90px 20px 22px; justify-content: flex-end; }
+      .fscrim { background: linear-gradient(180deg, rgba(10, 12, 16, .18), rgba(10, 12, 16, .9) 62%); }
     }
+    .wgrid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px; }
+    .wcard .wdesc { display: none; }
+    .cardmenu .dots { opacity: 1; } // no hover on touch
   }
 }
