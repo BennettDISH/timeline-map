@@ -72,9 +72,10 @@ scoped to worlds the caller owns. Endpoints:
 - `PATCH /placements/:id` (x/y/start/end/visibility) · `DELETE /placements/:id`
 - `POST /links` · `DELETE /links/:id`
 
-**Client** — almost everything is in three files:
+**Client** — mostly in a few files:
 - `client/src/pages/AtlasWorkspace.jsx` — the whole workspace (shell, canvas, inspector, image
-  picker, node picker). Routed at `/w/:worldId` and `/w/:worldId/m/:mapId` (`client/src/App.jsx`).
+  picker, node picker, Player View). Routed at `/w/:worldId` and `/w/:worldId/m/:mapId` (`client/src/App.jsx`).
+- `client/src/utils/categories.js` — node category definitions (`CATS`/`cat`).
 - `client/src/services/atlasService.js` — thin client for `/api/atlas`.
 - `client/src/styles/atlas.scss` — all Atlas styles (dark, self-contained under `.atlas`).
 
@@ -93,9 +94,9 @@ scoped to worlds the caller owns. Endpoints:
    (inventory / an NPC's mind) should render as a vertical list of child nodes, not spatial pins.
    `maps.view` already carries `'list'`; `AtlasWorkspace` just needs a list renderer branch.
 2. **Runtime-verify on Railway** before building more (nothing is tested against a real DB).
-3. Polish: link labels + time-context UI, "search a node to place it" on the canvas, a read-only
-   **player share link**, node deletion/cleanup of orphan interior maps, empty-state when Player mode
-   hides everything.
+3. Polish: link labels + time-context UI, "search a node to place it" on the canvas, cleanup of
+   orphan interior maps on node delete. (A read-only **Player View / share link** already landed via
+   the concurrent chat — verify it, don't rebuild it.)
 
 ---
 
@@ -133,12 +134,21 @@ scoped to worlds the caller owns. Endpoints:
   login (commits `f2e1fc6`, `e85bdd5`, `155e8b0`) — so `client/src/pages/Login.jsx` / `server/config/sso.js`
   may differ from older descriptions; read the current files if touching auth.
 
-## Concurrent work / current git state
+## Concurrent work / current git state — READ THIS
 
-At handoff, `main` HEAD was **`9374ca1`**. Commits after the Atlas (`f2e1fc6`, `155e8b0`, `e85bdd5`,
-`9374ca1`) came from **another chat** working this same repo (SSO server-side authorize, guest login,
-bug-tracker widget CSP). They don't touch the Atlas files, but `server/server.js` and the auth/login
-client code moved — pull latest and read current state before editing those areas.
+`main` HEAD at handoff: **`9e0f161`**. This repo is being **actively co-developed by another chat**,
+which has already advanced the Atlas *past* the feature snapshot above. Since `8eb416b` (my last Atlas
+slice) it has landed, among other things:
+- a **read-only Player View + shareable link** (single-column, canvas-first, bottom-sheet inspector) —
+  so a "player share link" is DONE, not a next step;
+- a **timeline range/unit editor** (set min/max/unit, not just the default 0–100 days);
+- category defs **extracted to `client/src/utils/categories.js`** (no longer inline in `AtlasWorkspace.jsx`);
+- plus changes to `server/config/schema.sql`, `server/routes/worlds.js`, `server/routes/image-base64.js`,
+  `client/src/services/worldService.js`, and SSO/login (`f2e1fc6` server-side authorize, `e85bdd5` guest
+  login, `155e8b0` no-email accounts, `9374ca1` bug-tracker widget CSP).
+
+**Trust the CURRENT files, not this doc's feature snapshot.** Pull latest and read `AtlasWorkspace.jsx`,
+`atlas.js`, and `atlas.scss` before building — they've moved. This doc is the map; the code is the territory.
 
 ## In-repo reference docs
 
