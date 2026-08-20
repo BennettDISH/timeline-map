@@ -150,6 +150,10 @@ CREATE TABLE IF NOT EXISTS links (
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS owner_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map';
 
+-- How a node draws on the map: 'chip' (icon + name lozenge) or 'image' (the node's own
+-- art as the marker — the legacy image-node, reborn; PNG transparency respected).
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin VARCHAR(10) NOT NULL DEFAULT 'chip';
+
 -- A node's story can CHANGE over time: timed description overrides. The displayed body at
 -- moment t is the fact covering t with the latest start (base nodes.body otherwise).
 -- share.js resolves this server-side so other eras' text never reaches players.

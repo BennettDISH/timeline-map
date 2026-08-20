@@ -128,7 +128,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
     SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis,
-           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.interior_map_id,
+           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.interior_map_id, n.pin,
            ni.file_path AS node_image_path, im.view AS interior_view
     FROM placements p
     JOIN nodes n ON p.node_id = n.id
@@ -138,7 +138,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const placements = pl.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body,
-            hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
+            pin: r.pin, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
   const nodeIds = placements.map((p) => p.node.id);
@@ -317,7 +317,7 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
-  const cols = { title: 'title', body: 'body', category: 'category', visibility: 'visibility', image_id: 'image_id' };
+  const cols = { title: 'title', body: 'body', category: 'category', visibility: 'visibility', image_id: 'image_id', pin: 'pin' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
   if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE nodes SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
@@ -336,6 +336,16 @@ router.post('/nodes/:id/interior', wrap(async (req, res) => {
     [node.title, wid, view, req.params.id, req.user.id])).rows[0];
   await pool.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [m.id, req.params.id]);
   res.status(201).json({ mapId: m.id });
+}));
+
+// DELETE /nodes/:id/interior — remove a node's interior space. The map inside is deleted
+// (its placements cascade; nodes placed only there are left unplaced); the node stays.
+router.delete('/nodes/:id/interior', wrap(async (req, res) => {
+  const wid = await worldIdOfNode(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  if (n?.interior_map_id) await pool.query('DELETE FROM maps WHERE id=$1', [n.interior_map_id]);
+  res.json({ ok: true });
 }));
 
 // DELETE /nodes/:id — delete the node everywhere (cascades placements, links, and its interior map).

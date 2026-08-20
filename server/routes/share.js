@@ -108,7 +108,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   const rows = (await pool.query(
     `SELECT p.id AS placement_id, p.x, p.y,
-            n.id AS node_id, n.title, n.category, n.interior_map_id,
+            n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin,
             i.file_path AS node_image_path
      FROM placements p
      JOIN nodes n ON p.node_id = n.id
@@ -118,7 +118,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   const placements = rows.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y),
-    node: { id: r.node_id, title: r.title, category: r.category,
+    node: { id: r.node_id, title: r.title, category: r.category, pin: r.pin,
             hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));

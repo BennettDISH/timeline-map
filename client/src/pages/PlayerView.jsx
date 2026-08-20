@@ -112,13 +112,22 @@ function PlayerView() {
             >
               {(data.placements || []).map((p) => (
                 <div key={p.id}
-                  className={`pin ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
-                  <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
-                  <span className="lbl">{p.node.title}</span>
+                  {p.node.pin === 'image' && p.node.imageUrl ? (
+                    <>
+                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false} />
+                      <span className="ilbl">{p.node.title}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
+                      <span className="lbl">{p.node.title}</span>
+                    </>
+                  )}
                   {p.node.hasInterior && <span className="open">◎</span>}
                 </div>
               ))}

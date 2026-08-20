@@ -428,3 +428,27 @@
     .ic{opacity:.5}}
   .rnote{color:var(--muted);font-style:italic;margin:14px 0 0;font-size:14px}
 }
+
+
+// ---- image pins: the node's own art as the marker (legacy image-nodes, reborn) ----
+.atlas {
+  .pin.ipin{flex-direction:column;gap:3px;background:none;border:none;box-shadow:none;padding:0;max-width:none;
+    .iart{max-width:64px;max-height:64px;display:block;pointer-events:none;user-select:none;
+      filter:drop-shadow(0 4px 8px rgba(0,0,0,.75))}
+    .ilbl{font-size:10.5px;color:var(--ink);background:#0d0f13c4;border:1px solid #ffffff14;
+      border-radius:999px;padding:1px 8px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;
+      text-shadow:0 1px 3px #000}
+    .lock{position:absolute;top:-6px;left:-6px}
+    .open{position:absolute;top:-6px;right:-6px;background:#0d0f13d0;border-radius:50%;
+      width:17px;height:17px;line-height:16px;text-align:center;font-size:11px}
+    &.sel{outline:none;
+      .iart{filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 5px var(--accent))}
+      .ilbl{border-color:var(--accent)}}
+    &.secret .iart{filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 5px #b07bd0)}
+    &.open2{border:none}
+  }
+}
+
+.atlas .primrow .xint{flex:none;color:var(--muted);padding:6px 9px;
+  &:hover{color:#ff9b9b;border-color:#5a2a2a}}
+.atlas .mnote{font-size:13px;line-height:1.5;margin:0 0 4px}

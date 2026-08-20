@@ -23,6 +23,7 @@ const atlasService = {
   nodeImpact: (id) => http.get(`${B}/nodes/${id}/impact`).then((r) => r.data),
   patchNode: (id, data) => http.patch(`${B}/nodes/${id}`, data).then((r) => r.data),
   createInterior: (id, view) => http.post(`${B}/nodes/${id}/interior`, { view }).then((r) => r.data),
+  deleteInterior: (id) => http.delete(`${B}/nodes/${id}/interior`).then((r) => r.data),
   deleteNode: (id) => http.delete(`${B}/nodes/${id}`).then((r) => r.data),
 
   patchPlacement: (id, data) => http.patch(`${B}/placements/${id}`, data).then((r) => r.data),

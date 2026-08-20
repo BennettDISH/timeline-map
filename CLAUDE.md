@@ -69,6 +69,8 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Maps may declare a FOCUS PERIOD (`maps.focus_start/focus_end`): inside that map the DM
   scrubber's track zooms to that window (⤢ expands). It is a magnifier on the ONE world
   clock — never a second clock; `now` and canon stay world-level.
+- Nodes carry a `pin` style: 'chip' (icon + name) or 'image' — the node's art drawn
+  directly on the map (frameless, PNG transparency respected), for both DM and players.
 - `node_facts` are timed description overrides (same resolution rule as backdrops): the
   Colosseum reads as gladiators in 200, tourists in 2026. Resolved client-side in the
   reader, server-side in `share.js` (`?t=` on the node endpoint) for players.

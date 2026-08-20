@@ -42,6 +42,7 @@ function AtlasWorkspace() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState([])
   const [confirmDel, setConfirmDel] = useState(null) // { node, impact }
+  const [confirmInterior, setConfirmInterior] = useState(null) // { node, impact }
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
@@ -228,6 +229,20 @@ function AtlasWorkspace() {
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
   const factDelete = (nodeId, id) =>
     track(atlasService.deleteFact(id), "Couldn't remove the entry").then(() => reloadLinks(nodeId)).catch(() => {})
+
+  const askRemoveInterior = async (node) => {
+    const impact = await atlasService.nodeImpact(node.id).catch(() => null)
+    setConfirmInterior({ node, impact })
+  }
+  const doRemoveInterior = async () => {
+    const node = confirmInterior.node
+    setConfirmInterior(null)
+    const r = await track(atlasService.deleteInterior(node.id), "Couldn't remove the interior").catch(() => null)
+    if (!r) return
+    localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
+    refreshTree()
+    setFlash({ kind: 'ok', text: `"${node.title}" no longer has an interior — the node itself is untouched.` })
+  }
 
   const askDeleteNode = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -712,12 +727,21 @@ function AtlasWorkspace() {
             >
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
-                  className={`pin ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
-                  <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
-                  <span className="lbl">{p.node.title}</span>
+                  {p.node.pin === 'image' && p.node.imageUrl ? (
+                    <>
+                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false} />
+                      <span className="ilbl">{p.node.title}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
+                      <span className="lbl">{p.node.title}</span>
+                    </>
+                  )}
                   {p.node.visibility === 'dm' && <span className="lock" title="DM only">🔒</span>}
                   {p.node.hasInterior && <span className="open">◎</span>}
                 </div>
@@ -964,6 +988,7 @@ function AtlasWorkspace() {
             <Inspector key={sel.id} p={sel} onSave={saveNode}
               onCat={(c) => saveNode(sel.node.id, { category: c })}
               onOpen={() => openInterior(sel.node)} onCreate={(v) => createInteriorAs(sel.node, v)}
+              onRemoveInterior={() => askRemoveInterior(sel.node)}
               onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
               onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
               timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
@@ -1016,6 +1041,30 @@ function AtlasWorkspace() {
           }}
           onClose={() => setNodePicker(null)} />
       )}
+      {confirmInterior && (
+        <div className="modal-back" onClick={() => setConfirmInterior(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head"><h4>Remove the interior of “{confirmInterior.node.title}”?</h4>
+              <button onClick={() => setConfirmInterior(null)}>✕</button></div>
+            {confirmInterior.impact && (confirmInterior.impact.interiorMaps > 0) ? (
+              <div className="impact">
+                <p>The space inside ({confirmInterior.impact.interiorMaps} {confirmInterior.impact.interiorMaps === 1 ? 'map' : 'maps'}) is deleted.</p>
+                {confirmInterior.impact.nodesInside > 0 && (
+                  <p>{confirmInterior.impact.nodesInside} {confirmInterior.impact.nodesInside === 1 ? 'node' : 'nodes'} inside will be left unplaced — they still exist (findable with search).</p>
+                )}
+                <p className="muted">The node itself stays exactly where it is.</p>
+              </div>
+            ) : (
+              <p className="mnote muted">The interior is empty — nothing else is affected.</p>
+            )}
+            <div className="mrow">
+              <button className="tool" onClick={() => setConfirmInterior(null)}>Keep it</button>
+              <button className="tool danger" onClick={doRemoveInterior}>Remove interior</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDel && (
         <div className="modal-back" onClick={() => setConfirmDel(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1191,7 +1240,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onJump, onVis, onRemoveHere, onDelete }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onJump, onVis, onRemoveHere, onDelete }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
@@ -1211,7 +1260,13 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
       </div>
       <div className="primrow">
         {n.hasInterior
-          ? <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
+          ? (
+            <>
+              <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
+              <button className="btn xint" title="Remove the interior — the space inside is deleted; this node stays"
+                onClick={onRemoveInterior}>✕</button>
+            </>
+          )
           : (
             <>
               <button className="btn grow" title="Give it a map inside — a place to zoom into" onClick={() => onCreate('map')}>＋ Interior map</button>
@@ -1254,6 +1309,10 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
             <div className="nimg-actions">
               <button className="btn" onClick={onImage}>Change</button>
               <button className="btn danger" onClick={onRemoveImage}>Remove</button>
+            </div>
+            <div className="chips" style={{ marginTop: 7 }} title="How it draws on the map">
+              <button className={`chip ${n.pin !== 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'chip' })}>Pin: icon + name</button>
+              <button className={`chip ${n.pin === 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'image' })}>Pin: the image</button>
             </div>
           </div>
         ) : (
