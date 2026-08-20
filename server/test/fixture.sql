@@ -14,3 +14,7 @@
 --   links: Open Landmark -> Hidden Person (pruned), -> Brief Fair (kept)
 -- The full executable block lives in git history (seeded 2026-08-20); reconstruct from
 -- the contract above if it ever needs rebuilding.
+-- NOTE: each full test run leaves one 'probe-marker-<ts>' player node on the fixture
+-- root (the write-path test). Sweep occasionally:
+--   DELETE FROM nodes WHERE world_id=(SELECT id FROM worlds WHERE name='Secrecy Fixture')
+--     AND visibility='player';

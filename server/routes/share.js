@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
@@ -130,7 +131,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     for (const [a, b] of ivs) { args.push(b, a); }
     rows = (await pool.query(
       `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time,
-              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size,
+              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size, n.author, n.visibility AS nvis,
               i.file_path AS node_image_path
        FROM placements p
        JOIN nodes n ON p.node_id = n.id
@@ -140,7 +141,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   } else {
     rows = (await pool.query(
       `SELECT p.id AS placement_id, p.x, p.y,
-              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size,
+              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size, n.author, n.visibility AS nvis,
               i.file_path AS node_image_path
        FROM placements p
        JOIN nodes n ON p.node_id = n.id
@@ -158,6 +159,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       end: (r.end_time == null || r.end_time > canonT) ? null : r.end_time,
     } : {}),
     node: { id: r.node_id, title: r.title, category: r.category, pin: r.pin, pinSize: r.pin_size,
+            player: r.nvis === 'player', author: r.author,
             hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
@@ -198,13 +200,43 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   });
 }));
 
+// POST /:token/maps/:mapId/nodes — a player drops a marker. Live for everyone, on
+// purpose: Bennett trusts his table. The server still holds the line — visibility is
+// FORCED to 'player', inputs are capped, hidden branches reject writes (walkUp at
+// canon), and both an IP rate limit and a per-world marker cap bound the blast radius.
+const markLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40 });
+const markBody = express.json({ limit: '16kb' }); // a marker is tiny; don't parse 10mb of junk
+const MARK_CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
+router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req, res) => {
+  const w = await worldOf(req.params.token);
+  if (!w) return notFound(res);
+  const t = await allowedTime(w, null); // markers land at canon reachability
+  if (!(await walkUp(Number(req.params.mapId), w, t))) return notFound(res);
+  const title = String(req.body.title || '').trim().slice(0, 80);
+  if (!title) return res.status(400).json({ message: 'A marker needs a name' });
+  const body = String(req.body.body || '').trim().slice(0, 500) || null;
+  const author = String(req.body.author || '').trim().slice(0, 40) || null;
+  const category = MARK_CATS.includes(req.body.category) ? req.body.category : 'note';
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 50); // 0 is a valid edge coord
+  const x = Math.max(0, Math.min(100, num(req.body.x)));
+  const y = Math.max(0, Math.min(100, num(req.body.y)));
+  const count = (await pool.query(
+    `SELECT COUNT(*) FROM nodes WHERE world_id=$1 AND visibility='player'`, [w.id])).rows[0];
+  if (parseInt(count.count) >= 200) return res.status(400).json({ message: 'The map is full of markers — ask your DM to tidy up' });
+  const n = (await pool.query(
+    `INSERT INTO nodes (world_id, title, body, category, visibility, author) VALUES ($1,$2,$3,$4,'player',$5) RETURNING id`,
+    [w.id, title, body, category, author])).rows[0];
+  await pool.query('INSERT INTO placements (node_id, map_id, x, y) VALUES ($1,$2,$3,$4)', [n.id, req.params.mapId, x, y]);
+  res.status(201).json({ nodeId: n.id });
+}));
+
 // GET /:token/nodes/:id — the inspector, links pruned to what the player may know exists.
 router.get('/:token/nodes/:id', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
   const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
-    `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, i.file_path AS img
+    `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, n.author, n.visibility AS nvis, i.file_path AS img
      FROM nodes n LEFT JOIN images i ON n.image_id = i.id
      WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`, [req.params.id, w.id])).rows[0];
   if (!n) return notFound(res);
@@ -228,6 +260,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
 
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category,
+            player: n.nvis === 'player', author: n.author,
             hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id,
             imageUrl: resolveImageUrl(req, n.img) },
     links: out.map((l) => shape(l, 'out')), backlinks: back.map((l) => shape(l, 'in')),

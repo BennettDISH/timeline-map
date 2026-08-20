@@ -12,6 +12,7 @@ const shareService = {
     { params: { ...(t != null ? { t } : {}), ...(windowed ? { window: 1 } : {}) } }).then((r) => r.data),
   getNode: (token, nodeId, t) => api.get(`/${token}/nodes/${nodeId}`, { params: t != null ? { t } : {} }).then((r) => r.data),
   locateNode: (token, nodeId, t) => api.get(`/${token}/nodes/${nodeId}/locate`, { params: t != null ? { t } : {} }).then((r) => r.data),
+  addMarker: (token, mapId, data) => api.post(`/${token}/maps/${mapId}/nodes`, data).then((r) => r.data),
 }
 
 export default shareService

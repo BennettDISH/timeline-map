@@ -150,6 +150,10 @@ CREATE TABLE IF NOT EXISTS links (
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS owner_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map';
 
+-- Player markers: nodes with visibility='player' were dropped by someone holding the
+-- share link. Visible to everyone immediately; author is their self-given name.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS author VARCHAR(40);
+
 -- How a node draws on the map: 'chip' (icon + name lozenge) or 'image' (the node's own
 -- art as the marker — the legacy image-node, reborn; PNG transparency respected).
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin VARCHAR(10) NOT NULL DEFAULT 'chip';

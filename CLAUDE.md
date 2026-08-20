@@ -85,6 +85,16 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 **V1.0 — tagged 2026-08-20.** The founding vision is implemented end-to-end; what remains
 below is a wish-shelf, not a gap list.
 
+## Player markers (live, trust-based)
+- A share-link holder can drop a marker on the Player View: POST `/:token/maps/:mapId/nodes`
+  in `share.js`, visibility FORCED to `'player'`, live for the whole table immediately.
+  The server holds the boundary anonymously: `walkUp` gate (no hidden branches), inputs
+  length-capped, its own 16kb body parse + 40/hr IP limiter + soft 200/world cap, and it
+  can never forge a `shared`/`dm` tier. `nodes.author` is a self-typed signature — surfaced
+  as "a player's marker, signed …", never as verified attribution.
+- The DM sees `'player'` nodes as dashed green pins; the inspector offers to claim (re-visibility)
+  or delete (with undo) them.
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)

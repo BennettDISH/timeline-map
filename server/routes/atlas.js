@@ -162,10 +162,10 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1', [src.id]);
   for (const n of nodes) {
     const r = (await client.query(
-      `INSERT INTO nodes (world_id, title, body, category, image_id, visibility, pin, pin_size, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      `INSERT INTO nodes (world_id, title, body, category, image_id, visibility, pin, pin_size, author, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [w.id, n.title, n.body, n.category, n.image_id ? (imgMap.get(n.image_id) || null) : null,
-       n.visibility, n.pin || 'chip', n.pin_size || 64, req.user.id])).rows[0];
+       n.visibility, n.pin || 'chip', n.pin_size || 64, n.author, req.user.id])).rows[0];
     nodeMap.set(n.id, r.id);
   }
   for (const m of maps) if (m.owner_node_id && nodeMap.has(m.owner_node_id)) {
@@ -240,7 +240,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
     SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis,
-           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.interior_map_id, n.pin, n.pin_size,
+           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.interior_map_id, n.pin, n.author, n.pin_size,
            ni.file_path AS node_image_path, im.view AS interior_view
     FROM placements p
     JOIN nodes n ON p.node_id = n.id
@@ -250,7 +250,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const placements = pl.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body,
-            pin: r.pin, pinSize: r.pin_size, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
+            pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
   const nodeIds = placements.map((p) => p.node.id);
@@ -536,9 +536,9 @@ router.post('/undo/:id', wrap(async (req, res) => {
       const n = p.node;
       const imageId = (await exists('images', n.image_id)) ? n.image_id : null;
       await client.query(
-        `INSERT INTO nodes (id, world_id, title, body, category, interior_map_id, image_id, visibility, pin, pin_size, created_by, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9,$10,$11,$12)`,
-        [n.id, n.world_id, n.title, n.body, n.category, imageId, n.visibility, n.pin || 'chip', n.pin_size || 64, n.created_by, n.created_at, n.updated_at]);
+        `INSERT INTO nodes (id, world_id, title, body, category, interior_map_id, image_id, visibility, pin, pin_size, author, created_by, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [n.id, n.world_id, n.title, n.body, n.category, imageId, n.visibility, n.pin || 'chip', n.pin_size || 64, n.author || null, n.created_by, n.created_at, n.updated_at]);
       if (p.interior && p.interior.map) {
         await insertMap(p.interior.map, n.id);
         await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.interior.map.id, n.id]);

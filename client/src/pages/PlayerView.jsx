@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
-import { cat } from '../utils/categories'
+import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
 // The read-only Player View behind a share link (/p/:token). Everything secret or
@@ -22,6 +22,9 @@ function PlayerView() {
   const [gone, setGone] = useState(false)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
   const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
+  const [marking, setMarking] = useState(false) // armed: next map tap drops a marker
+  const [markForm, setMarkForm] = useState(null) // { x, y } while the little form is open
+  const [markBusy, setMarkBusy] = useState(false)
   const viewTRef = useRef(null); viewTRef.current = viewT
   const worldRef = useRef(null)
 
@@ -68,6 +71,28 @@ function PlayerView() {
       .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })
       .catch(() => {})
   const enter = (node) => { if (node.hasInterior) navigate(`/p/${token}/m/${node.interiorMapId}`) }
+
+  const onMarkClick = (e) => {
+    if (!marking || !worldRef.current) return
+    const rect = worldRef.current.getBoundingClientRect()
+    setMarkForm({
+      x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+    })
+    setMarking(false)
+  }
+  const submitMarker = async (title, body, category, author) => {
+    setMarkBusy(true)
+    try {
+      try { localStorage.setItem('atlas_marker_name', author || '') } catch (err) { /* ignore */ }
+      await shareService.addMarker(token, mapId || world.rootMapId, {
+        title, body, category, author, x: markForm.x, y: markForm.y,
+      })
+      setMarkForm(null)
+      load() // live for everyone; the rest of the table catches it on their next poll
+    } catch (err) { /* the form stays open to retry */ }
+    setMarkBusy(false)
+  }
 
   if (gone) {
     return (
@@ -131,14 +156,16 @@ function PlayerView() {
               backdropUrl={backdropUrl}
               worldRef={worldRef}
               onEmptyPointerDown={() => setDetail(null)}
+              onWorldClick={marking ? onMarkClick : undefined}
             >
               {shownPlacements.map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
+                  {p.node.player && <span className="psig" title={p.node.author ? `A player's marker, signed “${p.node.author}”` : 'A player marked this'}>✍</span>}
                   {p.node.pin === 'image' && p.node.imageUrl ? (
                     <>
                       <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
@@ -180,12 +207,24 @@ function PlayerView() {
               <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
             </div>
           )}
+          {!isList && (
+            <button className={`tool markbtn ${marking ? 'on' : ''}`}
+              title={marking ? 'Tap the map to drop your marker — tap here to cancel' : 'Add your own marker to the map'}
+              onClick={() => { setMarking((v) => !v); setDetail(null) }}>
+              {marking ? '✕ cancel' : '✍ Mark the map'}
+            </button>
+          )}
+          {marking && <div className="markhint">Tap the map where you want your marker.</div>}
         </div>
         {tl?.enabled && (
           <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live
             win={map?.focusStart != null || map?.focusEnd != null ? { min: map.focusStart, max: map.focusEnd } : null} />
         )}
         </div>
+
+        {markForm && (
+          <MarkerForm busy={markBusy} onClose={() => setMarkForm(null)} onSubmit={submitMarker} />
+        )}
 
         {detail && (
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -197,6 +236,9 @@ function PlayerView() {
                 <h3>{detail.node.title}</h3>
                 <span className="scat">{cat(detail.node.category).label}</span>
               </div>
+              {detail.node.player && (
+                <div className="sby">✍ a player's marker{detail.node.author ? `, signed “${detail.node.author}”` : ''}</div>
+              )}
               {detail.node.body && <p className="sbody">{detail.node.body}</p>}
               {detail.node.hasInterior && (
                 <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
@@ -220,6 +262,46 @@ function PlayerView() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// The little form a marker is born from: name it, note it, sign it.
+function MarkerForm({ busy, onClose, onSubmit }) {
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [category, setCategory] = useState('note')
+  const [author, setAuthor] = useState(() => {
+    try { return localStorage.getItem('atlas_marker_name') || '' } catch (e) { return '' }
+  })
+  const submit = (e) => {
+    e.preventDefault()
+    if (title.trim()) onSubmit(title.trim(), body.trim(), category, author.trim())
+  }
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h4>Mark the map</h4><button onClick={onClose}>✕</button></div>
+        <input className="nsearch" autoFocus maxLength={80} placeholder="What is here?"
+          value={title} onChange={(e) => setTitle(e.target.value)} />
+        <div className="mcats">
+          {Object.entries(CATS).map(([k, v]) => (
+            <button key={k} type="button" className={`cdot ${category === k ? 'on' : ''}`} title={v.label}
+              style={{ background: v.c }} onClick={() => setCategory(k)}>{v.i}</button>
+          ))}
+          <span className="mcatname">{cat(category).label}</span>
+        </div>
+        <textarea className="mnotearea" rows="3" maxLength={500} placeholder="What do you know about it? (optional)"
+          value={body} onChange={(e) => setBody(e.target.value)} />
+        <input className="nsearch" maxLength={40} placeholder="Sign your name (optional)"
+          value={author} onChange={(e) => setAuthor(e.target.value)} />
+        <div className="mrow">
+          <button className="tool" onClick={onClose}>Cancel</button>
+          <button className="tool on" disabled={busy || !title.trim()} onClick={submit}>
+            {busy ? 'Placing…' : 'Place it — everyone sees it'}
+          </button>
+        </div>
       </div>
     </div>
   )

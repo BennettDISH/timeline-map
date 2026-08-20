@@ -793,7 +793,7 @@ function AtlasWorkspace() {
             >
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
@@ -1040,6 +1040,7 @@ function AtlasWorkspace() {
                   <h3>{sel.node.title}</h3>
                 </div>
                 <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}</span>
+                {sel.node.visibility === 'player' && <div className="sby">✍ a player's marker{sel.node.author ? `, signed “${sel.node.author}”` : ''}</div>}
                 {tl?.enabled && (sel.start != null || sel.end != null) && (
                   <div className="rwhen">🕓 {sel.start ?? tl.min} – {sel.end ?? '…'} {tl.unit}</div>
                 )}
@@ -1348,6 +1349,9 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
       <div className="fld"><label>Title</label>
         <input value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
       </div>
+      {n.visibility === 'player' && (
+        <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>✍ A player placed this{n.author ? `, signed “${n.author}”` : ''} — a self-typed name, not verified. Set “Who can see it” to claim it into canon or hide it.</div>
+      )}
       <div className="catrow">
         {Object.entries(CATS).map(([k, v]) => (
           <button key={k} className={`cdot ${n.category === k ? 'on' : ''}`} title={v.label}
