@@ -318,8 +318,11 @@
   .railtoggle{position:absolute;top:10px;left:10px;z-index:6;width:32px;justify-content:center;color:var(--muted)}
 
   .main{position:relative}
-  .iresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9;
-    &:hover,&:active{background:linear-gradient(90deg,var(--accent),transparent)}}
+  .iresize,.rresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9}
+  .iresize:hover,.iresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
+  .rresize:hover,.rresize:active{background:linear-gradient(270deg,var(--accent),transparent)}
+  .insptoggle{position:absolute;top:10px;right:10px;z-index:6;width:32px;justify-content:center;color:var(--muted)}
+  .main.m-edit .helpwrap{right:52px}
 
   .ctxmenu{position:fixed;top:0;left:0;min-width:210px;z-index:60}
 

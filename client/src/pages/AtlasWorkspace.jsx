@@ -46,6 +46,11 @@ function AtlasWorkspace() {
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
+  const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
+  const [railW, setRailW] = useState(() => {
+    const v = parseInt(localStorage.getItem('atlas_railw'), 10)
+    return Number.isFinite(v) ? Math.min(420, Math.max(160, v)) : 230
+  })
   const [inspW, setInspW] = useState(() => {
     const v = parseInt(localStorage.getItem('atlas_inspw'), 10)
     return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
@@ -65,6 +70,8 @@ function AtlasWorkspace() {
   const helpRef = useRef(null)
   const inspWRef = useRef(310)
   const inspRaf = useRef(0)
+  const railWRef = useRef(230)
+  const railRaf = useRef(0)
   const placePoint = useRef(null) // where "place existing here" should land
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
@@ -267,6 +274,31 @@ function AtlasWorkspace() {
     try { localStorage.setItem('atlas_rail', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
     return n
   })
+  const toggleInsp = () => setInspOpen((v) => {
+    const n = !v
+    try { localStorage.setItem('atlas_insp', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
+    return n
+  })
+
+  // drag the tree's right edge, twin of the editor handle
+  const startRailResize = (e) => {
+    e.preventDefault()
+    railWRef.current = railW
+    const move = (ev) => {
+      railWRef.current = Math.min(Math.max(ev.clientX, 160), Math.min(420, Math.round(window.innerWidth * 0.4)))
+      if (!railRaf.current) {
+        railRaf.current = requestAnimationFrame(() => { railRaf.current = 0; setRailW(railWRef.current) })
+      }
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      try { localStorage.setItem('atlas_railw', String(railWRef.current)) } catch (err) { /* ignore */ }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const resetRailW = () => { setRailW(230); try { localStorage.setItem('atlas_railw', '230') } catch (e) { /* ignore */ } }
 
   // drag the inspector's left edge to give the editor room; double-click resets
   const startInspResize = (e) => {
@@ -574,8 +606,8 @@ function AtlasWorkspace() {
       <div className={`main m-${mode}`}
         style={{ gridTemplateColumns:
           mode === 'player' ? `1fr${readerOpen ? ' var(--readerw)' : ''}`
-            : mode === 'view' ? `${railOpen ? '230px ' : ''}1fr${readerOpen ? ' var(--readerw)' : ''}`
-              : `${railOpen ? '230px ' : ''}1fr ${inspW}px` }}>
+            : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ' var(--readerw)' : ''}`
+              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}` }}>
         {mode !== 'player' && railOpen && (
           <div className="rail">
             <h4>Maps</h4>
@@ -589,6 +621,10 @@ function AtlasWorkspace() {
           {mode !== 'player' && (
             <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'}
               onClick={toggleRail}>{railOpen ? '◂' : '☰'}</button>
+          )}
+          {mode === 'edit' && (
+            <button className="tool insptoggle" title={inspOpen ? 'Hide the editor' : 'Show the editor'}
+              onClick={toggleInsp}>{inspOpen ? '▸' : '✎'}</button>
           )}
           {loadState === 'err' && (
             <div className="empty-map">
@@ -818,7 +854,7 @@ function AtlasWorkspace() {
             </div>
           )}
 
-        {mode === 'edit' && (
+        {mode === 'edit' && inspOpen && (
         <div className="insp">
           {!sel ? (
             <div className="empty">Nothing selected.<br /><br />Click a node, or use <b>+ Add node</b> then click the map.</div>
@@ -836,9 +872,13 @@ function AtlasWorkspace() {
           )}
         </div>
         )}
-        {mode === 'edit' && (
+        {mode === 'edit' && inspOpen && (
           <div className="iresize" style={{ right: inspW - 3 }} title="Drag to widen the editor — double-click resets"
             onPointerDown={startInspResize} onDoubleClick={resetInspW} />
+        )}
+        {mode !== 'player' && railOpen && (
+          <div className="rresize" style={{ left: railW - 3 }} title="Drag to widen the map tree — double-click resets"
+            onPointerDown={startRailResize} onDoubleClick={resetRailW} />
         )}
       </div>
 
