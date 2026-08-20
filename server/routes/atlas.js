@@ -154,7 +154,9 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
      FROM map_backdrops b JOIN images i ON i.id = b.image_id
      WHERE b.map_id = $1 ORDER BY b.start_time NULLS FIRST, b.id`, [req.params.mapId])).rows;
   res.json({
-    map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, backdropUrl: resolveImageUrl(req, map.backdrop_path) },
+    map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id,
+           focusStart: map.focus_start, focusEnd: map.focus_end,
+           backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     backdrops: bds.map((b) => ({ id: b.id, imageId: b.image_id, start: b.start_time, end: b.end_time, url: resolveImageUrl(req, b.file_path) })),
     placements, links, breadcrumb: await breadcrumb(req.params.mapId),
   });
@@ -164,7 +166,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
 router.patch('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const cols = { title: 'title', view: 'view', image_id: 'image_id' };
+  const cols = { title: 'title', view: 'view', image_id: 'image_id', focus_start: 'focus_start', focus_end: 'focus_end' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
   if (sets.length) { vals.push(req.params.mapId); await pool.query(`UPDATE maps SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }

@@ -66,6 +66,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
   (`timeline_current_time`), which moves only via the explicit "Set canon" button.
+- Maps may declare a FOCUS PERIOD (`maps.focus_start/focus_end`): inside that map the DM
+  scrubber's track zooms to that window (⤢ expands). It is a magnifier on the ONE world
+  clock — never a second clock; `now` and canon stay world-level.
 - `map_backdrops` are timed art overrides: the active backdrop at moment t is the row
   covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
   for the DM lens, server-side in `share.js` for players.

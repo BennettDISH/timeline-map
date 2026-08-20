@@ -150,6 +150,12 @@ CREATE TABLE IF NOT EXISTS links (
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS owner_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map';
 
+-- A map's FOCUS PERIOD: the stretch of the ONE world timeline this space's story spans.
+-- Inside the map the scrubber's track zooms to this window (expandable) — a magnifier on
+-- the world clock, never a second clock.
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_start INTEGER;
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_end INTEGER;
+
 -- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS share_token VARCHAR(64) UNIQUE;

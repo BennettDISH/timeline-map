@@ -47,6 +47,8 @@ function AtlasWorkspace() {
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
   const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
+  const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
+  const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
   const [railW, setRailW] = useState(() => {
@@ -132,6 +134,7 @@ function AtlasWorkspace() {
     setSelId(null)
     setPlacing(null)
     setCtx(null)
+    setFocusExpand(false)
     loadMap(true).then(() => {
       if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
     })
@@ -511,6 +514,23 @@ function AtlasWorkspace() {
   const toggleCat = (k) => setHiddenCats((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   // ---- world-plane interactions ---------------------------------------------------------
+  const hasFocus = !!map && (map.focusStart != null || map.focusEnd != null)
+  const fMin = hasFocus ? Math.max(tl?.min ?? 0, map.focusStart ?? (tl?.min ?? 0)) : (tl?.min ?? 0)
+  const fMax = hasFocus ? Math.min(tl?.max ?? 0, map.focusEnd ?? (tl?.max ?? 0)) : (tl?.max ?? 0)
+  const focusOk = hasFocus && fMin < fMax
+  const dispMin = focusOk && !focusExpand ? fMin : (tl?.min ?? 0)
+  const dispMax = focusOk && !focusExpand ? fMax : (tl?.max ?? 0)
+
+  const saveFocus = () => {
+    const f = focusEdit
+    setFocusEdit(null)
+    if (!f || !map) return
+    const st = f.start === '' ? null : Number(f.start)
+    const en = f.end === '' ? null : Number(f.end)
+    setData((d) => d && ({ ...d, map: { ...d.map, focusStart: st, focusEnd: en } }))
+    track(atlasService.patchMap(mapId, { focus_start: st, focus_end: en }), "Couldn't save the focus period").catch(() => {})
+  }
+
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
   const activeBackdropUrl = useMemo(() => {
     if (!map) return null
@@ -751,6 +771,12 @@ function AtlasWorkspace() {
                     {!isList && (
                       <button onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
                     )}
+                    {tl?.enabled && (
+                      <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
+                        onClick={() => { setMapMenu(false); setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' }) }}>
+                        🎯 Focus period…{hasFocus ? ' ✓' : ''}
+                      </button>
+                    )}
                     <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this space…</button>
                     <div className="apop-row">
                       <span>Show as</span>
@@ -820,21 +846,27 @@ function AtlasWorkspace() {
 
           {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
-              <span className="tlabel">{tl.min}</span>
+              <span className="tlabel">{dispMin}</span>
               <div className="ttrack">
-                <input type="range" min={tl.min} max={tl.max} value={now} onChange={(e) => setNow(Number(e.target.value))} />
-                {tl.max > tl.min && (data?.placements || [])
+                <input type="range" min={dispMin} max={dispMax}
+                  value={Math.min(Math.max(now, dispMin), dispMax)}
+                  onChange={(e) => setNow(Number(e.target.value))} />
+                {dispMax > dispMin && (data?.placements || [])
                   .flatMap((p) => [p.start, p.end])
-                  .filter((t) => t != null && t >= tl.min && t <= tl.max)
+                  .filter((t) => t != null && t >= dispMin && t <= dispMax)
                   .map((t, i) => (
-                    <span key={i} className="ttick" style={{ left: `${((t - tl.min) / (tl.max - tl.min)) * 100}%` }} />
+                    <span key={i} className="ttick" style={{ left: `${((t - dispMin) / (dispMax - dispMin)) * 100}%` }} />
                   ))}
-                {canon !== now && tl.max > tl.min && (
-                  <span className="canonmark" style={{ left: `${((canon - tl.min) / (tl.max - tl.min)) * 100}%` }}
+                {canon !== now && canon >= dispMin && canon <= dispMax && dispMax > dispMin && (
+                  <span className="canonmark" style={{ left: `${((canon - dispMin) / (dispMax - dispMin)) * 100}%` }}
                     title={`Canon moment (what players see): ${canon}`} />
                 )}
               </div>
-              <span className="tlabel">{tl.max}</span>
+              <span className="tlabel">{dispMax}</span>
+              {focusOk && (
+                <button className="tgear fexp" title={focusExpand ? `Back to this place's period (${fMin}–${fMax})` : 'Show the whole timeline'}
+                  onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
+              )}
               <span className="tnow">{now}<em> {tl.unit}</em></span>
               <div className="tzone">
                 {canon !== now ? (
@@ -998,6 +1030,27 @@ function AtlasWorkspace() {
             <button className="tool" onClick={() => setPicker({ kind: 'backdrop-timed', hasCurrent: false })}>
               ＋ Add art for a period (starts at {Math.round(now)} {tl?.unit})
             </button>
+          </div>
+        </div>
+      )}
+
+      {focusEdit != null && (
+        <div className="modal-back" onClick={() => setFocusEdit(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head"><h4>Focus period</h4><button onClick={() => setFocusEdit(null)}>✕</button></div>
+            <p className="muted esmall">Still the one world clock — but inside this space, the scrubber's track zooms to the years its story spans. ⤢ on the bar shows the full timeline again. Blank = the world's full range.</p>
+            <div className="span" style={{ marginBottom: 12 }}>
+              <input type="number" placeholder={String(tl?.min ?? '')} value={focusEdit.start}
+                onChange={(e) => setFocusEdit((f) => ({ ...f, start: e.target.value }))} />
+              <span>→</span>
+              <input type="number" placeholder={String(tl?.max ?? '')} value={focusEdit.end}
+                onChange={(e) => setFocusEdit((f) => ({ ...f, end: e.target.value }))} />
+            </div>
+            <div className="mrow">
+              <button className="tool" onClick={() => setFocusEdit({ start: '', end: '' })}>Clear</button>
+              <button className="tool" onClick={() => setFocusEdit(null)}>Cancel</button>
+              <button className="tool on" onClick={saveFocus}>Save</button>
+            </div>
           </div>
         </div>
       )}
