@@ -91,11 +91,26 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const t = await allowedTime(w, req.query.t);
   const breadcrumb = await walkUp(Number(req.params.mapId), w, t);
   if (!breadcrumb) return notFound(res);
+  // ?window=1: instead of one resolved moment, return everything visible at ANY allowed
+  // moment (the union of player_visible eras clipped to canon, plus canon itself), with
+  // lifespans CLAMPED to that envelope — the client then scrubs with zero round trips.
+  // Nothing outside the allowed set is ever included, so secrecy still lives here.
+  const windowed = req.query.window === '1' && w.timeline_enabled;
+  let ivs = null; let lo = null;
+  if (windowed) {
+    const canon = w.timeline_current_time;
+    const eraRows = (await pool.query(
+      'SELECT start_time s, end_time e FROM eras WHERE world_id=$1 AND player_visible AND start_time <= $2',
+      [w.id, canon])).rows;
+    ivs = eraRows.map((r) => [r.s, Math.min(r.e, canon)]).filter(([a, b]) => a <= b);
+    ivs.push([canon, canon]);
+    lo = Math.min(...ivs.map((i) => i[0]));
+  }
 
   const map = (await pool.query(
     'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [req.params.mapId])).rows[0];
-  if (w.timeline_enabled) {
+  if (w.timeline_enabled && req.query.window !== '1') {
     // history may have redrawn this map: the latest-starting timed backdrop covering the
     // allowed moment wins; none covering it keeps the base art
     const bd = (await pool.query(
@@ -106,22 +121,64 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     if (bd) map.backdrop_path = bd.file_path;
   }
 
-  const rows = (await pool.query(
-    `SELECT p.id AS placement_id, p.x, p.y,
-            n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size,
-            i.file_path AS node_image_path
-     FROM placements p
-     JOIN nodes n ON p.node_id = n.id
-     LEFT JOIN images i ON n.image_id = i.id
-     WHERE p.map_id = $1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND ${PRESENT(2)}
-     ORDER BY p.id`, [req.params.mapId, t])).rows;
+  let rows;
+  if (windowed) {
+    // alive during ANY allowed interval: lifespan [s,e] meets [a,b] iff s<=b AND e>=a
+    const conds = ivs.map((_, i) =>
+      `((p.start_time IS NULL OR p.start_time <= $${i * 2 + 2}) AND (p.end_time IS NULL OR p.end_time >= $${i * 2 + 3}))`).join(' OR ');
+    const args = [req.params.mapId];
+    for (const [a, b] of ivs) { args.push(b, a); }
+    rows = (await pool.query(
+      `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time,
+              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size,
+              i.file_path AS node_image_path
+       FROM placements p
+       JOIN nodes n ON p.node_id = n.id
+       LEFT JOIN images i ON n.image_id = i.id
+       WHERE p.map_id = $1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND (${conds})
+       ORDER BY p.id`, args)).rows;
+  } else {
+    rows = (await pool.query(
+      `SELECT p.id AS placement_id, p.x, p.y,
+              n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size,
+              i.file_path AS node_image_path
+       FROM placements p
+       JOIN nodes n ON p.node_id = n.id
+       LEFT JOIN images i ON n.image_id = i.id
+       WHERE p.map_id = $1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND ${PRESENT(2)}
+       ORDER BY p.id`, [req.params.mapId, t])).rows;
+  }
 
+  const canonT = w.timeline_current_time;
   const placements = rows.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y),
+    // clamped to the revealed envelope: nothing before the first open era or past canon leaks
+    ...(windowed ? {
+      start: (r.start_time == null || r.start_time < lo) ? null : r.start_time,
+      end: (r.end_time == null || r.end_time > canonT) ? null : r.end_time,
+    } : {}),
     node: { id: r.node_id, title: r.title, category: r.category, pin: r.pin, pinSize: r.pin_size,
             hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
+
+  let backdrops;
+  if (windowed) {
+    const conds = ivs.map((_, i) =>
+      `((b.start_time IS NULL OR b.start_time <= $${i * 2 + 2}) AND (b.end_time IS NULL OR b.end_time >= $${i * 2 + 3}))`).join(' OR ');
+    const args = [req.params.mapId];
+    for (const [a, b] of ivs) { args.push(b, a); }
+    backdrops = (await pool.query(
+      `SELECT b.id, b.start_time, b.end_time, i.file_path
+       FROM map_backdrops b JOIN images i ON i.id = b.image_id
+       WHERE b.map_id = $1 AND (${conds}) ORDER BY b.start_time NULLS FIRST, b.id`, args)).rows
+      .map((b) => ({
+        id: b.id,
+        start: (b.start_time == null || b.start_time < lo) ? null : b.start_time,
+        end: (b.end_time == null || b.end_time > canonT) ? null : b.end_time,
+        url: resolveImageUrl(req, b.file_path),
+      }));
+  }
 
   const nodeIds = placements.map((p) => p.node.id);
   let links = [];
@@ -136,6 +193,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     map: { id: map.id, title: map.title, view: map.view,
            focusStart: map.focus_start, focusEnd: map.focus_end,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
+    ...(windowed ? { backdrops } : {}),
     placements, links, breadcrumb,
   });
 }));

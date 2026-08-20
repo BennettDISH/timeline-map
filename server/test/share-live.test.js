@@ -93,3 +93,30 @@ test('a bad token gets nothing', async () => {
   const res = await fetch(`${BASE}/api/share/not-a-real-token-000/world`);
   assert.equal(res.status, 404);
 });
+
+// ---- windowed payloads (?window=1): one fetch, client-side scrubbing ----
+
+test('windowed map: everything visible at ANY allowed moment, nothing else', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  assert.deepEqual(titles(body), ['Brief Fair', 'Open Landmark']);
+  const bad = ['Hidden Person', 'Ghost Spot', 'Future Thing', 'Interlude Ghost'];
+  for (const t of titles(body)) assert.ok(!bad.includes(t));
+});
+
+test('windowed lifespans are clamped to the revealed envelope', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  const fair = body.placements.find((p) => p.node.title === 'Brief Fair');
+  assert.equal(fair.start, 20);
+  assert.equal(fair.end, 40);
+  const landmark = body.placements.find((p) => p.node.title === 'Open Landmark');
+  assert.equal(landmark.start, null);
+  assert.equal(landmark.end, null);
+});
+
+test('windowed backdrops list the allowed timed art; the base stays base', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  assert.equal(body.map.backdropUrl, null, 'window mode returns the BASE art un-resolved');
+  assert.equal(body.backdrops.length, 1);
+  assert.equal(body.backdrops[0].start, 40);
+  assert.ok(body.backdrops[0].url.endsWith('fixture-a.svg'));
+});

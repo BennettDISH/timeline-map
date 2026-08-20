@@ -22,20 +22,25 @@ function PlayerView() {
   const [gone, setGone] = useState(false)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
   const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
+  const viewTRef = useRef(null); viewTRef.current = viewT
   const worldRef = useRef(null)
 
+  // ONE windowed fetch per map: the payload carries everything visible at any revealed
+  // moment (lifespans clamped server-side), so scrubbing filters locally with zero
+  // round trips. viewT rides a ref — moving the era bar never refetches the map.
   const load = useCallback(() => {
     shareService.getWorld(token)
       .then((w) => {
         setWorld(w)
-        return shareService.getMap(token, mapId || w.rootMapId, viewT).then((d) => { setData(d); setStale(false) })
+        return shareService.getMap(token, mapId || w.rootMapId, viewTRef.current, true)
+          .then((d) => { setData(d); setStale(false) })
       })
       .catch((e) => {
         const s = e?.response?.status
         if (s === 404 || s === 410) setGone(true) // the link (or this map) really is dead
         else setStale(true) // transient failure: keep showing what we have
       })
-  }, [token, mapId, viewT])
+  }, [token, mapId])
 
   useEffect(() => { setDetail(null); load() }, [load])
 
@@ -49,9 +54,14 @@ function PlayerView() {
 
   const openNode = (nodeId) =>
     shareService.getNode(token, nodeId, viewT).then(setDetail).catch(() => {})
-  // an open sheet keeps up with the era bar: the story re-reads itself for the new moment
+  // an open sheet keeps up with the era bar — debounced, since live scrubbing streams moments
   useEffect(() => {
-    if (detail?.node?.id) shareService.getNode(token, detail.node.id, viewT).then(setDetail).catch(() => {})
+    if (!detail?.node?.id) return
+    const id = detail.node.id
+    const timer = setTimeout(() => {
+      shareService.getNode(token, id, viewT).then(setDetail).catch(() => {})
+    }, 300)
+    return () => clearTimeout(timer)
   }, [viewT]) // eslint-disable-line
   const goTo = (nodeId) =>
     shareService.locateNode(token, nodeId, viewT)
@@ -77,6 +87,18 @@ function PlayerView() {
   const tl = world.timeline
   const map = data.map
   const isList = map?.view === 'list'
+  const tEff = viewT != null ? viewT : (tl?.current ?? 0)
+  const present = (p) => !tl?.enabled ||
+    ((p.start == null || tEff >= p.start) && (p.end == null || tEff <= p.end))
+  const shownPlacements = (data.placements || []).filter(present)
+  const backdropUrl = (() => {
+    if (!tl?.enabled || !data.backdrops || !data.backdrops.length) return map?.backdropUrl
+    const rows = data.backdrops.filter((b) =>
+      (b.start == null || b.start <= tEff) && (b.end == null || b.end >= tEff))
+    if (!rows.length) return map?.backdropUrl
+    rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
+    return rows[0].url
+  })()
 
   return (
     <div className="atlas pview">
@@ -106,11 +128,11 @@ function PlayerView() {
           {!isList ? (
             <MapPlane
               mapKey={mapId || 'root'}
-              backdropUrl={map?.backdropUrl}
+              backdropUrl={backdropUrl}
               worldRef={worldRef}
               onEmptyPointerDown={() => setDetail(null)}
             >
-              {(data.placements || []).map((p) => (
+              {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
@@ -135,7 +157,7 @@ function PlayerView() {
             </MapPlane>
           ) : (
             <div className="listview">
-              {(data.placements || []).map((p) => (
+              {shownPlacements.map((p) => (
                 <div key={p.id} className={`lsrow ${detail?.node?.id === p.node.id ? 'on' : ''}`}
                   onClick={() => openNode(p.node.id)}
                   onDoubleClick={() => enter(p.node)}>
@@ -144,7 +166,7 @@ function PlayerView() {
                   {p.node.hasInterior && <span className="open">◎</span>}
                 </div>
               ))}
-              {data.placements.length === 0 && (
+              {shownPlacements.length === 0 && (
                 <div className="empty-map static">
                   <div style={{ fontSize: '2rem' }}>🌫️</div>
                   <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
@@ -152,7 +174,7 @@ function PlayerView() {
               )}
             </div>
           )}
-          {!isList && data.placements.length === 0 && (
+          {!isList && shownPlacements.length === 0 && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🌫️</div>
               <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
@@ -160,7 +182,7 @@ function PlayerView() {
           )}
         </div>
         {tl?.enabled && (
-          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT}
+          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live
             win={map?.focusStart != null || map?.focusEnd != null ? { min: map.focusStart, max: map.focusEnd } : null} />
         )}
         </div>
