@@ -23,6 +23,7 @@ export default function MapPlane({
   worldRef,        // exposed plane element: callers do pointer→% math against its rect
   onWorldClick,    // click on the plane that was NOT a pan (drop-a-node etc.)
   onEmptyPointerDown, // pointerdown on plane/viewport background (deselect etc.)
+  onWorldContextMenu, // right-click on the plane (edit affordances); suppresses the browser menu
   controlsOffset = 0, // lift zoom buttons above the timebar when it's shown
   dblZoom = true,     // off while placing nodes, so a fast double-drop doesn't also zoom
   children,
@@ -212,6 +213,7 @@ export default function MapPlane({
           '--pinscale': 1 / view.scale,
         }}
         onClick={(e) => { if (!moved.current) onWorldClick?.(e) }}
+        onContextMenu={(e) => { if (onWorldContextMenu) { e.preventDefault(); onWorldContextMenu(e) } }}
       >
         {backdropUrl && (
           <img className="mp-backdrop" src={backdropUrl} alt="" draggable={false} onLoad={onImgLoad} />

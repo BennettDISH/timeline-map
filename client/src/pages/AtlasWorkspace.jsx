@@ -44,6 +44,12 @@ function AtlasWorkspace() {
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
+  const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
+  const [inspW, setInspW] = useState(() => {
+    const v = parseInt(localStorage.getItem('atlas_inspw'), 10)
+    return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
+  })
+  const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
 
   const saveTimer = useRef(null)
   const pendingPatch = useRef({ nodeId: null, patch: {} })
@@ -55,6 +61,9 @@ function AtlasWorkspace() {
   const searchRef = useRef(null)
   const mapMenuRef = useRef(null)
   const helpRef = useRef(null)
+  const inspWRef = useRef(310)
+  const inspRaf = useRef(0)
+  const placePoint = useRef(null) // where "place existing here" should land
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
   // and failures surface as a toast instead of vanishing into an empty catch.
@@ -111,6 +120,7 @@ function AtlasWorkspace() {
   useEffect(() => {
     setSelId(null)
     setPlacing(null)
+    setCtx(null)
     loadMap(true).then(() => {
       if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
     })
@@ -249,6 +259,32 @@ function AtlasWorkspace() {
   useEffect(() => {
     if (mode === 'player') atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
   }, [mode, worldId])
+  const toggleRail = () => setRailOpen((v) => {
+    const n = !v
+    try { localStorage.setItem('atlas_rail', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
+    return n
+  })
+
+  // drag the inspector's left edge to give the editor room; double-click resets
+  const startInspResize = (e) => {
+    e.preventDefault()
+    inspWRef.current = inspW
+    const move = (ev) => {
+      inspWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 280), Math.min(640, Math.round(window.innerWidth * 0.55)))
+      if (!inspRaf.current) {
+        inspRaf.current = requestAnimationFrame(() => { inspRaf.current = 0; setInspW(inspWRef.current) })
+      }
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      try { localStorage.setItem('atlas_inspw', String(inspWRef.current)) } catch (err) { /* ignore */ }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const resetInspW = () => { setInspW(310); try { localStorage.setItem('atlas_inspw', '310') } catch (e) { /* ignore */ } }
+
   // edit/view judge presence by the DM's lens; the player preview judges by CANON,
   // exactly like the real share link does.
   const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
@@ -363,7 +399,7 @@ function AtlasWorkspace() {
     const key = (e) => {
       if (e.key === '/' && !/input|textarea|select/i.test(e.target.tagName)) {
         e.preventDefault(); searchRef.current?.querySelector('input')?.focus()
-      } else if (e.key === 'Escape') { setPlacing(null); closeSearch() }
+      } else if (e.key === 'Escape') { setPlacing(null); setCtx(null); closeSearch() }
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
@@ -388,6 +424,13 @@ function AtlasWorkspace() {
     setData((d) => d && ({ ...d, map: { ...d.map, title: t } }))
     track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => {})
   }
+
+  useEffect(() => {
+    if (!ctx) return
+    const close = () => setCtx(null)
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [ctx])
 
   useEffect(() => {
     if (!mapMenu && !help) return
@@ -417,6 +460,15 @@ function AtlasWorkspace() {
     else placeExisting(placing.node, x, y)
   }
   const onEmptyPointerDown = () => { if (!placing) setSelId(null) }
+  const onWorldContext = (e) => {
+    if (!worldRef.current) return
+    const rect = worldRef.current.getBoundingClientRect()
+    setCtx({
+      sx: Math.min(e.clientX, window.innerWidth - 230), sy: Math.min(e.clientY, window.innerHeight - 110),
+      px: clamp(((e.clientX - rect.left) / rect.width) * 100),
+      py: clamp(((e.clientY - rect.top) / rect.height) * 100),
+    })
+  }
 
   const visible = (p) =>
     (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
@@ -508,8 +560,9 @@ function AtlasWorkspace() {
         <Link to="/dashboard" className="exit">Exit</Link>
       </div>
 
-      <div className={`main m-${mode}`}>
-        {mode !== 'player' && (
+      <div className={`main m-${mode}`}
+        style={{ gridTemplateColumns: mode === 'player' ? '1fr' : `${railOpen ? '230px ' : ''}1fr${mode === 'edit' ? ` ${inspW}px` : ''}` }}>
+        {mode !== 'player' && railOpen && (
           <div className="rail">
             <h4>Maps</h4>
             <MapTree tree={tree} rootId={world?.rootMapId} mapId={mapId}
@@ -518,6 +571,10 @@ function AtlasWorkspace() {
         )}
 
         <div className="stage">
+          {mode !== 'player' && (
+            <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'}
+              onClick={toggleRail}>{railOpen ? '◂' : '☰'}</button>
+          )}
           {loadState === 'err' && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🌫️</div>
@@ -534,6 +591,7 @@ function AtlasWorkspace() {
               worldRef={worldRef}
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
+              onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
               controlsOffset={mode !== 'player' && tl?.enabled ? 56 : 0}
               dblZoom={!placing}
             >
@@ -622,7 +680,7 @@ function AtlasWorkspace() {
           )}
 
           {mode !== 'player' && !placing && !isList && legend.length > 1 && (
-            <div className="legend" style={tl?.enabled ? { bottom: 92 } : undefined}>
+            <div className="legend" style={tl?.enabled ? { bottom: 60 } : undefined}>
               {legend.map(([k, n]) => (
                 <button key={k} className={`lchip ${hiddenCats.has(k) ? 'off' : ''}`} onClick={() => toggleCat(k)}
                   title={hiddenCats.has(k) ? `Show ${cat(k).label.toLowerCase()}s` : `Hide ${cat(k).label.toLowerCase()}s`}>
@@ -661,6 +719,12 @@ function AtlasWorkspace() {
               <span className="tlabel">{tl.min}</span>
               <div className="ttrack">
                 <input type="range" min={tl.min} max={tl.max} value={now} onChange={(e) => setNow(Number(e.target.value))} />
+                {tl.max > tl.min && (data?.placements || [])
+                  .flatMap((p) => [p.start, p.end])
+                  .filter((t) => t != null && t >= tl.min && t <= tl.max)
+                  .map((t, i) => (
+                    <span key={i} className="ttick" style={{ left: `${((t - tl.min) / (tl.max - tl.min)) * 100}%` }} />
+                  ))}
                 {canon !== now && tl.max > tl.min && (
                   <span className="canonmark" style={{ left: `${((canon - tl.min) / (tl.max - tl.min)) * 100}%` }}
                     title={`Canon moment (what players see): ${canon}`} />
@@ -714,7 +778,9 @@ function AtlasWorkspace() {
                 <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
                 <div><b>Click a pin</b> to read it{mode === 'edit' ? ' · drag a pin to move it' : ''}</div>
                 <div><b>Double-click a ◎ pin</b> to step inside that place</div>
+                {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
                 {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
+                <div><b>Ctrl+Shift+B</b> reports a bug</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
               </div>
             )}
@@ -739,6 +805,10 @@ function AtlasWorkspace() {
           )}
         </div>
         )}
+        {mode === 'edit' && (
+          <div className="iresize" style={{ right: inspW - 3 }} title="Drag to widen the editor — double-click resets"
+            onPointerDown={startInspResize} onDoubleClick={resetInspW} />
+        )}
       </div>
 
       {picker && (
@@ -748,6 +818,16 @@ function AtlasWorkspace() {
       {nodePicker === 'link' && sel && (
         <NodePicker worldId={worldId} excludeId={sel.node.id} title="Link to…"
           onPick={addLink} onClose={() => setNodePicker(null)} />
+      )}
+      {nodePicker === 'place-here' && (
+        <NodePicker worldId={worldId} title="Place which node here?"
+          excludeIds={(data?.placements || []).map((p) => p.node.id)}
+          onPickNode={(nn) => {
+            setNodePicker(null)
+            const pt = placePoint.current || { x: 50, y: 50 }
+            placeExisting(nn, pt.x, pt.y)
+          }}
+          onClose={() => setNodePicker(null)} />
       )}
       {nodePicker === 'place' && (
         <NodePicker worldId={worldId} title="Place which node?"
@@ -770,6 +850,15 @@ function AtlasWorkspace() {
               <button className="tool danger" onClick={doDeleteNode}>Delete everywhere</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {ctx && (
+        <div className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
+          <button onClick={() => { const c = ctx; setCtx(null); dropNode(c.px, c.py) }}>＋ New node here</button>
+          <button onClick={() => { placePoint.current = { x: ctx.px, y: ctx.py }; setCtx(null); setNodePicker('place-here') }}>
+            ⤓ Place an existing node here…
+          </button>
         </div>
       )}
 
@@ -863,20 +952,25 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
       <div className="fld"><label>Title</label>
         <input value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
       </div>
-      <div className="fld"><label>Category — a label; swap anytime</label>
-        <div className="chips">
-          {Object.entries(CATS).map(([k, v]) => (
-            <button key={k} className="chip" onClick={() => onCat(k)}
-              style={n.category === k ? { background: v.c, color: '#fff', borderColor: v.c } : undefined}>
-              <span className="ic" style={{ background: v.c }}>{v.i}</span>{v.label}
-            </button>
-          ))}
-        </div>
+      <div className="catrow">
+        {Object.entries(CATS).map(([k, v]) => (
+          <button key={k} className={`cdot ${n.category === k ? 'on' : ''}`} title={v.label}
+            style={{ background: v.c }} onClick={() => onCat(k)}>{v.i}</button>
+        ))}
+        <span className="catname">{cat(n.category).label}</span>
       </div>
-      <div className="fld"><label>Who can see it</label>
-        <div className="chips">
-          <button className={`chip ${n.visibility !== 'dm' ? 'on' : ''}`} onClick={() => onVis('shared')}>👁 Everyone</button>
-          <button className={`chip ${n.visibility === 'dm' ? 'on' : ''}`} onClick={() => onVis('dm')}>🔒 DM only</button>
+      <div className="primrow">
+        {n.hasInterior
+          ? <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
+          : (
+            <>
+              <button className="btn grow" title="Give it a map inside — a place to zoom into" onClick={() => onCreate('map')}>＋ Interior map</button>
+              <button className="btn grow" title="Give it a list inside — inventory, notes" onClick={() => onCreate('list')}>＋ List</button>
+            </>
+          )}
+        <div className="visseg" title="Who can see this node">
+          <button className={n.visibility !== 'dm' ? 'on' : ''} title="Everyone can see it" onClick={() => onVis('shared')}>👁</button>
+          <button className={n.visibility === 'dm' ? 'on' : ''} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒</button>
         </div>
       </div>
       <div className="isect">Story</div>
@@ -930,21 +1024,10 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
         </div>
         <button className="btn block" onClick={onLink}>＋ Link to another node</button>
       </div>
-      <div className="isect">Its interior</div>
-      {n.hasInterior
-        ? <button className="btn primary block" onClick={onOpen}>◎ Open interior ▸</button>
-        : (
-          <>
-            <button className="btn block" onClick={() => onCreate('map')}>＋ Give it an interior map (zoom in)</button>
-            <button className="btn block" onClick={() => onCreate('list')}>＋ Give it an interior list (inventory / notes)</button>
-          </>
-        )}
       <div className="isect">On this map</div>
-      <button className="btn block" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>
-        ⤒ Remove from this map
-      </button>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <button className="btn danger" onClick={onDelete}>🗑 Delete node…</button>
+      <div className="onmaprow">
+        <button className="btn" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>
+        <button className="btn danger" onClick={onDelete}>🗑 Delete…</button>
       </div>
     </>
   )
