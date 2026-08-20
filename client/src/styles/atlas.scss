@@ -31,7 +31,7 @@
   // The pan/zoom map plane (MapPlane). Pins live in % of .mp-world, whose shape matches
   // the backdrop image — a coordinate is the same map point on every screen.
   .mp-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;background:#0b0d12}
-  .mp-world{position:absolute;top:0;left:0;transform-origin:0 0;background:#12161d;
+  .mp-world{position:absolute;top:0;left:0;transform-origin:0 0;background:#12161d;will-change:transform;
      box-shadow:0 0 0 1px #3a3f47, 0 18px 60px #0009}
   .mp-world.nobg{background-color:#12161d;
      background-image:radial-gradient(#ffffff12 1px,transparent 1px);background-size:40px 40px}

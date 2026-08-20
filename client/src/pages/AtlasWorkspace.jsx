@@ -286,22 +286,33 @@ function AtlasWorkspace() {
       track(atlasService.patchPlacement(placementId, { start_time: start, end_time: end })).catch(() => {}), 500)
   }
 
-  // ---- drag to reposition (math is against the world PLANE rect, which includes zoom) ----
+  // ---- drag to reposition (math is against the world PLANE rect, which includes zoom).
+  // Moves are coalesced through rAF: one React render per frame, not per pointer event.
+  const dragRaf = useRef(0)
   const onDragMove = useCallback((e) => {
     const d = dragRef.current; if (!d) return
-    const nx = clamp(d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)
-    const ny = clamp(d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)
-    d.lastX = nx; d.lastY = ny
+    d.lastX = clamp(d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)
+    d.lastY = clamp(d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)
     if (Math.abs(e.clientX - d.sx) > 3 || Math.abs(e.clientY - d.sy) > 3) d.moved = true
-    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: nx, y: ny } : pp)) }))
+    if (!dragRaf.current) {
+      dragRaf.current = requestAnimationFrame(() => {
+        dragRaf.current = 0
+        const dd = dragRef.current
+        if (!dd) return
+        setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === dd.id ? { ...pp, x: dd.lastX, y: dd.lastY } : pp)) }))
+      })
+    }
   }, [])
   const onDragUp = useCallback(() => {
     const d = dragRef.current; dragRef.current = null
     window.removeEventListener('pointermove', onDragMove)
     window.removeEventListener('pointerup', onDragUp)
     if (!d) return
-    if (d.moved) track(atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY })).catch(() => {})
-    else setSelId(d.id)
+    if (d.moved) {
+      // the queued frame no-ops once dragRef is null, so commit the final position here
+      setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: d.lastX, y: d.lastY } : pp)) }))
+      track(atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY })).catch(() => {})
+    } else setSelId(d.id)
   }, [onDragMove, track])
   const onPinDown = (e, p) => {
     if (placing) return // placing mode: let the press reach the plane so the click drops there

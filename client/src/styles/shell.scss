@@ -48,9 +48,7 @@
     padding: 0 20px;
     height: 56px;
     border-bottom: 1px solid var(--line);
-    background: rgba(27, 31, 37, .85);
-    background: color-mix(in srgb, var(--panel) 82%, transparent);
-    backdrop-filter: blur(6px);
+    background: rgba(27, 31, 37, .97); // near-solid: a backdrop-filter here repaints on every scroll frame
     position: sticky;
     top: 0;
     z-index: 30;

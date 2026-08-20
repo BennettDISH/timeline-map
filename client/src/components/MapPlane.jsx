@@ -9,6 +9,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 // ratio (or a constant 16:10 when there's no art yet), letterboxed inside a pan/zoom
 // viewport. Pins live in % of the PLANE, so a coordinate is the same point on the map
 // art on every screen. Pins counter-scale (--pinscale) so labels stay readable at any zoom.
+//
+// Perf: pointermove/wheel can fire far faster than the display refreshes; every view
+// change is coalesced through one requestAnimationFrame (queueView) so React renders at
+// most once per frame during a gesture instead of once per input event.
 export const PLANE_W = 1600
 const DEFAULT_H = 1000
 const MAX_SCALE = 8
@@ -28,10 +32,25 @@ export default function MapPlane({
   const [view, setView] = useState({ scale: 0.3, tx: 0, ty: 0 })
   const planeHRef = useRef(planeH); planeHRef.current = planeH
   const viewRef = useRef(view); viewRef.current = view
-  const touched = useRef(false)   // manual zoom/pan => stop auto-refit on resize
-  const moved = useRef(false)     // pan happened => swallow the click
+  const pendingV = useRef(null)  // view queued for the next frame
+  const rafId = useRef(0)
+  const touched = useRef(false)  // manual zoom/pan => stop auto-refit on resize
+  const moved = useRef(false)    // pan happened => swallow the click
   const pointers = useRef(new Map())
   const gesture = useRef(null)
+
+  const eff = () => pendingV.current || viewRef.current // the freshest view, queued or committed
+
+  const queueView = useCallback((v) => {
+    pendingV.current = v
+    if (!rafId.current) {
+      rafId.current = requestAnimationFrame(() => {
+        rafId.current = 0
+        if (pendingV.current) { setView(pendingV.current); pendingV.current = null }
+      })
+    }
+  }, [])
+  useEffect(() => () => cancelAnimationFrame(rafId.current), [])
 
   const clampView = useCallback((scale, tx, ty) => {
     const vp = viewportRef.current
@@ -50,6 +69,7 @@ export default function MapPlane({
     if (!vw || !vh) return
     const ph = h ?? planeHRef.current
     const scale = Math.min(vw / PLANE_W, vh / ph) * 0.96
+    pendingV.current = null // a fit overrides anything mid-flight
     setView({ scale, tx: (vw - PLANE_W * scale) / 2, ty: (vh - ph * scale) / 2 })
   }, [])
 
@@ -81,15 +101,14 @@ export default function MapPlane({
 
   const zoomAt = useCallback((factor, cx, cy) => {
     touched.current = true
-    setView((v) => {
-      const vp = viewportRef.current
-      const rect = vp ? vp.getBoundingClientRect() : { width: 1, height: 1 }
-      const minScale = Math.min(rect.width / PLANE_W, rect.height / planeHRef.current) * 0.35
-      const s = Math.min(MAX_SCALE, Math.max(minScale, v.scale * factor))
-      const k = s / v.scale
-      return clampView(s, cx - (cx - v.tx) * k, cy - (cy - v.ty) * k)
-    })
-  }, [clampView])
+    const v = eff()
+    const vp = viewportRef.current
+    const rect = vp ? vp.getBoundingClientRect() : { width: 1, height: 1 }
+    const minScale = Math.min(rect.width / PLANE_W, rect.height / planeHRef.current) * 0.35
+    const s = Math.min(MAX_SCALE, Math.max(minScale, v.scale * factor))
+    const k = s / v.scale
+    queueView(clampView(s, cx - (cx - v.tx) * k, cy - (cy - v.ty) * k))
+  }, [clampView, queueView])
 
   // wheel zoom needs a non-passive listener (React's synthetic wheel can't preventDefault)
   useEffect(() => {
@@ -113,12 +132,11 @@ export default function MapPlane({
     try { vp.setPointerCapture(e.pointerId) } catch (err) { /* older browsers */ }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const pts = [...pointers.current.values()]
+    const v = eff()
     if (pts.length === 1) {
       moved.current = false
-      const v = viewRef.current
-      gesture.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, tx: v.tx, ty: v.ty }
+      gesture.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, scale: v.scale, tx: v.tx, ty: v.ty }
     } else if (pts.length === 2) {
-      const v = viewRef.current
       const r = vp.getBoundingClientRect()
       gesture.current = {
         mode: 'pinch',
@@ -138,7 +156,7 @@ export default function MapPlane({
       const dx = e.clientX - g.sx
       const dy = e.clientY - g.sy
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) { moved.current = true; touched.current = true }
-      if (moved.current) setView((v) => clampView(v.scale, g.tx + dx, g.ty + dy))
+      if (moved.current) queueView(clampView(g.scale, g.tx + dx, g.ty + dy))
     } else if (g.mode === 'pinch' && pointers.current.size === 2) {
       moved.current = true; touched.current = true
       const pts = [...pointers.current.values()]
@@ -149,7 +167,7 @@ export default function MapPlane({
       const minScale = Math.min(rect.width / PLANE_W, rect.height / planeHRef.current) * 0.35
       const s = Math.min(MAX_SCALE, Math.max(minScale, g.scale * k))
       const kk = s / g.scale
-      setView(clampView(s, g.cx - (g.cx - g.tx) * kk, g.cy - (g.cy - g.ty) * kk))
+      queueView(clampView(s, g.cx - (g.cx - g.tx) * kk, g.cy - (g.cy - g.ty) * kk))
     }
   }
   const endPointer = (e) => {
@@ -158,8 +176,8 @@ export default function MapPlane({
     else if (pointers.current.size === 1) {
       // pinch ended with one finger still down: restart as a pan from here
       const [p] = [...pointers.current.values()]
-      const v = viewRef.current
-      gesture.current = { mode: 'pan', sx: p.x, sy: p.y, tx: v.tx, ty: v.ty }
+      const v = eff()
+      gesture.current = { mode: 'pan', sx: p.x, sy: p.y, scale: v.scale, tx: v.tx, ty: v.ty }
     }
   }
 
