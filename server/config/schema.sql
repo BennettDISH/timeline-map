@@ -171,6 +171,19 @@ CREATE TABLE IF NOT EXISTS eras (
 );
 CREATE INDEX IF NOT EXISTS idx_eras_world ON eras(world_id);
 
+-- A map's art can change as history moves: timed backdrop overrides. The active backdrop
+-- at moment t is the row covering t with the LATEST start (ties: newest row); no row
+-- covering t falls back to maps.image_id. share.js resolves this server-side for players.
+CREATE TABLE IF NOT EXISTS map_backdrops (
+    id SERIAL PRIMARY KEY,
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE NOT NULL,
+    image_id INTEGER REFERENCES images(id) ON DELETE CASCADE NOT NULL,
+    start_time INTEGER,
+    end_time INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_map_backdrops_map ON map_backdrops(map_id);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
 CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);

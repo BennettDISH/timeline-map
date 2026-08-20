@@ -149,8 +149,13 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
        FROM links WHERE from_node_id = ANY($1::int[]) AND to_node_id = ANY($1::int[])`, [nodeIds])).rows
       .map((l) => ({ id: l.id, from: l.from_node_id, to: l.to_node_id, kind: l.kind, label: l.label, timeContext: l.time_context }));
   }
+  const bds = (await pool.query(
+    `SELECT b.id, b.image_id, b.start_time, b.end_time, i.file_path
+     FROM map_backdrops b JOIN images i ON i.id = b.image_id
+     WHERE b.map_id = $1 ORDER BY b.start_time NULLS FIRST, b.id`, [req.params.mapId])).rows;
   res.json({
     map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, backdropUrl: resolveImageUrl(req, map.backdrop_path) },
+    backdrops: bds.map((b) => ({ id: b.id, imageId: b.image_id, start: b.start_time, end: b.end_time, url: resolveImageUrl(req, b.file_path) })),
     placements, links, breadcrumb: await breadcrumb(req.params.mapId),
   });
 }));
@@ -163,6 +168,36 @@ router.patch('/maps/:mapId', wrap(async (req, res) => {
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
   if (sets.length) { vals.push(req.params.mapId); await pool.query(`UPDATE maps SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  res.json({ ok: true });
+}));
+
+// Timed backdrops: the map's art for a period of history.
+router.post('/maps/:mapId/backdrops', wrap(async (req, res) => {
+  const wid = await worldIdOfMap(req.params.mapId);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
+  const { image_id, start_time = null, end_time = null } = req.body;
+  const img = (await pool.query('SELECT world_id FROM images WHERE id=$1', [image_id])).rows[0];
+  if (!img || img.world_id !== wid) return res.status(400).json({ message: 'Image is not in this world' });
+  const r = (await pool.query(
+    'INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
+    [req.params.mapId, image_id, start_time, end_time])).rows[0];
+  res.status(201).json({ id: r.id });
+}));
+const worldIdOfBackdrop = async (id) =>
+  (await pool.query('SELECT m.world_id FROM map_backdrops b JOIN maps m ON b.map_id=m.id WHERE b.id=$1', [id])).rows[0]?.world_id;
+router.patch('/backdrops/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfBackdrop(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
+  const cols = { start_time: 'start_time', end_time: 'end_time', image_id: 'image_id' };
+  const sets = [], vals = []; let i = 1;
+  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE map_backdrops SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  res.json({ ok: true });
+}));
+router.delete('/backdrops/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfBackdrop(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
+  await pool.query('DELETE FROM map_backdrops WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
 

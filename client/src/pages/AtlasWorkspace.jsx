@@ -45,6 +45,8 @@ function AtlasWorkspace() {
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
+  const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
+  const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
   const [railW, setRailW] = useState(() => {
@@ -245,8 +247,25 @@ function AtlasWorkspace() {
   const handlePick = (imageId, imageUrl) => {
     const pk = picker; setPicker(null); if (!pk) return
     if (pk.kind === 'backdrop') setBackdrop(imageId)
+    else if (pk.kind === 'backdrop-timed') { if (imageId) addTimedBackdrop(imageId) }
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
   }
+
+  const toggleGrid = () => setGridOn((v) => {
+    const n = !v
+    try { localStorage.setItem('atlas_grid', n ? 'on' : 'off') } catch (e) { /* ignore */ }
+    return n
+  })
+
+  // Timed backdrops: history can redraw the map. The active art at moment t is the timed
+  // row covering t with the LATEST start (ties: newest row); none covering t = the base.
+  const addTimedBackdrop = (imageId) =>
+    track(atlasService.addBackdrop(mapId, { image_id: imageId, start_time: Math.round(now), end_time: null }),
+      "Couldn't add the backdrop").then(refreshMap).catch(() => {})
+  const patchBackdrop = (id, data) =>
+    track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(refreshMap).catch(() => {})
+  const deleteBackdrop = (id) =>
+    track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop").then(refreshMap).catch(() => {})
 
   const setMapView = (view) => {
     if (!map || map.view === view) return
@@ -492,6 +511,17 @@ function AtlasWorkspace() {
   const toggleCat = (k) => setHiddenCats((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   // ---- world-plane interactions ---------------------------------------------------------
+  const bdMoment = mode === 'player' ? (previewT ?? canon) : now
+  const activeBackdropUrl = useMemo(() => {
+    if (!map) return null
+    if (!tl?.enabled) return map.backdropUrl
+    const rows = (data?.backdrops || []).filter((b) =>
+      (b.start == null || b.start <= bdMoment) && (b.end == null || b.end >= bdMoment))
+    if (!rows.length) return map.backdropUrl
+    rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
+    return rows[0].url
+  }, [data, map, bdMoment, tl?.enabled])
+
   const onWorldClick = (e) => {
     if (!placing || !worldRef.current) return
     const rect = worldRef.current.getBoundingClientRect()
@@ -638,12 +668,13 @@ function AtlasWorkspace() {
           {loadState === 'ok' && !isList && (
             <MapPlane
               mapKey={mapId}
-              backdropUrl={map?.backdropUrl}
+              backdropUrl={activeBackdropUrl}
               worldRef={worldRef}
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
               onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
               dblZoom={!placing}
+              grid={gridOn}
             >
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
@@ -712,6 +743,13 @@ function AtlasWorkspace() {
                     )}
                     {!isList && map?.backdropUrl && (
                       <button onClick={() => { setMapMenu(false); setBackdrop(null) }}>Remove the backdrop</button>
+                    )}
+                    {!isList && tl?.enabled && (
+                      <button title="Different map art for different periods — the asteroid falls, the chart changes"
+                        onClick={() => { setMapMenu(false); setBdsOpen(true) }}>🕓 Backdrops over time…</button>
+                    )}
+                    {!isList && (
+                      <button onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
                     )}
                     <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this space…</button>
                     <div className="apop-row">
@@ -930,6 +968,37 @@ function AtlasWorkspace() {
           <button onClick={() => { placePoint.current = { x: ctx.px, y: ctx.py }; setCtx(null); setNodePicker('place-here') }}>
             ⤓ Place an existing node here…
           </button>
+        </div>
+      )}
+
+      {bdsOpen && map && (
+        <div className="modal-back" onClick={() => setBdsOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head"><h4>Backdrops over time</h4><button onClick={() => setBdsOpen(false)}>✕</button></div>
+            <p className="muted esmall">History can redraw this map. The newest period covering the viewed moment wins; outside every period, the base art shows.</p>
+            <div className="bdrow base">
+              {map.backdropUrl ? <img className="bdthumb" src={map.backdropUrl} alt="" /> : <span className="bdthumb none">—</span>}
+              <span className="bdlabel">Base — always</span>
+              <button className="tool" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map.backdropUrl })}>
+                {map.backdropUrl ? 'Change…' : 'Set…'}
+              </button>
+            </div>
+            {(data?.backdrops || []).map((b) => (
+              <div key={b.id} className="bdrow">
+                <img className="bdthumb" src={b.url} alt="" />
+                <span className="bdfrom">from</span>
+                <input className="enum" type="number" defaultValue={b.start ?? ''} placeholder="start"
+                  onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.start) patchBackdrop(b.id, { start_time: v }) }} />
+                <span className="edash">–</span>
+                <input className="enum" type="number" defaultValue={b.end ?? ''} placeholder="∞"
+                  onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.end) patchBackdrop(b.id, { end_time: v }) }} />
+                <button className="ex" title="Remove this period's art" onClick={() => deleteBackdrop(b.id)}>✕</button>
+              </div>
+            ))}
+            <button className="tool" onClick={() => setPicker({ kind: 'backdrop-timed', hasCurrent: false })}>
+              ＋ Add art for a period (starts at {Math.round(now)} {tl?.unit})
+            </button>
+          </div>
         </div>
       )}
 

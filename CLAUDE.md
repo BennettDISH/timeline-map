@@ -41,7 +41,8 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` redirects R2-backed paths
 
 ## Database
-Live tables: `users`, `worlds`, `maps`, `nodes`, `placements`, `links`, `images`, `image_folders`.
+Live tables: `users`, `worlds`, `maps`, `nodes`, `placements`, `links`, `images`,
+`image_folders`, `eras`, `map_backdrops`.
 Orphaned tables still present in production but absent from schema.sql and all code — droppable
 whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `timeline_settings`,
 `user_sessions`.
@@ -65,6 +66,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
   (`timeline_current_time`), which moves only via the explicit "Set canon" button.
+- `map_backdrops` are timed art overrides: the active backdrop at moment t is the row
+  covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
+  for the DM lens, server-side in `share.js` for players.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or

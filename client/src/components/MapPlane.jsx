@@ -26,6 +26,7 @@ export default function MapPlane({
   onWorldContextMenu, // right-click on the plane (edit affordances); suppresses the browser menu
   controlsOffset = 0, // lift zoom buttons above the timebar when it's shown
   dblZoom = true,     // off while placing nodes, so a fast double-drop doesn't also zoom
+  grid = false,       // draw a plane-space grid over the art (scales with zoom)
   children,
 }) {
   const viewportRef = useRef(null)
@@ -74,13 +75,18 @@ export default function MapPlane({
     setView({ scale, tx: (vw - PLANE_W * scale) / 2, ty: (vh - ph * scale) / 2 })
   }, [])
 
-  // new map (or backdrop swap): back to the default plane, refit, forget manual zoom
+  // a NEW MAP resets the plane and refits. A backdrop swap on the same map (history
+  // redrawing the art mid-scrub) keeps the camera: onImgLoad adopts the new aspect and
+  // only refits while the user hasn't taken over.
   useEffect(() => {
     touched.current = false
     setPlaneH(DEFAULT_H)
     const t = requestAnimationFrame(() => fit(DEFAULT_H))
     return () => cancelAnimationFrame(t)
-  }, [mapKey, backdropUrl, fit])
+  }, [mapKey, fit])
+  useEffect(() => {
+    if (!backdropUrl && !touched.current) { setPlaneH(DEFAULT_H); fit(DEFAULT_H) }
+  }, [backdropUrl, fit])
 
   // the image reports its true shape: resize the plane to match and refit
   const onImgLoad = (e) => {
@@ -218,6 +224,7 @@ export default function MapPlane({
         {backdropUrl && (
           <img className="mp-backdrop" src={backdropUrl} alt="" draggable={false} onLoad={onImgLoad} />
         )}
+        {grid && <div className="mp-grid" />}
         {children}
       </div>
       <div className="mp-controls" style={controlsOffset ? { bottom: controlsOffset } : undefined}>

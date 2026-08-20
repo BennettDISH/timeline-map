@@ -95,6 +95,16 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const map = (await pool.query(
     'SELECT m.id, m.title, m.view, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [req.params.mapId])).rows[0];
+  if (w.timeline_enabled) {
+    // history may have redrawn this map: the latest-starting timed backdrop covering the
+    // allowed moment wins; none covering it keeps the base art
+    const bd = (await pool.query(
+      `SELECT i.file_path FROM map_backdrops b JOIN images i ON i.id = b.image_id
+       WHERE b.map_id = $1 AND (b.start_time IS NULL OR b.start_time <= $2)
+         AND (b.end_time IS NULL OR b.end_time >= $2)
+       ORDER BY b.start_time DESC NULLS LAST, b.id DESC LIMIT 1`, [req.params.mapId, t])).rows[0];
+    if (bd) map.backdrop_path = bd.file_path;
+  }
 
   const rows = (await pool.query(
     `SELECT p.id AS placement_id, p.x, p.y,
