@@ -20,6 +20,7 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   const hi = wHi
   const span = Math.max(1, hi - lo)
   const [dv, setDv] = useState(value == null ? canon : value)
+  const [typed, setTyped] = useState(null) // string while typing an exact year
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
 
   if (!tl?.enabled || segs.length === 0 || hi <= lo) return null
@@ -60,9 +61,26 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
         />
       </div>
       <div className="ezone">
-        <span className="einfo" title={dv < canon && cur ? cur.name : undefined}>
-          {dv >= canon ? `now · ${canon} ${tl.unit}` : `${dv} ${tl.unit}${cur ? ` · ${cur.name}` : ''}`}
-        </span>
+        {typed != null ? (
+          <input className="tnowedit" autoFocus type="number" value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const v = Number(typed); setTyped(null)
+                if (Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
+              } else if (e.key === 'Escape') setTyped(null)
+            }}
+            onBlur={() => {
+              if (typed == null) return
+              const v = Number(typed); setTyped(null)
+              if (Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
+            }} />
+        ) : (
+          <button className="einfo einfobtn" title="Click to type a year — it snaps into the revealed past"
+            onClick={() => setTyped(String(dv >= canon ? canon : dv))}>
+            {dv >= canon ? `now · ${canon} ${tl.unit}` : `${dv} ${tl.unit}${cur ? ` · ${cur.name}` : ''}`}
+          </button>
+        )}
         <button className="tool enow" style={value == null ? { visibility: 'hidden' } : undefined}
           title="Back to the present" onClick={() => { setDv(canon); onChange(null) }}>⦿ Now</button>
       </div>
