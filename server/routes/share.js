@@ -142,11 +142,21 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 router.get('/:token/nodes/:id', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
     `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, i.file_path AS img
      FROM nodes n LEFT JOIN images i ON n.image_id = i.id
      WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`, [req.params.id, w.id])).rows[0];
   if (!n) return notFound(res);
+  if (w.timeline_enabled) {
+    // the story as it reads AT the allowed moment; other eras' text stays home
+    const fact = (await pool.query(
+      `SELECT body FROM node_facts
+       WHERE node_id = $1 AND (start_time IS NULL OR start_time <= $2)
+         AND (end_time IS NULL OR end_time >= $2)
+       ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [n.id, t])).rows[0];
+    if (fact) n.body = fact.body;
+  }
 
   const linkSql = (dir) => `
     SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat

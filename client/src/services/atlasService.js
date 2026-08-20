@@ -32,6 +32,10 @@ const atlasService = {
   patchBackdrop: (id, data) => http.patch(`${B}/backdrops/${id}`, data).then((r) => r.data),
   deleteBackdrop: (id) => http.delete(`${B}/backdrops/${id}`).then((r) => r.data),
 
+  addFact: (nodeId, data) => http.post(`${B}/nodes/${nodeId}/facts`, data).then((r) => r.data),
+  patchFact: (id, data) => http.patch(`${B}/facts/${id}`, data).then((r) => r.data),
+  deleteFact: (id) => http.delete(`${B}/facts/${id}`).then((r) => r.data),
+
   addEra: (worldId, data) => http.post(`${B}/worlds/${worldId}/eras`, data).then((r) => r.data),
   patchEra: (id, data) => http.patch(`${B}/eras/${id}`, data).then((r) => r.data),
   deleteEra: (id) => http.delete(`${B}/eras/${id}`).then((r) => r.data),

@@ -217,7 +217,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 - [ ] Duplicate/templates; keyboard placement; the friction-budget items above
 
 ### Later / advanced
-- [ ] Content that changes over time (versioned facts) · per-fact visibility · branching campaigns · zones/regions
+- [x] Content that changes over time *(shipped: timed node descriptions + timed map backdrops)* — per-fact visibility · branching campaigns · zones/regions still later
 
 ---
 

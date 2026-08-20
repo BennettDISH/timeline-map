@@ -35,7 +35,7 @@ function AtlasWorkspace() {
     const m = localStorage.getItem('atlas_mode')
     return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
   })
-  const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
+  const [nodeLinks, setNodeLinks] = useState({ out: [], in: [], facts: [] })
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
   const [q, setQ] = useState('') // global node search
@@ -146,11 +146,11 @@ function AtlasWorkspace() {
 
   // ---- links ---------------------------------------------------------------------
   const reloadLinks = (nodeId) =>
-    atlasService.getNode(nodeId).then((d) => setNodeLinks({ out: d.links, in: d.backlinks })).catch(() => {})
+    atlasService.getNode(nodeId).then((d) => setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] })).catch(() => {})
   useEffect(() => {
-    if (!sel) { setNodeLinks({ out: [], in: [] }); return }
+    if (!sel) { setNodeLinks({ out: [], in: [], facts: [] }); return }
     let live = true
-    atlasService.getNode(sel.node.id).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks }) }).catch(() => {})
+    atlasService.getNode(sel.node.id).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
     return () => { live = false }
   }, [selId]) // eslint-disable-line
   const addLink = async (toId) => {
@@ -220,6 +220,14 @@ function AtlasWorkspace() {
     if (!r) return
     refreshTree(); navigate(`/w/${worldId}/m/${r.mapId}`)
   }
+
+  const factAdd = (nodeId) =>
+    track(atlasService.addFact(nodeId, { body: '', start_time: Math.round(now), end_time: null }), "Couldn't add the entry")
+      .then(() => reloadLinks(nodeId)).catch(() => {})
+  const factPatch = (nodeId, id, data) =>
+    track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
+  const factDelete = (nodeId, id) =>
+    track(atlasService.deleteFact(id), "Couldn't remove the entry").then(() => reloadLinks(nodeId)).catch(() => {})
 
   const askDeleteNode = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -562,7 +570,13 @@ function AtlasWorkspace() {
   }
 
   const readerOpen = mode !== 'edit' && !!sel &&
-    (mode !== 'player' || (sel.node.visibility !== 'dm' && sel.visibility !== 'dm' && present(sel)))
+    (mode !== 'player' || (sel.node.visibility !== 'dm' && sel.visibility !== 'dm'))
+  const resolveFact = (facts, t) => {
+    const rows = (facts || []).filter((f) => (f.start == null || f.start <= t) && (f.end == null || f.end >= t))
+    if (!rows.length) return null
+    rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
+    return rows[0].body
+  }
   const visible = (p) =>
     (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
     (mode === 'player' || !hiddenCats.has(p.node.category))
@@ -891,7 +905,22 @@ function AtlasWorkspace() {
           )}
         </div>
 
-          {readerOpen && (
+          {readerOpen && !present(sel) && (
+            <div className="reader">
+              <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
+              <div className="rinner rghost">
+                <div className="rhead">
+                  <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
+                  <h3>{sel.node.title}</h3>
+                </div>
+                <p className="rnote">Nothing is known of this at {bdMoment} {tl?.unit}.</p>
+                {mode === 'view' && (sel.start != null || sel.end != null) && (
+                  <p className="rwhen">🕓 Its story runs {sel.start ?? tl?.min} – {sel.end ?? '…'} {tl?.unit}.</p>
+                )}
+              </div>
+            </div>
+          )}
+          {readerOpen && present(sel) && (
             <div className="reader">
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
@@ -904,7 +933,10 @@ function AtlasWorkspace() {
                 {tl?.enabled && (sel.start != null || sel.end != null) && (
                   <div className="rwhen">🕓 {sel.start ?? tl.min} – {sel.end ?? '…'} {tl.unit}</div>
                 )}
-                {sel.node.body && <p className="rbody">{sel.node.body}</p>}
+                {(() => {
+                  const story = tl?.enabled ? (resolveFact(nodeLinks.facts, bdMoment) ?? sel.node.body) : sel.node.body
+                  return story ? <p className="rbody">{story}</p> : null
+                })()}
                 {sel.node.hasInterior && (
                   <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
                 )}
@@ -935,6 +967,10 @@ function AtlasWorkspace() {
               onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
               onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
               timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
+              facts={nodeLinks.facts} nowT={Math.round(now)}
+              onFactAdd={() => factAdd(sel.node.id)}
+              onFactPatch={(id, d) => factPatch(sel.node.id, id, d)}
+              onFactDelete={(id) => factDelete(sel.node.id, id)}
               links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onJump={jump}
               onVis={(v) => saveNode(sel.node.id, { visibility: v })}
               onRemoveHere={() => removeFromMap(sel)}
@@ -1155,7 +1191,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, links, onLink, onUnlink, onJump, onVis, onRemoveHere, onDelete }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onJump, onVis, onRemoveHere, onDelete }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
@@ -1188,9 +1224,29 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
         </div>
       </div>
       <div className="isect">Story</div>
-      <div className="fld"><label>Description</label>
+      <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
+      {timeline?.enabled && (
+        <div className="fld"><label>The story by period — what this reads as at different times</label>
+          {(facts || []).map((f) => (
+            <div key={f.id} className="factrow">
+              <div className="factspan">
+                <input type="number" defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
+                  onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.start) onFactPatch(f.id, { start_time: v }) }} />
+                <span>–</span>
+                <input type="number" defaultValue={f.end ?? ''} placeholder="…" title="To"
+                  onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.end) onFactPatch(f.id, { end_time: v }) }} />
+                <button className="lx" title="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
+              </div>
+              <textarea rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
+                onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
+            </div>
+          ))}
+          <button className="btn block" onClick={onFactAdd}>＋ Story for a period (from {nowT})</button>
+          <div className="muted">The latest-starting period covering the moment wins; players get only their moment's text.</div>
+        </div>
+      )}
       <div className="fld"><label>Image</label>
         {n.imageUrl ? (
           <div className="nimg">

@@ -48,7 +48,11 @@ function PlayerView() {
   }, [load])
 
   const openNode = (nodeId) =>
-    shareService.getNode(token, nodeId).then(setDetail).catch(() => {})
+    shareService.getNode(token, nodeId, viewT).then(setDetail).catch(() => {})
+  // an open sheet keeps up with the era bar: the story re-reads itself for the new moment
+  useEffect(() => {
+    if (detail?.node?.id) shareService.getNode(token, detail.node.id, viewT).then(setDetail).catch(() => {})
+  }, [viewT]) // eslint-disable-line
   const goTo = (nodeId) =>
     shareService.locateNode(token, nodeId, viewT)
       .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })

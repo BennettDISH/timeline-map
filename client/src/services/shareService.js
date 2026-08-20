@@ -9,7 +9,7 @@ const api = axios.create({ baseURL: '/api/share' })
 const shareService = {
   getWorld: (token) => api.get(`/${token}/world`).then((r) => r.data.world),
   getMap: (token, mapId, t) => api.get(`/${token}/maps/${mapId}`, { params: t != null ? { t } : {} }).then((r) => r.data),
-  getNode: (token, nodeId) => api.get(`/${token}/nodes/${nodeId}`).then((r) => r.data),
+  getNode: (token, nodeId, t) => api.get(`/${token}/nodes/${nodeId}`, { params: t != null ? { t } : {} }).then((r) => r.data),
   locateNode: (token, nodeId, t) => api.get(`/${token}/nodes/${nodeId}/locate`, { params: t != null ? { t } : {} }).then((r) => r.data),
 }
 

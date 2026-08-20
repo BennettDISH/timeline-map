@@ -235,11 +235,43 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1', [req.params.id])).rows;
   const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1', [req.params.id])).rows;
   const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, timeContext: l.time_context, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
+  const facts = (await pool.query(
+    'SELECT id, body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time NULLS FIRST, id',
+    [req.params.id])).rows.map((f) => ({ id: f.id, body: f.body, start: f.start_time, end: f.end_time }));
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category, visibility: n.visibility,
             hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id, imageUrl: resolveImageUrl(req, n.img) },
     links: out.map((l) => shape(l, 'out')), backlinks: back.map((l) => shape(l, 'in')),
+    facts,
   });
+}));
+
+// Timed facts: a node's description for a period of history.
+router.post('/nodes/:id/facts', wrap(async (req, res) => {
+  const wid = await worldIdOfNode(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  const { body = '', start_time = null, end_time = null } = req.body;
+  const r = (await pool.query(
+    'INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
+    [req.params.id, body, start_time, end_time])).rows[0];
+  res.status(201).json({ id: r.id });
+}));
+const worldIdOfFact = async (id) =>
+  (await pool.query('SELECT n.world_id FROM node_facts f JOIN nodes n ON f.node_id=n.id WHERE f.id=$1', [id])).rows[0]?.world_id;
+router.patch('/facts/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfFact(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Fact not found' });
+  const cols = { body: 'body', start_time: 'start_time', end_time: 'end_time' };
+  const sets = [], vals = []; let i = 1;
+  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE node_facts SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  res.json({ ok: true });
+}));
+router.delete('/facts/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfFact(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Fact not found' });
+  await pool.query('DELETE FROM node_facts WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
 }));
 
 // GET /nodes/:id/locate — where to jump to this node: its interior, else a map it's placed on.

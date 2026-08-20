@@ -42,7 +42,7 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
 
 ## Database
 Live tables: `users`, `worlds`, `maps`, `nodes`, `placements`, `links`, `images`,
-`image_folders`, `eras`, `map_backdrops`.
+`image_folders`, `eras`, `map_backdrops`, `node_facts`.
 Orphaned tables still present in production but absent from schema.sql and all code — droppable
 whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `timeline_settings`,
 `user_sessions`.
@@ -69,6 +69,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Maps may declare a FOCUS PERIOD (`maps.focus_start/focus_end`): inside that map the DM
   scrubber's track zooms to that window (⤢ expands). It is a magnifier on the ONE world
   clock — never a second clock; `now` and canon stay world-level.
+- `node_facts` are timed description overrides (same resolution rule as backdrops): the
+  Colosseum reads as gladiators in 200, tourists in 2026. Resolved client-side in the
+  reader, server-side in `share.js` (`?t=` on the node endpoint) for players.
 - `map_backdrops` are timed art overrides: the active backdrop at moment t is the row
   covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
   for the DM lens, server-side in `share.js` for players.

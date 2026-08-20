@@ -413,3 +413,18 @@
     .ex{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 5px;
       &:hover{color:#ff9b9b}}}
 }
+
+
+// ---- era-text editor rows + the out-of-time reader state ----
+.atlas {
+  .factrow{border:1px solid var(--line);border-radius:8px;padding:7px 8px;margin-bottom:7px;background:var(--panel2);
+    .factspan{display:flex;align-items:center;gap:6px;margin-bottom:6px;
+      input{width:72px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;font-size:12px}
+      span{color:var(--muted)}
+      .lx{margin-left:auto}}
+    textarea{width:100%;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:5px 8px;font:inherit;font-size:12.5px}}
+  .rghost{opacity:.75;
+    .rhead h3{color:var(--muted)}
+    .ic{opacity:.5}}
+  .rnote{color:var(--muted);font-style:italic;margin:14px 0 0;font-size:14px}
+}

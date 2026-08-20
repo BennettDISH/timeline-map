@@ -150,6 +150,19 @@ CREATE TABLE IF NOT EXISTS links (
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS owner_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map';
 
+-- A node's story can CHANGE over time: timed description overrides. The displayed body at
+-- moment t is the fact covering t with the latest start (base nodes.body otherwise).
+-- share.js resolves this server-side so other eras' text never reaches players.
+CREATE TABLE IF NOT EXISTS node_facts (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    start_time INTEGER,
+    end_time INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_node_facts_node ON node_facts(node_id);
+
 -- A map's FOCUS PERIOD: the stretch of the ONE world timeline this space's story spans.
 -- Inside the map the scrubber's track zooms to this window (expandable) — a magnifier on
 -- the world clock, never a second clock.
