@@ -66,7 +66,6 @@ function AtlasWorkspace() {
   })
   const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
   const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
-  const [playing, setPlaying] = useState(false) // the timebar's ▶ sweep
 
   const saveTimer = useRef(null)
   const pendingPatch = useRef({ nodeId: null, patch: {} })
@@ -82,7 +81,6 @@ function AtlasWorkspace() {
   const inspRaf = useRef(0)
   const railWRef = useRef(230)
   const railRaf = useRef(0)
-  const playRef = useRef(null) // interval id while the lens sweep runs
   const placePoint = useRef(null) // where "place existing here" should land
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
@@ -388,7 +386,6 @@ function AtlasWorkspace() {
   const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
   const present = (p) => presentAt(p, mode === 'player' ? (previewT ?? canon) : now)
   const setCanonHere = () => {
-    stopPlay()
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
       .then(() => {
         setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, current: now } }))
@@ -411,7 +408,6 @@ function AtlasWorkspace() {
   }
   const saveTimeline = (min, max, unit) => {
     if (!(min < max)) return
-    stopPlay()
     const cur = Math.min(Math.max(now, min), max)
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: cur } }))
     setNow(cur)
@@ -421,7 +417,6 @@ function AtlasWorkspace() {
     })).catch(() => {})
   }
   const disableTimeline = () => {
-    stopPlay()
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
     setTlEdit(false)
     track(atlasService.patchWorld(worldId, { timeline_enabled: false })).catch(() => {})
@@ -579,7 +574,6 @@ function AtlasWorkspace() {
   }
 
   const commitYear = () => {
-    stopPlay()
     const v = Number(yearEdit)
     setYearEdit(null)
     if (!Number.isFinite(v) || !tl) return
@@ -591,21 +585,6 @@ function AtlasWorkspace() {
   // ▶ sweeps the lens through [dispMin, dispMax]; any manual time change, mode switch,
   // or map navigation kills it. The position advances in a local var, not the state —
   // reading `now` back mid-sweep would race the batched updates.
-  const stopPlay = () => { clearInterval(playRef.current); playRef.current = null; setPlaying(false) }
-  const togglePlay = () => {
-    if (playRef.current) { stopPlay(); return }
-    if (!(dispMax > dispMin)) return
-    const step = Math.max(1, Math.round((dispMax - dispMin) / 240))
-    let t = now >= dispMax ? dispMin : Math.max(now, dispMin) // at the end, replay from the start
-    setPlaying(true)
-    playRef.current = setInterval(() => {
-      t = Math.min(dispMax, t + step)
-      setNow(t)
-      if (t >= dispMax) stopPlay()
-    }, 140)
-  }
-  useEffect(() => stopPlay, [mapId, mode])
-
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
   const activeBackdropUrl = useMemo(() => {
     if (!map) return null
@@ -972,8 +951,6 @@ function AtlasWorkspace() {
 
           {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
-              <button className="tgear tplay" title="Play — sweep the lens through this stretch of history"
-                onClick={togglePlay}>{playing ? '⏸' : '▶'}</button>
               <span className="tlabel">{dispMin}</span>
               <div className="ttrack">
                 {dispMax > dispMin && (world?.eras || [])
@@ -988,7 +965,7 @@ function AtlasWorkspace() {
                   ))}
                 <input type="range" min={dispMin} max={dispMax}
                   value={Math.min(Math.max(now, dispMin), dispMax)}
-                  onChange={(e) => { stopPlay(); setNow(Number(e.target.value)) }} />
+                  onChange={(e) => setNow(Number(e.target.value))} />
                 {dispMax > dispMin && (data?.placements || [])
                   .flatMap((p) => [p.start, p.end])
                   .filter((t) => t != null && t >= dispMin && t <= dispMax)
@@ -1003,7 +980,7 @@ function AtlasWorkspace() {
               <span className="tlabel">{dispMax}</span>
               {focusOk && (
                 <button className="tgear fexp" title={focusExpand ? `Back to this place's period (${fMin}–${fMax})` : 'Show the whole timeline'}
-                  onClick={() => { stopPlay(); setFocusExpand((v) => !v) }}>{focusExpand ? '⤡' : '⤢'}</button>
+                  onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
               )}
               {yearEdit != null ? (
                 <input className="tnowedit" autoFocus type="number" value={yearEdit}
@@ -1018,7 +995,7 @@ function AtlasWorkspace() {
                 {canon !== now ? (
                   <>
                     <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
-                    <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => { stopPlay(); setNow(canon) }}>↩</button>
+                    <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => setNow(canon)}>↩</button>
                   </>
                 ) : (
                   <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>

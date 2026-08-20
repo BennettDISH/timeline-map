@@ -82,6 +82,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
   past canon, silently resolves to canon. The workspace 🎭 posture previews this.
 
+**V1.0 — tagged 2026-08-20.** The founding vision is implemented end-to-end; what remains
+below is a wish-shelf, not a gap list.
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)
