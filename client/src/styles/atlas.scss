@@ -366,8 +366,12 @@
       border:1px solid rgba(201,163,95,.45);pointer-events:none;overflow:hidden;
       em{display:block;padding:0 7px;font-size:10.5px;font-style:normal;line-height:19px;color:#e3cf9c;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}}}
-  .einfo{color:var(--ink);font-size:12px;white-space:nowrap;min-width:110px;text-align:right}
-  .enow{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
+  // fixed-width zone: the label and the Now button swap content without ever
+  // resizing the track under a mid-drag thumb
+  .ezone{display:flex;align-items:center;justify-content:flex-end;gap:10px;width:260px;flex:none}
+  .einfo{color:var(--ink);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    min-width:0;flex:1;text-align:right}
+  .enow{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55;flex:none}
 
   // player sheet grows into a story panel on wide screens; hero + threads everywhere
   &.pview .sheet{padding:0;

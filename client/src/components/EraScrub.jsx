@@ -55,10 +55,13 @@ export default function EraScrub({ tl, eras, value, onChange, live = false }) {
           onKeyUp={(e) => { if (!live && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) commit(dv) }}
         />
       </div>
-      <span className="einfo">
-        {dv >= canon ? `now · ${canon} ${tl.unit}` : `${dv} ${tl.unit}${cur ? ` · ${cur.name}` : ''}`}
-      </span>
-      {value != null && <button className="tool enow" title="Back to the present" onClick={() => { setDv(canon); onChange(null) }}>⦿ Now</button>}
+      <div className="ezone">
+        <span className="einfo" title={dv < canon && cur ? cur.name : undefined}>
+          {dv >= canon ? `now · ${canon} ${tl.unit}` : `${dv} ${tl.unit}${cur ? ` · ${cur.name}` : ''}`}
+        </span>
+        <button className="tool enow" style={value == null ? { visibility: 'hidden' } : undefined}
+          title="Back to the present" onClick={() => { setDv(canon); onChange(null) }}>⦿ Now</button>
+      </div>
     </div>
   )
 }
