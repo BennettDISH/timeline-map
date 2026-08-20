@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
+import MapPlane from '../components/MapPlane'
 import { cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
 // The read-only Player View behind a share link (/p/:token). Everything secret or
 // not-yet-happened is already filtered by the server; this page just draws what it's given.
-// Mobile-first: players hold phones at the table. It re-fetches on a slow poll and on tab
-// focus so the world updates when the DM advances the clock or reveals something.
+// Mobile-first: players hold phones at the table — the map plane pans and pinch-zooms, and
+// pins sit on the same point of the map art as on the DM's screen. It re-fetches on a slow
+// poll and on tab focus so the world updates when the DM advances the clock or reveals
+// something. Only a real 404 kills the link; a flaky network keeps the last good view.
 function PlayerView() {
   const { token, mapId } = useParams()
   const navigate = useNavigate()
@@ -16,14 +19,20 @@ function PlayerView() {
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
   const [detail, setDetail] = useState(null) // opened node { node, links, backlinks }
   const [gone, setGone] = useState(false)
+  const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
+  const worldRef = useRef(null)
 
   const load = useCallback(() => {
     shareService.getWorld(token)
       .then((w) => {
         setWorld(w)
-        return shareService.getMap(token, mapId || w.rootMapId).then(setData)
+        return shareService.getMap(token, mapId || w.rootMapId).then((d) => { setData(d); setStale(false) })
       })
-      .catch(() => setGone(true))
+      .catch((e) => {
+        const s = e?.response?.status
+        if (s === 404 || s === 410) setGone(true) // the link (or this map) really is dead
+        else setStale(true) // transient failure: keep showing what we have
+      })
   }, [token, mapId])
 
   useEffect(() => { setDetail(null); load() }, [load])
@@ -61,6 +70,7 @@ function PlayerView() {
 
   const tl = world.timeline
   const map = data.map
+  const isList = map?.view === 'list'
 
   return (
     <div className="atlas pview">
@@ -76,34 +86,57 @@ function PlayerView() {
             </React.Fragment>
           ))}
         </div>
+        {stale && <span className="stalechip" title="Couldn't refresh — showing the last thing we saw">offline?</span>}
         {tl?.enabled && <span className="nowchip" title="The current moment, set by your DM">🕓 {tl.current} {tl.unit}</span>}
       </div>
 
       <div className="main">
         <div className="stage">
-          <div
-            className={`canvas ${map?.backdropUrl ? '' : 'grid'}`}
-            style={map?.backdropUrl ? { backgroundImage: `url(${map.backdropUrl})` } : undefined}
-            onClick={() => setDetail(null)}
-          >
-            {(data.placements || []).map((p) => (
-              <div key={p.id}
-                className={`pin ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
-                style={{ left: `${p.x}%`, top: `${p.y}%` }}
-                onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
-                onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
-                <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
-                <span className="lbl">{p.node.title}</span>
-                {p.node.hasInterior && <span className="open">◎</span>}
-              </div>
-            ))}
-            {data.placements.length === 0 && (
-              <div className="empty-map">
-                <div style={{ fontSize: '2rem' }}>🌫️</div>
-                <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
-              </div>
-            )}
-          </div>
+          {!isList ? (
+            <MapPlane
+              mapKey={mapId || 'root'}
+              backdropUrl={map?.backdropUrl}
+              worldRef={worldRef}
+              onEmptyPointerDown={() => setDetail(null)}
+            >
+              {(data.placements || []).map((p) => (
+                <div key={p.id}
+                  className={`pin ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
+                  style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
+                  onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
+                  <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
+                  <span className="lbl">{p.node.title}</span>
+                  {p.node.hasInterior && <span className="open">◎</span>}
+                </div>
+              ))}
+            </MapPlane>
+          ) : (
+            <div className="listview">
+              {(data.placements || []).map((p) => (
+                <div key={p.id} className={`lsrow ${detail?.node?.id === p.node.id ? 'on' : ''}`}
+                  onClick={() => openNode(p.node.id)}
+                  onDoubleClick={() => enter(p.node)}>
+                  <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
+                  <div className="lsbody"><div className="lstitle">{p.node.title}</div></div>
+                  {p.node.hasInterior && <span className="open">◎</span>}
+                </div>
+              ))}
+              {data.placements.length === 0 && (
+                <div className="empty-map static">
+                  <div style={{ fontSize: '2rem' }}>🌫️</div>
+                  <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
+                </div>
+              )}
+            </div>
+          )}
+          {!isList && data.placements.length === 0 && (
+            <div className="empty-map">
+              <div style={{ fontSize: '2rem' }}>🌫️</div>
+              <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
+            </div>
+          )}
         </div>
 
         {detail && (

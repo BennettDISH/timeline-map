@@ -1,24 +1,12 @@
-import axios from 'axios'
+import http from './http'
 
 const API_BASE = '/api/worlds'
-
-// Create axios instance with auth headers
-const createAuthAPI = () => {
-  const token = localStorage.getItem('auth_token')
-  return axios.create({
-    baseURL: API_BASE,
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-}
 
 const worldService = {
   // Get all worlds for current user
   async getWorlds() {
     try {
-      const api = createAuthAPI()
-      const response = await api.get('/')
+      const response = await http.get(`${API_BASE}/`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to fetch worlds' }
@@ -28,8 +16,7 @@ const worldService = {
   // Get specific world by ID
   async getWorld(id) {
     try {
-      const api = createAuthAPI()
-      const response = await api.get(`/${id}`)
+      const response = await http.get(`${API_BASE}/${id}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to fetch world' }
@@ -39,8 +26,7 @@ const worldService = {
   // Create new world
   async createWorld(worldData) {
     try {
-      const api = createAuthAPI()
-      const response = await api.post('/', worldData)
+      const response = await http.post(`${API_BASE}/`, worldData)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to create world' }
@@ -50,8 +36,7 @@ const worldService = {
   // Delete world
   async deleteWorld(id) {
     try {
-      const api = createAuthAPI()
-      const response = await api.delete(`/${id}`)
+      const response = await http.delete(`${API_BASE}/${id}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to delete world' }

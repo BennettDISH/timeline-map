@@ -11,6 +11,15 @@ re-investigates them.
 
 ---
 
+> **Update (2026-08-19, same day):** the functional pass shipped — P0 #1/#2 (map-plane
+> coordinates + zoom/pan via `MapPlane`), the P1 silent-failure cluster #3–#7 (tracked saves,
+> honest indicator, `/api/atlas` rate bucket, shared token interceptor, remove-from-map +
+> impact-aware delete), P2 #8–#11 (canon-vs-lens timeline, global search, list interiors,
+> legend/filter, timeline default off). Remaining known gaps: no undo, no in-workspace world
+> switcher. The list below is kept as the original audit snapshot.
+
+---
+
 ## Verdict
 
 The app works. Prod holds 11 worlds, 27 maps, 22 nodes, 23 placements, 5 links and 175 images —

@@ -210,6 +210,35 @@ router.get('/nodes/:id/locate', wrap(async (req, res) => {
   res.json(p ? { mapId: p.map_id, placementId: p.id } : {});
 }));
 
+// GET /nodes/:id/impact — what deleting this node takes with it: how many maps it sits on,
+// and (walking its interior tree, cycles-safe via UNION) how many maps and nodes live inside.
+// The client shows this before the delete so "honest delete" isn't a guess.
+router.get('/nodes/:id/impact', wrap(async (req, res) => {
+  const wid = await worldIdOfNode(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  const r = (await pool.query(`
+    WITH RECURSIVE tree(map_id) AS (
+      SELECT interior_map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL
+      UNION
+      SELECT n.interior_map_id
+      FROM tree t
+      JOIN placements p ON p.map_id = t.map_id
+      JOIN nodes n ON n.id = p.node_id
+      WHERE n.interior_map_id IS NOT NULL
+    )
+    SELECT
+      (SELECT COUNT(*) FROM placements WHERE node_id = $1) AS placements,
+      (SELECT COUNT(*) FROM tree) AS interior_maps,
+      (SELECT COUNT(DISTINCT p.node_id) FROM placements p
+        WHERE p.map_id IN (SELECT map_id FROM tree) AND p.node_id != $1) AS nodes_inside`,
+    [req.params.id])).rows[0];
+  res.json({
+    placements: parseInt(r.placements),
+    interiorMaps: parseInt(r.interior_maps),
+    nodesInside: parseInt(r.nodes_inside),
+  });
+}));
+
 // PATCH /nodes/:id — title / body / category / visibility / image.
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);

@@ -1,43 +1,11 @@
-import axios from 'axios'
-
-const API_BASE = '/api'
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// Add token to requests if available
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// Handle token expiration
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 403) {
-      // Token expired or invalid
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+// Session handling (token header + dead-token redirect) lives in the shared http instance.
+import api from './http'
 
 const authService = {
   // Register new user
   async register(username, email, password) {
     try {
-      const response = await api.post('/auth/register', {
+      const response = await api.post('/api/auth/register', {
         username,
         email,
         password
@@ -57,7 +25,7 @@ const authService = {
   // Login user
   async login(username, password) {
     try {
-      const response = await api.post('/auth/login', {
+      const response = await api.post('/api/auth/login', {
         username,
         password
       })
@@ -82,7 +50,7 @@ const authService = {
   // Get current user
   async getCurrentUser() {
     try {
-      const response = await api.get('/auth/me')
+      const response = await api.get('/api/auth/me')
       return response.data.user
     } catch (error) {
       throw error.response?.data || { message: 'Failed to get user' }
@@ -103,7 +71,7 @@ const authService = {
   // One-click guest sign-in — the server mints a central guest account and returns a token.
   async guest() {
     try {
-      const response = await api.post('/auth/guest')
+      const response = await api.post('/api/auth/guest')
       if (response.data.token) {
         localStorage.setItem('auth_token', response.data.token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
@@ -117,7 +85,7 @@ const authService = {
   // SSO login — exchange authorization code
   async ssoLogin(code, redirectUri) {
     try {
-      const response = await api.post('/auth/sso-callback', { code, redirect_uri: redirectUri })
+      const response = await api.post('/api/auth/sso-callback', { code, redirect_uri: redirectUri })
 
       if (response.data.token) {
         localStorage.setItem('auth_token', response.data.token)

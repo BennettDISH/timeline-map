@@ -1,24 +1,12 @@
-import axios from 'axios'
+import http from './http'
 
 const API_BASE = '/api/image-folders'
-
-// Create axios instance with auth headers
-const createAuthAPI = () => {
-  const token = localStorage.getItem('auth_token')
-  return axios.create({
-    baseURL: API_BASE,
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-}
 
 const imageFolderService = {
   // Get all folders for a world
   async getFolders(worldId) {
     try {
-      const api = createAuthAPI()
-      const response = await api.get(`/?world_id=${worldId}`)
+      const response = await http.get(`${API_BASE}/?world_id=${worldId}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to fetch folders' }
@@ -28,8 +16,7 @@ const imageFolderService = {
   // Create a new folder
   async createFolder(folderData) {
     try {
-      const api = createAuthAPI()
-      const response = await api.post('/', folderData)
+      const response = await http.post(`${API_BASE}/`, folderData)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to create folder' }
@@ -39,8 +26,7 @@ const imageFolderService = {
   // Update a folder
   async updateFolder(folderId, updateData) {
     try {
-      const api = createAuthAPI()
-      const response = await api.put(`/${folderId}`, updateData)
+      const response = await http.put(`${API_BASE}/${folderId}`, updateData)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to update folder' }
@@ -50,8 +36,7 @@ const imageFolderService = {
   // Delete a folder
   async deleteFolder(folderId) {
     try {
-      const api = createAuthAPI()
-      const response = await api.delete(`/${folderId}`)
+      const response = await http.delete(`${API_BASE}/${folderId}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to delete folder' }

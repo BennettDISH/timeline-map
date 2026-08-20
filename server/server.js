@@ -48,14 +48,17 @@ app.use(compression());
 app.set('trust proxy', 1);
 
 // Rate limiting. The whole table sits behind one venue IP and the Player View polls, so
-// /api/share gets its own (laxer) bucket instead of the global one.
+// /api/share gets its own (laxer) bucket instead of the global one. The Atlas workspace
+// gets its own generous bucket too — it autosaves on every typing pause, and a long prep
+// session under the 300-cap was silently dropping writes into the client's error path.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300, // limit each IP to 300 requests per windowMs
-  skip: (req) => req.path.startsWith('/share'),
+  skip: (req) => req.path.startsWith('/share') || req.path.startsWith('/atlas'),
 });
 app.use('/api/', limiter);
 app.use('/api/share', rateLimit({ windowMs: 15 * 60 * 1000, max: 2400 }));
+app.use('/api/atlas', rateLimit({ windowMs: 15 * 60 * 1000, max: 6000 }));
 
 // CORS configuration
 app.use(cors({

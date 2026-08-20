@@ -1,17 +1,6 @@
-import axios from 'axios'
+import http from './http'
 
 const API_BASE = '/api/images-base64'
-
-// Create axios instance with auth headers
-const createAuthAPI = () => {
-  const token = localStorage.getItem('auth_token')
-  return axios.create({
-    baseURL: API_BASE,
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-}
 
 const imageServiceBase64 = {
   // Convert file to base64
@@ -33,7 +22,6 @@ const imageServiceBase64 = {
       
       if (onProgress) onProgress(30) // Starting upload
       
-      const api = createAuthAPI()
       const uploadData = {
         imageData: base64Data,
         originalName: file.name,
@@ -45,7 +33,7 @@ const imageServiceBase64 = {
 
       if (onProgress) onProgress(60) // Uploading
       
-      const response = await api.post('/upload', uploadData)
+      const response = await http.post(`${API_BASE}/upload`, uploadData)
       
       if (onProgress) onProgress(100) // Complete
       
@@ -58,13 +46,6 @@ const imageServiceBase64 = {
   // Get all images with optional filtering (reuse from regular image service)
   async getImages(options = {}) {
     try {
-      // Use the regular images API for listing, but images will have base64 URLs
-      const token = localStorage.getItem('auth_token')
-      const api = axios.create({
-        baseURL: '/api/images',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
       const { worldId, tags, search, limit = 50, offset = 0, folderId, unassigned } = options
       
       const params = new URLSearchParams()
@@ -76,7 +57,7 @@ const imageServiceBase64 = {
       params.append('limit', limit)
       params.append('offset', offset)
 
-      const response = await api.get(`/?${params}`)
+      const response = await http.get(`/api/images/?${params}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to fetch images' }
@@ -86,13 +67,7 @@ const imageServiceBase64 = {
   // Get single image by ID
   async getImage(id) {
     try {
-      const token = localStorage.getItem('auth_token')
-      const api = axios.create({
-        baseURL: '/api/images',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      const response = await api.get(`/${id}`)
+      const response = await http.get(`/api/images/${id}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to fetch image' }
@@ -102,13 +77,7 @@ const imageServiceBase64 = {
   // Update image metadata (tags, alt text, etc.)
   async updateImage(id, updateData) {
     try {
-      const token = localStorage.getItem('auth_token')
-      const api = axios.create({
-        baseURL: '/api/images',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      const response = await api.put(`/${id}`, updateData)
+      const response = await http.put(`/api/images/${id}`, updateData)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to update image' }
@@ -118,13 +87,7 @@ const imageServiceBase64 = {
   // Delete image
   async deleteImage(id) {
     try {
-      const token = localStorage.getItem('auth_token')
-      const api = axios.create({
-        baseURL: '/api/images',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      const response = await api.delete(`/${id}`)
+      const response = await http.delete(`/api/images/${id}`)
       return response.data
     } catch (error) {
       throw error.response?.data || { message: 'Failed to delete image' }

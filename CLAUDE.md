@@ -31,7 +31,9 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
   `auth.js` (JWT + server-side SSO), `admin.js`, `setup.js`
 - Client: `pages/AtlasWorkspace.jsx` (the entire workspace: canvas, tree, inspector, timebar,
-  timeline config, image picker) + `services/atlasService.js`
+  timeline config, image picker) + `components/MapPlane.jsx` (shared pan/zoom world plane —
+  pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
+  all authed services share `services/http.js` (token header + dead-token redirect)
 - Supporting pages: `Dashboard` (world select → Atlas), `ImageManager`, `AdminPanel`, `Login`,
   `AuthCallback`, `Setup`, `EnvSetup`
 - Authentication context in `client/src/utils/AuthContext.jsx`; SSO is built server-side
@@ -60,8 +62,11 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
 
+## Timeline semantics
+- The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
+  (`timeline_current_time`), which moves only via the explicit "Set canon" button.
+
 ## Known gaps (the honest list)
-- No undo, no world switcher inside the workspace, no category legend/filter
-- Interior-as-List: API supports `view: 'list'`, UI barely surfaces it
-- Player View is locked to the DM's current moment (no scrubbing the revealed past) — deliberate
+- No undo, no world switcher inside the workspace
+- Player View is locked to the canon moment (no scrubbing the revealed past) — deliberate
   v1 choice, revisit if players want history
