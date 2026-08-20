@@ -119,7 +119,8 @@ function PlayerView() {
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
                   {p.node.pin === 'image' && p.node.imageUrl ? (
                     <>
-                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false} />
+                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
+                        style={{ maxWidth: p.node.pinSize || 64, maxHeight: p.node.pinSize || 64 }} />
                       <span className="ilbl">{p.node.title}</span>
                     </>
                   ) : (

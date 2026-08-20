@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
+import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
@@ -15,6 +16,7 @@ function AtlasWorkspace() {
   const navigate = useNavigate()
 
   const [world, setWorld] = useState(null)
+  const [worldList, setWorldList] = useState(null) // null until the switcher is first opened
   const [tree, setTree] = useState([])
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
   const [loadState, setLoadState] = useState('loading') // loading | ok | err
@@ -41,6 +43,7 @@ function AtlasWorkspace() {
   const [q, setQ] = useState('') // global node search
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState([])
+  const [sfilter, setSfilter] = useState('all') // 'all' | 'unplaced' — the search dropdown's chip filter
   const [confirmDel, setConfirmDel] = useState(null) // { node, impact }
   const [confirmInterior, setConfirmInterior] = useState(null) // { node, impact }
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
@@ -63,6 +66,7 @@ function AtlasWorkspace() {
   })
   const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
   const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
+  const [playing, setPlaying] = useState(false) // the timebar's ▶ sweep
 
   const saveTimer = useRef(null)
   const pendingPatch = useRef({ nodeId: null, patch: {} })
@@ -78,6 +82,7 @@ function AtlasWorkspace() {
   const inspRaf = useRef(0)
   const railWRef = useRef(230)
   const railRaf = useRef(0)
+  const playRef = useRef(null) // interval id while the lens sweep runs
   const placePoint = useRef(null) // where "place existing here" should land
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
@@ -97,9 +102,17 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     if (!flash) return
-    const t = setTimeout(() => setFlash(null), 4000)
+    const t = setTimeout(() => setFlash(null), flash.undoId ? 9000 : 4000)
     return () => clearTimeout(t)
   }, [flash])
+
+  const doUndo = async (undoId) => {
+    setFlash(null)
+    const r = await track(atlasService.undo(undoId), "Couldn't undo").catch(() => null)
+    if (!r) return
+    refreshMap(); refreshTree()
+    setFlash({ kind: 'ok', text: 'Put back the way it was.' })
+  }
 
   // ---- loading the world + map --------------------------------------------------
   const refreshTree = () => atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -163,6 +176,10 @@ function AtlasWorkspace() {
   }
   const removeLink = async (id) => {
     await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => {})
+    if (sel) reloadLinks(sel.node.id)
+  }
+  const labelLink = async (id, label) => {
+    await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
     if (sel) reloadLinks(sel.node.id)
   }
   const jump = async (nodeId) => {
@@ -242,7 +259,7 @@ function AtlasWorkspace() {
     if (!r) return
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
-    setFlash({ kind: 'ok', text: `"${node.title}" no longer has an interior — the node itself is untouched.` })
+    setFlash({ kind: 'ok', text: `"${node.title}" no longer has an interior — the node itself is untouched.`, undoId: r.undoId })
   }
 
   const askDeleteNode = async (node) => {
@@ -255,13 +272,13 @@ function AtlasWorkspace() {
     const r = await track(atlasService.deleteNode(node.id), "Couldn't delete the node").catch(() => null)
     if (!r) return
     setSelId(null); refreshMap(); refreshTree()
-    setFlash({ kind: 'ok', text: `"${node.title}" is gone.` })
+    setFlash({ kind: 'ok', text: `"${node.title}" is gone.`, undoId: r.undoId })
   }
   const removeFromMap = async (p) => {
     const r = await track(atlasService.deletePlacement(p.id), "Couldn't remove it").catch(() => null)
     if (!r) return
     setSelId(null); refreshMap()
-    setFlash({ kind: 'ok', text: `"${p.node.title}" removed from this map — the node itself still exists (find it with search).` })
+    setFlash({ kind: 'ok', text: `"${p.node.title}" removed from this map — the node itself still exists.`, undoId: r.undoId })
   }
 
   // ---- images -----------------------------------------------------------------------
@@ -371,6 +388,7 @@ function AtlasWorkspace() {
   const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
   const present = (p) => presentAt(p, mode === 'player' ? (previewT ?? canon) : now)
   const setCanonHere = () => {
+    stopPlay()
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
       .then(() => {
         setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, current: now } }))
@@ -393,6 +411,7 @@ function AtlasWorkspace() {
   }
   const saveTimeline = (min, max, unit) => {
     if (!(min < max)) return
+    stopPlay()
     const cur = Math.min(Math.max(now, min), max)
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: cur } }))
     setNow(cur)
@@ -402,6 +421,7 @@ function AtlasWorkspace() {
     })).catch(() => {})
   }
   const disableTimeline = () => {
+    stopPlay()
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
     setTlEdit(false)
     track(atlasService.patchWorld(worldId, { timeline_enabled: false })).catch(() => {})
@@ -475,7 +495,7 @@ function AtlasWorkspace() {
     setSearchOpen(true)
     atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
   }
-  const closeSearch = () => { setSearchOpen(false); setQ('') }
+  const closeSearch = () => { setSearchOpen(false); setQ(''); setSfilter('all') }
   useEffect(() => {
     if (!searchOpen) return
     const close = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) closeSearch() }
@@ -491,11 +511,14 @@ function AtlasWorkspace() {
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
   }, [])
+  const unplacedCount = useMemo(() => searchIndex.filter((n) => n.placed === false).length, [searchIndex])
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return []
-    return searchIndex.filter((n) => (n.title || '').toLowerCase().includes(needle)).slice(0, 12)
-  }, [q, searchIndex])
+    const pool = sfilter === 'unplaced' ? searchIndex.filter((n) => n.placed === false) : searchIndex
+    // The Unplaced chip is a roster, not a search: it lists every stranded node even with no query.
+    if (!needle) return sfilter === 'unplaced' ? pool : []
+    return pool.filter((n) => (n.title || '').toLowerCase().includes(needle)).slice(0, 12)
+  }, [q, searchIndex, sfilter])
 
   const readerLinks = useMemo(() => {
     const all = [...(nodeLinks.out || []), ...(nodeLinks.in || [])]
@@ -556,6 +579,7 @@ function AtlasWorkspace() {
   }
 
   const commitYear = () => {
+    stopPlay()
     const v = Number(yearEdit)
     setYearEdit(null)
     if (!Number.isFinite(v) || !tl) return
@@ -563,6 +587,24 @@ function AtlasWorkspace() {
     setNow(t)
     if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
   }
+
+  // ▶ sweeps the lens through [dispMin, dispMax]; any manual time change, mode switch,
+  // or map navigation kills it. The position advances in a local var, not the state —
+  // reading `now` back mid-sweep would race the batched updates.
+  const stopPlay = () => { clearInterval(playRef.current); playRef.current = null; setPlaying(false) }
+  const togglePlay = () => {
+    if (playRef.current) { stopPlay(); return }
+    if (!(dispMax > dispMin)) return
+    const step = Math.max(1, Math.round((dispMax - dispMin) / 240))
+    let t = now >= dispMax ? dispMin : Math.max(now, dispMin) // at the end, replay from the start
+    setPlaying(true)
+    playRef.current = setInterval(() => {
+      t = Math.min(dispMax, t + step)
+      setNow(t)
+      if (t >= dispMax) stopPlay()
+    }, 140)
+  }
+  useEffect(() => stopPlay, [mapId, mode])
 
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
   const activeBackdropUrl = useMemo(() => {
@@ -618,7 +660,31 @@ function AtlasWorkspace() {
   return (
     <div className="atlas">
       <div className="top">
-        <span className="brand">🧭 {world?.name}</span>
+        {mode === 'player'
+          ? <span className="brand">🧭 {world?.name}</span>
+          : <span className="brand">🧭{' '}
+              <select
+                className="brandsel"
+                value={String(worldId)}
+                title="Switch world"
+                onFocus={() => {
+                  if (worldList) return
+                  worldService.getWorlds().then((r) => setWorldList(r.worlds || [])).catch(() => {})
+                }}
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (id === String(worldId)) return
+                  const w = (worldList || []).find((x) => String(x.id) === id)
+                  if (w) worldService.setCurrentWorld(w)
+                  else worldService.setCurrentWorldId(id)
+                  navigate(`/w/${id}`)
+                }}
+              >
+                {(worldList || [{ id: worldId, name: world?.name || '…' }]).map((w) => (
+                  <option key={w.id} value={String(w.id)}>{w.name}</option>
+                ))}
+              </select>
+            </span>}
         <div className="crumbs">
           {(data?.breadcrumb || []).map((b, i, arr) => (
             <React.Fragment key={b.mapId}>
@@ -638,17 +704,28 @@ function AtlasWorkspace() {
             onChange={(e) => { setQ(e.target.value); if (!searchOpen) openSearch() }}
             onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) { closeSearch(); jump(matches[0].id) } }}
           />
-          {searchOpen && q.trim() && (
+          {searchOpen && (
             <div className="gresults">
-              {matches.map((n) => (
-                <button key={n.id} onClick={() => { closeSearch(); jump(n.id) }}>
-                  <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
-                  <span className="gtitle">{n.title}</span>
-                  {n.visibility === 'dm' && <span className="glock">🔒</span>}
-                  {n.hasInterior && <span className="gopen">◎</span>}
-                </button>
-              ))}
-              {matches.length === 0 && <div className="gnone">No nodes named that.</div>}
+              <div className="gfilter">
+                <button className={sfilter === 'all' ? 'on' : ''} onClick={() => setSfilter('all')}>All</button>
+                <button className={sfilter === 'unplaced' ? 'on' : ''} onClick={() => setSfilter('unplaced')}>○ Unplaced ({unplacedCount})</button>
+              </div>
+              {(q.trim() || sfilter === 'unplaced') && (
+                <>
+                  {matches.map((n) => (
+                    <button key={n.id} onClick={() => { closeSearch(); jump(n.id) }}>
+                      <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
+                      <span className="gtitle">{n.title}</span>
+                      {n.placed === false && <span className="gorphan">○ unplaced</span>}
+                      {n.visibility === 'dm' && <span className="glock">🔒</span>}
+                      {n.hasInterior && <span className="gopen">◎</span>}
+                    </button>
+                  ))}
+                  {matches.length === 0 && (
+                    <div className="gnone">{sfilter === 'unplaced' && !q.trim() ? 'No unplaced nodes — everything has a home.' : 'No nodes named that.'}</div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -743,7 +820,8 @@ function AtlasWorkspace() {
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
                   {p.node.pin === 'image' && p.node.imageUrl ? (
                     <>
-                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false} />
+                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
+                        style={{ maxWidth: p.node.pinSize || 64, maxHeight: p.node.pinSize || 64 }} />
                       <span className="ilbl">{p.node.title}</span>
                     </>
                   ) : (
@@ -894,11 +972,23 @@ function AtlasWorkspace() {
 
           {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
+              <button className="tgear tplay" title="Play — sweep the lens through this stretch of history"
+                onClick={togglePlay}>{playing ? '⏸' : '▶'}</button>
               <span className="tlabel">{dispMin}</span>
               <div className="ttrack">
+                {dispMax > dispMin && (world?.eras || [])
+                  .map((er) => ({ ...er, s: Math.max(er.start, dispMin), e: Math.min(er.end, dispMax) }))
+                  .filter((er) => er.s < er.e)
+                  .map((er) => (
+                    <span key={er.id} className={`teraband${er.playerVisible ? ' pv' : ''}`}
+                      style={{
+                        left: `${((er.s - dispMin) / (dispMax - dispMin)) * 100}%`,
+                        width: `${((er.e - er.s) / (dispMax - dispMin)) * 100}%`,
+                      }}><em>{er.name}</em></span>
+                  ))}
                 <input type="range" min={dispMin} max={dispMax}
                   value={Math.min(Math.max(now, dispMin), dispMax)}
-                  onChange={(e) => setNow(Number(e.target.value))} />
+                  onChange={(e) => { stopPlay(); setNow(Number(e.target.value)) }} />
                 {dispMax > dispMin && (data?.placements || [])
                   .flatMap((p) => [p.start, p.end])
                   .filter((t) => t != null && t >= dispMin && t <= dispMax)
@@ -913,7 +1003,7 @@ function AtlasWorkspace() {
               <span className="tlabel">{dispMax}</span>
               {focusOk && (
                 <button className="tgear fexp" title={focusExpand ? `Back to this place's period (${fMin}–${fMax})` : 'Show the whole timeline'}
-                  onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
+                  onClick={() => { stopPlay(); setFocusExpand((v) => !v) }}>{focusExpand ? '⤡' : '⤢'}</button>
               )}
               {yearEdit != null ? (
                 <input className="tnowedit" autoFocus type="number" value={yearEdit}
@@ -928,7 +1018,7 @@ function AtlasWorkspace() {
                 {canon !== now ? (
                   <>
                     <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
-                    <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => setNow(canon)}>↩</button>
+                    <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => { stopPlay(); setNow(canon) }}>↩</button>
                   </>
                 ) : (
                   <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
@@ -1015,7 +1105,7 @@ function AtlasWorkspace() {
               onFactAdd={() => factAdd(sel.node.id)}
               onFactPatch={(id, d) => factPatch(sel.node.id, id, d)}
               onFactDelete={(id) => factDelete(sel.node.id, id)}
-              links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onJump={jump}
+              links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onLabel={labelLink} onJump={jump}
               onVis={(v) => saveNode(sel.node.id, { visibility: v })}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
@@ -1041,7 +1131,7 @@ function AtlasWorkspace() {
           onPick={addLink} onClose={() => setNodePicker(null)} />
       )}
       {nodePicker === 'place-here' && (
-        <NodePicker worldId={worldId} title="Place which node here?"
+        <NodePicker worldId={worldId} title="Place which node here?" unplacedFirst
           excludeIds={(data?.placements || []).map((p) => p.node.id)}
           onPickNode={(nn) => {
             setNodePicker(null)
@@ -1051,7 +1141,7 @@ function AtlasWorkspace() {
           onClose={() => setNodePicker(null)} />
       )}
       {nodePicker === 'place' && (
-        <NodePicker worldId={worldId} title="Place which node?"
+        <NodePicker worldId={worldId} title="Place which node?" unplacedFirst
           excludeIds={(data?.placements || []).map((p) => p.node.id)}
           onPickNode={(n) => {
             setNodePicker(null)
@@ -1173,27 +1263,36 @@ function AtlasWorkspace() {
         </div>
       )}
 
-      {flash && <div className={`aflash ${flash.kind}`}>{flash.text}</div>}
+      {flash && (
+        <div className={`aflash ${flash.kind}`}>
+          {flash.text}
+          {flash.undoId && <button className="aundo" onClick={() => doUndo(flash.undoId)}>↩ Undo</button>}
+        </div>
+      )}
     </div>
   )
 }
 
 function MapTree({ tree, rootId, mapId, onGo }) {
   const childrenOf = (pid) => tree.filter((m) => (m.parentMapId || null) === (pid ?? null) && m.id !== rootId)
+  const glyph = (m) => m?.thumbUrl
+    ? <img className="tthumb" src={m.thumbUrl} alt="" />
+    : <span className="tw">▸</span>
   const render = (list, depth) => list.map((m) => (
     <React.Fragment key={m.id}>
       <div className={`trow ${String(m.id) === String(mapId) ? 'on' : ''}`} style={{ paddingLeft: 6 + depth * 14 }}
         onClick={() => onGo(m.id)}>
-        <span className="tw">▸</span>{m.title}
+        {glyph(m)}{m.title}
       </div>
       {render(childrenOf(m.id), depth + 1)}
     </React.Fragment>
   ))
+  const root = tree.find((m) => m.id === rootId)
   return (
     <>
       {rootId && (
         <div className={`trow ${String(rootId) === String(mapId) ? 'on' : ''}`} onClick={() => onGo(rootId)}>
-          <span className="tw">▸</span>{tree.find((m) => m.id === rootId)?.title || 'World map'}
+          {glyph(root)}{root?.title || 'World map'}
         </div>
       )}
       {render(childrenOf(rootId), 1)}
@@ -1215,7 +1314,7 @@ function DeleteImpact({ impact }) {
   return (
     <div className="impact">
       {bits.map((b, i) => <p key={i}>{b}</p>)}
-      <p className="muted">There is no undo.</p>
+      <p className="muted">You'll get an Undo offer for a few seconds afterwards.</p>
     </div>
   )
 }
@@ -1259,11 +1358,13 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onJump, onVis, onRemoveHere, onDelete }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
   const [end, setEnd] = useState(p.end ?? '')
+  const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
+  const labelCancel = useRef(false) // Esc must beat the blur the unmount fires
   const n = p.node
   return (
     <>
@@ -1333,6 +1434,14 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
               <button className={`chip ${n.pin !== 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'chip' })}>Pin: icon + name</button>
               <button className={`chip ${n.pin === 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'image' })}>Pin: the image</button>
             </div>
+            {n.pin === 'image' && (
+              <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
+                Size on the map
+                {/* pinSize rides along so localPatchNode resizes the pin live; the PATCH whitelist drops it */}
+                <input type="range" min="32" max="144" step="8" value={n.pinSize || 64} style={{ flex: 1 }}
+                  onChange={(e) => { const v = Number(e.target.value); onSave(n.id, { pin_size: v, pinSize: v }) }} />
+              </label>
+            )}
           </div>
         ) : (
           <button className="btn block" onClick={onImage}>＋ Add image</button>
@@ -1358,13 +1467,31 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         <div className="links">
           {(links?.out || []).map((l) => (
             <div key={`o${l.id}`} className="lrow">
-              <a className="lgo" onClick={() => onJump(l.otherId)}>→ {l.otherTitle}</a>
-              <button className="lx" title="Remove link" onClick={() => onUnlink(l.id)}>✕</button>
+              {labelEdit === l.id ? (
+                <input className="llabel-input" autoFocus defaultValue={l.label || ''}
+                  maxLength={255} placeholder="why they're connected…"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    else if (e.key === 'Escape') { labelCancel.current = true; setLabelEdit(null) }
+                  }}
+                  onBlur={(e) => {
+                    if (labelCancel.current) { labelCancel.current = false; return }
+                    const v = e.target.value.trim()
+                    if (v !== (l.label || '')) onLabel(l.id, v || null)
+                    setLabelEdit(null)
+                  }} />
+              ) : (
+                <>
+                  <a className="lgo" onClick={() => onJump(l.otherId)}>→ {l.otherTitle}{l.label ? <span className="llabel"> — {l.label}</span> : null}</a>
+                  <button className="lx" title="Label this link" onClick={() => setLabelEdit(l.id)}>✎</button>
+                  <button className="lx" title="Remove link" onClick={() => onUnlink(l.id)}>✕</button>
+                </>
+              )}
             </div>
           ))}
           {(links?.in || []).map((l) => (
             <div key={`i${l.id}`} className="lrow in">
-              <a className="lgo" onClick={() => onJump(l.otherId)}>← {l.otherTitle}</a>
+              <a className="lgo" onClick={() => onJump(l.otherId)}>← {l.otherTitle}{l.label ? <span className="llabel"> — {l.label}</span> : null}</a>
               <span className="lref">refers here</span>
             </div>
           ))}
@@ -1426,13 +1553,15 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
 }
 
 // Pick a node from this world (searchable). onPick gets the id; onPickNode the whole node.
-function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', onPick, onPickNode, onClose }) {
+function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', unplacedFirst, onPick, onPickNode, onClose }) {
   const [nodes, setNodes] = useState([])
   const [q, setQ] = useState('')
   useEffect(() => { atlasService.getNodes(worldId).then((ns) => setNodes(ns || [])).catch(() => {}) }, [worldId])
   const skip = new Set(excludeIds || [])
   if (excludeId != null) skip.add(excludeId)
   const list = nodes.filter((n) => !skip.has(n.id) && (n.title || '').toLowerCase().includes(q.toLowerCase()))
+  // Placing flows float the homeless to the top; the sort is stable, so titles stay ordered within each group.
+  if (unplacedFirst) list.sort((a, b) => (a.placed === false ? 0 : 1) - (b.placed === false ? 0 : 1))
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1443,6 +1572,7 @@ function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', onPi
             <button key={n.id} className="nrow" onClick={() => (onPickNode ? onPickNode(n) : onPick(n.id))}>
               <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
               <span className="lbl">{n.title}</span>
+              {n.placed === false && <span className="gorphan">○ unplaced</span>}
               {n.hasInterior && <span className="open">◎</span>}
             </button>
           ))}

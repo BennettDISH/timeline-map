@@ -12,6 +12,9 @@ const atlasService = {
   createShare: (worldId) => http.post(`${B}/worlds/${worldId}/share`).then((r) => r.data),
   deleteShare: (worldId) => http.delete(`${B}/worlds/${worldId}/share`).then((r) => r.data),
 
+  getTemplates: () => http.get(`${B}/templates`).then((r) => r.data.templates),
+  cloneWorld: (sourceId, name) => http.post(`${B}/worlds/clone`, { source_id: sourceId, name }).then((r) => r.data),
+
   getMap: (mapId) => http.get(`${B}/maps/${mapId}`).then((r) => r.data),
   patchMap: (mapId, data) => http.patch(`${B}/maps/${mapId}`, data).then((r) => r.data),
 
@@ -24,6 +27,7 @@ const atlasService = {
   patchNode: (id, data) => http.patch(`${B}/nodes/${id}`, data).then((r) => r.data),
   createInterior: (id, view) => http.post(`${B}/nodes/${id}/interior`, { view }).then((r) => r.data),
   deleteInterior: (id) => http.delete(`${B}/nodes/${id}/interior`).then((r) => r.data),
+  undo: (id) => http.post(`${B}/undo/${id}`).then((r) => r.data),
   deleteNode: (id) => http.delete(`${B}/nodes/${id}`).then((r) => r.data),
 
   patchPlacement: (id, data) => http.patch(`${B}/placements/${id}`, data).then((r) => r.data),
@@ -42,6 +46,7 @@ const atlasService = {
   deleteEra: (id) => http.delete(`${B}/eras/${id}`).then((r) => r.data),
 
   addLink: (data) => http.post(`${B}/links`, data).then((r) => r.data),
+  patchLink: (id, data) => http.patch(`${B}/links/${id}`, data).then((r) => r.data),
   deleteLink: (id) => http.delete(`${B}/links/${id}`).then((r) => r.data),
 }
 

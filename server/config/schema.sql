@@ -154,6 +154,9 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS view VARCHAR(10) NOT NULL DEFAULT 'map
 -- art as the marker — the legacy image-node, reborn; PNG transparency respected).
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin VARCHAR(10) NOT NULL DEFAULT 'chip';
 
+-- Max edge (px) an image pin renders at — one knob per node, not per placement.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin_size INTEGER NOT NULL DEFAULT 64;
+
 -- A node's story can CHANGE over time: timed description overrides. The displayed body at
 -- moment t is the fact covering t with the latest start (base nodes.body otherwise).
 -- share.js resolves this server-side so other eras' text never reaches players.
@@ -206,6 +209,22 @@ CREATE TABLE IF NOT EXISTS map_backdrops (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_map_backdrops_map ON map_backdrops(map_id);
+
+-- Undo: a full snapshot of what a destructive delete removed, restorable for 24 hours.
+-- payload shape depends on kind: 'node' | 'placement' | 'interior'.
+CREATE TABLE IF NOT EXISTS tombstones (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    user_id INTEGER,
+    kind VARCHAR(20) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Worlds flagged as templates are clonable by ANY signed-in user — including their
+-- DM-only content. Only ever set this on purpose-built sample worlds; there is no UI
+-- for it by design.
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);

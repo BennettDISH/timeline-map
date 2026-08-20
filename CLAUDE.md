@@ -83,4 +83,7 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   past canon, silently resolves to canon. The workspace 🎭 posture previews this.
 
 ## Known gaps (the honest list)
-- No undo, no world switcher inside the workspace
+- Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
+  surfaces need to be mobile-first)
+- From the "later" shelf: per-fact visibility, branching campaigns, zones/regions,
+  @-mention-to-link

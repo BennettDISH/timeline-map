@@ -7,7 +7,16 @@
   font:13px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;
 
   .top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
-  .top .brand{font-weight:700}
+  .top .brand{font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .top .brandsel{
+    appearance:none;background:transparent;border:0;color:var(--ink);
+    font:inherit;font-weight:700;font-size:15px;cursor:pointer;
+    padding:0 14px 0 0;max-width:24vw;overflow:hidden;text-overflow:ellipsis;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%239a9a94'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right center;
+    &:focus{outline:none}
+    option{background:var(--panel2);color:var(--ink);font-size:13px;font-weight:400}
+  }
   .crumbs{display:flex;align-items:center;gap:5px;flex:1;overflow:hidden;white-space:nowrap;color:var(--muted)}
   .crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
   .crumbs .sep{color:var(--line)}
@@ -25,6 +34,7 @@
   .trow:hover{background:#ffffff10}
   .trow.on{background:#5b9bd530;font-weight:600}
   .trow .tw{color:var(--muted);width:12px;text-align:center}
+  .trow .tthumb{width:22px;height:16px;border-radius:3px;object-fit:cover;border:1px solid var(--line);flex:none}
 
   .stage{position:relative;overflow:hidden;min-height:0;background:#0d0f13}
 
@@ -153,6 +163,17 @@
 
   .timebar .tgear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
   .timebar .tgear:hover{color:var(--ink)}
+  .timebar .tplay{font-size:16px;min-width:24px}
+  .timebar .tplay:hover{color:#c9a35f}
+  // era bands: history's stripes behind the scrubber — gold if players may walk them.
+  // The input is positioned so paint order follows the DOM: bands under it, ticks over it.
+  .timebar .ttrack input{position:relative}
+  .timebar .teraband{position:absolute;top:50%;transform:translateY(-50%);height:14px;box-sizing:border-box;
+     background:#b07bd01f;border:1px solid #b07bd033;border-radius:3px;pointer-events:none;
+     display:flex;align-items:center;padding:0 4px;overflow:hidden}
+  .timebar .teraband.pv{background:rgba(201,163,95,.18);border-color:rgba(201,163,95,.4)}
+  .timebar .teraband em{font-style:normal;font-size:9px;color:var(--muted);white-space:nowrap;
+     overflow:hidden;text-overflow:ellipsis}
   .tlcfg{position:absolute;right:10px;bottom:56px;left:auto;z-index:8;display:flex;flex-direction:column;align-items:stretch;gap:9px;
      width:250px;padding:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px #000a}
   .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
@@ -170,6 +191,8 @@
   .lrow.in .lgo{color:var(--muted)}
   .lrow .lx{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px}
   .lrow .lref{color:var(--line);font-size:10px;font-style:italic}
+  .lrow .llabel{color:var(--muted);font-style:italic}
+  .lrow .llabel-input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;font:inherit;font-size:11px}
   .nsearch{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;margin-bottom:8px;font:inherit}
   .nlist{display:flex;flex-direction:column;gap:3px;max-height:52vh;overflow:auto}
   .nrow{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;color:var(--ink);cursor:pointer;text-align:left}
@@ -198,7 +221,11 @@
     .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
     .gtitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .glock,.gopen{font-size:11px;color:var(--muted)}
-    .gnone{padding:9px 12px;color:var(--muted);font-style:italic;font-size:12px}}
+    .gnone{padding:9px 12px;color:var(--muted);font-style:italic;font-size:12px}
+    .gfilter{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);
+      button{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+      button.on{color:var(--ink);border-color:var(--accent)}}}
+  .gorphan{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:0 6px;white-space:nowrap;flex:none}
 
   .legend{position:absolute;left:10px;bottom:10px;z-index:5;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center;max-width:calc(100% - 160px)}
   .lchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;
@@ -460,3 +487,7 @@
 
 .atlas .einfobtn{background:none;border:0;cursor:pointer;padding:0;font:inherit;text-align:right;
   &:hover{color:#c9a35f}}
+
+.atlas .aflash .aundo{margin-left:12px;background:none;border:1px solid #6fcf9755;border-radius:6px;
+  color:#6fcf97;padding:2px 10px;cursor:pointer;font:inherit;font-weight:600;
+  &:hover{border-color:#6fcf97}}

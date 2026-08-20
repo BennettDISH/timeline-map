@@ -1,0 +1,16 @@
+-- Seed for the "Secrecy Fixture" world that server/test/share-live.test.js runs against.
+-- Owned by a login-less user ('secrecy-fixture') so it appears on nobody's dashboard.
+-- Re-running: delete the world first (the DO block below does), then update the fixture
+-- ids at the top of share-live.test.js from the SELECT at the end.
+-- Token: rotated to a random value (see share-live.test.js); regenerate with fx||md5(random())  ·  timeline 1..100, canon 50
+-- Content contract the tests depend on:
+--   era 'Open Era' 10-30 player_visible; era 'Hidden Era' 40-60 hidden
+--   'Open Landmark' shared, always placed; fact 'era text' 10-30 over base 'base text'
+--   'Hidden Person' dm node, placed          -> must 404 / never appear
+--   'Ghost Spot' shared node, dm placement   -> never appears on the map
+--   'Brief Fair' lifespan 20-40; 'Future Thing' start 80 (beyond canon)
+--   'Secret Door' dm node with interior 'Hidden Interior' holding 'Inner Loot'
+--   timed backdrop fixture-a.svg from t=40 (no base backdrop)
+--   links: Open Landmark -> Hidden Person (pruned), -> Brief Fair (kept)
+-- The full executable block lives in git history (seeded 2026-08-20); reconstruct from
+-- the contract above if it ever needs rebuilding.

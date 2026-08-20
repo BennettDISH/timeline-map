@@ -70,6 +70,7 @@ function Dashboard() {
   const [menuId, setMenuId] = useState(null)
   const [flash, setFlash] = useState(null) // {kind:'ok'|'err', text}
   const [busy, setBusy] = useState(false)
+  const [templates, setTemplates] = useState([]) // clonable sample worlds
 
   useEffect(() => {
     document.title = 'Your worlds · Fantasy Map Timeline'
@@ -80,7 +81,7 @@ function Dashboard() {
     worldService.getWorlds()
       .then((r) => setWorlds(r.worlds || []))
       .catch((e) => { setWorlds([]); setFlash({ kind: 'err', text: e.message || 'Could not load your worlds' }) })
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); atlasService.getTemplates().then(setTemplates).catch(() => {}) }, [])
 
   // close any open card menu on outside click
   useEffect(() => {
@@ -105,14 +106,23 @@ function Dashboard() {
 
   const open = (w) => { worldService.setCurrentWorld(w); navigate(`/w/${w.id}`) }
 
-  const createWorld = async (name, description) => {
+  const createWorld = async (name, description, sampleId) => {
     setBusy(true)
     try {
-      const r = await worldService.createWorld({ name, description: description || null })
+      let w
+      if (sampleId) {
+        // begin from the sample: a deep clone the newcomer can safely break
+        const r = await atlasService.cloneWorld(sampleId, name)
+        if (description) await atlasService.patchWorld(r.worldId, { description }).catch(() => {})
+        w = { id: r.worldId, name }
+      } else {
+        const r = await worldService.createWorld({ name, description: description || null })
+        w = r.world
+      }
       setModal(null)
-      open(r.world) // straight onto the fresh canvas — the Atlas makes its root map
+      open(w) // straight onto the canvas — the Atlas ensures a root map
     } catch (e) {
-      setFlash({ kind: 'err', text: e.message || 'Could not create the world' })
+      setFlash({ kind: 'err', text: e?.response?.data?.message || e.message || 'Could not create the world' })
     } finally { setBusy(false) }
   }
 
@@ -240,7 +250,8 @@ function Dashboard() {
       </main>
 
       {modal?.kind === 'create' && (
-        <CreateModal busy={busy} onClose={() => setModal(null)} onSubmit={createWorld} />
+        <CreateModal busy={busy} onClose={() => setModal(null)} onSubmit={createWorld}
+          templates={templates} defaultSample={worlds !== null && worlds.length === 0} />
       )}
       {modal?.kind === 'edit' && (
         <EditModal busy={busy} world={modal.world} onClose={() => setModal(null)} onSubmit={saveWorld} />
@@ -254,10 +265,14 @@ function Dashboard() {
   )
 }
 
-function CreateModal({ busy, onClose, onSubmit }) {
+function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = false }) {
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
-  const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(name.trim(), desc.trim()) }
+  const [useSample, setUseSample] = useState(defaultSample && templates.length > 0)
+  const submit = (e) => {
+    e.preventDefault()
+    if (name.trim()) onSubmit(name.trim(), desc.trim(), useSample && templates[0] ? templates[0].id : null)
+  }
   return (
     <Modal title="Found a new world" onClose={onClose}>
       <form onSubmit={submit}>
@@ -271,10 +286,16 @@ function CreateModal({ busy, onClose, onSubmit }) {
           <textarea className="stext" value={desc} onChange={(e) => setDesc(e.target.value)}
             placeholder="A drowned empire lit by whale-oil lanterns… (optional)" />
         </div>
+        {templates.length > 0 && (
+          <label className="samplerow">
+            <input type="checkbox" checked={useSample} onChange={(e) => setUseSample(e.target.checked)} />
+            <span><b>Begin from the sample world</b> — a tiny keep that shows every trick. Safe to break.</span>
+          </label>
+        )}
         <div className="mrow">
           <button type="button" className="sbtn ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="sbtn primary" disabled={busy || !name.trim()}>
-            {busy ? 'Founding…' : 'Found it & open the Atlas'}
+            {busy ? 'Founding…' : useSample ? 'Clone it & open the Atlas' : 'Found it & open the Atlas'}
           </button>
         </div>
       </form>
