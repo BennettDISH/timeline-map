@@ -27,7 +27,13 @@ function AtlasWorkspace() {
   const [tlEdit, setTlEdit] = useState(false)
   const [sharePop, setSharePop] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [mode, setMode] = useState(() => localStorage.getItem('atlas_mode') || 'dm')
+  // Three postures: edit (full tools) · view (DM eyes, reading chrome) · player
+  // (faithful preview of the share link: secrets and the future hidden, canon moment,
+  // minimal chrome). Old stored 'dm' maps to edit.
+  const [mode, setMode] = useState(() => {
+    const m = localStorage.getItem('atlas_mode')
+    return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
+  })
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [] })
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
@@ -35,6 +41,9 @@ function AtlasWorkspace() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState([])
   const [confirmDel, setConfirmDel] = useState(null) // { node, impact }
+  const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
+  const [help, setHelp] = useState(false) // the "?" gesture guide
+  const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
 
   const saveTimer = useRef(null)
   const pendingPatch = useRef({ nodeId: null, patch: {} })
@@ -44,6 +53,8 @@ function AtlasWorkspace() {
   const pendingSelect = useRef(null)
   const shareRef = useRef(null)
   const searchRef = useRef(null)
+  const mapMenuRef = useRef(null)
+  const helpRef = useRef(null)
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
   // and failures surface as a toast instead of vanishing into an empty catch.
@@ -228,8 +239,20 @@ function AtlasWorkspace() {
   // which only moves when the DM explicitly sets it.
   const tl = world?.timeline
   const canon = tl?.current ?? 0
-  const switchMode = (m) => { setMode(m); try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ } }
-  const present = (p) => (!tl?.enabled ? true : (p.start == null || now >= p.start) && (p.end == null || now <= p.end))
+  const switchMode = (m) => {
+    setMode(m)
+    setPlacing(null); setPicker(null); setNodePicker(null); setTlEdit(false); setMapMenu(false)
+    try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ }
+  }
+  // the player preview prunes threads to DM-only nodes; it needs the visibility index,
+  // including when the page loads straight into player mode
+  useEffect(() => {
+    if (mode === 'player') atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
+  }, [mode, worldId])
+  // edit/view judge presence by the DM's lens; the player preview judges by CANON,
+  // exactly like the real share link does.
+  const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
+  const present = (p) => presentAt(p, mode === 'player' ? canon : now)
   const setCanonHere = () => {
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
       .then(() => {
@@ -315,6 +338,7 @@ function AtlasWorkspace() {
     } else setSelId(d.id)
   }, [onDragMove, track])
   const onPinDown = (e, p) => {
+    if (mode !== 'edit') { e.stopPropagation(); setSelId(p.id); return } // read-only: select, never drag
     if (placing) return // placing mode: let the press reach the plane so the click drops there
     e.stopPropagation()
     const rect = worldRef.current.getBoundingClientRect()
@@ -350,6 +374,31 @@ function AtlasWorkspace() {
     return searchIndex.filter((n) => (n.title || '').toLowerCase().includes(needle)).slice(0, 12)
   }, [q, searchIndex])
 
+  const readerLinks = useMemo(() => {
+    const all = [...(nodeLinks.out || []), ...(nodeLinks.in || [])]
+    if (mode !== 'player') return all
+    const vis = new Map(searchIndex.map((n) => [n.id, n.visibility]))
+    return all.filter((l) => vis.get(l.otherId) !== 'dm')
+  }, [nodeLinks, mode, searchIndex])
+
+  const renameMap = () => {
+    const t = (renaming || '').trim()
+    setRenaming(null)
+    if (!t || !map || t === map.title) return
+    setData((d) => d && ({ ...d, map: { ...d.map, title: t } }))
+    track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!mapMenu && !help) return
+    const close = (e) => {
+      if (mapMenuRef.current?.contains(e.target) || helpRef.current?.contains(e.target)) return
+      setMapMenu(false); setHelp(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [mapMenu, help])
+
   // ---- category legend / filter -------------------------------------------------------
   const legend = useMemo(() => {
     const counts = {}
@@ -370,8 +419,8 @@ function AtlasWorkspace() {
   const onEmptyPointerDown = () => { if (!placing) setSelId(null) }
 
   const visible = (p) =>
-    (mode === 'dm' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
-    !hiddenCats.has(p.node.category)
+    (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
+    (mode === 'player' || !hiddenCats.has(p.node.category))
 
   // ============================================================================= render ==
   if (loading && !world) {
@@ -396,6 +445,7 @@ function AtlasWorkspace() {
             </React.Fragment>
           ))}
         </div>
+        {mode !== 'player' && (
         <div className="gsearch" ref={searchRef}>
           <input
             placeholder="Find a node…  ( / )"
@@ -418,11 +468,14 @@ function AtlasWorkspace() {
             </div>
           )}
         </div>
-        {saveChip && <span className={`savechip ${saveChip.c}`}>{saveChip.t}</span>}
-        <div className="mode" title="DM sees everything; Player previews what the share link shows">
-          <button className={mode === 'dm' ? 'on' : ''} onClick={() => switchMode('dm')}>DM</button>
-          <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>Player</button>
+        )}
+        {mode === 'edit' && saveChip && <span className={`savechip ${saveChip.c}`}>{saveChip.t}</span>}
+        <div className="mode" title="Edit builds the world · View reads it with DM eyes · Player shows exactly what the share link shows">
+          <button className={mode === 'edit' ? 'on' : ''} onClick={() => switchMode('edit')}>✏ Edit</button>
+          <button className={mode === 'view' ? 'on' : ''} onClick={() => switchMode('view')}>👁 View</button>
+          <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>🎭 Player</button>
         </div>
+        {mode === 'edit' && (
         <div ref={shareRef} className="sharewrap">
           <button className={`sharebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
             🔗 Share
@@ -448,15 +501,21 @@ function AtlasWorkspace() {
             </div>
           )}
         </div>
+        )}
+        {mode === 'player' && tl?.enabled && (
+          <span className="nowchip" title="The canon moment — the present your players see">🕓 {canon} {tl.unit}</span>
+        )}
         <Link to="/dashboard" className="exit">Exit</Link>
       </div>
 
-      <div className="main">
-        <div className="rail">
-          <h4>Maps</h4>
-          <MapTree tree={tree} rootId={world?.rootMapId} mapId={mapId}
-            onGo={(id) => navigate(`/w/${worldId}/m/${id}`)} />
-        </div>
+      <div className={`main m-${mode}`}>
+        {mode !== 'player' && (
+          <div className="rail">
+            <h4>Maps</h4>
+            <MapTree tree={tree} rootId={world?.rootMapId} mapId={mapId}
+              onGo={(id) => navigate(`/w/${worldId}/m/${id}`)} />
+          </div>
+        )}
 
         <div className="stage">
           {loadState === 'err' && (
@@ -475,7 +534,7 @@ function AtlasWorkspace() {
               worldRef={worldRef}
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
-              controlsOffset={tl?.enabled ? 56 : 0}
+              controlsOffset={mode !== 'player' && tl?.enabled ? 56 : 0}
               dblZoom={!placing}
             >
               {(data?.placements || []).filter(visible).map((p) => (
@@ -495,7 +554,7 @@ function AtlasWorkspace() {
 
           {loadState === 'ok' && isList && (
             <div className="listview">
-              <div className="listhead muted">An interior list — inventory, notes, what's inside. Same nodes, no map.</div>
+              {mode === 'edit' && <div className="listhead muted">An interior list — inventory, notes, what's inside. Same nodes, no map.</div>}
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
                   className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''}`}
@@ -514,33 +573,55 @@ function AtlasWorkspace() {
               {data && data.placements.length === 0 && (
                 <div className="empty-map static">
                   <div style={{ fontSize: '2rem' }}>📜</div>
-                  <div>Empty list. <b>＋ Add node</b> puts the first thing in it.</div>
+                  {mode === 'edit'
+                    ? <div>Empty list. <b>＋ Add node</b> puts the first thing in it.</div>
+                    : <div>Nothing {mode === 'player' ? 'known ' : ''}here yet.</div>}
                 </div>
               )}
             </div>
           )}
 
-          <div className="toolbar">
-            <button className={`tool ${placing?.kind === 'new' ? 'on' : ''}`}
-              onClick={() => {
-                if (isList) dropNode(50, 50)
-                else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
-              }}>＋ Add node</button>
-            <button className={`tool ${placing?.kind === 'existing' ? 'on' : ''}`}
-              title="Put a node that already exists somewhere onto this map too"
-              onClick={() => setNodePicker('place')}>⤓ Place existing</button>
-            {!isList && <button className="tool" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>🖼 Backdrop</button>}
-            {!isList && map?.backdropUrl && <button className="tool" onClick={() => setBackdrop(null)}>Remove backdrop</button>}
-            {map && (
-              <div className="viewtoggle" title="How this space is shown">
-                <button className={!isList ? 'on' : ''} onClick={() => setMapView('map')}>🗺</button>
-                <button className={isList ? 'on' : ''} onClick={() => setMapView('list')}>☰</button>
+          {mode === 'edit' && (
+            <div className="toolbar">
+              <button className={`tool ${placing?.kind === 'new' ? 'on' : ''}`}
+                title="Create a brand-new node on this map"
+                onClick={() => {
+                  if (isList) dropNode(50, 50)
+                  else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
+                }}>＋ Add node</button>
+              <button className={`tool ${placing?.kind === 'existing' ? 'on' : ''}`}
+                title="Put a node that already exists somewhere onto this map too (one node can live in many places)"
+                onClick={() => setNodePicker('place')}>⤓ Place existing</button>
+              <div className="mapmenu" ref={mapMenuRef}>
+                <button className={`tool ${mapMenu ? 'on' : ''}`} title="This space: backdrop art, name, map or list"
+                  onClick={() => setMapMenu((v) => !v)}>Map ▾</button>
+                {mapMenu && (
+                  <div className="apop">
+                    {!isList && (
+                      <button onClick={() => { setMapMenu(false); setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl }) }}>
+                        🖼 {map?.backdropUrl ? 'Change the backdrop…' : 'Set a backdrop image…'}
+                      </button>
+                    )}
+                    {!isList && map?.backdropUrl && (
+                      <button onClick={() => { setMapMenu(false); setBackdrop(null) }}>Remove the backdrop</button>
+                    )}
+                    <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this space…</button>
+                    <div className="apop-row">
+                      <span>Show as</span>
+                      <button className={!isList ? 'on' : ''} onClick={() => setMapView('map')}>🗺 Map</button>
+                      <button className={isList ? 'on' : ''} onClick={() => setMapView('list')}>☰ List</button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {!tl?.enabled && <button className="tool" onClick={enableTimeline}>🕓 Enable timeline</button>}
-          </div>
+              {!tl?.enabled && (
+                <button className="tool" title="Give the world a clock: lifespans, a scrubber, a canon moment"
+                  onClick={enableTimeline}>🕓 Timeline</button>
+              )}
+            </div>
+          )}
 
-          {!isList && legend.length > 1 && (
+          {mode !== 'player' && !placing && !isList && legend.length > 1 && (
             <div className="legend" style={tl?.enabled ? { bottom: 92 } : undefined}>
               {legend.map(([k, n]) => (
                 <button key={k} className={`lchip ${hiddenCats.has(k) ? 'off' : ''}`} onClick={() => toggleCat(k)}
@@ -556,22 +637,26 @@ function AtlasWorkspace() {
           {data && !isList && data.placements.length === 0 && !placing && loadState === 'ok' && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🗺️</div>
-              <div>Empty map. Click <b>+ Add node</b>, then click the map to drop your first node.</div>
-              <div className="muted">Tip: use <b>🖼 Backdrop</b> to drop in a map image first.</div>
+              {mode === 'edit' ? (
+                <>
+                  <div>Empty map. Click <b>+ Add node</b>, then click the map to drop your first node.</div>
+                  <div className="muted">Tip: the <b>Map ▾</b> menu sets a backdrop image.</div>
+                </>
+              ) : (
+                <div>Nothing {mode === 'player' ? 'known ' : ''}here yet.</div>
+              )}
             </div>
           )}
 
-          <div className="hint" style={tl?.enabled ? { bottom: 64 } : undefined}>
-            {placing?.kind === 'new'
-              ? 'Click the map to drop a node — Esc cancels.'
-              : placing?.kind === 'existing'
-                ? `Click the map to place "${placing.node.title}" — Esc cancels.`
-                : isList
-                  ? 'Click a row to inspect · double-click a ◎ row to open its interior.'
-                  : 'Click to inspect · drag to move · scroll to zoom · drag empty space to pan.'}
-          </div>
+          {mode === 'edit' && placing && (
+            <div className="hint" style={tl?.enabled ? { bottom: 64 } : undefined}>
+              {placing.kind === 'new'
+                ? 'Click the map to drop the new node — Esc cancels.'
+                : `Click the map to place "${placing.node.title}" — Esc cancels.`}
+            </div>
+          )}
 
-          {tl?.enabled && (
+          {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
               <span className="tlabel">{tl.min}</span>
               <div className="ttrack">
@@ -594,9 +679,49 @@ function AtlasWorkspace() {
               <button className="tgear" title="Timeline range & unit" onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
-          {tl?.enabled && tlEdit && <TimelineConfig tl={tl} onSave={saveTimeline} onDisable={disableTimeline} onClose={() => setTlEdit(false)} />}
+          {mode !== 'player' && tl?.enabled && tlEdit && <TimelineConfig tl={tl} onSave={saveTimeline} onDisable={disableTimeline} onClose={() => setTlEdit(false)} />}
+
+          {mode !== 'edit' && sel && visible(sel) && (
+            <div className="reader">
+              <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
+              {sel.node.imageUrl && <img className="rimg" src={sel.node.imageUrl} alt="" />}
+              <div className="rhead">
+                <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
+                <h3>{sel.node.title}</h3>
+              </div>
+              <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}</span>
+              {sel.node.body && <p className="rbody">{sel.node.body}</p>}
+              {readerLinks.length > 0 && (
+                <>
+                  <div className="rk">Threads</div>
+                  {readerLinks.map((l) => (
+                    <a key={`${l.dir}${l.id}`} className="rlink" onClick={() => jump(l.otherId)}>
+                      {l.dir === 'out' ? '→' : '←'} {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
+                    </a>
+                  ))}
+                </>
+              )}
+              {sel.node.hasInterior && (
+                <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
+              )}
+            </div>
+          )}
+
+          <div className="helpwrap" ref={helpRef}>
+            <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>
+            {help && (
+              <div className="apop helppop">
+                <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
+                <div><b>Click a pin</b> to read it{mode === 'edit' ? ' · drag a pin to move it' : ''}</div>
+                <div><b>Double-click a ◎ pin</b> to step inside that place</div>
+                {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
+                <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
+              </div>
+            )}
+          </div>
         </div>
 
+        {mode === 'edit' && (
         <div className="insp">
           {!sel ? (
             <div className="empty">Nothing selected.<br /><br />Click a node, or use <b>+ Add node</b> then click the map.</div>
@@ -613,6 +738,7 @@ function AtlasWorkspace() {
               onDelete={() => askDeleteNode(sel.node)} />
           )}
         </div>
+        )}
       </div>
 
       {picker && (
@@ -642,6 +768,20 @@ function AtlasWorkspace() {
             <div className="mrow">
               <button className="tool" onClick={() => setConfirmDel(null)}>Keep it</button>
               <button className="tool danger" onClick={doDeleteNode}>Delete everywhere</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renaming != null && (
+        <div className="modal-back" onClick={() => setRenaming(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head"><h4>Rename this space</h4><button onClick={() => setRenaming(null)}>✕</button></div>
+            <input className="nsearch" autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') renameMap() }} />
+            <div className="mrow">
+              <button className="tool" onClick={() => setRenaming(null)}>Cancel</button>
+              <button className="tool on" disabled={!renaming.trim()} onClick={renameMap}>Rename</button>
             </div>
           </div>
         </div>
@@ -739,6 +879,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
           <button className={`chip ${n.visibility === 'dm' ? 'on' : ''}`} onClick={() => onVis('dm')}>🔒 DM only</button>
         </div>
       </div>
+      <div className="isect">Story</div>
       <div className="fld"><label>Description</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
@@ -756,6 +897,8 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
         )}
       </div>
       {timeline?.enabled && (
+        <>
+        <div className="isect">Time</div>
         <div className="fld"><label>Lifespan — when it's present</label>
           <div className="span">
             <input type="number" placeholder="from" value={start}
@@ -766,7 +909,9 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
           </div>
           <div className="muted">Blank = always present. Scrub the timeline to see it appear / disappear.</div>
         </div>
+        </>
       )}
+      <div className="isect">Connections</div>
       <div className="fld"><label>Links — references to other nodes</label>
         <div className="links">
           {(links?.out || []).map((l) => (
@@ -785,7 +930,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
         </div>
         <button className="btn block" onClick={onLink}>＋ Link to another node</button>
       </div>
-      <hr />
+      <div className="isect">Its interior</div>
       {n.hasInterior
         ? <button className="btn primary block" onClick={onOpen}>◎ Open interior ▸</button>
         : (
@@ -794,7 +939,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onImage, onRemoveImage,
             <button className="btn block" onClick={() => onCreate('list')}>＋ Give it an interior list (inventory / notes)</button>
           </>
         )}
-      <hr />
+      <div className="isect">On this map</div>
       <button className="btn block" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>
         ⤒ Remove from this map
       </button>
