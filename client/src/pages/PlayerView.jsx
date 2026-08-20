@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
 import MapPlane from '../components/MapPlane'
+import EraScrub from '../components/EraScrub'
 import { cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -20,20 +21,21 @@ function PlayerView() {
   const [detail, setDetail] = useState(null) // opened node { node, links, backlinks }
   const [gone, setGone] = useState(false)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
+  const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
   const worldRef = useRef(null)
 
   const load = useCallback(() => {
     shareService.getWorld(token)
       .then((w) => {
         setWorld(w)
-        return shareService.getMap(token, mapId || w.rootMapId).then((d) => { setData(d); setStale(false) })
+        return shareService.getMap(token, mapId || w.rootMapId, viewT).then((d) => { setData(d); setStale(false) })
       })
       .catch((e) => {
         const s = e?.response?.status
         if (s === 404 || s === 410) setGone(true) // the link (or this map) really is dead
         else setStale(true) // transient failure: keep showing what we have
       })
-  }, [token, mapId])
+  }, [token, mapId, viewT])
 
   useEffect(() => { setDetail(null); load() }, [load])
 
@@ -48,7 +50,7 @@ function PlayerView() {
   const openNode = (nodeId) =>
     shareService.getNode(token, nodeId).then(setDetail).catch(() => {})
   const goTo = (nodeId) =>
-    shareService.locateNode(token, nodeId)
+    shareService.locateNode(token, nodeId, viewT)
       .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })
       .catch(() => {})
   const enter = (node) => { if (node.hasInterior) navigate(`/p/${token}/m/${node.interiorMapId}`) }
@@ -87,7 +89,11 @@ function PlayerView() {
           ))}
         </div>
         {stale && <span className="stalechip" title="Couldn't refresh — showing the last thing we saw">offline?</span>}
-        {tl?.enabled && <span className="nowchip" title="The current moment, set by your DM">🕓 {tl.current} {tl.unit}</span>}
+        {tl?.enabled && (
+          <span className="nowchip" title={viewT != null ? 'A remembered moment — the era bar goes back to now' : 'The current moment, set by your DM'}>
+            🕓 {viewT != null ? `${viewT} ${tl.unit} · the past` : `${tl.current} ${tl.unit}`}
+          </span>
+        )}
       </div>
 
       <div className="main">
@@ -98,6 +104,7 @@ function PlayerView() {
               backdropUrl={map?.backdropUrl}
               worldRef={worldRef}
               onEmptyPointerDown={() => setDetail(null)}
+              controlsOffset={(world.eras || []).length ? 56 : 0}
             >
               {(data.placements || []).map((p) => (
                 <div key={p.id}
@@ -137,33 +144,40 @@ function PlayerView() {
               <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
             </div>
           )}
+          {tl?.enabled && <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />}
         </div>
 
         {detail && (
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="shead">
-              <span className="ic" style={{ background: cat(detail.node.category).c }}>{cat(detail.node.category).i}</span>
-              <h3>{detail.node.title}</h3>
-              <span className="scat">{cat(detail.node.category).label}</span>
-              <button className="sclose" onClick={() => setDetail(null)}>✕</button>
-            </div>
-            {detail.node.imageUrl && <img className="simg" src={detail.node.imageUrl} alt="" />}
-            {detail.node.body && <p className="sbody">{detail.node.body}</p>}
-            {detail.node.hasInterior && (
-              <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
-            )}
-            {(detail.links.length > 0 || detail.backlinks.length > 0) && (
-              <div className="links">
-                {[...detail.links, ...detail.backlinks].map((l) => (
-                  <div key={`${l.dir}${l.id}`} className={`lrow ${l.dir}`}>
-                    <span className="lgo" onClick={() => openNode(l.otherId)}>
-                      {l.dir === 'out' ? '→' : '←'} {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
-                    </span>
-                    <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
-                  </div>
-                ))}
+            <button className="sclose" onClick={() => setDetail(null)}>✕</button>
+            {detail.node.imageUrl && <div className="shero"><img src={detail.node.imageUrl} alt="" /></div>}
+            <div className="sinner">
+              <div className="shead">
+                <span className="ic" style={{ background: cat(detail.node.category).c }}>{cat(detail.node.category).i}</span>
+                <h3>{detail.node.title}</h3>
+                <span className="scat">{cat(detail.node.category).label}</span>
               </div>
-            )}
+              {detail.node.body && <p className="sbody">{detail.node.body}</p>}
+              {detail.node.hasInterior && (
+                <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
+              )}
+              {(detail.links.length > 0 || detail.backlinks.length > 0) && (
+                <>
+                  <div className="rk">Threads</div>
+                  <div className="links">
+                    {[...detail.links, ...detail.backlinks].map((l) => (
+                      <div key={`${l.dir}${l.id}`} className={`lrow ${l.dir}`}>
+                        <span className="ic sic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
+                        <span className="lgo" onClick={() => openNode(l.otherId)}>
+                          {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
+                        </span>
+                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

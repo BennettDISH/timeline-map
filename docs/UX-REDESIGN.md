@@ -204,7 +204,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 
 ### Phase 3 — Time
 - [x] Lifespans (unbounded default); one "Filter by time / Show all" switch *(lifespans done; explicit filter switch not — player mode + ghosts cover it)*
-- [ ] Histogram + era labels + real Play *(fade-not-vanish and inline range/unit config are done)*
+- [x] Histogram + era labels *(lifespan ticks on the track; named eras with 🎭 player-visible reveal + revealed-past scrubbing in Player View)* — real Play still not built
 - [x] One-click time-stamp; playhead-as-lens vs "set canon moment" *(done — scrub is a local lens; explicit 📍 Set canon moves what players see)*
 
 ### Phase 4 — Reveal (DM vs Player)

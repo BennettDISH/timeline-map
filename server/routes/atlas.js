@@ -20,6 +20,7 @@ async function ownsWorld(worldId, userId) {
 }
 const worldIdOfMap = async (id) => (await pool.query('SELECT world_id FROM maps WHERE id=$1', [id])).rows[0]?.world_id;
 const worldIdOfNode = async (id) => (await pool.query('SELECT world_id FROM nodes WHERE id=$1', [id])).rows[0]?.world_id;
+const worldIdOfEra = async (id) => (await pool.query('SELECT world_id FROM eras WHERE id=$1', [id])).rows[0]?.world_id;
 const worldIdOfPlacement = async (id) =>
   (await pool.query('SELECT m.world_id FROM placements p JOIN maps m ON p.map_id=m.id WHERE p.id=$1', [id])).rows[0]?.world_id;
 
@@ -50,11 +51,15 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     await pool.query('UPDATE worlds SET root_map_id=$1 WHERE id=$2', [m.id, worldId]);
     w.root_map_id = m.id;
   }
+  const eras = (await pool.query(
+    'SELECT id, name, start_time, end_time, player_visible FROM eras WHERE world_id=$1 ORDER BY start_time, id',
+    [worldId])).rows.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time, playerVisible: e.player_visible }));
   res.json({ world: {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
     shareToken: w.share_token || null,
     timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time,
                 current: w.timeline_current_time, unit: w.timeline_time_unit },
+    eras,
   } });
 }));
 
@@ -190,9 +195,9 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const n = (await pool.query('SELECT n.*, i.file_path AS img FROM nodes n LEFT JOIN images i ON n.image_id=i.id WHERE n.id=$1', [req.params.id])).rows[0];
-  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1', [req.params.id])).rows;
-  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1', [req.params.id])).rows;
-  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, timeContext: l.time_context, otherId: l.other, otherTitle: l.title });
+  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1', [req.params.id])).rows;
+  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1', [req.params.id])).rows;
+  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, timeContext: l.time_context, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category, visibility: n.visibility,
             hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id, imageUrl: resolveImageUrl(req, n.img) },
@@ -288,6 +293,31 @@ router.delete('/placements/:id', wrap(async (req, res) => {
   const wid = await worldIdOfPlacement(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Placement not found' });
   await pool.query('DELETE FROM placements WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// Eras: named periods of history. player_visible ones are scrubbable in the Player View.
+router.post('/worlds/:worldId/eras', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const { name = 'An age', start_time = 0, end_time = 0, player_visible = false } = req.body;
+  const r = (await pool.query(
+    'INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [req.params.worldId, String(name).slice(0, 120), parseInt(start_time, 10) || 0, parseInt(end_time, 10) || 0, !!player_visible])).rows[0];
+  res.status(201).json({ id: r.id });
+}));
+router.patch('/eras/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfEra(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Era not found' });
+  const cols = { name: 'name', start_time: 'start_time', end_time: 'end_time', player_visible: 'player_visible' };
+  const sets = [], vals = []; let i = 1;
+  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE eras SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  res.json({ ok: true });
+}));
+router.delete('/eras/:id', wrap(async (req, res) => {
+  const wid = await worldIdOfEra(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Era not found' });
+  await pool.query('DELETE FROM eras WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
 

@@ -4,11 +4,13 @@ import axios from 'axios'
 // URL is the whole capability, and the server filters everything before it leaves the DB.
 const api = axios.create({ baseURL: '/api/share' })
 
+// t: an optional moment in the revealed past (a player_visible era). The server validates
+// it — anything outside a revealed era, or past canon, silently resolves to canon.
 const shareService = {
   getWorld: (token) => api.get(`/${token}/world`).then((r) => r.data.world),
-  getMap: (token, mapId) => api.get(`/${token}/maps/${mapId}`).then((r) => r.data),
+  getMap: (token, mapId, t) => api.get(`/${token}/maps/${mapId}`, { params: t != null ? { t } : {} }).then((r) => r.data),
   getNode: (token, nodeId) => api.get(`/${token}/nodes/${nodeId}`).then((r) => r.data),
-  locateNode: (token, nodeId) => api.get(`/${token}/nodes/${nodeId}/locate`).then((r) => r.data),
+  locateNode: (token, nodeId, t) => api.get(`/${token}/nodes/${nodeId}/locate`, { params: t != null ? { t } : {} }).then((r) => r.data),
 }
 
 export default shareService

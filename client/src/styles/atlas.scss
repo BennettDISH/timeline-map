@@ -103,7 +103,8 @@
 
   // timeline scrubber + presence
   .timebar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;
-     padding:8px 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
+     height:48px;padding:0 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
+  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;width:152px;flex:none}
   .timebar .ttrack{flex:1;position:relative;display:flex;align-items:center}
   .timebar input[type=range]{width:100%;accent-color:var(--accent)}
   .canonmark{position:absolute;top:0;bottom:0;width:2px;background:#c9a35f;border-radius:1px;pointer-events:none}
@@ -262,24 +263,36 @@
   .helppop{left:auto;right:0;min-width:280px;padding:10px 12px;font-size:12px;color:var(--muted);gap:7px;
     b{color:var(--ink);font-weight:600}}
 
-  // the story card (View / Player): read, don't edit
-  .reader{position:absolute;top:14px;right:14px;z-index:12;width:min(330px,calc(100vw - 28px));
-    max-height:calc(100% - 28px);overflow-y:auto;
-    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;
-    box-shadow:0 18px 50px #000b;
-    &::after{content:'';position:absolute;inset:5px;border:1px solid rgba(201,163,95,.16);
-      border-radius:8px;pointer-events:none}
-    .rclose{position:absolute;top:8px;right:10px;background:none;border:0;color:var(--muted);
-      cursor:pointer;font-size:14px;z-index:1;&:hover{color:var(--ink)}}
-    .rimg{width:100%;border-radius:8px;margin-bottom:12px;display:block;border:1px solid var(--line)}
-    .rhead{display:flex;align-items:center;gap:9px;margin-bottom:2px;padding-right:20px;
-      h3{margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:21px;line-height:1.2}
-      .ic{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;line-height:18px;text-align:center;flex:none}}
-    .rcat{color:var(--muted);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
-    .rbody{white-space:pre-wrap;margin:11px 0 0;color:var(--ink);line-height:1.55}
-    .rk{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#c9a35f;margin:15px 0 5px}
-    .rlink{display:block;color:var(--accent);cursor:pointer;padding:2px 0}
-    .rgo{margin-top:15px}}
+  // the story panel (View / Player): read, don't edit — half the screen, art first
+  .reader{position:absolute;top:0;right:0;bottom:0;z-index:12;width:clamp(360px,44vw,620px);
+    max-width:calc(100vw - 20px);overflow-y:auto;
+    background:var(--panel);border-left:1px solid var(--line);
+    box-shadow:-24px 0 60px #000a;animation:rslide .22s ease-out;
+    .rclose{position:absolute;top:10px;right:12px;background:#0d0f13aa;border:1px solid var(--line);
+      border-radius:50%;width:28px;height:28px;color:var(--ink);
+      cursor:pointer;font-size:13px;z-index:2;&:hover{border-color:var(--accent)}}
+    .rhero{width:100%;max-height:42vh;overflow:hidden;position:relative;
+      img{width:100%;height:100%;object-fit:cover;display:block}
+      &::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel))}}
+    .rinner{padding:20px 26px 30px}
+    .rhead{display:flex;align-items:center;gap:11px;margin-bottom:3px;padding-right:24px;
+      h3{margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:30px;line-height:1.12;letter-spacing:.01em}
+      .ic{width:22px;height:22px;border-radius:50%;color:#fff;font-size:12px;line-height:22px;text-align:center;flex:none}}
+    .rcat{color:#c9a35f;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+    .rwhen{color:var(--muted);font-size:12px;margin-top:8px}
+    .rbody{white-space:pre-wrap;margin:14px 0 0;color:var(--ink);font-size:15px;line-height:1.65;max-width:52ch}
+    .rk{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c9a35f;margin:22px 0 8px;
+      display:flex;align-items:center;gap:8px;
+      &::after{content:'';flex:1;height:1px;background:var(--line)}}
+    .rlink{display:flex;align-items:center;gap:9px;color:var(--ink);cursor:pointer;padding:7px 9px;
+      border:1px solid var(--line);border-radius:8px;margin-bottom:5px;
+      .ic{width:17px;height:17px;border-radius:50%;color:#fff;font-size:10px;line-height:17px;text-align:center;flex:none}
+      .rlt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .rdir{color:var(--muted)}
+      &:hover{border-color:var(--accent)}}
+    .rgo{margin-top:16px}}
+  @keyframes rslide{from{transform:translateX(30px);opacity:0}}
+  @media (max-width: 700px){.reader{width:100%}}
 
   // inspector section labels
   .isect{display:flex;align-items:center;gap:8px;margin:17px 0 9px;font-size:10px;
@@ -317,4 +330,49 @@
     button.on{background:#5b9bd530;color:var(--ink)}}
   .onmaprow{display:flex;gap:6px;justify-content:space-between;
     .btn{margin-bottom:0}}
+}
+
+// ---- eras: the DM's era editor rows + the player's revealed-past scrubber ----
+.atlas {
+  .tlcfg{width:320px;max-height:70vh;overflow-y:auto}
+  .tlrow{display:flex;gap:6px}
+  .esmall{font-size:11px;font-style:normal;line-height:1.45}
+  .erarow{display:flex;align-items:center;gap:4px;
+    .ename{flex:1;min-width:0;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 7px;font-size:12px}
+    .enum{width:52px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 5px;font-size:12px}
+    .edash{color:var(--muted)}
+    .etoggle{background:none;border:1px solid var(--line);border-radius:6px;padding:3px 6px;cursor:pointer;opacity:.35;font-size:12px}
+    .etoggle.on{opacity:1;border-color:#c9a35f;background:rgba(201,163,95,.12)}
+    .ex{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px;
+      &:hover{color:#ff9b9b}}}
+
+  .erabar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;
+    height:48px;padding:0 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
+  .etrack{flex:1;position:relative;display:flex;align-items:center;height:100%;
+    input[type=range]{width:100%;accent-color:#c9a35f;position:relative;z-index:2}
+    .eseg{position:absolute;top:9px;height:8px;border-radius:4px;background:rgba(201,163,95,.28);
+      border:1px solid rgba(201,163,95,.4);pointer-events:none;overflow:visible;
+      em{position:absolute;top:11px;left:2px;font-size:9.5px;font-style:normal;color:#c9a35f;
+        white-space:nowrap;letter-spacing:.06em;opacity:.85}}}
+  .einfo{color:var(--ink);font-size:12px;white-space:nowrap;min-width:110px;text-align:right}
+  .enow{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
+
+  // player sheet grows into a story panel on wide screens; hero + threads everywhere
+  &.pview .sheet{padding:0;
+    .sclose{position:absolute;top:10px;right:12px;z-index:2;background:#0d0f13aa;border:1px solid var(--line);
+      border-radius:50%;width:28px;height:28px;color:var(--ink);font-size:13px}
+    .shero{width:100%;max-height:36vh;overflow:hidden;position:relative;
+      img{width:100%;height:100%;object-fit:cover;display:block}
+      &::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel))}}
+    .sinner{padding:14px 18px 22px;display:flex;flex-direction:column;gap:9px}
+    .shead h3{font-family:Georgia,'Times New Roman',serif;font-size:24px}
+    .sbody{font-size:15px;line-height:1.6}
+    .rk{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c9a35f;margin-top:6px}
+    .sic{width:17px;height:17px;border-radius:50%;color:#fff;font-size:10px;line-height:17px;text-align:center;flex:none}}
+  @media (min-width: 900px){
+    &.pview .sheet{left:auto;right:0;top:46px;bottom:0;width:clamp(380px,44vw,600px);
+      max-height:none;border-left:1px solid var(--line);border-top:0;border-radius:0;
+      box-shadow:-24px 0 60px #000a;animation:rslide .22s ease-out}
+    &.pview .shero{max-height:44vh}
+  }
 }

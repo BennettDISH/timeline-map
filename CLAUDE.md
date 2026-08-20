@@ -65,8 +65,10 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
   (`timeline_current_time`), which moves only via the explicit "Set canon" button.
+- `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
+  the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
+  `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
+  past canon, silently resolves to canon. The workspace 🎭 posture previews this.
 
 ## Known gaps (the honest list)
 - No undo, no world switcher inside the workspace
-- Player View is locked to the canon moment (no scrubbing the revealed past) — deliberate
-  v1 choice, revisit if players want history

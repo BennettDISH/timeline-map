@@ -158,6 +158,19 @@ ALTER TABLE worlds ADD COLUMN IF NOT EXISTS share_token VARCHAR(64) UNIQUE;
 -- range editor, instead of every world silently being born at year 50 of 0-100.
 ALTER TABLE worlds ALTER COLUMN timeline_enabled SET DEFAULT false;
 
+-- A named period of the world's history. player_visible eras are scrubbable in the
+-- Player View — but never past the canon moment; share.js enforces that server-side.
+CREATE TABLE IF NOT EXISTS eras (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    name VARCHAR(120) NOT NULL DEFAULT 'An age',
+    start_time INTEGER NOT NULL DEFAULT 0,
+    end_time INTEGER NOT NULL DEFAULT 0,
+    player_visible BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_eras_world ON eras(world_id);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
 CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);

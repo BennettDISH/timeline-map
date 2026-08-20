@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import MapPlane from '../components/MapPlane'
+import EraScrub from '../components/EraScrub'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -50,6 +51,7 @@ function AtlasWorkspace() {
     return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
   })
   const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
+  const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
 
   const saveTimer = useRef(null)
   const pendingPatch = useRef({ nodeId: null, patch: {} })
@@ -252,6 +254,7 @@ function AtlasWorkspace() {
   const switchMode = (m) => {
     setMode(m)
     setPlacing(null); setPicker(null); setNodePicker(null); setTlEdit(false); setMapMenu(false)
+    setPreviewT(null)
     try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ }
   }
   // the player preview prunes threads to DM-only nodes; it needs the visibility index,
@@ -288,7 +291,7 @@ function AtlasWorkspace() {
   // edit/view judge presence by the DM's lens; the player preview judges by CANON,
   // exactly like the real share link does.
   const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
-  const present = (p) => presentAt(p, mode === 'player' ? canon : now)
+  const present = (p) => presentAt(p, mode === 'player' ? (previewT ?? canon) : now)
   const setCanonHere = () => {
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
       .then(() => {
@@ -296,6 +299,12 @@ function AtlasWorkspace() {
         setFlash({ kind: 'ok', text: `Canon moment set to ${now} ${tl.unit} — that's what players now see.` })
       }).catch(() => {})
   }
+  const refreshWorldMeta = () => atlasService.getWorld(worldId).then(setWorld).catch(() => {})
+  const eraAdd = () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era")
+    .then(refreshWorldMeta).catch(() => {})
+  const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(refreshWorldMeta).catch(() => {})
+  const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era").then(refreshWorldMeta).catch(() => {})
+
   const enableTimeline = () => {
     setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
     setNow(0)
@@ -592,7 +601,11 @@ function AtlasWorkspace() {
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
               onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
-              controlsOffset={mode !== 'player' && tl?.enabled ? 56 : 0}
+              controlsOffset={
+                mode === 'player'
+                  ? (tl?.enabled && (world?.eras || []).some((e) => e.playerVisible && e.start <= canon) ? 56 : 0)
+                  : (tl?.enabled ? 56 : 0)
+              }
               dblZoom={!placing}
             >
               {(data?.placements || []).filter(visible).map((p) => (
@@ -732,42 +745,58 @@ function AtlasWorkspace() {
               </div>
               <span className="tlabel">{tl.max}</span>
               <span className="tnow">{now}<em> {tl.unit}</em></span>
-              {canon !== now ? (
-                <>
-                  <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
-                  <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => setNow(canon)}>↩</button>
-                </>
-              ) : (
-                <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
-              )}
-              <button className="tgear" title="Timeline range & unit" onClick={() => setTlEdit((v) => !v)}>⚙</button>
+              <div className="tzone">
+                {canon !== now ? (
+                  <>
+                    <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
+                    <button className="tgear" title={`Back to the canon moment (${canon})`} onClick={() => setNow(canon)}>↩</button>
+                  </>
+                ) : (
+                  <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
+                )}
+              </div>
+              <button className="tgear" title="Timeline range, unit & eras" onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
-          {mode !== 'player' && tl?.enabled && tlEdit && <TimelineConfig tl={tl} onSave={saveTimeline} onDisable={disableTimeline} onClose={() => setTlEdit(false)} />}
+          {mode !== 'player' && tl?.enabled && tlEdit && (
+            <TimelineConfig tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline}
+              onClose={() => setTlEdit(false)} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
+          )}
+          {mode === 'player' && tl?.enabled && (
+            <EraScrub tl={tl} eras={(world?.eras || []).filter((e) => e.playerVisible)}
+              value={previewT} onChange={setPreviewT} live />
+          )}
 
           {mode !== 'edit' && sel && visible(sel) && (
             <div className="reader">
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
-              {sel.node.imageUrl && <img className="rimg" src={sel.node.imageUrl} alt="" />}
-              <div className="rhead">
-                <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
-                <h3>{sel.node.title}</h3>
+              {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
+              <div className="rinner">
+                <div className="rhead">
+                  <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
+                  <h3>{sel.node.title}</h3>
+                </div>
+                <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}</span>
+                {tl?.enabled && (sel.start != null || sel.end != null) && (
+                  <div className="rwhen">🕓 {sel.start ?? tl.min} – {sel.end ?? '…'} {tl.unit}</div>
+                )}
+                {sel.node.body && <p className="rbody">{sel.node.body}</p>}
+                {sel.node.hasInterior && (
+                  <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
+                )}
+                {readerLinks.length > 0 && (
+                  <>
+                    <div className="rk">Threads</div>
+                    {readerLinks.map((l) => (
+                      <a key={`${l.dir}${l.id}`} className="rlink" onClick={() => jump(l.otherId)}>
+                        <span className="ic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
+                        <span className="rlt">{l.otherTitle}{l.label ? ` — ${l.label}` : ''}</span>
+                        <span className="rdir">{l.dir === 'out' ? '→' : '←'}</span>
+                      </a>
+                    ))}
+                  </>
+                )}
               </div>
-              <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}</span>
-              {sel.node.body && <p className="rbody">{sel.node.body}</p>}
-              {readerLinks.length > 0 && (
-                <>
-                  <div className="rk">Threads</div>
-                  {readerLinks.map((l) => (
-                    <a key={`${l.dir}${l.id}`} className="rlink" onClick={() => jump(l.otherId)}>
-                      {l.dir === 'out' ? '→' : '←'} {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
-                    </a>
-                  ))}
-                </>
-              )}
-              {sel.node.hasInterior && (
-                <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
-              )}
             </div>
           )}
 
@@ -923,19 +952,40 @@ function DeleteImpact({ impact }) {
   )
 }
 
-function TimelineConfig({ tl, onSave, onDisable, onClose }) {
+function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraPatch, onEraDelete }) {
   const [min, setMin] = useState(tl.min)
   const [max, setMax] = useState(tl.max)
   const [unit, setUnit] = useState(tl.unit || 'days')
   const bad = !(Number(min) < Number(max))
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null)
   return (
     <div className="tlcfg">
       <label>From <input type="number" value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
       <label>To <input type="number" value={max} onChange={(e) => setMax(e.target.value === '' ? '' : Number(e.target.value))} /></label>
       <label>Unit <input type="text" value={unit} placeholder="days, years, sessions…" onChange={(e) => setUnit(e.target.value)} /></label>
-      <button className="tool on" disabled={bad} title={bad ? 'Start must be before end' : ''}
-        onClick={() => onSave(Number(min), Number(max), unit.trim() || 'days')}>Save</button>
-      <button className="tool" onClick={onClose}>Cancel</button>
+      <div className="tlrow">
+        <button className="tool on" disabled={bad} title={bad ? 'Start must be before end' : ''}
+          onClick={() => onSave(Number(min), Number(max), unit.trim() || 'days')}>Save</button>
+        <button className="tool" onClick={onClose}>Close</button>
+      </div>
+      <div className="isect">Eras</div>
+      <div className="muted esmall">Name the ages of your world. 🎭 opens that era to players — they can scrub the revealed past, never beyond canon.</div>
+      {(eras || []).map((e) => (
+        <div key={e.id} className="erarow">
+          <input className="ename" defaultValue={e.name} title="Era name"
+            onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== e.name) onEraPatch(e.id, { name: v }) }} />
+          <input className="enum" type="number" defaultValue={e.start} title="From"
+            onBlur={(ev) => { const v = num(ev.target.value); if (v != null && v !== e.start) onEraPatch(e.id, { start_time: v }) }} />
+          <span className="edash">–</span>
+          <input className="enum" type="number" defaultValue={e.end} title="To"
+            onBlur={(ev) => { const v = num(ev.target.value); if (v != null && v !== e.end) onEraPatch(e.id, { end_time: v }) }} />
+          <button className={`etoggle ${e.playerVisible ? 'on' : ''}`}
+            title={e.playerVisible ? 'Players can scrub this era — click to hide' : 'Hidden from players — click to reveal'}
+            onClick={() => onEraPatch(e.id, { player_visible: !e.playerVisible })}>🎭</button>
+          <button className="ex" title="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
+        </div>
+      ))}
+      <button className="tool" onClick={onEraAdd}>＋ Add an era</button>
       <button className="tool danger" onClick={onDisable}>Disable timeline</button>
     </div>
   )

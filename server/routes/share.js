@@ -22,8 +22,19 @@ async function worldOf(token) {
   return r.rows[0] || null;
 }
 
-// The moment players see: the world clock while the timeline is on, otherwise null (no filter).
-const tcur = (w) => (w.timeline_enabled ? w.timeline_current_time : null);
+// The moment players see. Default: the canon moment (the world clock). A ?t= request is
+// honored ONLY when it is ≤ canon AND falls inside a player_visible era — the DM decides
+// which stretches of the past are open; the future never leaves the database.
+async function allowedTime(w, tRaw) {
+  if (!w.timeline_enabled) return null;
+  const canon = w.timeline_current_time;
+  const t = parseInt(tRaw, 10);
+  if (!Number.isFinite(t) || t >= canon) return canon;
+  const r = await pool.query(
+    'SELECT 1 FROM eras WHERE world_id=$1 AND player_visible AND start_time <= $2 AND end_time >= $2 LIMIT 1',
+    [w.id, t]);
+  return r.rows.length ? t : canon;
+}
 
 // Presence filter fragment — a placement exists now if its lifespan is unbounded or spans $N.
 // ($N::int IS NULL collapses the whole clause when the timeline is off.)
@@ -33,7 +44,7 @@ const PRESENT = (n) =>
 // Walk a map up its owner chain to the world root. Returns the breadcrumb (root → here) when
 // every step is player-visible RIGHT NOW, else null. This is what makes deep links safe: a map
 // inside a hidden or not-yet-existing branch is unreachable no matter how you got its id.
-async function walkUp(mapId, w) {
+async function walkUp(mapId, w, t) {
   const chain = []; let mid = mapId; const seen = new Set();
   while (true) {
     if (!mid || seen.has(mid)) return null;
@@ -48,7 +59,7 @@ async function walkUp(mapId, w) {
     const up = (await pool.query(
       `SELECT p.map_id FROM placements p
        WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
-       ORDER BY p.id LIMIT 1`, [m.owner_node_id, tcur(w)])).rows[0];
+       ORDER BY p.id LIMIT 1`, [m.owner_node_id, t])).rows[0];
     if (!up) return null;
     mid = up.map_id;
   }
@@ -58,9 +69,18 @@ async function walkUp(mapId, w) {
 router.get('/:token/world', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  let eras = [];
+  if (w.timeline_enabled) {
+    eras = (await pool.query(
+      `SELECT id, name, start_time, end_time FROM eras
+       WHERE world_id = $1 AND player_visible AND start_time <= $2 ORDER BY start_time, id`,
+      [w.id, w.timeline_current_time])).rows
+      .map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: Math.min(e.end_time, w.timeline_current_time) }));
+  }
   res.json({ world: {
     name: w.name, rootMapId: w.root_map_id,
     timeline: { enabled: w.timeline_enabled, current: w.timeline_current_time, unit: w.timeline_time_unit },
+    eras,
   } });
 }));
 
@@ -68,7 +88,8 @@ router.get('/:token/world', wrap(async (req, res) => {
 router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
-  const breadcrumb = await walkUp(Number(req.params.mapId), w);
+  const t = await allowedTime(w, req.query.t);
+  const breadcrumb = await walkUp(Number(req.params.mapId), w, t);
   if (!breadcrumb) return notFound(res);
 
   const map = (await pool.query(
@@ -83,7 +104,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
      JOIN nodes n ON p.node_id = n.id
      LEFT JOIN images i ON n.image_id = i.id
      WHERE p.map_id = $1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND ${PRESENT(2)}
-     ORDER BY p.id`, [req.params.mapId, tcur(w)])).rows;
+     ORDER BY p.id`, [req.params.mapId, t])).rows;
 
   const placements = rows.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y),
@@ -118,12 +139,12 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   if (!n) return notFound(res);
 
   const linkSql = (dir) => `
-    SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title
+    SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
     FROM links l JOIN nodes n2 ON l.${dir === 'out' ? 'to' : 'from'}_node_id = n2.id
     WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm'`;
   const out = (await pool.query(linkSql('out'), [n.id])).rows;
   const back = (await pool.query(linkSql('in'), [n.id])).rows;
-  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title });
+  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
 
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category,
@@ -138,16 +159,17 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
 router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
     `SELECT interior_map_id FROM nodes WHERE id = $1 AND world_id = $2 AND visibility != 'dm'`,
     [req.params.id, w.id])).rows[0];
   if (!n) return notFound(res);
-  if (n.interior_map_id && (await walkUp(n.interior_map_id, w))) return res.json({ mapId: n.interior_map_id });
+  if (n.interior_map_id && (await walkUp(n.interior_map_id, w, t))) return res.json({ mapId: n.interior_map_id });
   const p = (await pool.query(
     `SELECT p.map_id FROM placements p
      WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
-     ORDER BY p.id LIMIT 1`, [req.params.id, tcur(w)])).rows[0];
-  if (p && (await walkUp(p.map_id, w))) return res.json({ mapId: p.map_id });
+     ORDER BY p.id LIMIT 1`, [req.params.id, t])).rows[0];
+  if (p && (await walkUp(p.map_id, w, t))) return res.json({ mapId: p.map_id });
   return notFound(res);
 }));
 

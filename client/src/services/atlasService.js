@@ -28,6 +28,10 @@ const atlasService = {
   patchPlacement: (id, data) => http.patch(`${B}/placements/${id}`, data).then((r) => r.data),
   deletePlacement: (id) => http.delete(`${B}/placements/${id}`).then((r) => r.data),
 
+  addEra: (worldId, data) => http.post(`${B}/worlds/${worldId}/eras`, data).then((r) => r.data),
+  patchEra: (id, data) => http.patch(`${B}/eras/${id}`, data).then((r) => r.data),
+  deleteEra: (id) => http.delete(`${B}/eras/${id}`).then((r) => r.data),
+
   addLink: (data) => http.post(`${B}/links`, data).then((r) => r.data),
   deleteLink: (id) => http.delete(`${B}/links/${id}`).then((r) => r.data),
 }
