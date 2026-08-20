@@ -181,6 +181,8 @@ export default function MapPlane({
     }
   }
   const endPointer = (e) => {
+    // a clean single-pointer tap that never panned: treat it as a world click
+    const tap = e.type === 'pointerup' && pointers.current.size === 1 && gesture.current?.mode === 'pan' && !moved.current
     pointers.current.delete(e.pointerId)
     if (pointers.current.size === 0) gesture.current = null
     else if (pointers.current.size === 1) {
@@ -188,6 +190,12 @@ export default function MapPlane({
       const [p] = [...pointers.current.values()]
       const v = eff()
       gesture.current = { mode: 'pan', sx: p.x, sy: p.y, scale: v.scale, tx: v.tx, ty: v.ty }
+    }
+    if (tap && onWorldClick) {
+      const r = worldRef?.current?.getBoundingClientRect?.()
+      if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+        onWorldClick(e)
+      }
     }
   }
 
@@ -221,7 +229,6 @@ export default function MapPlane({
           transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
           '--pinscale': 1 / view.scale,
         }}
-        onClick={(e) => { if (!moved.current) onWorldClick?.(e) }}
         onContextMenu={(e) => { if (onWorldContextMenu) { e.preventDefault(); onWorldContextMenu(e) } }}
       >
         {backdropUrl && (

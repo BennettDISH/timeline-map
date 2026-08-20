@@ -157,6 +157,7 @@ function PlayerView() {
               worldRef={worldRef}
               onEmptyPointerDown={() => setDetail(null)}
               onWorldClick={marking ? onMarkClick : undefined}
+              dblZoom={!marking}
             >
               {shownPlacements.map((p) => (
                 <div key={p.id}
