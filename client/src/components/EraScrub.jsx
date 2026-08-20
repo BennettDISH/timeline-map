@@ -4,21 +4,25 @@ import React, { useState, useEffect, useMemo } from 'react'
 // DM's player-visible eras, hard-stopped at the canon moment. Dragging snaps to the nearest
 // revealed stretch; the commit only fires when the drag ends (value=null means "now").
 // The server re-validates every requested moment — this bar is UX, not the security boundary.
-export default function EraScrub({ tl, eras, value, onChange, live = false }) {
+export default function EraScrub({ tl, eras, value, onChange, live = false, win = null }) {
   const canon = tl?.current ?? 0
+  // a map's focus period narrows the TRACK to its stretch of history (same one clock)
+  const wLo = win && win.min != null ? win.min : -Infinity
+  const wHi = Math.min(canon, win && win.max != null ? win.max : canon)
   const segs = useMemo(() => (
     (eras || [])
-      .map((e) => ({ name: e.name, s: e.start, en: Math.min(e.end, canon) }))
-      .filter((e) => e.s <= e.en && e.s <= canon)
+      .map((e) => ({ name: e.name, s: Math.max(e.start, wLo === -Infinity ? e.start : wLo), en: Math.min(e.end, wHi) }))
+      .filter((e) => e.s <= e.en)
       .sort((a, b) => a.s - b.s)
-  ), [eras, canon])
+  ), [eras, wLo, wHi])
 
-  const lo = segs.length ? Math.min(segs[0].s, canon) : canon
-  const span = Math.max(1, canon - lo)
+  const lo = segs.length ? segs[0].s : wHi
+  const hi = wHi
+  const span = Math.max(1, hi - lo)
   const [dv, setDv] = useState(value == null ? canon : value)
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
 
-  if (!tl?.enabled || segs.length === 0) return null
+  if (!tl?.enabled || segs.length === 0 || hi <= lo) return null
 
   const snap = (t) => {
     if (t >= canon) return canon
@@ -49,7 +53,7 @@ export default function EraScrub({ tl, eras, value, onChange, live = false }) {
           </span>
         ))}
         <input
-          type="range" min={lo} max={canon} value={dv}
+          type="range" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}
           onPointerUp={() => !live && commit(dv)}
           onKeyUp={(e) => { if (!live && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) commit(dv) }}

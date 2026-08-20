@@ -93,7 +93,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   if (!breadcrumb) return notFound(res);
 
   const map = (await pool.query(
-    'SELECT m.id, m.title, m.view, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
+    'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [req.params.mapId])).rows[0];
   if (w.timeline_enabled) {
     // history may have redrawn this map: the latest-starting timed backdrop covering the
@@ -133,7 +133,9 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   }
 
   res.json({
-    map: { id: map.id, title: map.title, view: map.view, backdropUrl: resolveImageUrl(req, map.backdrop_path) },
+    map: { id: map.id, title: map.title, view: map.view,
+           focusStart: map.focus_start, focusEnd: map.focus_end,
+           backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     placements, links, breadcrumb,
   });
 }));

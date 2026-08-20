@@ -13,8 +13,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 // Perf: pointermove/wheel can fire far faster than the display refreshes; every view
 // change is coalesced through one requestAnimationFrame (queueView) so React renders at
 // most once per frame during a gesture instead of once per input event.
-export const PLANE_W = 1600
-const DEFAULT_H = 1000
+// 2560 raster width: the plane's layout size is the resolution the browser rasterizes
+// at — 1600 went blurry two wheel-clicks in. Pins live in %, so the constant is free to
+// change; fit() just computes a smaller base scale.
+export const PLANE_W = 2560
+const DEFAULT_H = 1600
 const MAX_SCALE = 8
 
 export default function MapPlane({

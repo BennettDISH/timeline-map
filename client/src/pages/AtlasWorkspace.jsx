@@ -50,6 +50,7 @@ function AtlasWorkspace() {
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
   const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
   const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
+  const [yearEdit, setYearEdit] = useState(null) // string while typing an exact year
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
   const [railW, setRailW] = useState(() => {
@@ -554,6 +555,15 @@ function AtlasWorkspace() {
     track(atlasService.patchMap(mapId, { focus_start: st, focus_end: en }), "Couldn't save the focus period").catch(() => {})
   }
 
+  const commitYear = () => {
+    const v = Number(yearEdit)
+    setYearEdit(null)
+    if (!Number.isFinite(v) || !tl) return
+    const t = Math.min(Math.max(Math.round(v), tl.min), tl.max)
+    setNow(t)
+    if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
+  }
+
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
   const activeBackdropUrl = useMemo(() => {
     if (!map) return null
@@ -905,7 +915,15 @@ function AtlasWorkspace() {
                 <button className="tgear fexp" title={focusExpand ? `Back to this place's period (${fMin}–${fMax})` : 'Show the whole timeline'}
                   onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
               )}
-              <span className="tnow">{now}<em> {tl.unit}</em></span>
+              {yearEdit != null ? (
+                <input className="tnowedit" autoFocus type="number" value={yearEdit}
+                  onChange={(e) => setYearEdit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitYear(); else if (e.key === 'Escape') setYearEdit(null) }}
+                  onBlur={commitYear} />
+              ) : (
+                <button className="tnow tnowbtn" title="Click to type an exact year"
+                  onClick={() => setYearEdit(String(now))}>{now}<em> {tl.unit}</em></button>
+              )}
               <div className="tzone">
                 {canon !== now ? (
                   <>
@@ -925,7 +943,8 @@ function AtlasWorkspace() {
           )}
           {mode === 'player' && tl?.enabled && (
             <EraScrub tl={tl} eras={(world?.eras || []).filter((e) => e.playerVisible)}
-              value={previewT} onChange={setPreviewT} live />
+              value={previewT} onChange={setPreviewT} live
+              win={hasFocus ? { min: map?.focusStart, max: map?.focusEnd } : null} />
           )}
         </div>
 

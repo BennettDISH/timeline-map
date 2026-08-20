@@ -158,7 +158,10 @@ function PlayerView() {
             </div>
           )}
         </div>
-        {tl?.enabled && <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />}
+        {tl?.enabled && (
+          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT}
+            win={map?.focusStart != null || map?.focusEnd != null ? { min: map.focusStart, max: map.focusEnd } : null} />
+        )}
         </div>
 
         {detail && (
