@@ -44,6 +44,24 @@ app.use(helmet({
 }));
 app.use(compression());
 
+// Spellforge embeds the public Player View in an iframe. Only /p/* may be framed, and
+// only by spellforge (plus ourselves) — the authed app keeps helmet's defaults
+// (frame-ancestors 'self' + X-Frame-Options SAMEORIGIN), so nobody can frame the DM UI.
+const SPELLFORGE = 'https://spellforge-production-1695.up.railway.app';
+app.use((req, res, next) => {
+  if (req.path === '/p' || req.path.startsWith('/p/')) {
+    const csp = res.getHeader('Content-Security-Policy');
+    if (csp) {
+      res.setHeader('Content-Security-Policy',
+        String(csp).replace("frame-ancestors 'self'", `frame-ancestors 'self' ${SPELLFORGE}`));
+    }
+    // XFO cannot express an allowlist; browsers that understand frame-ancestors ignore it,
+    // but drop it here so older ones do not hard-block the embed
+    res.removeHeader('X-Frame-Options');
+  }
+  next();
+});
+
 // Behind Railway's proxy — trust the first hop so req.ip is the real client (for rate limiting)
 app.set('trust proxy', 1);
 

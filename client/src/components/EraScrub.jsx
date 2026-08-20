@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 
 // The player's window into the past: a scrubber whose reachable range is the union of the
 // DM's player-visible eras, hard-stopped at the canon moment. Dragging snaps to the nearest
@@ -37,10 +37,16 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
     return best
   }
   const commit = (t) => onChange(t >= canon ? null : t)
+  // dragging should FEEL live even when each commit costs a server fetch: non-live mode
+  // debounce-commits mid-drag (~200ms of stillness) and commits hard on release
+  const debRef = useRef(0)
+  useEffect(() => () => clearTimeout(debRef.current), [])
   const move = (raw) => {
     const t = snap(Number(raw))
     setDv(t)
-    if (live) commit(t)
+    if (live) { commit(t); return }
+    clearTimeout(debRef.current)
+    debRef.current = setTimeout(() => commit(t), 200)
   }
   const pct = (t) => `${((t - lo) / span) * 100}%`
   const cur = segs.find((g) => dv >= g.s && dv <= g.en)
@@ -56,8 +62,8 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
         <input
           type="range" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}
-          onPointerUp={() => !live && commit(dv)}
-          onKeyUp={(e) => { if (!live && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) commit(dv) }}
+          onPointerUp={() => { if (!live) { clearTimeout(debRef.current); commit(dv) } }}
+          onKeyUp={(e) => { if (!live && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) { clearTimeout(debRef.current); commit(dv) } }}
         />
       </div>
       <div className="ezone">
