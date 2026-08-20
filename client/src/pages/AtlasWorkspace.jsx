@@ -479,6 +479,8 @@ function AtlasWorkspace() {
     })
   }
 
+  const readerOpen = mode !== 'edit' && !!sel &&
+    (mode !== 'player' || (sel.node.visibility !== 'dm' && sel.visibility !== 'dm' && present(sel)))
   const visible = (p) =>
     (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
     (mode === 'player' || !hiddenCats.has(p.node.category))
@@ -570,7 +572,10 @@ function AtlasWorkspace() {
       </div>
 
       <div className={`main m-${mode}`}
-        style={{ gridTemplateColumns: mode === 'player' ? '1fr' : `${railOpen ? '230px ' : ''}1fr${mode === 'edit' ? ` ${inspW}px` : ''}` }}>
+        style={{ gridTemplateColumns:
+          mode === 'player' ? `1fr${readerOpen ? ' var(--readerw)' : ''}`
+            : mode === 'view' ? `${railOpen ? '230px ' : ''}1fr${readerOpen ? ' var(--readerw)' : ''}`
+              : `${railOpen ? '230px ' : ''}1fr ${inspW}px` }}>
         {mode !== 'player' && railOpen && (
           <div className="rail">
             <h4>Maps</h4>
@@ -579,6 +584,7 @@ function AtlasWorkspace() {
           </div>
         )}
 
+        <div className="stagecol">
         <div className="stage">
           {mode !== 'player' && (
             <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'}
@@ -601,11 +607,6 @@ function AtlasWorkspace() {
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
               onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
-              controlsOffset={
-                mode === 'player'
-                  ? (tl?.enabled && (world?.eras || []).some((e) => e.playerVisible && e.start <= canon) ? 56 : 0)
-                  : (tl?.enabled ? 56 : 0)
-              }
               dblZoom={!placing}
             >
               {(data?.placements || []).filter(visible).map((p) => (
@@ -693,7 +694,7 @@ function AtlasWorkspace() {
           )}
 
           {mode !== 'player' && !placing && !isList && legend.length > 1 && (
-            <div className="legend" style={tl?.enabled ? { bottom: 60 } : undefined}>
+            <div className="legend">
               {legend.map(([k, n]) => (
                 <button key={k} className={`lchip ${hiddenCats.has(k) ? 'off' : ''}`} onClick={() => toggleCat(k)}
                   title={hiddenCats.has(k) ? `Show ${cat(k).label.toLowerCase()}s` : `Hide ${cat(k).label.toLowerCase()}s`}>
@@ -720,12 +721,28 @@ function AtlasWorkspace() {
           )}
 
           {mode === 'edit' && placing && (
-            <div className="hint" style={tl?.enabled ? { bottom: 64 } : undefined}>
+            <div className="hint">
               {placing.kind === 'new'
                 ? 'Click the map to drop the new node — Esc cancels.'
                 : `Click the map to place "${placing.node.title}" — Esc cancels.`}
             </div>
           )}
+
+          <div className="helpwrap" ref={helpRef}>
+            <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>
+            {help && (
+              <div className="apop helppop">
+                <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
+                <div><b>Click a pin</b> to read it{mode === 'edit' ? ' · drag a pin to move it' : ''}</div>
+                <div><b>Double-click a ◎ pin</b> to step inside that place</div>
+                {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
+                {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
+                <div><b>Ctrl+Shift+B</b> reports a bug</div>
+                <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
+              </div>
+            )}
+          </div>
+        </div>
 
           {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
@@ -766,8 +783,9 @@ function AtlasWorkspace() {
             <EraScrub tl={tl} eras={(world?.eras || []).filter((e) => e.playerVisible)}
               value={previewT} onChange={setPreviewT} live />
           )}
+        </div>
 
-          {mode !== 'edit' && sel && visible(sel) && (
+          {readerOpen && (
             <div className="reader">
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
@@ -799,22 +817,6 @@ function AtlasWorkspace() {
               </div>
             </div>
           )}
-
-          <div className="helpwrap" ref={helpRef}>
-            <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>
-            {help && (
-              <div className="apop helppop">
-                <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
-                <div><b>Click a pin</b> to read it{mode === 'edit' ? ' · drag a pin to move it' : ''}</div>
-                <div><b>Double-click a ◎ pin</b> to step inside that place</div>
-                {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
-                {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
-                <div><b>Ctrl+Shift+B</b> reports a bug</div>
-                <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
-              </div>
-            )}
-          </div>
-        </div>
 
         {mode === 'edit' && (
         <div className="insp">

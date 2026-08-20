@@ -97,6 +97,7 @@ function PlayerView() {
       </div>
 
       <div className="main">
+        <div className="pcol">
         <div className="stage">
           {!isList ? (
             <MapPlane
@@ -104,7 +105,6 @@ function PlayerView() {
               backdropUrl={map?.backdropUrl}
               worldRef={worldRef}
               onEmptyPointerDown={() => setDetail(null)}
-              controlsOffset={(world.eras || []).length ? 56 : 0}
             >
               {(data.placements || []).map((p) => (
                 <div key={p.id}
@@ -144,7 +144,8 @@ function PlayerView() {
               <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>
             </div>
           )}
-          {tl?.enabled && <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />}
+        </div>
+        {tl?.enabled && <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />}
         </div>
 
         {detail && (

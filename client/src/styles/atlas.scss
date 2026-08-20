@@ -102,8 +102,9 @@
   .pick:hover{border-color:var(--accent)}
 
   // timeline scrubber + presence
-  .timebar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;
-     height:48px;padding:0 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
+  // the DM scrubber is a real row under the map — never on top of it
+  .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;
+     height:48px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
   .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;width:152px;flex:none}
   .timebar .ttrack{flex:1;position:relative;display:flex;align-items:center}
   .timebar input[type=range]{width:100%;accent-color:var(--accent)}
@@ -130,8 +131,9 @@
      padding:3px 10px;white-space:nowrap;font-weight:600}
 
   // Player View: single-column, canvas-first, bottom-sheet inspector. Reuses the pin styles.
-  &.pview .main{display:block}
-  &.pview .stage{position:absolute;inset:46px 0 0 0}
+  &.pview .main{position:absolute;inset:46px 0 0 0;display:flex}
+  &.pview .pcol{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+  &.pview .stage{position:relative;flex:1 1 auto}
   &.pview .sheet{position:fixed;left:0;right:0;bottom:0;z-index:15;max-height:48vh;overflow:auto;
      background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;
      padding:12px 14px;display:flex;flex-direction:column;gap:9px}
@@ -148,7 +150,7 @@
 
   .timebar .tgear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
   .timebar .tgear:hover{color:var(--ink)}
-  .tlcfg{position:absolute;right:10px;bottom:48px;left:auto;z-index:8;display:flex;flex-direction:column;align-items:stretch;gap:9px;
+  .tlcfg{position:absolute;right:10px;bottom:56px;left:auto;z-index:8;display:flex;flex-direction:column;align-items:stretch;gap:9px;
      width:250px;padding:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px #000a}
   .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
   .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
@@ -263,11 +265,11 @@
   .helppop{left:auto;right:0;min-width:280px;padding:10px 12px;font-size:12px;color:var(--muted);gap:7px;
     b{color:var(--ink);font-weight:600}}
 
-  // the story panel (View / Player): read, don't edit — half the screen, art first
-  .reader{position:absolute;top:0;right:0;bottom:0;z-index:12;width:clamp(360px,44vw,620px);
-    max-width:calc(100vw - 20px);overflow-y:auto;
+  // the story panel (View / Player): a real column that pushes the map aside
+  --readerw: clamp(340px, 40vw, 600px);
+  .reader{position:relative;min-width:0;overflow-y:auto;
     background:var(--panel);border-left:1px solid var(--line);
-    box-shadow:-24px 0 60px #000a;animation:rslide .22s ease-out;
+    animation:rslide .22s ease-out;
     .rclose{position:absolute;top:10px;right:12px;background:#0d0f13aa;border:1px solid var(--line);
       border-radius:50%;width:28px;height:28px;color:var(--ink);
       cursor:pointer;font-size:13px;z-index:2;&:hover{border-color:var(--accent)}}
@@ -292,7 +294,15 @@
       &:hover{border-color:var(--accent)}}
     .rgo{margin-top:16px}}
   @keyframes rslide{from{transform:translateX(30px);opacity:0}}
-  @media (max-width: 700px){.reader{width:100%}}
+  // small screens: the column would crush the map — overlay instead
+  @media (max-width: 700px){
+    --readerw: 0px;
+    .reader{position:absolute;inset:0;z-index:12;width:100%}
+  }
+
+  // the stage column: map on top, timeline rows underneath
+  .stagecol{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+  .stagecol .stage{flex:1 1 auto}
 
   // inspector section labels
   .isect{display:flex;align-items:center;gap:8px;margin:17px 0 9px;font-size:10px;
@@ -346,14 +356,16 @@
     .ex{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px;
       &:hover{color:#ff9b9b}}}
 
-  .erabar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;
-    height:48px;padding:0 14px;background:#0d0f13ee;border-top:1px solid var(--line)}
-  .etrack{flex:1;position:relative;display:flex;align-items:center;height:100%;
-    input[type=range]{width:100%;accent-color:#c9a35f;position:relative;z-index:2}
-    .eseg{position:absolute;top:9px;height:8px;border-radius:4px;background:rgba(201,163,95,.28);
-      border:1px solid rgba(201,163,95,.4);pointer-events:none;overflow:visible;
-      em{position:absolute;top:11px;left:2px;font-size:9.5px;font-style:normal;color:#c9a35f;
-        white-space:nowrap;letter-spacing:.06em;opacity:.85}}}
+  // the player era bar: its own row, tall enough that era names live INSIDE the gold
+  // bands on their own line — the slider runs below them, covering nothing
+  .erabar{position:static;flex:none;display:flex;align-items:center;gap:12px;
+    height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
+  .etrack{flex:1;position:relative;height:100%;
+    input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:#c9a35f;z-index:2}
+    .eseg{position:absolute;top:10px;height:20px;border-radius:5px;background:rgba(201,163,95,.22);
+      border:1px solid rgba(201,163,95,.45);pointer-events:none;overflow:hidden;
+      em{display:block;padding:0 7px;font-size:10.5px;font-style:normal;line-height:19px;color:#e3cf9c;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}}}
   .einfo{color:var(--ink);font-size:12px;white-space:nowrap;min-width:110px;text-align:right}
   .enow{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
 
@@ -370,9 +382,10 @@
     .rk{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c9a35f;margin-top:6px}
     .sic{width:17px;height:17px;border-radius:50%;color:#fff;font-size:10px;line-height:17px;text-align:center;flex:none}}
   @media (min-width: 900px){
-    &.pview .sheet{left:auto;right:0;top:46px;bottom:0;width:clamp(380px,44vw,600px);
-      max-height:none;border-left:1px solid var(--line);border-top:0;border-radius:0;
-      box-shadow:-24px 0 60px #000a;animation:rslide .22s ease-out}
+    &.pview .sheet{position:relative;left:auto;right:auto;top:auto;bottom:auto;
+      flex:none;width:clamp(340px,40vw,560px);max-height:none;overflow-y:auto;
+      border-left:1px solid var(--line);border-top:0;border-radius:0;
+      animation:rslide .22s ease-out}
     &.pview .shero{max-height:44vh}
   }
 }
