@@ -1703,7 +1703,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .finally(() => setBusy(null))
   }
 
-  const COUNT_LABELS = { enrichedBodies: 'bodies filled' }
+  const COUNT_LABELS = { enrichedBodies: 'bodies filled', mapBases: 'backdrops set' }
   return (
     <div className="forge">
       <div className="fhead">

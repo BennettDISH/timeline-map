@@ -35,7 +35,7 @@ THE BATCH (everything optional, arrays may be empty):
   "maps": [{ "key": "m1", "title": "", "view": "map"|"list", "owner": "n1 or an existing node's numeric id — the node this map is the interior of", "backdrop": "img1", "focus_start": null, "focus_end": null }],
   "links": [{ "from": "n1 or numeric id", "to": "numeric id or key", "label": "why they connect" }],
   "eras": [{ "name": "", "start": 0, "end": 100 }],
-  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }],
+  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
   "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — the DM's words are never overwritten",
                "facts": [{ "body": "", "start": 200, "end": 400 }],
                "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }]
@@ -43,7 +43,9 @@ THE BATCH (everything optional, arrays may be empty):
 
 RULES OF CRAFT
 - Existing things are referenced by their numeric id from the WORLD DIGEST; new things by your own string keys. Reuse existing people and places via links and placements — never duplicate what exists.
-- Caps per batch: ${CAPS.images} images, ${CAPS.nodes} nodes, ${CAPS.maps} maps, ${CAPS.links} links, ${CAPS.eras} eras. Prefer a tight, finished creation over a sprawling half-made one.
+- LIFESPANS: null start/end means "always". NEVER write {"start":0,"end":0} to mean forever — that is a single year and the thing vanishes for the rest of history. Give something an end only when history actually ends it.
+- SPACING: pins draw at map scale — keep distinct nodes at least 5 apart in x/y. Never stack a person on top of their building; set them beside it, or save them for its interior.
+- Caps per batch: ${CAPS.images} images, ${CAPS.nodes} nodes, ${CAPS.maps} maps, ${CAPS.links} links, ${CAPS.eras} eras. Prefer a tight, finished creation over a sprawling half-made one, sized to the CREATION SIZE PREFERENCE.
 - Images cost real money (~4 cents each). Paint what earns it: a map's backdrop, a key portrait. Most nodes need no image.
 - "backdrop" prompts: wide top-down painted terrain or floorplan, NO text or labels in the image. "art" prompts: one subject, token-like. Describe content, not style.
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.

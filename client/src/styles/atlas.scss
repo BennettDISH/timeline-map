@@ -36,7 +36,9 @@
   .trow .tw{color:var(--muted);width:12px;text-align:center}
   .trow .tthumb{width:22px;height:16px;border-radius:3px;object-fit:cover;border:1px solid var(--line);flex:none}
 
-  .stage{position:relative;overflow:hidden;min-height:0;background:#0d0f13}
+  // The map and the timebar are drag surfaces — text selection mid-gesture paints blue
+  // ghosting across labels and hints. Inputs inside (year typing) stay editable regardless.
+  .stage{position:relative;overflow:hidden;min-height:0;background:#0d0f13;user-select:none;-webkit-user-select:none}
 
   // The pan/zoom map plane (MapPlane). Pins live in % of .mp-world, whose shape matches
   // the backdrop image — a coordinate is the same map point on every screen.
@@ -117,7 +119,7 @@
   // timeline scrubber + presence
   // the DM scrubber is a real row under the map — never on top of it; same band
   // language as the player era bar: named eras on their own line, slider beneath
-  .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;
+  .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;user-select:none;-webkit-user-select:none;
      height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
   .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;width:152px;flex:none}
   .timebar .ttrack{flex:1;position:relative;height:100%}
@@ -553,3 +555,5 @@
   >.tool.on{margin-top:12px}}
 .atlas .forge .fquick .fguide{background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);
   padding:6px 8px;font:inherit;font-size:12px;margin-bottom:2px}
+// Reading surfaces stay copyable — only drag surfaces refuse selection.
+.atlas .reader,.atlas .sheet{user-select:text;-webkit-user-select:text}

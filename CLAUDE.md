@@ -115,8 +115,10 @@ below is a wish-shelf, not a gap list.
   (PATCH `/worlds/:id/mind`): art style, anchor (swap to any world image / clear), the
   mind's lore memory, and `gen_size` (small/medium/large — how big a "fill out" runs).
 - The contract also ENRICHES existing nodes (`enrich`: facts, extra placements, and a body
-  that only ever fills an EMPTY one — unmake nulls exactly those). Chat sends the DM's
-  standing context (current map + selected node, server-verified) with every turn.
+  that only ever fills an EMPTY one — unmake nulls exactly those). A backdrop entry with
+  null start SETS a map's standing image (unmake restores what it replaced); dawn-pinned
+  single-instant lifespans ({start:0,end:0} for "always") normalize to open-ended. Chat
+  sends the DM's standing context (current map + selected node, server-verified) every turn.
 - Quick actions: paint a node's art (attaches; flips bare nodes to image pins), paint a
   map's backdrop, "imagine its interior", "fill out this node", "fill out this map".
   Free chat covers everything else; the mind's memory grows via `lore_append`.

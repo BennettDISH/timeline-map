@@ -32,6 +32,10 @@ function validateBatch(batch, world) {
 
   const min = world?.timeline_min_time ?? -1000000, max = world?.timeline_max_time ?? 1000000;
   const clampT = (v) => { const n = num(v); return n == null ? null : Math.max(min, Math.min(max, Math.round(n))); };
+  // "{start:0,end:0}" is the classic way a model writes "always" — a single-instant lifespan
+  // pinned to the world's dawn means open-ended, not one year long. (A real one-year moment
+  // anywhere else on the clock is left alone.)
+  const openEnded = (o) => { if (o.start != null && o.start === o.end && o.start === min) { o.start = null; o.end = null; } };
 
   for (const [k, cap] of Object.entries({ images: CAPS.images, maps: CAPS.maps, nodes: CAPS.nodes, links: CAPS.links, eras: CAPS.eras, backdrops: CAPS.backdrops, enrich: CAPS.enrich }))
     if (batch[k].length > cap) errs.push(`too many ${k} (${batch[k].length} > ${cap})`);
@@ -64,6 +68,7 @@ function validateBatch(batch, world) {
       p.y = Math.max(0, Math.min(100, num(p.y) ?? 50));
       p.start = clampT(p.start); p.end = clampT(p.end);
       if (p.start != null && p.end != null && p.start > p.end) [p.start, p.end] = [p.end, p.start];
+      openEnded(p);
     }
     n.facts = Array.isArray(n.facts) ? n.facts.slice(0, CAPS.factsPerNode) : [];
     for (const f of n.facts) {
@@ -91,6 +96,7 @@ function validateBatch(batch, world) {
       p.y = Math.max(0, Math.min(100, num(p.y) ?? 50));
       p.start = clampT(p.start); p.end = clampT(p.end);
       if (p.start != null && p.end != null && p.start > p.end) [p.start, p.end] = [p.end, p.start];
+      openEnded(p);
     }
   }
 
@@ -135,11 +141,13 @@ function validateBatch(batch, world) {
     if (e.start > e.end) [e.start, e.end] = [e.end, e.start];
   }
   for (const b of batch.backdrops) {
-    if (!mapRef(b.map)) errs.push(`a timed backdrop references unknown map "${b.map}"`);
-    if (!imgKeys.has(b.image)) errs.push(`a timed backdrop references unknown image "${b.image}"`);
+    if (!mapRef(b.map)) errs.push(`a backdrop references unknown map "${b.map}"`);
+    if (!imgKeys.has(b.image)) errs.push(`a backdrop references unknown image "${b.image}"`);
+    // start null = set the map's STANDING backdrop; a number starts a timed override.
+    // A single-instant cover is never meant — treat it as open-ended from its start.
     b.start = clampT(b.start);
-    if (b.start == null) errs.push('a timed backdrop needs a start time');
     b.end = clampT(b.end);
+    if (b.end != null && b.end === b.start) b.end = null;
   }
   return errs;
 }
@@ -237,7 +245,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   // Paint. Sequential, not parallel — each painting after the first can only match the
   // anchor once the anchor exists, and the anchor is the first painting.
   const images = new Map(); // key -> { id, url, storageKey }
-  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [] };
+  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [], mapBases: [] };
   try {
     for (const im of batch.images) {
       const stored = await paintAndStore({ worldId, userId, kind: im.kind, prompt: im.prompt, artStyle, name: im.name });
@@ -328,10 +336,18 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
     }
     for (const b of batch.backdrops) {
       const mid = typeof b.map === 'number' ? b.map : mapIds.get(b.map);
-      const r = await client.query(
-        `INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
-        [mid, images.get(b.image).id, b.start, b.end]);
-      created.backdrops.push(r.rows[0].id);
+      const imgId = images.get(b.image).id;
+      if (b.start == null) {
+        // set the map's standing backdrop; remember what it replaced so unmake can restore it
+        const prev = (await client.query('SELECT image_id FROM maps WHERE id=$1', [mid])).rows[0];
+        await client.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [imgId, mid]);
+        created.mapBases.push({ map: mid, prev: prev?.image_id ?? null });
+      } else {
+        const r = await client.query(
+          `INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
+          [mid, imgId, b.start, b.end]);
+        created.backdrops.push(r.rows[0].id);
+      }
     }
     const bres = await client.query(
       `INSERT INTO forge_batches (world_id, summary, created, status) VALUES ($1,$2,$3,'pending') RETURNING id`,
@@ -378,6 +394,9 @@ async function discardBatch({ worldId, batchId }) {
     ]) {
       if (ids && ids.length) await client.query(`DELETE FROM ${table} WHERE id = ANY($1)`, [ids]);
     }
+    // standing backdrops the batch set go back to what they replaced (NULL if that image is gone)
+    for (const mb of (c.mapBases || []))
+      await client.query('UPDATE maps SET image_id=(SELECT id FROM images WHERE id=$1) WHERE id=$2', [mb.prev, mb.map]);
     // bodies the batch filled (only ever onto empty nodes) go back to empty
     if (c.enrichedBodies && c.enrichedBodies.length)
       await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedBodies]);
