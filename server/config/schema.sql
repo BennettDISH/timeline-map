@@ -231,6 +231,9 @@ CREATE TABLE IF NOT EXISTS world_minds (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- DM's preferred creation size for "fill out" generations: small | medium | large.
+ALTER TABLE world_minds ADD COLUMN IF NOT EXISTS gen_size VARCHAR(10) NOT NULL DEFAULT 'medium';
+
 -- The mind's conversation with its DM, replayed (recent tail) into every call.
 CREATE TABLE IF NOT EXISTS mind_messages (
     id SERIAL PRIMARY KEY,

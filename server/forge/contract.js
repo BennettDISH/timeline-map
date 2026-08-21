@@ -11,7 +11,7 @@ const { r2Enabled, putObject, deleteObject } = require('./../storage');
 const { generateImage } = require('./gemini');
 
 const CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
-const CAPS = { images: 4, maps: 8, nodes: 40, links: 60, eras: 8, backdrops: 10, placements: 80, factsPerNode: 12, placementsPerNode: 6 };
+const CAPS = { images: 4, maps: 8, nodes: 40, links: 60, eras: 8, backdrops: 10, enrich: 20, placements: 80, factsPerNode: 12, placementsPerNode: 6 };
 
 const s = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
@@ -24,7 +24,7 @@ const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 function validateBatch(batch, world) {
   const errs = [];
   if (!batch || typeof batch !== 'object') return ['batch must be an object'];
-  for (const k of ['images', 'maps', 'nodes', 'links', 'eras', 'backdrops']) {
+  for (const k of ['images', 'maps', 'nodes', 'links', 'eras', 'backdrops', 'enrich']) {
     if (batch[k] == null) batch[k] = [];
     if (!Array.isArray(batch[k])) { errs.push(`${k} must be an array`); batch[k] = []; }
   }
@@ -33,7 +33,7 @@ function validateBatch(batch, world) {
   const min = world?.timeline_min_time ?? -1000000, max = world?.timeline_max_time ?? 1000000;
   const clampT = (v) => { const n = num(v); return n == null ? null : Math.max(min, Math.min(max, Math.round(n))); };
 
-  for (const [k, cap] of Object.entries({ images: CAPS.images, maps: CAPS.maps, nodes: CAPS.nodes, links: CAPS.links, eras: CAPS.eras, backdrops: CAPS.backdrops }))
+  for (const [k, cap] of Object.entries({ images: CAPS.images, maps: CAPS.maps, nodes: CAPS.nodes, links: CAPS.links, eras: CAPS.eras, backdrops: CAPS.backdrops, enrich: CAPS.enrich }))
     if (batch[k].length > cap) errs.push(`too many ${k} (${batch[k].length} > ${cap})`);
 
   const imgKeys = new Set(), mapKeys = new Set(), nodeKeys = new Set();
@@ -73,6 +73,27 @@ function validateBatch(batch, world) {
       if (f.start != null && f.end != null && f.start > f.end) [f.start, f.end] = [f.end, f.start];
     }
   }
+  // enrich: additive touches on EXISTING nodes — facts, placements, and a body that only
+  // ever fills an empty one (the mind never overwrites the DM's words).
+  for (const en of batch.enrich) {
+    if (typeof en.node !== 'number' || !Number.isInteger(en.node)) errs.push('an enrich entry needs an existing node\'s numeric id');
+    en.body = s(en.body, 4000) || null;
+    en.facts = Array.isArray(en.facts) ? en.facts.slice(0, CAPS.factsPerNode) : [];
+    for (const f of en.facts) {
+      f.body = s(f.body, 2000);
+      if (!f.body) errs.push(`a fact enriching node ${en.node} is empty`);
+      f.start = clampT(f.start); f.end = clampT(f.end);
+      if (f.start != null && f.end != null && f.start > f.end) [f.start, f.end] = [f.end, f.start];
+    }
+    en.place = Array.isArray(en.place) ? en.place.slice(0, CAPS.placementsPerNode) : [];
+    for (const p of en.place) {
+      p.x = Math.max(0, Math.min(100, num(p.x) ?? 50));
+      p.y = Math.max(0, Math.min(100, num(p.y) ?? 50));
+      p.start = clampT(p.start); p.end = clampT(p.end);
+      if (p.start != null && p.end != null && p.start > p.end) [p.start, p.end] = [p.end, p.start];
+    }
+  }
+
   const nodeRef = (v) => (typeof v === 'number' && Number.isInteger(v)) || nodeKeys.has(v);
   const mapRef = (v) => (typeof v === 'number' && Number.isInteger(v)) || mapKeys.has(v);
   const owners = new Set();
@@ -95,6 +116,11 @@ function validateBatch(batch, world) {
     totalPlacements += n.placements.length;
     for (const p of n.placements)
       if (!mapRef(p.map)) errs.push(`a placement of "${n.key}" references unknown map "${p.map}"`);
+  }
+  for (const en of batch.enrich) {
+    totalPlacements += en.place.length;
+    for (const p of en.place)
+      if (!mapRef(p.map)) errs.push(`a placement enriching node ${en.node} references unknown map "${p.map}"`);
   }
   if (totalPlacements > CAPS.placements) errs.push(`too many placements (${totalPlacements} > ${CAPS.placements})`);
   for (const l of batch.links) {
@@ -191,6 +217,10 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   for (const l of batch.links) { if (typeof l.from === 'number') wantNodes.add(l.from); if (typeof l.to === 'number') wantNodes.add(l.to); }
   for (const n of batch.nodes) for (const p of n.placements) if (typeof p.map === 'number') wantMaps.add(p.map);
   for (const b of batch.backdrops) if (typeof b.map === 'number') wantMaps.add(b.map);
+  for (const en of batch.enrich) {
+    wantNodes.add(en.node);
+    for (const p of en.place) if (typeof p.map === 'number') wantMaps.add(p.map);
+  }
   if (wantNodes.size) {
     const r = await pool.query('SELECT id, interior_map_id FROM nodes WHERE id = ANY($1) AND world_id=$2', [[...wantNodes], worldId]);
     if (r.rows.length !== wantNodes.size) throw new Error('the batch references nodes that are not in this world');
@@ -207,7 +237,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   // Paint. Sequential, not parallel — each painting after the first can only match the
   // anchor once the anchor exists, and the anchor is the first painting.
   const images = new Map(); // key -> { id, url, storageKey }
-  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [] };
+  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [] };
   try {
     for (const im of batch.images) {
       const stored = await paintAndStore({ worldId, userId, kind: im.kind, prompt: im.prompt, artStyle, name: im.name });
@@ -256,6 +286,29 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
           `INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
           [nid, f.body, f.start, f.end]);
         created.facts.push(r.rows[0].id);
+      }
+    }
+    for (const en of batch.enrich) {
+      if (en.body) {
+        // only ever fills an EMPTY body; RETURNING tells us whether it actually landed,
+        // so unmake can null exactly those (and nothing the DM wrote)
+        const r = await client.query(
+          `UPDATE nodes SET body=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND (body IS NULL OR body='') RETURNING id`,
+          [en.body, en.node]);
+        if (r.rows.length) created.enrichedBodies.push(en.node);
+      }
+      for (const f of en.facts) {
+        const r = await client.query(
+          `INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
+          [en.node, f.body, f.start, f.end]);
+        created.facts.push(r.rows[0].id);
+      }
+      for (const p of en.place) {
+        const mid = typeof p.map === 'number' ? p.map : mapIds.get(p.map);
+        const r = await client.query(
+          `INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility)
+           VALUES ($1,$2,$3,$4,$5,$6,'dm') RETURNING id`, [en.node, mid, p.x, p.y, p.start, p.end]);
+        created.placements.push(r.rows[0].id);
       }
     }
     for (const l of batch.links) {
@@ -325,6 +378,9 @@ async function discardBatch({ worldId, batchId }) {
     ]) {
       if (ids && ids.length) await client.query(`DELETE FROM ${table} WHERE id = ANY($1)`, [ids]);
     }
+    // bodies the batch filled (only ever onto empty nodes) go back to empty
+    if (c.enrichedBodies && c.enrichedBodies.length)
+      await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedBodies]);
     await client.query(`UPDATE forge_batches SET status='discarded' WHERE id=$1`, [batchId]);
     await client.query('COMMIT');
   } catch (e) {

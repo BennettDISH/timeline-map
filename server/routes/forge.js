@@ -7,6 +7,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
 const { discardBatch, paintAndStore } = require('../forge/contract');
@@ -43,7 +44,53 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     id: b.id, summary: b.summary,
     counts: Object.fromEntries(Object.entries(b.created || {}).map(([k, v]) => [k, v.length]).filter(([, v]) => v > 0)),
   }));
-  res.json({ hasStyle: !!mind.art_style, artStyle: mind.art_style || '', messages, batches });
+  let styleImage = null;
+  if (mind.style_image_id) {
+    const im = (await pool.query('SELECT id, file_path FROM images WHERE id=$1', [mind.style_image_id])).rows[0];
+    if (im) styleImage = { id: im.id, url: resolveImageUrl(req, im.file_path) };
+  }
+  res.json({
+    artStyle: mind.art_style || '', lore: mind.lore || '',
+    genSize: mind.gen_size || 'medium', styleImage,
+    messages, batches,
+  });
+}));
+
+// PATCH /worlds/:worldId/mind — the DM's hands on the mind itself: art style, memory,
+// creation size, and the style anchor (an image of this world, or null to let the next
+// painting become the anchor). Everything the mind runs on stays inspectable and editable.
+router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
+  const { worldId } = req.params;
+  if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  await ensureMind(worldId);
+  const sets = [], vals = [];
+  const b = req.body || {};
+  if ('art_style' in b) {
+    if (typeof b.art_style !== 'string') return res.status(400).json({ message: 'art_style must be text' });
+    sets.push(`art_style=$${vals.push(b.art_style.trim().slice(0, 2000))}`);
+  }
+  if ('lore' in b) {
+    if (typeof b.lore !== 'string') return res.status(400).json({ message: 'lore must be text' });
+    sets.push(`lore=$${vals.push(b.lore.slice(0, 20000))}`);
+  }
+  if ('gen_size' in b) {
+    if (!['small', 'medium', 'large'].includes(b.gen_size)) return res.status(400).json({ message: 'gen_size must be small, medium, or large' });
+    sets.push(`gen_size=$${vals.push(b.gen_size)}`);
+  }
+  if ('style_image_id' in b) {
+    if (b.style_image_id === null) sets.push('style_image_id=NULL');
+    else {
+      const id = Number(b.style_image_id);
+      const im = (await pool.query('SELECT id FROM images WHERE id=$1 AND world_id=$2', [id, worldId])).rows[0];
+      if (!im) return res.status(400).json({ message: 'That image is not in this world' });
+      sets.push(`style_image_id=$${vals.push(id)}`);
+    }
+  }
+  if (sets.length) {
+    vals.push(worldId);
+    await pool.query(`UPDATE world_minds SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE world_id=$${vals.length}`, vals);
+  }
+  res.json({ ok: true });
 }));
 
 // POST /worlds/:worldId/chat — one turn with the mind. May create (staged, DM-only).
@@ -52,7 +99,19 @@ router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
   if (!message) return res.status(400).json({ message: 'Say something to the mind' });
-  const out = await converse({ worldId: Number(worldId), userId: req.user.id, message });
+  // where the DM is standing — verified against this world, never trusted from the client
+  const context = {};
+  const mapId = Number(req.body?.context?.mapId);
+  if (Number.isInteger(mapId)) {
+    const m = (await pool.query('SELECT id, title FROM maps WHERE id=$1 AND world_id=$2', [mapId, worldId])).rows[0];
+    if (m) { context.mapId = m.id; context.mapTitle = m.title; }
+  }
+  const nodeId = Number(req.body?.context?.nodeId);
+  if (Number.isInteger(nodeId)) {
+    const n = (await pool.query('SELECT id, title FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, worldId])).rows[0];
+    if (n) { context.nodeId = n.id; context.nodeTitle = n.title; }
+  }
+  const out = await converse({ worldId: Number(worldId), userId: req.user.id, message, context });
   res.json(out);
 }));
 

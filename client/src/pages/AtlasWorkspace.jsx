@@ -1601,15 +1601,36 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const [batches, setBatches] = useState([])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(null) // null | 'chat' | 'art' | 'backdrop' | batch id
+  const [view, setView] = useState('chat') // 'chat' | 'mind' (the mind's settings partition)
+  const [mind, setMind] = useState({ artStyle: '', lore: '', genSize: 'medium', styleImage: null })
+  const [anchorPick, setAnchorPick] = useState(false)
   const logRef = useRef(null)
 
   useEffect(() => {
     let live = true
     forgeService.getWorld(worldId)
-      .then((d) => { if (live) { setMsgs(d.messages); setBatches(d.batches) } })
+      .then((d) => {
+        if (!live) return
+        setMsgs(d.messages); setBatches(d.batches)
+        setMind({ artStyle: d.artStyle, lore: d.lore, genSize: d.genSize, styleImage: d.styleImage })
+      })
       .catch(() => { if (live) setMsgs([]) })
     return () => { live = false }
   }, [worldId])
+
+  const saveMind = () => {
+    setBusy('mind')
+    forgeService.patchMind(worldId, { art_style: mind.artStyle, lore: mind.lore, gen_size: mind.genSize })
+      .then(() => onFlash({ kind: 'ok', text: 'The mind took it in' }))
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't save") }))
+      .finally(() => setBusy(null))
+  }
+  const setAnchor = (imageId, url) => {
+    setAnchorPick(false)
+    forgeService.patchMind(worldId, { style_image_id: imageId })
+      .then(() => setMind((m) => ({ ...m, styleImage: imageId == null ? null : { id: imageId, url } })))
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't change the anchor") }))
+  }
 
   useEffect(() => {
     const el = logRef.current
@@ -1619,9 +1640,10 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const say = (message) => {
     if (!message.trim() || busy) return
     setText('')
+    setView('chat')
     setMsgs((m) => [...(m || []), { role: 'user', content: message }])
     setBusy('chat')
-    forgeService.chat(worldId, message)
+    forgeService.chat(worldId, message, { mapId: map?.id, nodeId: sel?.node?.id })
       .then((r) => {
         setMsgs((m) => [...m, { role: 'mind', content: r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.say }])
         if (r.batch) {
@@ -1654,6 +1676,14 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     if (!sel) return
     say(`Create an interior map for node #${sel.node.id} (“${sel.node.title}”) — the whole space: a painted backdrop, and the people, things, and secrets inside it, placed where they belong.`)
   }
+  const fillOutNode = () => {
+    if (!sel) return
+    say(`Fill out node #${sel.node.id} (“${sel.node.title}”) — enrich it with facts across the eras, links to the people and places it touches, and a body if it has none. Don't create new nodes unless one is truly missing from its story.`)
+  }
+  const fillOutMap = () => {
+    if (!map) return
+    say(`Fill out the map I'm looking at (map #${map.id}, “${map.title}”) — add the people, places, and things that belong here, placed sensibly, and enrich what already exists before inventing anything that duplicates it.`)
+  }
 
   const batchAct = (b, keep) => {
     if (busy) return
@@ -1667,15 +1697,56 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .finally(() => setBusy(null))
   }
 
+  const COUNT_LABELS = { enrichedBodies: 'bodies filled' }
   return (
     <div className="forge">
       <div className="fhead">
         <h4>✦ The Forge</h4>
-        <button className="x" onClick={onClose} title="Close the Forge">✕</button>
+        <div className="fhbtns">
+          <button className={`gear ${view === 'mind' ? 'on' : ''}`} onClick={() => setView(view === 'mind' ? 'chat' : 'mind')}
+            title="The mind itself — art style, style anchor, memory, creation size">⚙</button>
+          <button className="x" onClick={onClose} title="Close the Forge">✕</button>
+        </div>
       </div>
+      {view === 'mind' && (
+        <div className="fmind">
+          <div className="fsect">Art style</div>
+          <div className="fhint">Every painting obeys this. The mind writes one with its first painting if you leave it empty — tweak it anytime.</div>
+          <textarea rows={4} value={mind.artStyle} placeholder="e.g. Aged ink and gold-leaf cartography, muted parchment tones, soft candlelit shading."
+            onChange={(e) => setMind((m) => ({ ...m, artStyle: e.target.value }))} />
+          <div className="fsect">Style anchor</div>
+          <div className="fhint">A reference image every painting must match. The first painting becomes it automatically; swap or clear it here.</div>
+          {mind.styleImage ? (
+            <div className="fanchor">
+              <img src={mind.styleImage.url} alt="Style anchor" />
+              <div className="fbrow">
+                <button className="tool" onClick={() => setAnchorPick(true)}>Change…</button>
+                <button className="tool" onClick={() => setAnchor(null)} title="The next painting becomes the new anchor">Clear</button>
+              </div>
+            </div>
+          ) : (
+            <div className="fbrow">
+              <button className="tool" onClick={() => setAnchorPick(true)}>Choose an image…</button>
+            </div>
+          )}
+          <div className="fsect">Creation size</div>
+          <div className="fhint">How much a “fill this out” makes at once.</div>
+          <select value={mind.genSize} onChange={(e) => setMind((m) => ({ ...m, genSize: e.target.value }))}>
+            <option value="small">Small — a handful (3–6 nodes)</option>
+            <option value="medium">Medium — a lived-in space (8–14)</option>
+            <option value="large">Large — a whole quarter (18–35)</option>
+          </select>
+          <div className="fsect">The mind's memory</div>
+          <div className="fhint">Threads and secrets it keeps between sessions. It reads this every turn — edit freely.</div>
+          <textarea rows={8} value={mind.lore} placeholder="Nothing remembered yet."
+            onChange={(e) => setMind((m) => ({ ...m, lore: e.target.value }))} />
+          <button className="tool on" disabled={busy === 'mind'} onClick={saveMind}>{busy === 'mind' ? 'Saving…' : 'Save the mind'}</button>
+        </div>
+      )}
+      {view === 'chat' && (
       <div className="fquick">
         {sel && (
-          <button disabled={!!busy} onClick={paintArt} title="Nano Banana paints this node in the world's fixed art style and attaches it">
+          <button disabled={!!busy} onClick={paintArt} title="Nano Banana paints this node in the world's art style and attaches it">
             {busy === 'art' ? 'Painting…' : `🎨 Paint “${trunc(sel.node.title)}”`}
           </button>
         )}
@@ -1684,18 +1755,29 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
             ◎ Imagine its interior
           </button>
         )}
+        {sel && (
+          <button disabled={!!busy} onClick={fillOutNode} title="Facts across the eras, links, a body if it has none — the mind fleshes out what's already there">
+            ✚ Fill out “{trunc(sel.node.title)}”
+          </button>
+        )}
+        {map && map.view !== 'list' && (
+          <button disabled={!!busy} onClick={fillOutMap} title="The mind populates this map — enriching what exists before inventing anything new">
+            ✚ Fill out this map
+          </button>
+        )}
         {map && map.view !== 'list' && (
           <button disabled={!!busy} onClick={paintBackdrop} title="Paint this map a backdrop in the world's style (the current one is replaced, not deleted)">
             {busy === 'backdrop' ? 'Painting…' : '🗺 Paint this map a backdrop'}
           </button>
         )}
       </div>
-      {batches.length > 0 && (
+      )}
+      {view === 'chat' && batches.length > 0 && (
         <div className="fbatches">
           {batches.map((b) => (
             <div key={b.id} className="fbatch">
               <div className="fbsum">{b.summary}</div>
-              <div className="fbmeta">{Object.entries(b.counts || {}).map(([k, v]) => `${v} ${k}`).join(' · ') || 'created'} — DM-only until you reveal it</div>
+              <div className="fbmeta">{Object.entries(b.counts || {}).map(([k, v]) => `${v} ${COUNT_LABELS[k] || k}`).join(' · ') || 'created'} — DM-only until you reveal it</div>
               <div className="fbrow">
                 <button className="tool on" disabled={!!busy} onClick={() => batchAct(b, true)}>Keep</button>
                 <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{busy === b.id ? '…' : 'Unmake'}</button>
@@ -1704,6 +1786,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           ))}
         </div>
       )}
+      {view === 'chat' && (<>
       <div className="flog" ref={logRef}>
         {msgs === null && <div className="fintro">Waking the mind…</div>}
         {msgs !== null && msgs.length === 0 && (
@@ -1725,6 +1808,11 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); say(text) } }} />
         <button className="tool on" disabled={!!busy || !text.trim()} onClick={() => say(text)}>Send</button>
       </div>
+      </>)}
+      {anchorPick && (
+        <ImagePicker worldId={worldId} hasCurrent={!!mind.styleImage}
+          onPick={(id, url) => setAnchor(id, url)} onClose={() => setAnchorPick(false)} />
+      )}
     </div>
   )
 }

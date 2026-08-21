@@ -10,7 +10,8 @@ const LONG = { timeout: 600000 } // a full batch can paint 4 images — never ab
 const forgeService = {
   status: () => http.get(`${B}/status`).then((r) => r.data.enabled).catch(() => false),
   getWorld: (worldId) => http.get(`${B}/worlds/${worldId}`).then((r) => r.data),
-  chat: (worldId, message) => http.post(`${B}/worlds/${worldId}/chat`, { message }, LONG).then((r) => r.data),
+  patchMind: (worldId, data) => http.patch(`${B}/worlds/${worldId}/mind`, data).then((r) => r.data),
+  chat: (worldId, message, context) => http.post(`${B}/worlds/${worldId}/chat`, { message, context }, LONG).then((r) => r.data),
   keepBatch: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/keep`).then((r) => r.data),
   discardBatch: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/discard`).then((r) => r.data),
   nodeArt: (nodeId, guidance) => http.post(`${B}/nodes/${nodeId}/art`, { guidance }, LONG).then((r) => r.data),

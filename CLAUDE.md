@@ -108,12 +108,18 @@ below is a wish-shelf, not a gap list.
 - Everything generated is **born DM-only** and grouped into a `forge_batches` row —
   "Keep" retires the card, "Unmake" deletes the whole creation (and its R2 objects).
   The mind never sets visibility; revealing stays a per-node DM act.
-- Art style lock: `world_minds.art_style` (written spec, set once by the mind) + the style
-  ANCHOR (`style_image_id`, the world's first painting) passed as a Nano Banana reference
-  image into every later generation. Image prompts describe content only, never style.
+- Art style lock: `world_minds.art_style` (written spec — the mind drafts it when empty)
+  + the style ANCHOR (`style_image_id`, the first painting by default) passed as a Nano
+  Banana reference image into every later generation. Image prompts describe content only,
+  never style. **Everything the mind runs on is DM-editable** in the panel's ⚙ partition
+  (PATCH `/worlds/:id/mind`): art style, anchor (swap to any world image / clear), the
+  mind's lore memory, and `gen_size` (small/medium/large — how big a "fill out" runs).
+- The contract also ENRICHES existing nodes (`enrich`: facts, extra placements, and a body
+  that only ever fills an EMPTY one — unmake nulls exactly those). Chat sends the DM's
+  standing context (current map + selected node, server-verified) with every turn.
 - Quick actions: paint a node's art (attaches; flips bare nodes to image pins), paint a
-  map's backdrop, "imagine its interior" (full interior map + inhabitants for the selected
-  node). Free chat covers everything else; the mind's memory grows via `lore_append`.
+  map's backdrop, "imagine its interior", "fill out this node", "fill out this map".
+  Free chat covers everything else; the mind's memory grows via `lore_append`.
 
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing

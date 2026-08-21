@@ -35,7 +35,10 @@ THE BATCH (everything optional, arrays may be empty):
   "maps": [{ "key": "m1", "title": "", "view": "map"|"list", "owner": "n1 or an existing node's numeric id — the node this map is the interior of", "backdrop": "img1", "focus_start": null, "focus_end": null }],
   "links": [{ "from": "n1 or numeric id", "to": "numeric id or key", "label": "why they connect" }],
   "eras": [{ "name": "", "start": 0, "end": 100 }],
-  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }]
+  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }],
+  "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — the DM's words are never overwritten",
+               "facts": [{ "body": "", "start": 200, "end": 400 }],
+               "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }]
 }
 
 RULES OF CRAFT
@@ -45,6 +48,7 @@ RULES OF CRAFT
 - "backdrop" prompts: wide top-down painted terrain or floorplan, NO text or labels in the image. "art" prompts: one subject, token-like. Describe content, not style.
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
+- To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
 - Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
 - If the DM is only asking or planning, reply with say alone — no batch.`;
@@ -80,8 +84,12 @@ async function digest(worldId) {
   };
 }
 
+// How many new nodes a "fill this out" should aim for, by the DM's gen_size setting.
+const SIZES = { small: '3–6', medium: '8–14', large: '18–35' };
+
 // One turn of the conversation: ground, ask, validate (one repair round), apply, remember.
-async function converse({ worldId, userId, message }) {
+// `context` is where the DM is standing (current map / selected node), server-verified.
+async function converse({ worldId, userId, message, context }) {
   const mind = await ensureMind(worldId);
   const world = (await pool.query('SELECT timeline_min_time, timeline_max_time FROM worlds WHERE id=$1', [worldId])).rows[0];
   const tail = (await pool.query(
@@ -89,13 +97,17 @@ async function converse({ worldId, userId, message }) {
   const d = await digest(worldId);
   const system = [
     RULEBOOK,
-    mind.art_style ? `CURRENT ART STYLE (fixed, applied to every painting for you):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
+    `CREATION SIZE PREFERENCE: ${mind.gen_size || 'medium'} — when filling out a space, aim for about ${SIZES[mind.gen_size] || SIZES.medium} new nodes unless the DM says otherwise.`,
+    mind.art_style ? `CURRENT ART STYLE (applied to every painting for you; the DM can edit it):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
     mind.lore ? `YOUR REMEMBERED LORE:\n${mind.lore.slice(-6000)}` : '',
   ].filter(Boolean).join('\n\n');
 
+  const where = context?.mapTitle
+    ? `\n\n(The DM is looking at map #${context.mapId} "${context.mapTitle}"${context.nodeTitle ? `, with node #${context.nodeId} "${context.nodeTitle}" selected` : ''}.)`
+    : '';
   const messages = [
     ...tail.map((m) => ({ role: m.role === 'mind' ? 'model' : 'user', text: m.content })),
-    { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}` },
+    { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}${where}` },
   ];
 
   let resp = await generateJSON({ system, messages });
