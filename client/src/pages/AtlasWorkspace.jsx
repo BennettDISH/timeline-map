@@ -1682,6 +1682,10 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     if (!sel) return
     say(withGuide(`Create an interior map for node #${sel.node.id} (“${sel.node.title}”) — the whole space: a painted backdrop, and the people, things, and secrets inside it, placed where they belong.`))
   }
+  const fillOutInterior = () => {
+    if (!sel?.node.interiorMapId) return
+    say(withGuide(`Populate the interior of node #${sel.node.id} (“${sel.node.title}”) — its interior is map #${sel.node.interiorMapId}. Fill the SPACE itself: the people, things, and secrets that belong inside, placed on that interior map (and paint it a backdrop if it has none).`))
+  }
   const fillOutNode = () => {
     if (!sel) return
     say(withGuide(`Fill out node #${sel.node.id} (“${sel.node.title}”) — enrich it with facts across the eras, links to the people and places it touches, and a body if it has none. Don't create new nodes unless one is truly missing from its story.`))
@@ -1762,6 +1766,11 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
         {sel && !sel.node.hasInterior && (
           <button disabled={!!busy} onClick={imagineInterior} title="The mind builds the whole space inside this node — backdrop, people, things">
             ◎ Imagine its interior
+          </button>
+        )}
+        {sel && sel.node.hasInterior && (
+          <button disabled={!!busy} onClick={fillOutInterior} title="The mind populates the space inside this node — people and things placed on its interior map">
+            ◎ Fill out its interior
           </button>
         )}
         {sel && (

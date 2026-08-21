@@ -51,6 +51,7 @@ RULES OF CRAFT
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
 - To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
+- A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
 - Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
 - If the DM is only asking or planning, reply with say alone — no batch.`;
