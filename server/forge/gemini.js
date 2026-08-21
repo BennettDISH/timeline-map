@@ -4,7 +4,8 @@
 // not a code change.
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const textModel = () => process.env.FORGE_TEXT_MODEL || 'gemini-2.5-pro';
+// gemini-2.5-pro was retired for new API users; 3.1-pro-preview is Google's named successor.
+const textModel = () => process.env.FORGE_TEXT_MODEL || 'gemini-3.1-pro-preview';
 const imageModel = () => process.env.FORGE_IMAGE_MODEL || 'gemini-2.5-flash-image';
 
 const enabled = () => Boolean(process.env.GEMINI_API_KEY) && process.env.FORGE_ENABLED !== '0';

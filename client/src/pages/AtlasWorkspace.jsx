@@ -935,7 +935,7 @@ function AtlasWorkspace() {
             </div>
           )}
 
-          {data && !isList && data.placements.length === 0 && !placing && loadState === 'ok' && (
+          {data && !isList && data.placements.length === 0 && !placing && loadState === 'ok' && !activeBackdropUrl && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🗺️</div>
               {mode === 'edit' ? (
@@ -1604,7 +1604,9 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const [view, setView] = useState('chat') // 'chat' | 'mind' (the mind's settings partition)
   const [mind, setMind] = useState({ artStyle: '', lore: '', genSize: 'medium', styleImage: null })
   const [anchorPick, setAnchorPick] = useState(false)
+  const [guide, setGuide] = useState('') // rides along with the next quick action, then clears
   const logRef = useRef(null)
+  const takeGuide = () => { const g = guide.trim(); setGuide(''); return g }
 
   useEffect(() => {
     let live = true
@@ -1656,10 +1658,14 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .finally(() => setBusy(null))
   }
 
+  const withGuide = (base) => {
+    const g = takeGuide()
+    return g ? `${base}\n\nDirection from me: ${g}` : base
+  }
   const paintArt = () => {
     if (!sel || busy) return
     setBusy('art')
-    forgeService.nodeArt(sel.node.id)
+    forgeService.nodeArt(sel.node.id, takeGuide() || undefined)
       .then(() => { onFlash({ kind: 'ok', text: `Painted art for “${sel.node.title}”` }); onRefresh() })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, 'Painting failed') }))
       .finally(() => setBusy(null))
@@ -1667,22 +1673,22 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const paintBackdrop = () => {
     if (!map || busy) return
     setBusy('backdrop')
-    forgeService.mapBackdrop(map.id)
+    forgeService.mapBackdrop(map.id, takeGuide() || undefined)
       .then(() => { onFlash({ kind: 'ok', text: `Painted a backdrop for “${map.title}”` }); onRefresh() })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, 'Painting failed') }))
       .finally(() => setBusy(null))
   }
   const imagineInterior = () => {
     if (!sel) return
-    say(`Create an interior map for node #${sel.node.id} (“${sel.node.title}”) — the whole space: a painted backdrop, and the people, things, and secrets inside it, placed where they belong.`)
+    say(withGuide(`Create an interior map for node #${sel.node.id} (“${sel.node.title}”) — the whole space: a painted backdrop, and the people, things, and secrets inside it, placed where they belong.`))
   }
   const fillOutNode = () => {
     if (!sel) return
-    say(`Fill out node #${sel.node.id} (“${sel.node.title}”) — enrich it with facts across the eras, links to the people and places it touches, and a body if it has none. Don't create new nodes unless one is truly missing from its story.`)
+    say(withGuide(`Fill out node #${sel.node.id} (“${sel.node.title}”) — enrich it with facts across the eras, links to the people and places it touches, and a body if it has none. Don't create new nodes unless one is truly missing from its story.`))
   }
   const fillOutMap = () => {
     if (!map) return
-    say(`Fill out the map I'm looking at (map #${map.id}, “${map.title}”) — add the people, places, and things that belong here, placed sensibly, and enrich what already exists before inventing anything that duplicates it.`)
+    say(withGuide(`Fill out the map I'm looking at (map #${map.id}, “${map.title}”) — add the people, places, and things that belong here, placed sensibly, and enrich what already exists before inventing anything that duplicates it.`))
   }
 
   const batchAct = (b, keep) => {
@@ -1745,6 +1751,9 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       )}
       {view === 'chat' && (
       <div className="fquick">
+        <input className="fguide" value={guide} maxLength={480}
+          placeholder="Optional: steer the next button — “storm-lashed pirate harbor, mostly ruins”"
+          onChange={(e) => setGuide(e.target.value)} />
         {sel && (
           <button disabled={!!busy} onClick={paintArt} title="Nano Banana paints this node in the world's art style and attaches it">
             {busy === 'art' ? 'Painting…' : `🎨 Paint “${trunc(sel.node.title)}”`}
