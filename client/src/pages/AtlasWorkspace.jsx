@@ -5,11 +5,13 @@ import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
+import forgeService from '../services/forgeService'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
 const clamp = (v) => Math.max(0, Math.min(100, v))
 const errText = (e, fallback) => e?.response?.data?.message || e?.message || fallback
+const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
 function AtlasWorkspace() {
   const { worldId, mapId } = useParams()
@@ -56,6 +58,10 @@ function AtlasWorkspace() {
   const [yearEdit, setYearEdit] = useState(null) // string while typing an exact year
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
+  // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
+  // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
+  const [forgeOn, setForgeOn] = useState(false)
+  const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
   const [railW, setRailW] = useState(() => {
     const v = parseInt(localStorage.getItem('atlas_railw'), 10)
     return Number.isFinite(v) ? Math.min(420, Math.max(160, v)) : 230
@@ -125,6 +131,20 @@ function AtlasWorkspace() {
       })
   }, [mapId])
   const refreshMap = () => loadMap(false) // background refresh: keeps the canvas up while fetching
+
+  useEffect(() => { forgeService.status().then(setForgeOn) }, [])
+  const toggleForge = () => setForgeOpen((v) => {
+    const nv = !v
+    try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
+    return nv
+  })
+  // After the Forge lands a batch, the world (eras), the tree (new interiors), and the
+  // canvas may all have changed — refresh all three in the background.
+  const forgeRefresh = useCallback(() => {
+    atlasService.getWorld(worldId).then(setWorld).catch(() => {})
+    atlasService.getMaps(worldId).then(setTree).catch(() => {})
+    loadMap(false)
+  }, [worldId, loadMap])
 
   useEffect(() => {
     let live = true
@@ -742,6 +762,10 @@ function AtlasWorkspace() {
           )}
         </div>
         )}
+        {mode === 'edit' && forgeOn && (
+          <button className={`forgebtn ${forgeOpen ? 'on' : ''}`} onClick={toggleForge}
+            title="This world's mind — ask it to build places, people, interiors, and art">✦ Forge</button>
+        )}
         {mode === 'player' && tl?.enabled && (
           <span className="nowchip" title="The canon moment — the present your players see">🕓 {canon} {tl.unit}</span>
         )}
@@ -752,7 +776,7 @@ function AtlasWorkspace() {
         style={{ gridTemplateColumns:
           mode === 'player' ? `1fr${readerOpen ? ' var(--readerw)' : ''}`
             : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ' var(--readerw)' : ''}`
-              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}` }}>
+              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ' 340px' : ''}` }}>
         {mode !== 'player' && railOpen && (
           <div className="rail">
             <h4>Maps</h4>
@@ -1097,6 +1121,10 @@ function AtlasWorkspace() {
         {mode !== 'player' && railOpen && (
           <div className="rresize" style={{ left: railW - 3 }} title="Drag to widen the map tree — double-click resets"
             onPointerDown={startRailResize} onDoubleClick={resetRailW} />
+        )}
+        {mode === 'edit' && forgeOn && forgeOpen && (
+          <ForgePanel worldId={worldId} map={map} sel={sel}
+            onFlash={setFlash} onRefresh={forgeRefresh} onClose={toggleForge} />
         )}
       </div>
 
@@ -1559,6 +1587,143 @@ function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', unpl
           ))}
           {list.length === 0 && <div className="muted">No matching nodes.</div>}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- The Forge: the world's mind, as a panel -------------------------------------
+// One continuing conversation per world. The mind creates through a validated contract —
+// everything it makes lands DM-only and grouped into a batch that can be kept or unmade
+// as a unit. Quick actions paint with Nano Banana in the world's locked art style.
+function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
+  const [msgs, setMsgs] = useState(null) // null while the history loads
+  const [batches, setBatches] = useState([])
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(null) // null | 'chat' | 'art' | 'backdrop' | batch id
+  const logRef = useRef(null)
+
+  useEffect(() => {
+    let live = true
+    forgeService.getWorld(worldId)
+      .then((d) => { if (live) { setMsgs(d.messages); setBatches(d.batches) } })
+      .catch(() => { if (live) setMsgs([]) })
+    return () => { live = false }
+  }, [worldId])
+
+  useEffect(() => {
+    const el = logRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [msgs, busy])
+
+  const say = (message) => {
+    if (!message.trim() || busy) return
+    setText('')
+    setMsgs((m) => [...(m || []), { role: 'user', content: message }])
+    setBusy('chat')
+    forgeService.chat(worldId, message)
+      .then((r) => {
+        setMsgs((m) => [...m, { role: 'mind', content: r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.say }])
+        if (r.batch) {
+          setBatches((b) => [{ id: r.batch.batchId, summary: r.batch.summary, counts: r.batch.counts }, ...b])
+          onRefresh()
+        }
+        if (r.applyError) onFlash({ kind: 'err', text: `The mind spoke, but the creation failed: ${r.applyError}` })
+      })
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, 'The mind did not answer') }))
+      .finally(() => setBusy(null))
+  }
+
+  const paintArt = () => {
+    if (!sel || busy) return
+    setBusy('art')
+    forgeService.nodeArt(sel.node.id)
+      .then(() => { onFlash({ kind: 'ok', text: `Painted art for “${sel.node.title}”` }); onRefresh() })
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, 'Painting failed') }))
+      .finally(() => setBusy(null))
+  }
+  const paintBackdrop = () => {
+    if (!map || busy) return
+    setBusy('backdrop')
+    forgeService.mapBackdrop(map.id)
+      .then(() => { onFlash({ kind: 'ok', text: `Painted a backdrop for “${map.title}”` }); onRefresh() })
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, 'Painting failed') }))
+      .finally(() => setBusy(null))
+  }
+  const imagineInterior = () => {
+    if (!sel) return
+    say(`Create an interior map for node #${sel.node.id} (“${sel.node.title}”) — the whole space: a painted backdrop, and the people, things, and secrets inside it, placed where they belong.`)
+  }
+
+  const batchAct = (b, keep) => {
+    if (busy) return
+    setBusy(b.id)
+    ;(keep ? forgeService.keepBatch(worldId, b.id) : forgeService.discardBatch(worldId, b.id))
+      .then(() => {
+        setBatches((list) => list.filter((x) => x.id !== b.id))
+        if (!keep) { onFlash({ kind: 'info', text: 'Unmade — everything that creation added is gone' }); onRefresh() }
+      })
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't do that") }))
+      .finally(() => setBusy(null))
+  }
+
+  return (
+    <div className="forge">
+      <div className="fhead">
+        <h4>✦ The Forge</h4>
+        <button className="x" onClick={onClose} title="Close the Forge">✕</button>
+      </div>
+      <div className="fquick">
+        {sel && (
+          <button disabled={!!busy} onClick={paintArt} title="Nano Banana paints this node in the world's fixed art style and attaches it">
+            {busy === 'art' ? 'Painting…' : `🎨 Paint “${trunc(sel.node.title)}”`}
+          </button>
+        )}
+        {sel && !sel.node.hasInterior && (
+          <button disabled={!!busy} onClick={imagineInterior} title="The mind builds the whole space inside this node — backdrop, people, things">
+            ◎ Imagine its interior
+          </button>
+        )}
+        {map && map.view !== 'list' && (
+          <button disabled={!!busy} onClick={paintBackdrop} title="Paint this map a backdrop in the world's style (the current one is replaced, not deleted)">
+            {busy === 'backdrop' ? 'Painting…' : '🗺 Paint this map a backdrop'}
+          </button>
+        )}
+      </div>
+      {batches.length > 0 && (
+        <div className="fbatches">
+          {batches.map((b) => (
+            <div key={b.id} className="fbatch">
+              <div className="fbsum">{b.summary}</div>
+              <div className="fbmeta">{Object.entries(b.counts || {}).map(([k, v]) => `${v} ${k}`).join(' · ') || 'created'} — DM-only until you reveal it</div>
+              <div className="fbrow">
+                <button className="tool on" disabled={!!busy} onClick={() => batchAct(b, true)}>Keep</button>
+                <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{busy === b.id ? '…' : 'Unmake'}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flog" ref={logRef}>
+        {msgs === null && <div className="fintro">Waking the mind…</div>}
+        {msgs !== null && msgs.length === 0 && (
+          <div className="fintro">
+            This world's mind is listening. Ask it for people, places, whole interiors, eras of
+            history — it builds them DM-only (undoable), remembers your threads, and paints in a
+            style it keeps for this world.
+          </div>
+        )}
+        {(msgs || []).map((m, i) => (
+          <div key={i} className={`fmsg ${m.role === 'user' ? 'me' : 'mind'}`}>{m.content}</div>
+        ))}
+        {busy === 'chat' && <div className="fmsg mind fwait">The mind is at work… paintings take a minute.</div>}
+      </div>
+      <div className="fsend">
+        <textarea rows={2} value={text}
+          placeholder="Ask for anything — “a rival thieves' guild in the docks, with a leader worth hating”"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); say(text) } }} />
+        <button className="tool on" disabled={!!busy || !text.trim()} onClick={() => say(text)}>Send</button>
       </div>
     </div>
   )

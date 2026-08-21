@@ -111,6 +111,7 @@ app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));
 app.use('/api/atlas', require('./routes/atlas')); // redesigned model (nodes/placements/links)
 app.use('/api/share', require('./routes/share')); // public Player View (tokened, read-only, server-filtered)
+app.use('/api/forge', require('./routes/forge')); // per-world AI mind — inert without GEMINI_API_KEY
 
 // Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {

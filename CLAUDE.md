@@ -95,6 +95,26 @@ below is a wish-shelf, not a gap list.
 - The DM sees `'player'` nodes as dashed green pins; the inspector offers to claim (re-visibility)
   or delete (with undo) them.
 
+## The Forge (per-world AI mind — optional harness)
+- One mind per world (Gemini text + Nano Banana `gemini-2.5-flash-image` images), reachable
+  only from the DM workspace's ✦ Forge panel (edit posture). **Entirely inert without
+  `GEMINI_API_KEY`** (or with `FORGE_ENABLED=0`): every `/api/forge` route except `/status`
+  404s and nothing calls out. Model IDs override via `FORGE_TEXT_MODEL`/`FORGE_IMAGE_MODEL`.
+- Server: `server/forge/` — `gemini.js` (fetch-only REST client), `contract.js` (the ONLY
+  write path: validator clamps/rejects, then one transaction; images painted + R2-uploaded
+  first with rollback cleanup), `mind.js` (rulebook + per-turn world digest from the DB +
+  `world_minds` lore/style + `mind_messages` tail). Routes in `server/routes/forge.js`
+  (auth + ownsWorld + 120/hr limiter).
+- Everything generated is **born DM-only** and grouped into a `forge_batches` row —
+  "Keep" retires the card, "Unmake" deletes the whole creation (and its R2 objects).
+  The mind never sets visibility; revealing stays a per-node DM act.
+- Art style lock: `world_minds.art_style` (written spec, set once by the mind) + the style
+  ANCHOR (`style_image_id`, the world's first painting) passed as a Nano Banana reference
+  image into every later generation. Image prompts describe content only, never style.
+- Quick actions: paint a node's art (attaches; flips bare nodes to image pins), paint a
+  map's backdrop, "imagine its interior" (full interior map + inhabitants for the selected
+  node). Free chat covers everything else; the mind's memory grows via `lore_append`.
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)

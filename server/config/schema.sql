@@ -214,6 +214,44 @@ CREATE TABLE IF NOT EXISTS map_backdrops (
 );
 CREATE INDEX IF NOT EXISTS idx_map_backdrops_map ON map_backdrops(map_id);
 
+-- ============================================================================
+-- THE FORGE: an optional per-world AI mind (Gemini text + Nano Banana images).
+-- Entirely inert unless GEMINI_API_KEY is set — every route 404s without it.
+-- ============================================================================
+
+-- One mind per world: its accumulated lore, the written art style it must keep, and the
+-- style ANCHOR — the first image it painted, passed as a reference into every later
+-- generation so the world's artwork stays one consistent hand.
+CREATE TABLE IF NOT EXISTS world_minds (
+    world_id INTEGER PRIMARY KEY REFERENCES worlds(id) ON DELETE CASCADE,
+    lore TEXT NOT NULL DEFAULT '',
+    art_style TEXT NOT NULL DEFAULT '',
+    style_image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- The mind's conversation with its DM, replayed (recent tail) into every call.
+CREATE TABLE IF NOT EXISTS mind_messages (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    role VARCHAR(10) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mind_messages_world ON mind_messages(world_id);
+
+-- A staged generation: everything one proposal created, keep-able or discard-able as a unit.
+CREATE TABLE IF NOT EXISTS forge_batches (
+    id SERIAL PRIMARY KEY,
+    world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    created JSONB NOT NULL DEFAULT '{}',
+    status VARCHAR(12) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_forge_batches_world ON forge_batches(world_id);
+
 -- Undo: a full snapshot of what a destructive delete removed, restorable for 24 hours.
 -- payload shape depends on kind: 'node' | 'placement' | 'interior'.
 CREATE TABLE IF NOT EXISTS tombstones (
