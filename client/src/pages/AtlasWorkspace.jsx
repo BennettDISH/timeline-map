@@ -736,12 +736,12 @@ function AtlasWorkspace() {
           <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>🎭 Player</button>
         </div>
         {mode === 'edit' && (
-        <div ref={shareRef} className="sharewrap">
-          <button className={`sharebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
+        <div ref={shareRef} className="invitewrap">
+          <button className={`invitebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
             🔗 Share
           </button>
           {sharePop && (
-            <div className="sharepop">
+            <div className="invitepop">
               {shareUrl ? (
                 <>
                   <div className="surl">{shareUrl}</div>
