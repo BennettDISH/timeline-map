@@ -52,6 +52,7 @@ RULES OF CRAFT
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
 - To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
 - A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside.
+- When a CAMPAIGN BIBLE is present it is canon: use its names, places, and history exactly; invent only in its gaps, and in its voice. Asked to "build from the bible", check the digest first and never rebuild what already exists.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
 - Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
 - If the DM is only asking or planning, reply with say alone — no batch.`;
@@ -101,6 +102,7 @@ async function converse({ worldId, userId, message, context }) {
   const system = [
     RULEBOOK,
     `CREATION SIZE PREFERENCE: ${mind.gen_size || 'medium'} — when filling out a space, aim for about ${SIZES[mind.gen_size] || SIZES.medium} new nodes unless the DM says otherwise.`,
+    mind.bible ? `THE CAMPAIGN BIBLE (the DM's own document — canon; stay strictly consistent with it${mind.bible.length > 60000 ? '; shown truncated' : ''}):\n${mind.bible.slice(0, 60000)}` : '',
     mind.art_style ? `CURRENT ART STYLE (applied to every painting for you; the DM can edit it):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
     mind.lore ? `YOUR REMEMBERED LORE:\n${mind.lore.slice(-6000)}` : '',
   ].filter(Boolean).join('\n\n');

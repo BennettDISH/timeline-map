@@ -1602,7 +1602,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(null) // null | 'chat' | 'art' | 'backdrop' | batch id
   const [view, setView] = useState('chat') // 'chat' | 'mind' (the mind's settings partition)
-  const [mind, setMind] = useState({ artStyle: '', lore: '', genSize: 'medium', styleImage: null })
+  const [mind, setMind] = useState({ artStyle: '', lore: '', bible: '', genSize: 'medium', styleImage: null })
   const [anchorPick, setAnchorPick] = useState(false)
   const [guide, setGuide] = useState('') // rides along with the next quick action, then clears
   const logRef = useRef(null)
@@ -1614,7 +1614,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .then((d) => {
         if (!live) return
         setMsgs(d.messages); setBatches(d.batches)
-        setMind({ artStyle: d.artStyle, lore: d.lore, genSize: d.genSize, styleImage: d.styleImage })
+        setMind({ artStyle: d.artStyle, lore: d.lore, bible: d.bible || '', genSize: d.genSize, styleImage: d.styleImage })
       })
       .catch(() => { if (live) setMsgs([]) })
     return () => { live = false }
@@ -1622,7 +1622,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
 
   const saveMind = () => {
     setBusy('mind')
-    forgeService.patchMind(worldId, { art_style: mind.artStyle, lore: mind.lore, gen_size: mind.genSize })
+    forgeService.patchMind(worldId, { art_style: mind.artStyle, lore: mind.lore, bible: mind.bible, gen_size: mind.genSize })
       .then(() => onFlash({ kind: 'ok', text: 'The mind took it in' }))
       .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't save") }))
       .finally(() => setBusy(null))
@@ -1694,6 +1694,21 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     if (!map) return
     say(withGuide(`Fill out the map I'm looking at (map #${map.id}, “${map.title}”) — add the people, places, and things that belong here, placed sensibly, and enrich what already exists before inventing anything that duplicates it.`))
   }
+  const buildFromBible = () => {
+    say(withGuide(`Build the world from the CAMPAIGN BIBLE. Compare it against the world digest and create what the bible describes that does not exist yet — spine first: the eras of history, the major regions and places as nodes (with interiors where the bible goes inside them), the load-bearing people and things, all linked and placed where they belong. Stay strictly consistent with the bible's names, facts, and timeline. If more remains than fits one batch, build the most important part now — I'll click again to continue.`))
+  }
+  const loadBibleFile = (e) => {
+    const f = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!f) return
+    const r = new FileReader()
+    r.onload = () => {
+      const full = String(r.result || '')
+      setMind((m) => ({ ...m, bible: full.slice(0, 100000) }))
+      if (full.length > 100000) onFlash({ kind: 'info', text: 'The bible was trimmed to 100,000 characters' })
+    }
+    r.readAsText(f)
+  }
 
   const batchAct = (b, keep) => {
     if (busy) return
@@ -1720,6 +1735,17 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       </div>
       {view === 'mind' && (
         <div className="fmind">
+          <div className="fsect">Campaign bible</div>
+          <div className="fhint">Your own document — the mind treats it as canon on every turn. Paste it, or load a .md file.</div>
+          <textarea rows={7} value={mind.bible} placeholder="Nothing here yet — paste your campaign bible, or load the file."
+            onChange={(e) => setMind((m) => ({ ...m, bible: e.target.value }))} />
+          <div className="fbrow">
+            <label className="tool" style={{ cursor: 'pointer' }}>
+              Load a .md file…
+              <input type="file" accept=".md,.markdown,.txt" style={{ display: 'none' }} onChange={loadBibleFile} />
+            </label>
+            {mind.bible ? <span className="fhint">{mind.bible.length.toLocaleString()} characters</span> : null}
+          </div>
           <div className="fsect">Art style</div>
           <div className="fhint">Every painting obeys this. The mind writes one with its first painting if you leave it empty — tweak it anytime.</div>
           <textarea rows={4} value={mind.artStyle} placeholder="e.g. Aged ink and gold-leaf cartography, muted parchment tones, soft candlelit shading."
@@ -1755,6 +1781,11 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       )}
       {view === 'chat' && (
       <div className="fquick">
+        {mind.bible.trim() && (
+          <button disabled={!!busy} onClick={buildFromBible} title="The mind builds what the bible describes that isn't in the world yet — spine first, in keep/unmake-able batches">
+            📜 Build from the bible
+          </button>
+        )}
         <input className="fguide" value={guide} maxLength={480}
           placeholder="Optional: steer the next button — “storm-lashed pirate harbor, mostly ruins”"
           onChange={(e) => setGuide(e.target.value)} />

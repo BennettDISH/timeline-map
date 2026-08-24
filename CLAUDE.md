@@ -113,7 +113,10 @@ below is a wish-shelf, not a gap list.
   Banana reference image into every later generation. Image prompts describe content only,
   never style. **Everything the mind runs on is DM-editable** in the panel's ⚙ partition
   (PATCH `/worlds/:id/mind`): art style, anchor (swap to any world image / clear), the
-  mind's lore memory, and `gen_size` (small/medium/large — how big a "fill out" runs).
+  mind's lore memory, `gen_size` (small/medium/large — how big a "fill out" runs), and the
+  CAMPAIGN BIBLE (`world_minds.bible`, ≤100k chars, paste or .md upload) — the DM's own
+  document, sent as canon in every turn's grounding; "📜 Build from the bible" constructs
+  the world from it in successive keep/unmake-able batches.
 - The contract also ENRICHES existing nodes (`enrich`: facts, extra placements, and a body
   that only ever fills an EMPTY one — unmake nulls exactly those). A backdrop entry with
   null start SETS a map's standing image (unmake restores what it replaced); dawn-pinned

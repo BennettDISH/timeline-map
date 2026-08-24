@@ -50,7 +50,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     if (im) styleImage = { id: im.id, url: resolveImageUrl(req, im.file_path) };
   }
   res.json({
-    artStyle: mind.art_style || '', lore: mind.lore || '',
+    artStyle: mind.art_style || '', lore: mind.lore || '', bible: mind.bible || '',
     genSize: mind.gen_size || 'medium', styleImage,
     messages, batches,
   });
@@ -72,6 +72,10 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
   if ('lore' in b) {
     if (typeof b.lore !== 'string') return res.status(400).json({ message: 'lore must be text' });
     sets.push(`lore=$${vals.push(b.lore.slice(0, 20000))}`);
+  }
+  if ('bible' in b) {
+    if (typeof b.bible !== 'string') return res.status(400).json({ message: 'bible must be text' });
+    sets.push(`bible=$${vals.push(b.bible.slice(0, 100000))}`);
   }
   if ('gen_size' in b) {
     if (!['small', 'medium', 'large'].includes(b.gen_size)) return res.status(400).json({ message: 'gen_size must be small, medium, or large' });

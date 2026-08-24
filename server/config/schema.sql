@@ -234,6 +234,9 @@ CREATE TABLE IF NOT EXISTS world_minds (
 -- DM's preferred creation size for "fill out" generations: small | medium | large.
 ALTER TABLE world_minds ADD COLUMN IF NOT EXISTS gen_size VARCHAR(10) NOT NULL DEFAULT 'medium';
 
+-- The DM's campaign bible: their own document, treated as canon by the mind every turn.
+ALTER TABLE world_minds ADD COLUMN IF NOT EXISTS bible TEXT NOT NULL DEFAULT '';
+
 -- The mind's conversation with its DM, replayed (recent tail) into every call.
 CREATE TABLE IF NOT EXISTS mind_messages (
     id SERIAL PRIMARY KEY,
