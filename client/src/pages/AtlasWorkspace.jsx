@@ -1113,7 +1113,38 @@ function AtlasWorkspace() {
         {mode === 'edit' && inspOpen && (
         <div className="insp">
           {!sel ? (
-            <div className="empty">Nothing selected.<br /><br />Click a node, or use <b>+ Add node</b> then click the map.</div>
+            <div className="spacepanel">
+              <div className="isect">This space</div>
+              <h3 className="sptitle">{map?.title}
+                <button className="lx" title="Rename this space" onClick={() => setRenaming(map?.title || '')}>✎</button>
+              </h3>
+              {(data?.breadcrumb?.length || 0) > 1 && (
+                <div className="muted spup">Inside “{data.breadcrumb[data.breadcrumb.length - 2].title}”</div>
+              )}
+              {!isList && (
+                <>
+                  <div className="isect">Backdrop</div>
+                  {activeBackdropUrl
+                    ? <img className="spbd" src={activeBackdropUrl} alt="" />
+                    : <div className="muted spnone">No art yet — this space is a blank plane.</div>}
+                  <button className="btn block" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>
+                    🖼 {map?.backdropUrl ? 'Change the backdrop…' : 'Set a backdrop image…'}
+                  </button>
+                  {tl?.enabled && (
+                    <button className="btn block" title="Different map art for different periods"
+                      onClick={() => setBdsOpen(true)}>🕓 Backdrops over time…</button>
+                  )}
+                </>
+              )}
+              {tl?.enabled && (
+                <button className="btn block" title="The stretch of history this place's story spans"
+                  onClick={() => setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' })}>
+                  🎯 Focus period…{hasFocus ? ' ✓' : ''}
+                </button>
+              )}
+              <hr />
+              <div className="empty sphint">Click a node to edit it — or use <b>+ Add node</b>, then click the map.</div>
+            </div>
           ) : (
             <Inspector key={sel.id} p={sel} onSave={saveNode}
               onCat={(c) => saveNode(sel.node.id, { category: c })}

@@ -580,3 +580,11 @@
 .atlas .fld.dmnotes textarea{border-color:#4a3a5a;background:#1d1926}
 .atlas .dmnote{border:1px dashed #b07bd0;border-radius:8px;padding:8px 10px;margin:10px 0;font-size:12.5px;line-height:1.5;white-space:pre-wrap;
   .dmnl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#b07bd0;margin-bottom:4px}}
+.atlas .spacepanel{
+  .sptitle{display:flex;align-items:center;gap:8px;margin:2px 0 4px;font-size:16px;
+    .lx{background:none;border:0;color:var(--muted);cursor:pointer;font-size:13px}
+    .lx:hover{color:var(--ink)}}
+  .spup{font-size:12px;margin-bottom:6px}
+  .spbd{width:100%;border-radius:8px;border:1px solid var(--line);display:block;margin-bottom:8px}
+  .spnone{margin-bottom:8px}
+  .sphint{margin-top:14px}}
