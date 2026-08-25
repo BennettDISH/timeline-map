@@ -1182,7 +1182,11 @@ function AtlasWorkspace() {
 
       {picker && (
         <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent}
-          onPick={handlePick} onClose={() => setPicker(null)} />
+          onPick={handlePick} onClose={() => setPicker(null)}
+          generate={forgeOn ? (picker.kind === 'node'
+            ? { label: `Paint art for “${trunc(sel?.node?.title || 'this node')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
+            : { label: 'Paint this map a backdrop', run: (g) => forgeService.mapBackdrop(map.id, g) }) : null}
+          onGenerated={() => { setPicker(null); setFlash({ kind: 'ok', text: 'Painted and attached' }); forgeRefresh() }} />
       )}
       {nodePicker === 'link' && sel && (
         <NodePicker worldId={worldId} excludeId={sel.node.id} title="Link to…"
@@ -1591,11 +1595,25 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
   )
 }
 
-// Upload a new image (to R2 via the existing pipeline) or pick an existing one from this world.
-function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
+// Upload a new image (to R2 via the existing pipeline), pick an existing one from this
+// world, or — when the Forge is on — paint one for exactly the thing being decorated.
+function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerated }) {
   const [images, setImages] = useState([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [genBusy, setGenBusy] = useState(false)
+  const [gGuide, setGGuide] = useState('')
+  const runGen = () => {
+    if (genBusy || busy) return
+    setGenBusy(true); setErr('')
+    generate.run(gGuide.trim() || undefined)
+      .then(() => onGenerated?.())
+      .catch((e) => setErr(errText(e, 'Painting failed')))
+      .finally(() => setGenBusy(false))
+  }
+  const usesOf = (im) => (im.usage
+    ? (im.usage.maps || 0) + (im.usage.nodes || 0) + (im.usage.backdrops || 0) + (im.usage.anchor || 0)
+    : 0)
 
   useEffect(() => {
     imageServiceBase64.getImages({ worldId }).then((r) => setImages(r.images || [])).catch(() => {})
@@ -1616,7 +1634,19 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head"><h4>Choose image</h4><button onClick={onClose}>✕</button></div>
-        <label className="btn primary block">
+        {generate && (
+          <div className="pgen">
+            <button className="btn primary block" disabled={genBusy || busy} onClick={runGen}
+              title="Nano Banana paints in this world's style and attaches it right here">
+              {genBusy ? 'Painting… about half a minute' : `✦ ${generate.label}`}
+            </button>
+            <input value={gGuide} maxLength={480} disabled={genBusy}
+              placeholder="Optional direction — “weathered face, storm cloak, one eye”"
+              onChange={(e) => setGGuide(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') runGen() }} />
+          </div>
+        )}
+        <label className="btn block">
           {busy ? 'Uploading…' : '⬆ Upload new image'}
           <input type="file" accept="image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files[0])} />
         </label>
@@ -1624,8 +1654,12 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose }) {
         {err && <div className="muted" style={{ color: '#ff9b9b' }}>{err}</div>}
         <div className="pick-grid">
           {images.map((im) => (
-            <button key={im.id} className="pick" title={im.originalName} onClick={() => onPick(im.id, im.url)}>
+            <button key={im.id} className="pick" onClick={() => onPick(im.id, im.url)}
+              title={`${im.originalName}${usesOf(im) > 0 ? ' — in use in your world' : ' — not used anywhere yet'}`}>
               <img src={im.url} alt={im.originalName} loading="lazy" />
+              {usesOf(im) > 0
+                ? <span className="puse on" title="In use in your world">◈</span>
+                : <span className="puse" title="Not used anywhere yet">○</span>}
             </button>
           ))}
           {images.length === 0 && <div className="muted">No images in this world yet — upload one above.</div>}

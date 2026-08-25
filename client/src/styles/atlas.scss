@@ -588,3 +588,9 @@
   .spbd{width:100%;border-radius:8px;border:1px solid var(--line);display:block;margin-bottom:8px}
   .spnone{margin-bottom:8px}
   .sphint{margin-top:14px}}
+.atlas .pick{position:relative}
+.atlas .pick .puse{position:absolute;top:4px;right:4px;font-size:11px;line-height:1;border-radius:8px;padding:2px 4px;
+  background:#000000aa;color:var(--muted)}
+.atlas .pick .puse.on{color:#7fc98f}
+.atlas .pgen{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;
+  input{background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:6px 8px;font:inherit;font-size:12px}}

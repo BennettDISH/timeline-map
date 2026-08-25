@@ -67,7 +67,9 @@ router.get('/', async (req, res) => {
     const query = `
       SELECT i.*, u.username as uploaded_by_username,
              (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id AND m.is_active = true) as map_uses,
-             (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses
+             (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses,
+             (SELECT COUNT(*) FROM map_backdrops b WHERE b.image_id = i.id) as backdrop_uses,
+             (SELECT COUNT(*) FROM world_minds wm WHERE wm.style_image_id = i.id) as anchor_uses
       FROM images i
       LEFT JOIN users u ON i.uploaded_by = u.id
       WHERE i.world_id = $1${filters}
@@ -88,7 +90,8 @@ router.get('/', async (req, res) => {
       folderId: row.folder_id,
       uploadedAt: row.created_at,
       uploadedBy: row.uploaded_by_username,
-      usage: { maps: parseInt(row.map_uses), nodes: parseInt(row.node_uses) },
+      usage: { maps: parseInt(row.map_uses), nodes: parseInt(row.node_uses),
+               backdrops: parseInt(row.backdrop_uses), anchor: parseInt(row.anchor_uses) },
       url: resolveImageUrl(req, row.file_path)
     }));
 

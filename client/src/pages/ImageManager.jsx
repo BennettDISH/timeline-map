@@ -9,7 +9,9 @@ import '../styles/archive.scss'
 
 const PAGE = 60
 const plural = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`
-const usesOf = (im) => (im.usage ? (im.usage.maps || 0) + (im.usage.nodes || 0) : 0)
+const usesOf = (im) => (im.usage
+  ? (im.usage.maps || 0) + (im.usage.nodes || 0) + (im.usage.backdrops || 0) + (im.usage.anchor || 0)
+  : 0)
 
 // The Archive: one world's art — maps, portraits, handouts. Scoped to a single world
 // (switchable in the header); upload by button, by dragging anywhere, or by pasting.
