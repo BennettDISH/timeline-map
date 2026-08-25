@@ -14,6 +14,8 @@ const forgeService = {
   chat: (worldId, message, context) => http.post(`${B}/worlds/${worldId}/chat`, { message, context }, LONG).then((r) => r.data),
   keepBatch: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/keep`).then((r) => r.data),
   discardBatch: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/discard`).then((r) => r.data),
+  allowAsks: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/allow`).then((r) => r.data),
+  refuseAsks: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/refuse`).then((r) => r.data),
   nodeArt: (nodeId, guidance) => http.post(`${B}/nodes/${nodeId}/art`, { guidance }, LONG).then((r) => r.data),
   mapBackdrop: (mapId, guidance) => http.post(`${B}/maps/${mapId}/backdrop`, { guidance }, LONG).then((r) => r.data),
 }

@@ -216,7 +216,7 @@ function PlayerView() {
               )}
             </div>
           )}
-          {!isList && shownPlacements.length === 0 && (
+          {!isList && shownPlacements.length === 0 && !backdropUrl && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🌫️</div>
               <div>Nothing known here{tl?.enabled ? ' — yet' : ''}.</div>

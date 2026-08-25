@@ -1670,7 +1670,12 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .then((r) => {
         setMsgs((m) => [...m, { role: 'mind', content: r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.say }])
         if (r.batch) {
-          setBatches((b) => [{ id: r.batch.batchId, summary: r.batch.summary, counts: r.batch.counts }, ...b])
+          if (r.batch.askCount) {
+            // asks need their server-rendered plain-word lines — reload the panel state
+            forgeService.getWorld(worldId).then((d) => setBatches(d.batches)).catch(() => {})
+          } else {
+            setBatches((b) => [{ id: r.batch.batchId, summary: r.batch.summary, counts: r.batch.counts, asksState: 'none', asksText: [] }, ...b])
+          }
           onRefresh()
         }
         if (r.applyError) onFlash({ kind: 'err', text: `The mind spoke, but the creation failed: ${r.applyError}` })
@@ -1731,6 +1736,17 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     r.readAsText(f)
   }
 
+  const askAct = (b, allow) => {
+    if (busy) return
+    setBusy(b.id)
+    ;(allow ? forgeService.allowAsks(worldId, b.id) : forgeService.refuseAsks(worldId, b.id))
+      .then((r) => {
+        setBatches((list) => list.map((x) => x.id === b.id ? { ...x, asksState: allow ? 'allowed' : 'refused' } : x))
+        if (allow) { onFlash({ kind: 'ok', text: `Granted — ${r.granted ?? 'the'} act${r.granted === 1 ? '' : 's'} done` }); onRefresh() }
+      })
+      .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't do that") }))
+      .finally(() => setBusy(null))
+  }
   const batchAct = (b, keep) => {
     if (busy) return
     setBusy(b.id)
@@ -1848,6 +1864,17 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
             <div key={b.id} className="fbatch">
               <div className="fbsum">{b.summary}</div>
               <div className="fbmeta">{Object.entries(b.counts || {}).map(([k, v]) => `${v} ${COUNT_LABELS[k] || k}`).join(' · ') || 'created'} — DM-only until you reveal it</div>
+              {b.asksState === 'pending' && (b.asksText || []).length > 0 && (
+                <div className="fasks">
+                  <div className="faskhead">It asks permission to:</div>
+                  {b.asksText.map((t, i) => <div key={i} className="fask">• {t}</div>)}
+                  <div className="fbrow">
+                    <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{busy === b.id ? '…' : 'Allow'}</button>
+                    <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>Refuse</button>
+                  </div>
+                </div>
+              )}
+              {b.asksState === 'allowed' && <div className="fbmeta">✓ permission granted — Unmake reverts it all</div>}
               <div className="fbrow">
                 <button className="tool on" disabled={!!busy} onClick={() => batchAct(b, true)}>Keep</button>
                 <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{busy === b.id ? '…' : 'Unmake'}</button>

@@ -262,6 +262,12 @@ CREATE TABLE IF NOT EXISTS forge_batches (
 );
 CREATE INDEX IF NOT EXISTS idx_forge_batches_world ON forge_batches(world_id);
 
+-- The mind may ASK for privileged acts (move / rewrite / delete what exists). They run
+-- only when the DM allows; asks_undo lets Unmake revert what was granted.
+ALTER TABLE forge_batches ADD COLUMN IF NOT EXISTS asks JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE forge_batches ADD COLUMN IF NOT EXISTS asks_state VARCHAR(12) NOT NULL DEFAULT 'none';
+ALTER TABLE forge_batches ADD COLUMN IF NOT EXISTS asks_undo JSONB NOT NULL DEFAULT '[]';
+
 -- Undo: a full snapshot of what a destructive delete removed, restorable for 24 hours.
 -- payload shape depends on kind: 'node' | 'placement' | 'interior'.
 CREATE TABLE IF NOT EXISTS tombstones (

@@ -100,6 +100,28 @@ function validateBatch(batch, world) {
     }
   }
 
+  // asks: privileged acts on EXISTING things — shape-checked here, executed only when the
+  // DM clicks Allow (ids are re-validated against the world at execution time).
+  if (batch.asks == null) batch.asks = [];
+  if (!Array.isArray(batch.asks)) { errs.push('asks must be an array'); batch.asks = []; }
+  if (batch.asks.length > 25) errs.push(`too many asks (${batch.asks.length} > 25)`);
+  for (const a of batch.asks) {
+    if (a.op === 'move') {
+      if (!Number.isInteger(a.node) || !Number.isInteger(a.map)) errs.push('a move ask needs numeric node and map ids');
+      a.x = Math.max(0, Math.min(100, num(a.x) ?? 50));
+      a.y = Math.max(0, Math.min(100, num(a.y) ?? 50));
+      if (a.to_map != null && !Number.isInteger(a.to_map)) errs.push('a move ask to_map must be a numeric map id');
+    } else if (a.op === 'edit') {
+      if (!Number.isInteger(a.node)) errs.push('an edit ask needs a numeric node id');
+      if (a.title != null) a.title = s(a.title, 255);
+      if (a.body != null) a.body = s(a.body, 4000);
+      if (a.category != null && !CATS.includes(a.category)) { errs.push(`an edit ask has unknown category "${a.category}"`); a.category = null; }
+      if (a.title == null && a.body == null && a.category == null) errs.push('an edit ask changes nothing');
+    } else if (a.op === 'drop_era') {
+      if (!Number.isInteger(a.era)) errs.push('a drop_era ask needs a numeric era id');
+    } else errs.push(`unknown ask op "${a.op}" (move | edit | drop_era)`);
+  }
+
   const nodeRef = (v) => (typeof v === 'number' && Number.isInteger(v)) || nodeKeys.has(v);
   const mapRef = (v) => (typeof v === 'number' && Number.isInteger(v)) || mapKeys.has(v);
   const owners = new Set();
@@ -350,11 +372,12 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
       }
     }
     const bres = await client.query(
-      `INSERT INTO forge_batches (world_id, summary, created, status) VALUES ($1,$2,$3,'pending') RETURNING id`,
-      [worldId, batch.summary, JSON.stringify(created)]);
+      `INSERT INTO forge_batches (world_id, summary, created, status, asks, asks_state) VALUES ($1,$2,$3,'pending',$4,$5) RETURNING id`,
+      [worldId, batch.summary, JSON.stringify(created), JSON.stringify(batch.asks || []),
+       (batch.asks || []).length ? 'pending' : 'none']);
     await client.query('COMMIT');
     const counts = Object.fromEntries(Object.entries(created).map(([k, v]) => [k, v.length]).filter(([, v]) => v > 0));
-    return { batchId: bres.rows[0].id, summary: batch.summary, counts };
+    return { batchId: bres.rows[0].id, summary: batch.summary, counts, askCount: (batch.asks || []).length };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     await cleanupImages(created.images, images);
@@ -372,6 +395,63 @@ async function cleanupImages(ids, images) {
   }
 }
 
+// ---- asks ------------------------------------------------------------------------
+
+// Execute a pending batch's asks — the DM clicked Allow. Every id is re-checked against
+// the world NOW (the world may have moved on since the mind asked; vanished targets are
+// skipped, not errors), and each act records how to undo it so Unmake can revert.
+async function allowAsks({ worldId, batchId }) {
+  const b = (await pool.query(
+    `SELECT id, asks FROM forge_batches WHERE id=$1 AND world_id=$2 AND status='pending' AND asks_state='pending'`,
+    [batchId, worldId])).rows[0];
+  if (!b) return null;
+  const undo = [];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const a of b.asks || []) {
+      if (a.op === 'move') {
+        const p = (await client.query(
+          `SELECT p.id, p.map_id, p.x, p.y FROM placements p JOIN maps m ON m.id=p.map_id
+           WHERE p.node_id=$1 AND p.map_id=$2 AND m.world_id=$3 ORDER BY p.id LIMIT 1`,
+          [a.node, a.map, worldId])).rows[0];
+        if (!p) continue;
+        if (a.to_map != null) {
+          const m2 = (await client.query('SELECT id FROM maps WHERE id=$1 AND world_id=$2', [a.to_map, worldId])).rows[0];
+          if (!m2) continue;
+        }
+        undo.push({ op: 'move', placement: p.id, map_id: p.map_id, x: p.x, y: p.y });
+        await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4',
+          [a.to_map != null ? a.to_map : p.map_id, a.x, a.y, p.id]);
+      } else if (a.op === 'edit') {
+        const n = (await client.query(
+          'SELECT id, title, body, category FROM nodes WHERE id=$1 AND world_id=$2', [a.node, worldId])).rows[0];
+        if (!n) continue;
+        undo.push({ op: 'edit', node: n.id, title: n.title, body: n.body, category: n.category });
+        await client.query(
+          `UPDATE nodes SET title=COALESCE($1,title), body=COALESCE($2,body), category=COALESCE($3,category), updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
+          [a.title ?? null, a.body ?? null, a.category ?? null, n.id]);
+      } else if (a.op === 'drop_era') {
+        const e = (await client.query(
+          'SELECT id, name, start_time, end_time, player_visible FROM eras WHERE id=$1 AND world_id=$2',
+          [a.era, worldId])).rows[0];
+        if (!e) continue;
+        undo.push({ op: 'drop_era', row: e });
+        await client.query('DELETE FROM eras WHERE id=$1', [e.id]);
+      }
+    }
+    await client.query(`UPDATE forge_batches SET asks_state='allowed', asks_undo=$1 WHERE id=$2`,
+      [JSON.stringify(undo), batchId]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+  return { granted: undo.length, requested: (b.asks || []).length };
+}
+
 // ---- discard ---------------------------------------------------------------------
 
 // Remove everything a pending batch created, as a unit. Deleting the nodes cascades their
@@ -380,7 +460,7 @@ async function cleanupImages(ids, images) {
 // simply reverts to having no interior). R2 objects are swept best-effort afterwards.
 async function discardBatch({ worldId, batchId }) {
   const b = (await pool.query(
-    `SELECT id, created FROM forge_batches WHERE id=$1 AND world_id=$2 AND status='pending'`,
+    `SELECT id, created, asks_state, asks_undo FROM forge_batches WHERE id=$1 AND world_id=$2 AND status='pending'`,
     [batchId, worldId])).rows[0];
   if (!b) return null;
   const c = b.created || {};
@@ -400,6 +480,24 @@ async function discardBatch({ worldId, batchId }) {
     // bodies the batch filled (only ever onto empty nodes) go back to empty
     if (c.enrichedBodies && c.enrichedBodies.length)
       await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedBodies]);
+    // granted asks revert too: moves go home, rewrites restore, dropped eras rise again
+    if (b.asks_state === 'allowed') {
+      for (const u of (b.asks_undo || [])) {
+        if (u.op === 'move') {
+          await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4', [u.map_id, u.x, u.y, u.placement]);
+        } else if (u.op === 'edit') {
+          await client.query(
+            'UPDATE nodes SET title=$1, body=$2, category=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4',
+            [u.title, u.body, u.category, u.node]);
+        } else if (u.op === 'drop_era') {
+          await client.query(
+            `INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible)
+             VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
+            [u.row.id, worldId, u.row.name, u.row.start_time, u.row.end_time, u.row.player_visible]);
+        }
+      }
+      await client.query(`SELECT setval(pg_get_serial_sequence('eras','id'), GREATEST((SELECT COALESCE(MAX(id),1) FROM eras), 1))`);
+    }
     await client.query(`UPDATE forge_batches SET status='discarded' WHERE id=$1`, [batchId]);
     await client.query('COMMIT');
   } catch (e) {
@@ -412,4 +510,4 @@ async function discardBatch({ worldId, batchId }) {
   return true;
 }
 
-module.exports = { validateBatch, applyBatch, discardBatch, paintAndStore, CAPS, CATS };
+module.exports = { validateBatch, applyBatch, discardBatch, allowAsks, paintAndStore, CAPS, CATS };

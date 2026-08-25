@@ -451,6 +451,11 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
   if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE nodes SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  // Revealing a node reveals where it stands: the Forge births placements DM-only, so a
+  // "revealed" node would otherwise stay invisible to players behind its hidden placement.
+  if ('visibility' in req.body && req.body.visibility !== 'dm') {
+    await pool.query(`UPDATE placements SET visibility='shared' WHERE node_id=$1 AND visibility='dm'`, [req.params.id]);
+  }
   res.json({ ok: true });
 }));
 

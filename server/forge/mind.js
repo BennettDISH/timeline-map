@@ -36,10 +36,18 @@ THE BATCH (everything optional, arrays may be empty):
   "links": [{ "from": "n1 or numeric id", "to": "numeric id or key", "label": "why they connect" }],
   "eras": [{ "name": "", "start": 0, "end": 100 }],
   "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
-  "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — the DM's words are never overwritten",
+  "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — to replace written text, use an edit ask",
                "facts": [{ "body": "", "start": 200, "end": 400 }],
-               "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }]
+               "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }],
+  "asks": [{ "op": "move", "node": 141, "map": 69, "x": 40, "y": 62, "to_map": null },
+           { "op": "edit", "node": 141, "title": null, "body": "the rewrite", "category": null },
+           { "op": "drop_era", "era": 23 }]
 }
+
+PRIVILEGED ACTS — "asks". Moving, rewriting, or deleting what already exists touches the DM's own work, so it never happens directly: asks take effect ONLY when the DM clicks Allow on the batch card. Keep them few and purposeful, and explain them in say.
+- move: reposition an existing node's pin on map; to_map (a map's numeric id) carries it onto another map entirely — this is how a town's contents move into a newly built interior (new maps land instantly, so ask moves onto them by describing the plan in say and sending the moves in a FOLLOW-UP turn once the map's id is in the digest).
+- edit: overwrite an existing node's title, body, or category (null = leave that alone). This replaces the DM's words — ask only with clear cause.
+- drop_era: remove an era.
 
 RULES OF CRAFT
 - Existing things are referenced by their numeric id from the WORLD DIGEST; new things by your own string keys. Reuse existing people and places via links and placements — never duplicate what exists.

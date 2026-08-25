@@ -107,7 +107,15 @@ below is a wish-shelf, not a gap list.
   (auth + ownsWorld + 120/hr limiter).
 - Everything generated is **born DM-only** and grouped into a `forge_batches` row —
   "Keep" retires the card, "Unmake" deletes the whole creation (and its R2 objects).
-  The mind never sets visibility; revealing stays a per-node DM act.
+  The mind never sets visibility; revealing stays a per-node DM act. **Revealing a node
+  (atlas PATCH visibility ≠ dm) also lifts its DM-only placements to shared** — forge-born
+  placements would otherwise keep a "revealed" node invisible to players.
+- **Asks (permission-gated skills)**: the mind may request privileged acts on EXISTING
+  things — `move` (reposition/carry a placement, incl. onto a new interior), `edit`
+  (overwrite title/body/category), `drop_era`. They're stored on the batch
+  (`asks`/`asks_state`/`asks_undo`) and execute ONLY via the card's Allow button
+  (`POST /batches/:id/allow`; Refuse/Keep lapse them). Allowed asks record undo state,
+  so Unmake reverts them along with the creations.
 - Art style lock: `world_minds.art_style` (written spec — the mind drafts it when empty)
   + the style ANCHOR (`style_image_id`, the first painting by default) passed as a Nano
   Banana reference image into every later generation. Image prompts describe content only,

@@ -573,3 +573,7 @@
 .atlas .btn.lit{color:#d9b64e;border-color:#6b5a2a}
 @keyframes spotglow{0%,100%{box-shadow:0 0 0 3px #d9b64e33,0 0 12px #d9b64e55}50%{box-shadow:0 0 0 3px #d9b64e66,0 0 22px #d9b64eaa}}
 @keyframes spotglow2{0%,100%{filter:drop-shadow(0 0 6px #d9b64e88)}50%{filter:drop-shadow(0 0 14px #d9b64e)}}
+.atlas .forge .fasks{border-top:1px dashed #6b5a2a;margin:2px 0 8px;padding-top:7px;
+  .faskhead{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#d9b64e;margin-bottom:4px}
+  .fask{font-size:12px;line-height:1.5}
+  .fbrow{margin-top:7px}}

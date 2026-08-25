@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
-const { discardBatch, paintAndStore } = require('../forge/contract');
+const { discardBatch, allowAsks, paintAndStore } = require('../forge/contract');
 const router = express.Router();
 
 router.use(authenticateToken);
@@ -38,11 +38,40 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   const mind = await ensureMind(worldId);
   const messages = (await pool.query(
     'SELECT role, content, created_at FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 40', [worldId])).rows.reverse();
-  const batches = (await pool.query(
-    `SELECT id, summary, created, created_at FROM forge_batches WHERE world_id=$1 AND status='pending' ORDER BY id DESC LIMIT 20`,
-    [worldId])).rows.map((b) => ({
+  const rows = (await pool.query(
+    `SELECT id, summary, created, asks, asks_state, created_at FROM forge_batches WHERE world_id=$1 AND status='pending' ORDER BY id DESC LIMIT 20`,
+    [worldId])).rows;
+  // plain-word lines for pending asks, with titles resolved so the DM reads names, not ids
+  const nids = new Set(), eids = new Set(), mids = new Set();
+  for (const b of rows) if (b.asks_state === 'pending') for (const a of (b.asks || [])) {
+    if (a.node != null) nids.add(a.node);
+    if (a.era != null) eids.add(a.era);
+    if (a.map != null) mids.add(a.map);
+    if (a.to_map != null) mids.add(a.to_map);
+  }
+  const nameOf = async (table, ids, col) => {
+    if (!ids.size) return new Map();
+    const r = await pool.query(`SELECT id, ${col} AS t FROM ${table} WHERE id = ANY($1)`, [[...ids]]);
+    return new Map(r.rows.map((x) => [x.id, x.t]));
+  };
+  const nT = await nameOf('nodes', nids, 'title'), eT = await nameOf('eras', eids, 'name'), mT = await nameOf('maps', mids, 'title');
+  const askLine = (a) => {
+    const nn = nT.get(a.node) || `#${a.node}`;
+    if (a.op === 'move') return a.to_map != null
+      ? `Move “${nn}” onto “${mT.get(a.to_map) || `#${a.to_map}`}”`
+      : `Move “${nn}” to a new spot on “${mT.get(a.map) || `#${a.map}`}”`;
+    if (a.op === 'edit') {
+      const what = [a.title != null && 'title', a.body != null && 'description', a.category != null && 'category'].filter(Boolean).join(', ');
+      return `Rewrite the ${what} of “${nn}”`;
+    }
+    if (a.op === 'drop_era') return `Remove the era “${eT.get(a.era) || `#${a.era}`}”`;
+    return 'Something unrecognized';
+  };
+  const batches = rows.map((b) => ({
     id: b.id, summary: b.summary,
     counts: Object.fromEntries(Object.entries(b.created || {}).map(([k, v]) => [k, v.length]).filter(([, v]) => v > 0)),
+    asksState: b.asks_state,
+    asksText: b.asks_state === 'pending' ? (b.asks || []).map(askLine) : [],
   }));
   let styleImage = null;
   if (mind.style_image_id) {
@@ -122,7 +151,27 @@ router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
 // Batches: keep (it stays, card goes away) or discard (everything it made is removed).
 router.post('/worlds/:worldId/batches/:id/keep', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  await pool.query(`UPDATE forge_batches SET status='kept' WHERE id=$1 AND world_id=$2 AND status='pending'`,
+  // keeping a batch lapses any still-pending asks — permission is never granted by inaction
+  await pool.query(
+    `UPDATE forge_batches SET status='kept',
+       asks_state = CASE WHEN asks_state='pending' THEN 'refused' ELSE asks_state END
+     WHERE id=$1 AND world_id=$2 AND status='pending'`,
+    [req.params.id, req.params.worldId]);
+  res.json({ ok: true });
+}));
+
+// The permission gate on a batch's asks: Allow executes them (undo recorded for Unmake),
+// Refuse lets them lapse. Either way the batch's creations are untouched.
+router.post('/worlds/:worldId/batches/:id/allow', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const out = await allowAsks({ worldId: Number(req.params.worldId), batchId: Number(req.params.id) });
+  if (!out) return res.status(404).json({ message: 'No pending asks on that batch' });
+  res.json(out);
+}));
+router.post('/worlds/:worldId/batches/:id/refuse', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  await pool.query(
+    `UPDATE forge_batches SET asks_state='refused' WHERE id=$1 AND world_id=$2 AND asks_state='pending'`,
     [req.params.id, req.params.worldId]);
   res.json({ ok: true });
 }));
