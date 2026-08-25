@@ -38,6 +38,7 @@ THE BATCH (everything optional, arrays may be empty):
   "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
   "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — to replace written text, use an edit ask",
                "dm_note": "fills the node's DM note only if empty",
+               "image": "img1 — attach a painting from THIS batch's images to this existing node (bare nodes become image pins)",
                "facts": [{ "body": "", "start": 200, "end": 400 }],
                "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }],
   "asks": [{ "op": "move", "node": 141, "map": 69, "x": 40, "y": 62, "to_map": null },
@@ -59,7 +60,7 @@ RULES OF CRAFT
 - "backdrop" prompts: wide top-down painted terrain or floorplan, NO text or labels in the image. "art" prompts: one subject, token-like. Describe content, not style.
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
-- To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
+- To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To PAINT an existing node, put the painting in images and reference it from enrich.image — never leave finished art floating unattached in the gallery. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
 - A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside.
 - When a CAMPAIGN BIBLE is present it is canon: use its names, places, and history exactly; invent only in its gaps, and in its voice. Asked to "build from the bible", check the digest first and never rebuild what already exists.
 - SECRETS HAVE THEIR OWN CHANNEL: a node's body, facts, and any image are the PUBLIC face — exactly what players see the moment the DM reveals it. Every twist, hidden allegiance, trap, or protected truth goes in dm_note and NOWHERE else. A villain's body reads as their cover story; their dm_note holds the truth.

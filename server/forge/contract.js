@@ -85,6 +85,7 @@ function validateBatch(batch, world) {
     if (typeof en.node !== 'number' || !Number.isInteger(en.node)) errs.push('an enrich entry needs an existing node\'s numeric id');
     en.body = s(en.body, 4000) || null;
     en.dm_note = s(en.dm_note, 2000) || null;
+    if (en.image != null && !imgKeys.has(en.image)) { errs.push(`an enrich of node ${en.node} references unknown image "${en.image}"`); en.image = null; }
     en.facts = Array.isArray(en.facts) ? en.facts.slice(0, CAPS.factsPerNode) : [];
     for (const f of en.facts) {
       f.body = s(f.body, 2000);
@@ -269,7 +270,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   // Paint. Sequential, not parallel — each painting after the first can only match the
   // anchor once the anchor exists, and the anchor is the first painting.
   const images = new Map(); // key -> { id, url, storageKey }
-  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [], enrichedNotes: [], mapBases: [] };
+  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [], enrichedNotes: [], enrichedImages: [], mapBases: [] };
   try {
     for (const im of batch.images) {
       const stored = await paintAndStore({ worldId, userId, kind: im.kind, prompt: im.prompt, artStyle, name: im.name });
@@ -334,6 +335,15 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
           `UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND (dm_note IS NULL OR dm_note='') RETURNING id`,
           [en.dm_note, en.node]);
         if (r.rows.length) created.enrichedNotes.push(en.node);
+      }
+      if (en.image != null) {
+        // attach this batch's painting to the existing node; bare nodes flip to image pins.
+        // prior art/pin recorded so unmake restores exactly what was there.
+        const prev = (await client.query('SELECT image_id, pin FROM nodes WHERE id=$1', [en.node])).rows[0];
+        await client.query(
+          `UPDATE nodes SET image_id=$1, pin=CASE WHEN image_id IS NULL THEN 'image' ELSE pin END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+          [images.get(en.image).id, en.node]);
+        created.enrichedImages.push({ node: en.node, prevImage: prev?.image_id ?? null, prevPin: prev?.pin || 'chip' });
       }
       for (const f of en.facts) {
         const r = await client.query(
@@ -490,6 +500,10 @@ async function discardBatch({ worldId, batchId }) {
       await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedBodies]);
     if (c.enrichedNotes && c.enrichedNotes.length)
       await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedNotes]);
+    for (const ei of (c.enrichedImages || []))
+      await client.query(
+        `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3`,
+        [ei.prevImage, ei.prevPin, ei.node]);
     // granted asks revert too: moves go home, rewrites restore, dropped eras rise again
     if (b.asks_state === 'allowed') {
       for (const u of (b.asks_undo || [])) {

@@ -779,6 +779,9 @@ function AtlasWorkspace() {
           <button className={`forgebtn ${forgeOpen ? 'on' : ''}`} onClick={toggleForge}
             title="This world's mind — ask it to build places, people, interiors, and art">✦ Forge</button>
         )}
+        {mode === 'edit' && (
+          <Link to={`/worlds/${worldId}/images`} className="exit" title="This world's images — everything painted or uploaded">🗃 Archive</Link>
+        )}
         {mode === 'player' && tl?.enabled && (
           <span className="nowchip" title="The canon moment — the present your players see">🕓 {canon} {tl.unit}</span>
         )}
@@ -1778,7 +1781,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       .finally(() => setBusy(null))
   }
 
-  const COUNT_LABELS = { enrichedBodies: 'bodies filled', mapBases: 'backdrops set' }
+  const COUNT_LABELS = { enrichedBodies: 'bodies filled', enrichedNotes: 'notes filled', enrichedImages: 'art attached', mapBases: 'backdrops set' }
   return (
     <div className="forge">
       <div className="fhead">
