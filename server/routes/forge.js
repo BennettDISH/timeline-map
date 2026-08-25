@@ -67,7 +67,7 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
   const b = req.body || {};
   if ('art_style' in b) {
     if (typeof b.art_style !== 'string') return res.status(400).json({ message: 'art_style must be text' });
-    sets.push(`art_style=$${vals.push(b.art_style.trim().slice(0, 2000))}`);
+    sets.push(`art_style=$${vals.push(b.art_style.trim().slice(0, 4000))}`);
   }
   if ('lore' in b) {
     if (typeof b.lore !== 'string') return res.status(400).json({ message: 'lore must be text' });

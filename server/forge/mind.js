@@ -55,6 +55,7 @@ RULES OF CRAFT
 - When a CAMPAIGN BIBLE is present it is canon: use its names, places, and history exactly; invent only in its gaps, and in its voice. Asked to "build from the bible", check the digest first and never rebuild what already exists.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
 - Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
+- If the digest shows timeline.enabled=false, the world runs WITHOUT time: create no eras, facts, or lifespans — suggest enabling the timeline instead if the story needs history.
 - If the DM is only asking or planning, reply with say alone — no batch.`;
 
 async function ensureMind(worldId) {
@@ -78,7 +79,7 @@ async function digest(worldId) {
      FROM placements p JOIN maps mp ON p.map_id=mp.id WHERE mp.world_id=$1 LIMIT 600`, [worldId])).rows;
   return {
     world: { name: w.name, description: w.description || '',
-             timeline: { min: w.timeline_min_time, max: w.timeline_max_time, canon: w.timeline_current_time, unit: w.timeline_time_unit },
+             timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time, canon: w.timeline_current_time, unit: w.timeline_time_unit },
              rootMapId: w.root_map_id },
     eras: eras.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time })),
     maps: maps.map((m) => ({ id: m.id, title: m.title, interiorOf: m.owner_node_id, view: m.view })),
@@ -153,7 +154,7 @@ async function converse({ worldId, userId, message, context }) {
     sets.push(`lore=$${vals.push(lore)}`);
   }
   if (!mind.art_style && typeof resp?.art_style === 'string' && resp.art_style.trim()) {
-    sets.push(`art_style=$${vals.push(resp.art_style.trim().slice(0, 2000))}`);
+    sets.push(`art_style=$${vals.push(resp.art_style.trim().slice(0, 4000))}`);
   }
   if (sets.length) {
     vals.push(worldId);
