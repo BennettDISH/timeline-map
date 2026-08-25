@@ -161,6 +161,10 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin VARCHAR(10) NOT NULL DEFAULT 'chi
 -- Max edge (px) an image pin renders at — one knob per node, not per placement.
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin_size INTEGER NOT NULL DEFAULT 64;
 
+-- DM notes: the secret half of a node. NEVER selected by share.js and never fed to the
+-- Forge's painter — secrets live here; the body is the public face players may read.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS dm_note TEXT;
+
 -- A node's story can CHANGE over time: timed description overrides. The displayed body at
 -- moment t is the fact covering t with the latest start (base nodes.body otherwise).
 -- share.js resolves this server-side so other eras' text never reaches players.

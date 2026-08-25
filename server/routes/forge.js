@@ -205,8 +205,10 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   if (!m || !(await ownsWorld(m.world_id, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   const mind = await ensureMind(m.world_id);
   const guidance = typeof req.body?.guidance === 'string' ? req.body.guidance.slice(0, 500) : '';
+  // the painting is seen by players whenever the map is — hidden things must not steer it
   const feats = (await pool.query(
-    `SELECT n.title FROM placements p JOIN nodes n ON n.id=p.node_id WHERE p.map_id=$1 ORDER BY p.id LIMIT 12`, [m.id])).rows;
+    `SELECT n.title FROM placements p JOIN nodes n ON n.id=p.node_id
+     WHERE p.map_id=$1 AND p.visibility != 'dm' AND n.visibility != 'dm' ORDER BY p.id LIMIT 12`, [m.id])).rows;
   const prompt = [
     `the terrain of "${m.title}"`,
     feats.length ? `with ground for these features (do not label them): ${feats.map((f) => f.title).join(', ')}` : '',

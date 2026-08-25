@@ -29,7 +29,7 @@ THE BATCH (everything optional, arrays may be empty):
 {
   "summary": "one line describing the creation",
   "images": [{ "key": "img1", "name": "display name", "kind": "backdrop"|"art", "prompt": "what to paint — content and composition only, NEVER style (the world's fixed art style is applied for you)" }],
-  "nodes": [{ "key": "n1", "title": "", "body": "2-4 evocative sentences", "category": "place|person|item|note|lore|event", "image": "img1", "pin": "chip"|"image", "pin_size": 64,
+  "nodes": [{ "key": "n1", "title": "", "body": "2-4 evocative sentences — the PUBLIC face only", "dm_note": "the secret half: twists, hidden truths, plans — DM's eyes only", "category": "place|person|item|note|lore|event", "image": "img1", "pin": "chip"|"image", "pin_size": 64,
               "placements": [{ "map": "m1 or an existing map's numeric id", "x": 50, "y": 50, "start": null, "end": null }],
               "facts": [{ "body": "timed override text", "start": 200, "end": 400 }] }],
   "maps": [{ "key": "m1", "title": "", "view": "map"|"list", "owner": "n1 or an existing node's numeric id — the node this map is the interior of", "backdrop": "img1", "focus_start": null, "focus_end": null }],
@@ -37,6 +37,7 @@ THE BATCH (everything optional, arrays may be empty):
   "eras": [{ "name": "", "start": 0, "end": 100 }],
   "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
   "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — to replace written text, use an edit ask",
+               "dm_note": "fills the node's DM note only if empty",
                "facts": [{ "body": "", "start": 200, "end": 400 }],
                "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }],
   "asks": [{ "op": "move", "node": 141, "map": 69, "x": 40, "y": 62, "to_map": null },
@@ -61,6 +62,8 @@ RULES OF CRAFT
 - To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
 - A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside.
 - When a CAMPAIGN BIBLE is present it is canon: use its names, places, and history exactly; invent only in its gaps, and in its voice. Asked to "build from the bible", check the digest first and never rebuild what already exists.
+- SECRETS HAVE THEIR OWN CHANNEL: a node's body, facts, and any image are the PUBLIC face — exactly what players see the moment the DM reveals it. Every twist, hidden allegiance, trap, or protected truth goes in dm_note and NOWHERE else. A villain's body reads as their cover story; their dm_note holds the truth.
+- IMAGES ARE PUBLIC TOO: never paint a secret. Prompt the surface — the tavern's crowd, not the trapdoor beneath it; the blind shell-gatherer, not what she guards. If a place's secret is visual, paint the innocent version.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
 - Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
 - If the digest shows timeline.enabled=false, the world runs WITHOUT time: create no eras, facts, or lifespans — suggest enabling the timeline instead if the story needs history.
@@ -78,7 +81,8 @@ async function digest(worldId) {
   const eras = (await pool.query('SELECT id, name, start_time, end_time FROM eras WHERE world_id=$1 ORDER BY start_time', [worldId])).rows;
   const maps = (await pool.query('SELECT id, title, owner_node_id, view FROM maps WHERE world_id=$1 AND is_active=true ORDER BY id', [worldId])).rows;
   const nodes = (await pool.query(
-    `SELECT id, title, category, visibility, interior_map_id, LEFT(COALESCE(body,''), 160) AS body
+    `SELECT id, title, category, visibility, interior_map_id, LEFT(COALESCE(body,''), 160) AS body,
+            LEFT(COALESCE(dm_note,''), 160) AS secret
      FROM nodes WHERE world_id=$1 ORDER BY id LIMIT 400`, [worldId])).rows;
   const nodeCount = Number((await pool.query('SELECT COUNT(*) FROM nodes WHERE world_id=$1', [worldId])).rows[0].count);
   const links = (await pool.query('SELECT from_node_id AS f, to_node_id AS t, label FROM links WHERE world_id=$1 LIMIT 300', [worldId])).rows;
@@ -91,7 +95,7 @@ async function digest(worldId) {
              rootMapId: w.root_map_id },
     eras: eras.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time })),
     maps: maps.map((m) => ({ id: m.id, title: m.title, interiorOf: m.owner_node_id, view: m.view })),
-    nodes: nodes.map((n) => ({ id: n.id, title: n.title, cat: n.category, body: n.body, interiorMap: n.interior_map_id })),
+    nodes: nodes.map((n) => ({ id: n.id, title: n.title, cat: n.category, body: n.body, ...(n.secret ? { secret: n.secret } : {}), interiorMap: n.interior_map_id })),
     ...(nodeCount > 400 ? { note: `${nodeCount - 400} more nodes not shown` } : {}),
     links, placements,
   };

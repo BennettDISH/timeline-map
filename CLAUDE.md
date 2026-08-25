@@ -71,6 +71,10 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   clock — never a second clock; `now` and canon stay world-level.
 - Nodes carry a `pin` style: 'chip' (icon + name) or 'image' — the node's art drawn
   directly on the map (frameless, PNG transparency respected), for both DM and players.
+- `nodes.dm_note` is the SECRET half of a node: never selected by `share.js`, never fed to
+  the Forge painter, shown only in the inspector + view-posture reader. The body is the
+  public face; the inspector's "Reveal" button merges note → body. The mind is ordered to
+  write secrets there and to keep image prompts to the innocent surface.
 - `node_facts` are timed description overrides (same resolution rule as backdrops): the
   Colosseum reads as gladiators in 200, tourists in 2026. Resolved client-side in the
   reader, server-side in `share.js` (`?t=` on the node endpoint) for players.

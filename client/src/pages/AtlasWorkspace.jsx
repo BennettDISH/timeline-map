@@ -1085,6 +1085,9 @@ function AtlasWorkspace() {
                   const story = tl?.enabled ? (resolveFact(nodeLinks.facts, bdMoment) ?? sel.node.body) : sel.node.body
                   return story ? <p className="rbody">{story}</p> : null
                 })()}
+                {mode !== 'player' && sel.node.dmNote && (
+                  <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
+                )}
                 {sel.node.hasInterior && (
                   <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
                 )}
@@ -1382,6 +1385,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
 function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
+  const [note, setNote] = useState(p.node.dmNote || '')
   const [start, setStart] = useState(p.start ?? '')
   const [end, setEnd] = useState(p.end ?? '')
   const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
@@ -1431,6 +1435,21 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
       <div className="isect">Story</div>
       <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+      </div>
+      <div className="fld dmnotes"><label>🔒 DM notes — players never see this</label>
+        <textarea rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
+          onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
+        {note.trim() && (
+          <button className="btn block" style={{ marginTop: 5 }}
+            title="Moves the note into the public description — this is how a secret becomes known"
+            onClick={() => {
+              const merged = body.trim() ? `${body.trim()}\n\n${note.trim()}` : note.trim()
+              setBody(merged); setNote('')
+              onSave(n.id, { body: merged, dm_note: '' })
+            }}>
+            👁 Reveal — move into the description
+          </button>
+        )}
       </div>
       {timeline?.enabled && (
         <div className="fld"><label>The story by period — what this reads as at different times</label>
