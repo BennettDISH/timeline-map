@@ -182,6 +182,10 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_end INTEGER;
 
 -- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
+
+-- The DM's lantern: one node players are being shown the way toward. The share API
+-- resolves the trail (root -> ... -> node) and prunes it at the first hidden step.
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS spotlight_node_id INTEGER REFERENCES nodes(id) ON DELETE SET NULL;
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS share_token VARCHAR(64) UNIQUE;
 
 -- New worlds start with the timeline OFF: the workspace's "Enable timeline" flow opens the

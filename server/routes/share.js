@@ -18,7 +18,7 @@ const notFound = (res) => res.status(404).json({ message: 'Not found' });
 async function worldOf(token) {
   if (!token || token.length < 10) return null;
   const r = await pool.query(
-    `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit
+    `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit, spotlight_node_id
      FROM worlds WHERE share_token = $1 AND is_active = true`, [token]);
   return r.rows[0] || null;
 }
@@ -64,6 +64,41 @@ async function walkUp(mapId, w, t) {
     if (!up) return null;
     mid = up.map_id;
   }
+}
+
+// The DM's lantern: the chain of steps from the world root down to the spotlit node —
+// kingdom, village, hut, npc — each step's pin glowing on the map it sits on. Resolved at
+// CANON (a player scrubbing the past doesn't move the DM's "now") and pruned at the first
+// step a player may not see: pointing at a secret never leaks it, the trail just stops early.
+async function spotlightTrail(w) {
+  if (!w.spotlight_node_id) return [];
+  const canon = w.timeline_enabled ? w.timeline_current_time : null;
+  const alive = (a, b) => canon == null || ((a == null || a <= canon) && (b == null || b >= canon));
+  const steps = []; let nid = w.spotlight_node_id; const seen = new Set(); let complete = false;
+  while (nid && !seen.has(nid)) {
+    seen.add(nid);
+    const n = (await pool.query(
+      'SELECT id, title, category, visibility FROM nodes WHERE id = $1 AND world_id = $2',
+      [nid, w.id])).rows[0];
+    if (!n) return [];
+    const p = (await pool.query(
+      `SELECT map_id, visibility, start_time, end_time FROM placements
+       WHERE node_id = $1 ORDER BY (visibility = 'dm') ASC, id LIMIT 1`, [nid])).rows[0];
+    if (!p) return []; // placed nowhere — there is no way to walk to it
+    steps.unshift({ n, p });
+    const m = (await pool.query(
+      'SELECT id, owner_node_id, world_id, is_active FROM maps WHERE id = $1', [p.map_id])).rows[0];
+    if (!m || m.world_id !== w.id || !m.is_active) return [];
+    if (!m.owner_node_id) { complete = m.id === w.root_map_id; break; }
+    nid = m.owner_node_id;
+  }
+  if (!complete) return [];
+  const out = [];
+  for (const { n, p } of steps) {
+    if (n.visibility === 'dm' || p.visibility === 'dm' || !alive(p.start_time, p.end_time)) break;
+    out.push({ nodeId: n.id, title: n.title, category: n.category, mapId: p.map_id });
+  }
+  return out;
 }
 
 // GET /:token/world — name, where to start, and what time it is. No min/max: players don't scrub.
@@ -197,6 +232,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops } : {}),
     placements, links, breadcrumb,
+    spotlight: await spotlightTrail(w),
   });
 }));
 

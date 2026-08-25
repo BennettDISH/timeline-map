@@ -66,6 +66,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   res.json({ world: {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
     shareToken: w.share_token || null,
+    spotlightNodeId: w.spotlight_node_id ?? null,
     timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time,
                 current: w.timeline_current_time, unit: w.timeline_time_unit },
     eras,
@@ -83,6 +84,23 @@ router.post('/worlds/:worldId/share', wrap(async (req, res) => {
 router.delete('/worlds/:worldId/share', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   await pool.query('UPDATE worlds SET share_token=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.worldId]);
+  res.json({ ok: true });
+}));
+
+// POST /worlds/:worldId/spotlight — light the players' trail toward one node; DELETE puts
+// it out. share.js resolves the trail and prunes it at the first hidden step, so pointing
+// at a secret shows players the way only as far as they may see.
+router.post('/worlds/:worldId/spotlight', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const nodeId = Number(req.body?.nodeId);
+  const n = (await pool.query('SELECT id FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, req.params.worldId])).rows[0];
+  if (!n) return res.status(400).json({ message: 'That node is not in this world' });
+  await pool.query('UPDATE worlds SET spotlight_node_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [nodeId, req.params.worldId]);
+  res.json({ ok: true });
+}));
+router.delete('/worlds/:worldId/spotlight', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  await pool.query('UPDATE worlds SET spotlight_node_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.worldId]);
   res.json({ ok: true });
 }));
 

@@ -116,6 +116,8 @@ function PlayerView() {
   const present = (p) => !tl?.enabled ||
     ((p.start == null || tEff >= p.start) && (p.end == null || tEff <= p.end))
   const shownPlacements = (data.placements || []).filter(present)
+  const trail = data.spotlight || [] // the DM's lantern: root -> ... -> the node they mean
+  const trailIds = new Set(trail.map((t) => t.nodeId))
   const backdropUrl = (() => {
     if (!tl?.enabled || !data.backdrops || !data.backdrops.length) return map?.backdropUrl
     const rows = data.backdrops.filter((b) =>
@@ -149,6 +151,18 @@ function PlayerView() {
 
       <div className="main">
         <div className="pcol">
+        {trail.length > 0 && (
+          <div className="dmtrail" title="Your DM is showing the way — follow the glow">
+            <span className="deye">🔦</span>
+            {trail.map((s, i) => (
+              <React.Fragment key={s.nodeId}>
+                {i > 0 && <span className="sep">▸</span>}
+                <a className={`${s.mapId === map?.id ? 'here' : ''} ${i === trail.length - 1 ? 'last' : ''}`}
+                  onClick={() => { if (s.mapId !== map?.id) navigate(`/p/${token}/m/${s.mapId}`) }}>{s.title}</a>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
         <div className="stage">
           {!isList ? (
             <MapPlane
@@ -161,7 +175,7 @@ function PlayerView() {
             >
               {shownPlacements.map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
@@ -186,7 +200,7 @@ function PlayerView() {
           ) : (
             <div className="listview">
               {shownPlacements.map((p) => (
-                <div key={p.id} className={`lsrow ${detail?.node?.id === p.node.id ? 'on' : ''}`}
+                <div key={p.id} className={`lsrow ${detail?.node?.id === p.node.id ? 'on' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`}
                   onClick={() => openNode(p.node.id)}
                   onDoubleClick={() => enter(p.node)}>
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>

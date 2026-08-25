@@ -11,6 +11,8 @@ const atlasService = {
   patchWorld: (worldId, data) => http.patch(`${B}/worlds/${worldId}`, data).then((r) => r.data),
   createShare: (worldId) => http.post(`${B}/worlds/${worldId}/share`).then((r) => r.data),
   deleteShare: (worldId) => http.delete(`${B}/worlds/${worldId}/share`).then((r) => r.data),
+  setSpotlight: (worldId, nodeId) => http.post(`${B}/worlds/${worldId}/spotlight`, { nodeId }).then((r) => r.data),
+  clearSpotlight: (worldId) => http.delete(`${B}/worlds/${worldId}/spotlight`).then((r) => r.data),
 
   getTemplates: () => http.get(`${B}/templates`).then((r) => r.data.templates),
   cloneWorld: (sourceId, name) => http.post(`${B}/worlds/clone`, { source_id: sourceId, name }).then((r) => r.data),

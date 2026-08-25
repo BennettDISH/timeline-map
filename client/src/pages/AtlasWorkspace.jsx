@@ -140,6 +140,19 @@ function AtlasWorkspace() {
   })
   // After the Forge lands a batch, the world (eras), the tree (new interiors), and the
   // canvas may all have changed — refresh all three in the background.
+  // The DM's lantern: point players toward one node — the share API draws the golden
+  // trail (pruned at the first hidden step); here we just flip the pointer.
+  const toggleSpotlight = (node) => {
+    const on = world?.spotlightNodeId === node.id
+    const call = on ? atlasService.clearSpotlight(worldId) : atlasService.setSpotlight(worldId, node.id)
+    call.then(() => {
+      setWorld((w) => ({ ...w, spotlightNodeId: on ? null : node.id }))
+      if (on) setFlash({ kind: 'info', text: 'The trail is out.' })
+      else if (node.visibility === 'dm') setFlash({ kind: 'info', text: `Players see the trail toward “${node.title}” — but it stops early while this node is hidden.` })
+      else setFlash({ kind: 'ok', text: `Players now see the golden trail to “${node.title}”.` })
+    }).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't light the trail") }))
+  }
+
   const forgeRefresh = useCallback(() => {
     atlasService.getWorld(worldId).then(setWorld).catch(() => {})
     atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -817,7 +830,7 @@ function AtlasWorkspace() {
             >
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
@@ -1109,6 +1122,8 @@ function AtlasWorkspace() {
               onFactDelete={(id) => factDelete(sel.node.id, id)}
               links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onLabel={labelLink} onJump={jump}
               onVis={(v) => saveNode(sel.node.id, { visibility: v })}
+              spotlit={world?.spotlightNodeId === sel.node.id}
+              onSpotlight={() => toggleSpotlight(sel.node)}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
           )}
@@ -1364,7 +1379,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [start, setStart] = useState(p.start ?? '')
@@ -1407,6 +1422,12 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           <button className={n.visibility === 'dm' ? 'on' : ''} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒</button>
         </div>
       </div>
+      <button className={`btn block ${spotlit ? 'lit' : ''}`}
+        title={spotlit ? 'Players see a golden trail leading here — click to put it out'
+          : 'Light a golden trail for players: on each map along the way, the next step glows'}
+        onClick={onSpotlight}>
+        {spotlit ? '🔦 Stop showing the way' : '🔦 Show players the way here'}
+      </button>
       <div className="isect">Story</div>
       <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />

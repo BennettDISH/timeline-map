@@ -558,3 +558,18 @@
 // Reading surfaces stay copyable — only drag surfaces refuse selection.
 .atlas .reader,.atlas .sheet{user-select:text;-webkit-user-select:text}
 .atlas .forge .fbrow{align-items:center}
+
+// ---- the DM's lantern: the golden trail players follow ----
+.atlas .dmtrail{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 12px;font-size:12.5px;
+  background:linear-gradient(180deg,#2a2312,#221d10);border-bottom:1px solid #6b5a2a;color:#d9b64e;flex:none;
+  .deye{filter:drop-shadow(0 0 6px #d9b64e)}
+  .sep{color:#6b5a2a}
+  a{color:#d9b64e;cursor:pointer;text-decoration:none;border-bottom:1px dotted #6b5a2a;
+    &.here{background:#d9b64e22;border:1px solid #6b5a2a;border-bottom-style:solid;border-radius:5px;padding:1px 7px;font-weight:600}
+    &.last{font-weight:700}}}
+.atlas .pin.spot{border-color:#d9b64e;animation:spotglow 2s ease-in-out infinite}
+.atlas .pin.ipin.spot{border:none;box-shadow:none;animation:spotglow2 2s ease-in-out infinite}
+.atlas .lsrow.spot{outline:1px solid #d9b64e88;background:#d9b64e14}
+.atlas .btn.lit{color:#d9b64e;border-color:#6b5a2a}
+@keyframes spotglow{0%,100%{box-shadow:0 0 0 3px #d9b64e33,0 0 12px #d9b64e55}50%{box-shadow:0 0 0 3px #d9b64e66,0 0 22px #d9b64eaa}}
+@keyframes spotglow2{0%,100%{filter:drop-shadow(0 0 6px #d9b64e88)}50%{filter:drop-shadow(0 0 14px #d9b64e)}}
