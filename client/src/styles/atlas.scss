@@ -600,16 +600,16 @@
 // so hover animates opacity/slide only — the box never changes size and nothing re-anchors.
 // Touch devices have no hover: they keep the full labeled chips.
 @media (hover: hover){
-  .atlas .pin:not(.ipin){width:32px;height:32px;padding:0;justify-content:center;border-radius:50%;gap:0}
-  .atlas .pin:not(.ipin) .lbl{position:absolute;left:calc(100% + 7px);top:50%;opacity:0;pointer-events:none;
+  .atlas:not(.labelson) .pin:not(.ipin){width:32px;height:32px;padding:0;justify-content:center;border-radius:50%;gap:0}
+  .atlas:not(.labelson) .pin:not(.ipin) .lbl{position:absolute;left:calc(100% + 7px);top:50%;opacity:0;pointer-events:none;
     transform:translateY(-50%) translateX(-6px);transition:opacity .14s ease,transform .14s ease;
     background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 9px;box-shadow:0 2px 6px #0006;
     white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
-  .atlas .pin:not(.ipin):hover .lbl,.atlas .pin.sel:not(.ipin) .lbl{opacity:1;transform:translateY(-50%) translateX(0)}
-  .atlas .pin:not(.ipin) .open,.atlas .pin:not(.ipin) .lock{display:none}
+  .atlas:not(.labelson) .pin:not(.ipin):hover .lbl,.atlas:not(.labelson) .pin.sel:not(.ipin) .lbl{opacity:1;transform:translateY(-50%) translateX(0)}
+  .atlas:not(.labelson) .pin:not(.ipin) .open,.atlas:not(.labelson) .pin:not(.ipin) .lock{display:none}
   .atlas .pin .psig{position:absolute;top:-7px;right:-7px;width:16px;height:16px;line-height:14px;text-align:center;
     background:var(--panel);border:1px solid #2e5738;border-radius:50%;font-size:9px}
-  .atlas .pin.ipin .ilbl{opacity:0;transition:opacity .14s ease}
-  .atlas .pin.ipin:hover .ilbl,.atlas .pin.ipin.sel .ilbl{opacity:1}
+  .atlas:not(.labelson) .pin.ipin .ilbl{opacity:0;transition:opacity .14s ease}
+  .atlas:not(.labelson) .pin.ipin:hover .ilbl,.atlas:not(.labelson) .pin.ipin.sel .ilbl{opacity:1}
   .atlas .pin:hover{z-index:5}
 }

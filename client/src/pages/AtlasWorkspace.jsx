@@ -52,6 +52,7 @@ function AtlasWorkspace() {
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
   const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
+  const [labelsOn, setLabelsOn] = useState(() => localStorage.getItem('atlas_labels') === 'on')
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
   const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
   const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
@@ -326,6 +327,11 @@ function AtlasWorkspace() {
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
   }
 
+  const toggleLabels = () => setLabelsOn((v) => {
+    const nv = !v
+    try { localStorage.setItem('atlas_labels', nv ? 'on' : 'off') } catch (err) { /* ignore */ }
+    return nv
+  })
   const toggleGrid = () => setGridOn((v) => {
     const n = !v
     try { localStorage.setItem('atlas_grid', n ? 'on' : 'off') } catch (e) { /* ignore */ }
@@ -670,7 +676,7 @@ function AtlasWorkspace() {
     : save === 'err' ? { c: 'bad', t: '⚠ Not saved' } : null
 
   return (
-    <div className="atlas">
+    <div className={`atlas${labelsOn ? ' labelson' : ''}`}>
       <div className="top">
         {mode === 'player'
           ? <span className="brand">🧭 {world?.name}</span>
@@ -915,6 +921,10 @@ function AtlasWorkspace() {
                     )}
                     {!isList && (
                       <button onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
+                    )}
+                    {!isList && (
+                      <button title="Keep every pin's name out instead of showing it on hover"
+                        onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
                     )}
                     {tl?.enabled && (
                       <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
