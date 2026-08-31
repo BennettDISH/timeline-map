@@ -11,6 +11,7 @@ import EnvSetup from './pages/EnvSetup'
 import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
 import PlayerView from './pages/PlayerView'
+import NotFound from './pages/NotFound'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -99,7 +100,7 @@ function AppRoutes() {
         <Route path="/p/:token" element={<PlayerView />} />
         <Route path="/p/:token/m/:mapId" element={<PlayerView />} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   )
