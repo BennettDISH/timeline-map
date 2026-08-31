@@ -125,12 +125,16 @@ function AtlasWorkspace() {
     if (!mapId) return Promise.resolve()
     if (blank) { setData(null); setLoadState('loading') }
     return atlasService.getMap(mapId)
-      .then((d) => { setData(d); setLoadState('ok') })
+      .then((d) => {
+        setData(d)
+        setLoadState('ok')
+        worldService.setLastLocation(worldId, mapId) // "/" resumes here next visit
+      })
       .catch((e) => {
         if (blank) setLoadState('err')
         else setFlash({ kind: 'err', text: errText(e, "Couldn't refresh the map") })
       })
-  }, [mapId])
+  }, [worldId, mapId])
   const refreshMap = () => loadMap(false) // background refresh: keeps the canvas up while fetching
 
   useEffect(() => { forgeService.status().then(setForgeOn) }, [])
