@@ -21,6 +21,7 @@ function PlayerView() {
   const [detail, setDetail] = useState(null) // opened node { node, links, backlinks }
   const [gone, setGone] = useState(false)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
+  const [flash, setFlash] = useState(null) // transient error text when a node tap fails
   const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
   const [marking, setMarking] = useState(false) // armed: next map tap drops a marker
   const [markForm, setMarkForm] = useState(null) // { x, y } while the little form is open
@@ -55,21 +56,31 @@ function PlayerView() {
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
   }, [load])
 
+  // Node taps can fail too (flaky network, node hidden again) — say so briefly instead
+  // of doing nothing, using the same flash surface as the workspace.
+  useEffect(() => {
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 4000)
+    return () => clearTimeout(t)
+  }, [flash])
+
   const openNode = (nodeId) =>
-    shareService.getNode(token, nodeId, viewT).then(setDetail).catch(() => {})
+    shareService.getNode(token, nodeId, viewT).then(setDetail)
+      .catch(() => setFlash("Couldn't load that — tap it again."))
   // an open sheet keeps up with the era bar — debounced, since live scrubbing streams moments
   useEffect(() => {
     if (!detail?.node?.id) return
     const id = detail.node.id
     const timer = setTimeout(() => {
-      shareService.getNode(token, id, viewT).then(setDetail).catch(() => {})
+      shareService.getNode(token, id, viewT).then(setDetail)
+        .catch(() => setFlash("Couldn't refresh — showing the last thing we saw."))
     }, 300)
     return () => clearTimeout(timer)
   }, [viewT]) // eslint-disable-line
   const goTo = (nodeId) =>
     shareService.locateNode(token, nodeId, viewT)
       .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })
-      .catch(() => {})
+      .catch(() => setFlash("Couldn't find where that is — try again."))
   const enter = (node) => { if (node.hasInterior) navigate(`/p/${token}/m/${node.interiorMapId}`) }
 
   const onMarkClick = (e) => {
@@ -277,6 +288,8 @@ function PlayerView() {
             </div>
           </div>
         )}
+
+        {flash && <div className="aflash err">{flash}</div>}
       </div>
     </div>
   )
