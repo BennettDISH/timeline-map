@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../utils/AuthContext'
 
 function Setup() {
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
@@ -11,6 +12,7 @@ function Setup() {
   const [showMigration, setShowMigration] = useState(false)
   const [migrationSuccess, setMigrationSuccess] = useState('')
   const navigate = useNavigate()
+  const { setSession } = useAuth()
 
   useEffect(() => {
     checkSetupStatus()
@@ -44,10 +46,9 @@ function Setup() {
     try {
       const response = await axios.post('/api/setup/init-admin', formData)
       
-      // Store token and user data
-      localStorage.setItem('auth_token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-      
+      // Store the session in AuthContext so route guards see the new admin as logged in
+      setSession(response.data.token, response.data.user)
+
       // Redirect to dashboard
       navigate('/dashboard')
       
