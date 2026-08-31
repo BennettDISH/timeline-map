@@ -214,7 +214,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 ### Phase 5 — Assets, onboarding & friction polish
 - [ ] Unified assets + upload-at-point-of-need + usage-before-delete
 - [ ] Create-world wizard + clonable sample world + live checklist; separate operator setup
-- [ ] Duplicate/templates; keyboard placement; the friction-budget items above
+- [x] Duplicate/templates; keyboard placement; the friction-budget items above *(duplicate/templates done — clone a template or any world you own; keyboard placement done — N starts a node, Enter drops it at the cursor or map centre; @-mention-to-create still not)*
 
 ### Later / advanced
 - [x] Content that changes over time *(shipped: timed node descriptions + timed map backdrops)* — per-fact visibility · branching campaigns · zones/regions still later
