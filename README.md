@@ -36,7 +36,8 @@ is baked into the client bundle (no `VITE_` vars). Set `AUTH_SERVICE_URL`, `SSO_
 Railway.
 
 ## Notes
-⚠️ **Priority upgrade (P1 in `../PORTFOLIO.md`):** images are stored as **base64 in Postgres**
-(`routes/image-base64.js`, `images.base64_data`) and served through an API endpoint. Migrate to
-Cloudflare R2 — **`close-social-media` already has a working R2 implementation to copy.** Railway disk is
-ephemeral, which is why base64/DB storage was used; R2 is the correct fix.
+**Image storage:** Cloudflare R2 is the primary store — uploads go to R2 whenever all five `R2_*`
+vars are set (`server/storage.js`, `r2Enabled`). Base64-in-Postgres (`images.base64_data`, served by
+`/api/images-base64/serve`) is the deliberate fallback when R2 is off, and is also what world clones
+use: `routes/atlas.js` duplicates image rows with `storage_key NULL` so clones never cascade-delete
+each other's R2 objects. Both paths are live; neither is dead code.
