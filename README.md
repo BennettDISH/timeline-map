@@ -20,9 +20,11 @@ npm run dev                  # runs server + client together (concurrently)
 Production: `npm run build` then `npm start`.
 
 ## Layout
-- `client/src/pages/` — MapViewer, MapManager, MapSettings, WorldSettings, ImageManager, Dashboard,
-  AdminPanel, Login, AuthCallback, Setup/EnvSetup.
-- `server/routes/` — worlds, maps, events, images, imageFolders, **image-base64**, auth, admin, setup.
+- `client/src/pages/` — Dashboard, AtlasWorkspace, PlayerView, ImageManager, AdminPanel, Login,
+  AuthCallback, Setup/EnvSetup.
+- `server/routes/` — setup, auth, admin, worlds, images, **image-base64**, imageFolders,
+  **atlas** (the Atlas node/placement/link API), **share** (public Player View, read-only),
+  **forge** (per-world AI mind).
 - `server/config/migrate.js` — schema/migrations.
 
 ## SSO
