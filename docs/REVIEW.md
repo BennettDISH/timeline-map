@@ -154,7 +154,7 @@ structural fix is to promote subtype/connections to real columns.
 - [ ] **[low]** `403` overloaded for auth + permission; the `authService` interceptor hard-redirects; `AdminPanel`'s own axios swallows it — `client/src/services/authService.js:26`.
 - [x] **[low]** Role system beyond `admin` is **dead** — `requireCreator` exported but never used; every user is effectively a creator on their own data — `server/middleware/auth.js:60`.
 - [ ] **[low]** `init-admin` runs `schema.sql` via naive `;`-split, no transaction; `auth.js generateToken` lacks the missing-`JWT_SECRET` guard `setup.js` has — `server/routes/setup.js:101`.
-- [ ] **[low]** Schema-vs-code drift: `migrate.js` logs dead tables; `event_type` unvalidated vs its CHECK; `x_position/y_position` are `DECIMAL(5,2)` (±999.99) vs "infinite grid" comment — `server/config/migrate.js:29`.
+- [x] **[low]** Schema-vs-code drift: `migrate.js`'s "Tables created" summary was a hardcoded list naming a dead `events` table — now derived from `schema.sql` — `server/config/migrate.js:28`.
 - [x] **[low]** Dead code: **`client/src/styles/mapSettings.scss.backup` (773 lines)**; dead `mapLookup`/`currentMapId`, `bgMapCount`; dead `mapLookup`/`currentMapId` in `UniversalNodeSearch.jsx:23`; dead `tooltipData` in `NodeEditor.jsx:95`; unused `bgMapCount` in `MapViewer.jsx:142`; duplicated new-folder form in `ImageManager.jsx:503`.
 
 ---
