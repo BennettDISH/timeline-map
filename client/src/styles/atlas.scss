@@ -613,3 +613,15 @@
   .atlas:not(.labelson) .pin.ipin:hover .ilbl,.atlas:not(.labelson) .pin.ipin.sel .ilbl{opacity:1}
   .atlas .pin:hover{z-index:5}
 }
+.atlas .strow{display:flex;gap:5px;margin-bottom:6px;
+  button{flex:1;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:7px;padding:5px 4px;cursor:pointer;font:inherit;font-size:11.5px}
+  button.on{color:var(--ink);border-color:var(--accent);outline:1px solid var(--accent)}}
+.atlas .pin .stb{position:absolute;top:-4px;left:-4px;width:11px;height:11px;border-radius:50%;border:2px solid #0d0f13}
+.atlas .pin .stb.friend{background:#4f9f6f}
+.atlas .pin .stb.neutral{background:#8a8a86}
+.atlas .pin .stb.foe{background:#d05b5b}
+.atlas .stchip{margin-left:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;border:1px solid var(--line);border-radius:9px;padding:2px 7px}
+.atlas .stchip.friend{color:#9fd3b6;border-color:#2e5738}
+.atlas .stchip.neutral{color:var(--muted)}
+.atlas .stchip.foe{color:#ff9b9b;border-color:#5a2a2a}
+.atlas .spacepanel .mapnotes{width:100%;background:#1d1926;border:1px solid #4a3a5a;border-radius:7px;color:var(--ink);padding:7px 9px;font:inherit;font-size:12.5px;resize:vertical}

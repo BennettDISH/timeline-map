@@ -654,8 +654,11 @@ function AtlasWorkspace() {
     })
   }
 
-  const readerOpen = mode !== 'edit' && !!sel &&
-    (mode !== 'player' || (sel.node.visibility !== 'dm' && sel.visibility !== 'dm'))
+  // View is the DM's running surface: the reader stays open — the selected node's story
+  // and notes, or the space's own notes when nothing is selected.
+  const readerOpen = mode === 'view' ? true
+    : mode === 'player' ? (!!sel && sel.node.visibility !== 'dm' && sel.visibility !== 'dm')
+    : false
   const resolveFact = (facts, t) => {
     const rows = (facts || []).filter((f) => (f.start == null || f.start <= t) && (f.end == null || f.end >= t))
     if (!rows.length) return null
@@ -857,6 +860,7 @@ function AtlasWorkspace() {
                   )}
                   {p.node.visibility === 'dm' && <span className="lock" title="DM only">🔒</span>}
                   {p.node.hasInterior && <span className="open">◎</span>}
+                  {mode !== 'player' && p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
                 </div>
               ))}
             </MapPlane>
@@ -1065,7 +1069,21 @@ function AtlasWorkspace() {
           )}
         </div>
 
-          {readerOpen && !present(sel) && (
+          {readerOpen && !sel && (
+            <div className="reader">
+              <div className="rinner">
+                <div className="rhead">
+                  <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
+                  <h3>{map?.title}</h3>
+                </div>
+                <span className="rcat">This space{(data?.breadcrumb?.length || 0) > 1 ? ` · inside “${data.breadcrumb[data.breadcrumb.length - 2].title}”` : ''}</span>
+                {map?.dmNote
+                  ? <div className="dmnote"><div className="dmnl">🔒 Map notes</div>{map.dmNote}</div>
+                  : <p className="rbody muted">No map notes yet — write them in ✏ Edit with nothing selected.</p>}
+              </div>
+            </div>
+          )}
+          {readerOpen && sel && !present(sel) && (
             <div className="reader">
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               <div className="rinner rghost">
@@ -1080,7 +1098,7 @@ function AtlasWorkspace() {
               </div>
             </div>
           )}
-          {readerOpen && present(sel) && (
+          {readerOpen && sel && present(sel) && (
             <div className="reader">
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
@@ -1089,7 +1107,8 @@ function AtlasWorkspace() {
                   <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
                   <h3>{sel.node.title}</h3>
                 </div>
-                <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}</span>
+                <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}
+                  {mode !== 'player' && sel.node.stance ? <span className={`stchip ${sel.node.stance}`}>{sel.node.stance}</span> : null}</span>
                 {sel.node.visibility === 'player' && <div className="sby">✍ a player's marker{sel.node.author ? `, signed “${sel.node.author}”` : ''}</div>}
                 {tl?.enabled && (sel.start != null || sel.end != null) && (
                   <div className="rwhen">🕓 {sel.start ?? tl.min} – {sel.end ?? '…'} {tl.unit}</div>
@@ -1152,6 +1171,16 @@ function AtlasWorkspace() {
                   🎯 Focus period…{hasFocus ? ' ✓' : ''}
                 </button>
               )}
+              <div className="isect">🔒 Map notes — players never see this</div>
+              <textarea key={map?.id} className="mapnotes" rows={7} defaultValue={map?.dmNote || ''}
+                placeholder="What's going on in this space — beats, schedules, who's where, the plan."
+                onBlur={(e) => {
+                  const v = e.target.value
+                  if ((map?.dmNote || '') === v) return
+                  atlasService.patchMap(map.id, { dm_note: v })
+                    .then(() => setData((d) => d ? { ...d, map: { ...d.map, dmNote: v } } : d))
+                    .catch(() => setFlash({ kind: 'err', text: "Couldn't save the map notes" }))
+                }} />
               <hr />
               <div className="empty sphint">Click a node to edit it — or use <b>+ Add node</b>, then click the map.</div>
             </div>
@@ -1171,6 +1200,7 @@ function AtlasWorkspace() {
               onVis={(v) => saveNode(sel.node.id, { visibility: v })}
               spotlit={world?.spotlightNodeId === sel.node.id}
               onSpotlight={() => toggleSpotlight(sel.node)}
+              onStance={(v) => saveNode(sel.node.id, { stance: v })}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
           )}
@@ -1430,7 +1460,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
@@ -1480,6 +1510,12 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         onClick={onSpotlight}>
         {spotlit ? '🔦 Stop showing the way' : '🔦 Show players the way here'}
       </button>
+      <div className="strow" title="How they stand toward the party — your eyes only, never shown to players">
+        {[['friend', '🟢 Friend'], ['neutral', '⚪ Neutral'], ['foe', '🔴 Foe']].map(([v, l]) => (
+          <button key={v} className={n.stance === v ? 'on' : ''}
+            onClick={() => onStance(n.stance === v ? null : v)}>{l}</button>
+        ))}
+      </div>
       <div className="isect">Story</div>
       <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />

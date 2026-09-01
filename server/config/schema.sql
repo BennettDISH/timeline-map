@@ -165,6 +165,14 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pin_size INTEGER NOT NULL DEFAULT 64;
 -- Forge's painter — secrets live here; the body is the public face players may read.
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS dm_note TEXT;
 
+-- Stance: how a node stands toward the party (friend/neutral/foe) — a DM running aid,
+-- never selected by share.js, shown only in DM postures.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS stance VARCHAR(10);
+
+-- Map notes: the DM's running notes for a SPACE (beats, schedules, secrets) — same
+-- secrecy rule as nodes.dm_note; players never receive it.
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS dm_note TEXT;
+
 -- A node's story can CHANGE over time: timed description overrides. The displayed body at
 -- moment t is the fact covering t with the latest start (base nodes.body otherwise).
 -- share.js resolves this server-side so other eras' text never reaches players.
