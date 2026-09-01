@@ -16,7 +16,10 @@ http.interceptors.request.use((config) => {
 // never bounce those. Everywhere else, only bounce when the message is about the token —
 // a plain "insufficient permissions" 403 (e.g. non-admin hitting /api/admin) is not a
 // reason to end the session.
-const CREDENTIAL_URL = /\/auth\/(login|register|guest|sso)/
+// `logout` is in here for the opposite reason to the others: it is the one call that is
+// SUPPOSED to end the session, so a 401/403 from it is expected, not a signal to hard-
+// redirect on top of the sign-out the caller is already performing.
+const CREDENTIAL_URL = /\/auth\/(login|logout|register|guest|sso)/
 const TOKEN_MSG = /token|access token|user not found/i
 
 http.interceptors.response.use(

@@ -17,6 +17,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
 -- number of emailless users coexist. Storing '' instead would collide on that index.
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 
+-- Session revocation. Every JWT carries the token_version it was minted under and the auth
+-- middleware refuses any token whose claim no longer matches, so incrementing this column
+-- ends every outstanding session for that user — the only way to kill a stateless token
+-- before its expiry. Logout bumps it; tokens minted before the column existed carry no
+-- version claim and are refused outright.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+
 -- Worlds table for organizing campaigns/projects
 CREATE TABLE IF NOT EXISTS worlds (
     id SERIAL PRIMARY KEY,
