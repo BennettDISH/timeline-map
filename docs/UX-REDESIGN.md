@@ -187,7 +187,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 ### Phase 0 — Shell & IA  *(pure UI; wraps existing pages; immediate "where am I" win)*
 - [x] Persistent shell; world in the URL (`/w/:worldId/...`)
 - [x] Left **nesting tree** + breadcrumb (with one-click "up") + world switcher + global search + account menu *(tree+breadcrumb+global search done; world switcher, account menu not)*
-- [ ] Land in last map on login; one canonical route per screen; real 404; remove dead routes/cards/dead-ends
+- [x] Land in last map on login; one canonical route per screen; real 404; remove dead routes/cards/dead-ends *(done — login and `/` resume the last open map, unknown paths get a real 404 page, duplicate `/images` route removed)*
 
 ### Phase 1 — The nested canvas  *(the headline interaction)*
 - [x] Map renders its own backdrop; real thumbnails *(backdrop done; tree thumbnails not)*

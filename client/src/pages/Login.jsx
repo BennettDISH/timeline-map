@@ -14,7 +14,7 @@ function Login() {
     clearError()
     try {
       await guestLogin()
-      navigate('/dashboard')
+      navigate('/')
     } catch {
       // errors surfaced via context
     }
@@ -42,7 +42,7 @@ function Login() {
     
     try {
       await login(credentials.username, credentials.password)
-      navigate('/dashboard')
+      navigate('/')
     } catch (error) {
       // Check if database needs setup
       if (error.code === 'DB_NOT_INITIALIZED') {
@@ -62,7 +62,7 @@ function Login() {
     
     try {
       await register(formData.username, formData.email, formData.password)
-      navigate('/dashboard')
+      navigate('/')
     } catch (error) {
       // Check if database needs setup
       if (error.code === 'DB_NOT_INITIALIZED') {

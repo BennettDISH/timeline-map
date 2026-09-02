@@ -12,6 +12,7 @@ import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
 import PlayerView from './pages/PlayerView'
 import NotFound from './pages/NotFound'
+import worldService from './services/worldService'
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -32,7 +33,20 @@ const PublicRoute = ({ children }) => {
     return <div className="loading">Loading...</div>
   }
   
-  return !isAuthenticated ? children : <Navigate to="/dashboard" />
+  return !isAuthenticated ? children : <Navigate to="/" />
+}
+
+// "/" resumes where you left off — the last map you had open — else the dashboard.
+const Home = () => {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) {
+    return <div className="loading">Loading...</div>
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  const last = worldService.getLastLocation()
+  return <Navigate to={last ? `/w/${last.worldId}/m/${last.mapId}` : '/dashboard'} replace />
 }
 
 function AppRoutes() {
@@ -80,14 +94,6 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/images" 
-          element={
-            <ProtectedRoute>
-              <ImageManager />
-            </ProtectedRoute>
-          } 
-        />
         <Route
           path="/w/:worldId"
           element={<ProtectedRoute><AtlasWorkspace /></ProtectedRoute>}
@@ -99,7 +105,7 @@ function AppRoutes() {
         {/* Public Player View — the share link. No auth on purpose. */}
         <Route path="/p/:token" element={<PlayerView />} />
         <Route path="/p/:token/m/:mapId" element={<PlayerView />} />
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Home />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>

@@ -143,6 +143,7 @@ function Dashboard() {
     try {
       await worldService.deleteWorld(world.id)
       if (stored?.id === world.id) worldService.setCurrentWorld(null)
+      worldService.clearLastLocation(world.id)
       setWorlds((ws) => ws.filter((w) => w.id !== world.id))
       setModal(null)
       setFlash({ kind: 'ok', text: `"${world.name}" has passed out of all knowledge.` })
