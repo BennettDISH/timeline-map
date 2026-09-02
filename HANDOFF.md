@@ -51,4 +51,7 @@ and it has been running in production for a while. Almost everything lives in
 
 ## Known gaps (the honest list)
 
-  workspace.
+- **Mobile is view-only BY DESIGN** — editing happens on a PC; only the player/viewing
+  surfaces need to be mobile-first.
+- **From the "later" shelf** — a wish-shelf, not a defect list: per-fact visibility,
+  branching campaigns, zones/regions, @-mention-to-link.
