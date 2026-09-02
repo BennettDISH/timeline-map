@@ -213,7 +213,8 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 
 ### Phase 5 — Assets, onboarding & friction polish
 - [ ] Unified assets + upload-at-point-of-need + usage-before-delete
-- [ ] Create-world wizard + clonable sample world + live checklist; separate operator setup
+- [x] Clonable sample world *(done — `is_template` worlds, `GET /templates`, deep-copy clone endpoint, "Begin from the sample world" in the create modal, pre-checked for a user's first world)*
+- [ ] Create-world wizard + live checklist; separate operator setup *(create is still a single-shot modal; no state-aware checklist; Setup/EnvSetup are plain routes in the user app)*
 - [ ] Duplicate/templates; keyboard placement; the friction-budget items above
 
 ### Later / advanced
