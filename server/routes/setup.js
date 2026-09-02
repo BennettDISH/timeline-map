@@ -89,13 +89,24 @@ router.post('/init-admin', async (req, res) => {
     const schemaPath = path.join(__dirname, '../config/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
 
-    // Split by semicolon and execute each statement
-    const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
+    // Strip comment lines BEFORE splitting on ';' — a semicolon inside a comment shears the
+    // following statement into unparseable fragments (same fix as the boot-time ensure in server.js).
+    const cleaned = schema.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    const statements = cleaned.split(';').map((s) => s.trim()).filter(Boolean);
 
-    for (const statement of statements) {
-      if (statement.trim()) {
-        await pool.query(statement);
+    // Run the whole migration in one transaction so a failure can't leave a half-built schema
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const statement of statements) {
+        await client.query(statement);
       }
+      await client.query('COMMIT');
+    } catch (migrationError) {
+      await client.query('ROLLBACK');
+      throw migrationError;
+    } finally {
+      client.release();
     }
 
     console.log('Database migration completed');
