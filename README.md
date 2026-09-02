@@ -23,7 +23,8 @@ Production: `npm run build` then `npm start`.
 - `client/src/pages/` — MapViewer, MapManager, MapSettings, WorldSettings, ImageManager, Dashboard,
   AdminPanel, Login, AuthCallback, Setup/EnvSetup.
 - `server/routes/` — worlds, maps, events, images, imageFolders, **image-base64**, auth, admin, setup.
-- `server/config/migrate.js` — schema/migrations.
+- `server/config/apply-schema.js` — reads schema.sql into statements; shared by the boot-time
+  schema ensure in `server.js` and `server/config/migrate.js` (`npm run migrate`).
 
 ## SSO
 Optional "Sign in with bennettdishman.com" is wired **entirely server-side** — the OAuth

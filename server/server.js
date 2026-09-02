@@ -13,16 +13,13 @@ const PORT = process.env.PORT || 3001;
 // Ensure the DB schema exists on every boot (idempotent CREATE/ALTER IF NOT EXISTS), so a deploy
 // needs no manual `npm run migrate`. Runs the full schema.sql; per-statement errors are logged, not fatal.
 const pool = require('./config/database');
+const { applySchema } = require('./config/apply-schema');
 (async () => {
   try {
-    const schemaSql = fs.readFileSync(path.join(__dirname, 'config/schema.sql'), 'utf8');
-    // Strip comment lines BEFORE splitting on ';' — a semicolon inside a comment shears the
-    // following statement into unparseable fragments, which the per-statement tolerance then
-    // skips forever (this silently kept the atlas tables out of production).
-    const cleaned = schemaSql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
-    for (const stmt of cleaned.split(';').map((s) => s.trim()).filter(Boolean)) {
-      try { await pool.query(stmt); } catch (e) { console.error('schema ensure stmt skipped:', e.message); }
-    }
+    // Loader lives in config/apply-schema.js so `npm run migrate` runs the identical statements.
+    await applySchema(pool, {
+      onError: (stmt, e) => console.error('schema ensure stmt skipped:', e.message),
+    });
   } catch (e) { console.error('schema ensure skipped:', e.message); }
 })();
 
