@@ -215,7 +215,7 @@ Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
 - [ ] Unified assets + upload-at-point-of-need + usage-before-delete
 - [x] Clonable sample world *(done — `is_template` worlds, `GET /templates`, deep-copy clone endpoint, "Begin from the sample world" in the create modal, pre-checked for a user's first world)*
 - [ ] Create-world wizard + live checklist; separate operator setup *(create is still a single-shot modal; no state-aware checklist; Setup/EnvSetup are plain routes in the user app)*
-- [ ] Duplicate/templates; keyboard placement; the friction-budget items above
+- [x] Duplicate/templates; keyboard placement; the friction-budget items above *(duplicate/templates done — clone a template or any world you own; keyboard placement done — N starts a node, Enter drops it at the cursor or map centre; @-mention-to-create still not)*
 
 ### Later / advanced
 - [x] Content that changes over time *(shipped: timed node descriptions + timed map backdrops)* — per-fact visibility · branching campaigns · zones/regions still later

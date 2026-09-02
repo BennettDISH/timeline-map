@@ -89,6 +89,7 @@ function AtlasWorkspace() {
   const railWRef = useRef(230)
   const railRaf = useRef(0)
   const placePoint = useRef(null) // where "place existing here" should land
+  const cursorRef = useRef(null) // last pointer position — keyboard placement drops there
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
   // and failures surface as a toast instead of vanishing into an empty catch.
@@ -540,15 +541,52 @@ function AtlasWorkspace() {
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [searchOpen])
+  // ---- keyboard placement ----------------------------------------------------------
+  useEffect(() => {
+    const move = (e) => { cursorRef.current = { x: e.clientX, y: e.clientY } }
+    document.addEventListener('pointermove', move)
+    return () => document.removeEventListener('pointermove', move)
+  }, [])
+  // Enter drops at the cursor when it's over the map; otherwise at the centre of the
+  // visible map area (the plane∩viewport intersection, so a zoomed camera drops in view).
+  const keyboardDropPoint = () => {
+    const plane = worldRef.current
+    if (!plane) return null
+    const r = plane.getBoundingClientRect()
+    if (!r.width || !r.height) return null
+    const c = cursorRef.current
+    let px, py
+    if (c && c.x >= r.left && c.x <= r.right && c.y >= r.top && c.y <= r.bottom) {
+      px = c.x; py = c.y
+    } else {
+      const vp = plane.parentElement.getBoundingClientRect()
+      px = (Math.max(r.left, vp.left) + Math.min(r.right, vp.right)) / 2
+      py = (Math.max(r.top, vp.top) + Math.min(r.bottom, vp.bottom)) / 2
+    }
+    return { x: clamp(((px - r.left) / r.width) * 100), y: clamp(((py - r.top) / r.height) * 100) }
+  }
+
   useEffect(() => {
     const key = (e) => {
-      if (e.key === '/' && !/input|textarea|select/i.test(e.target.tagName)) {
+      const typing = /input|textarea|select/i.test(e.target.tagName)
+      if (e.key === '/' && !typing) {
         e.preventDefault(); searchRef.current?.querySelector('input')?.focus()
       } else if (e.key === 'Escape') { setPlacing(null); setCtx(null); closeSearch() }
+      else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit') {
+        // keyboard twin of "+ Add node"
+        if (isList) dropNode(50, 50)
+        else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
+      } else if (e.key === 'Enter' && !typing && !e.repeat && placing && mode === 'edit') {
+        e.preventDefault() // a still-focused toolbar button would also treat Enter as a click
+        const pt = keyboardDropPoint()
+        if (!pt) return
+        if (placing.kind === 'new') dropNode(pt.x, pt.y)
+        else placeExisting(placing.node, pt.x, pt.y)
+      }
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
-  }, [])
+  }, [mode, placing, isList, mapId]) // eslint-disable-line
   const unplacedCount = useMemo(() => searchIndex.filter((n) => n.placed === false).length, [searchIndex])
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -986,8 +1024,8 @@ function AtlasWorkspace() {
           {mode === 'edit' && placing && (
             <div className="hint">
               {placing.kind === 'new'
-                ? 'Click the map to drop the new node — Esc cancels.'
-                : `Click the map to place "${placing.node.title}" — Esc cancels.`}
+                ? 'Click the map to drop the new node — Enter drops it at the cursor, Esc cancels.'
+                : `Click the map to place "${placing.node.title}" — Enter drops it at the cursor, Esc cancels.`}
             </div>
           )}
 
@@ -999,6 +1037,7 @@ function AtlasWorkspace() {
                 <div><b>Click a pin</b> to read it{mode === 'edit' ? ' · drag a pin to move it' : ''}</div>
                 <div><b>Double-click a ◎ pin</b> to step inside that place</div>
                 {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
+                {mode === 'edit' && <div><b>N</b> starts a new node · <b>Enter</b> drops it at the cursor</div>}
                 {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
