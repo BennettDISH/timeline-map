@@ -11,7 +11,7 @@ Requires Node and a Postgres database.
 
 ```bash
 npm run install-all          # installs client + server
-cp server/.env.example server/.env    # DATABASE_URL, JWT_SECRET, FRONTEND_URL, MAX_FILE_SIZE, ...
+cp .env.example server/.env  # DATABASE_URL, JWT_SECRET, FRONTEND_URL, ...
 cd server && npm run migrate # create tables
 
 npm run dev                  # runs server + client together (concurrently)
