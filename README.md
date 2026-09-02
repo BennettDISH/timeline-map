@@ -20,9 +20,12 @@ npm run dev                  # runs server + client together (concurrently)
 Production: `npm run build` then `npm start`.
 
 ## Layout
-- `client/src/pages/` — MapViewer, MapManager, MapSettings, WorldSettings, ImageManager, Dashboard,
-  AdminPanel, Login, AuthCallback, Setup/EnvSetup.
-- `server/routes/` — worlds, maps, events, images, imageFolders, **image-base64**, auth, admin, setup.
+- `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId`, the editor and by far the largest file),
+  **PlayerView** (`/p/:token`, the public read-only share), Dashboard, ImageManager, AdminPanel,
+  Login, AuthCallback, Setup/EnvSetup.
+- `server/routes/` — **atlas** (nodes/placements/links), **share** (tokened Player View), **forge**
+  (per-world AI, inert without `GEMINI_API_KEY`), worlds, images, imageFolders, **image-base64**,
+  auth, admin, setup.
 - `server/config/apply-schema.js` — reads schema.sql into statements; shared by the boot-time
   schema ensure in `server.js` and `server/config/migrate.js` (`npm run migrate`).
 
