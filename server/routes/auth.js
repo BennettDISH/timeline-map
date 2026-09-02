@@ -1,10 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, exchangeCode } = require('../config/sso');
 const rateLimit = require('express-rate-limit');
+const { generateToken, refreshIfStale } = require('../utils/token');
 const router = express.Router();
 
 const SSO_ENABLED = !!process.env.AUTH_SERVICE_URL;
@@ -24,14 +24,6 @@ const authLimiter = rateLimit({
   max: 20,
   message: { message: 'Too many attempts. Please try again in a few minutes.' }
 });
-
-// Generate JWT token
-const generateToken = (userId) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is not set.');
-  }
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
 
 // Find or create a local user from central auth data, sync profile on login
 async function findOrCreateLocalUser(centralUser) {
@@ -144,7 +136,7 @@ router.post('/register', authLimiter, async (req, res) => {
         return res.status(centralRes.status).json({ message: centralRes.data.error || 'Registration failed' });
       }
       const localUser = await findOrCreateLocalUser(centralRes.data);
-      const token = generateToken(localUser.id);
+      const token = generateToken(localUser.id, localUser.token_version);
       return res.status(201).json({
         message: 'User created successfully',
         token,
@@ -164,12 +156,12 @@ router.post('/register', authLimiter, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
+      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at, token_version',
       [username, email, hashedPassword, 'viewer']
     );
 
     const user = result.rows[0];
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.token_version);
 
     res.status(201).json({
       message: 'User created successfully',
@@ -211,7 +203,7 @@ router.post('/login', authLimiter, async (req, res) => {
         return res.status(centralRes.status).json({ message: centralRes.data.error || 'Invalid credentials' });
       }
       const localUser = await findOrCreateLocalUser(centralRes.data);
-      const token = generateToken(localUser.id);
+      const token = generateToken(localUser.id, localUser.token_version);
       return res.json({
         message: 'Login successful',
         token,
@@ -221,7 +213,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Fallback: local auth
     const result = await pool.query(
-      'SELECT id, username, email, password_hash, role FROM users WHERE username = $1 OR email = $1',
+      'SELECT id, username, email, password_hash, role, token_version FROM users WHERE username = $1 OR email = $1',
       [username]
     );
 
@@ -235,7 +227,7 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.token_version);
     await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     res.json({
@@ -264,7 +256,7 @@ router.post('/sso-callback', async (req, res) => {
     }
 
     const localUser = await findOrCreateLocalUser(result.data);
-    const token = generateToken(localUser.id);
+    const token = generateToken(localUser.id, localUser.token_version);
 
     res.json({
       message: 'SSO login successful',
@@ -286,7 +278,7 @@ router.post('/guest', async (req, res) => {
       return res.status(result.status).json({ message: result.data.error || 'Could not start a guest session' });
     }
     const localUser = await findOrCreateLocalUser(result.data);
-    const token = generateToken(localUser.id);
+    const token = generateToken(localUser.id, localUser.token_version);
     res.json({
       message: 'Guest session started',
       token,
@@ -318,17 +310,44 @@ router.get('/sso/login', (req, res) => {
   res.redirect(url.toString());
 });
 
+// POST /api/auth/logout — actually ends the session instead of only forgetting it.
+// Clearing localStorage leaves the token itself valid until it expires, so a copy taken
+// before sign-out keeps working. Bumping token_version makes the middleware refuse it.
+// This signs the user out of every device, which is the point: it is the lever you pull
+// when you think a token has escaped.
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE users SET token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [req.user.id]
+    );
+    res.json({ message: 'Signed out' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ message: 'Server error during sign out' });
+  }
+});
+
 // GET /api/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    res.json({
+    const body = {
       user: {
         id: req.user.id,
         username: req.user.username,
         email: req.user.email,
         role: req.user.role
       }
-    });
+    };
+
+    // The app calls this on every load, which makes it the natural place to slide the
+    // session forward: past the halfway mark, hand back a fresh token. Without it the
+    // short TTL would sign an active user out mid-campaign; with it only a browser left
+    // idle for a whole window has to log in again.
+    const refreshed = refreshIfStale(req.tokenPayload, req.tokenVersion);
+    if (refreshed) body.token = refreshed;
+
+    res.json(body);
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ message: 'Server error' });

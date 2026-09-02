@@ -41,16 +41,41 @@ const authService = {
     }
   },
 
-  // Logout user (stateless JWT - just clear local storage)
-  logout() {
+  // Drop this browser's session without touching the server. For "the token we hold did
+  // not work" — a failed /me, an expired token — where revoking the user's OTHER devices
+  // over what may be a passing server error would be wrong.
+  clearSession() {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
+  },
+
+  // Logout user. Forgetting the token locally does not stop it working — it stays valid
+  // until it expires — so tell the server to bump this user's token_version, which makes
+  // every copy of it (including one already stolen) fail auth. That does end the session
+  // on their other devices too, which is the intended meaning of a deliberate sign-out.
+  // Local state goes first regardless, so a slow or down server can never leave this
+  // browser signed in.
+  async logout() {
+    const token = localStorage.getItem('auth_token')
+    authService.clearSession()
+    if (!token) return
+    try {
+      await api.post('/api/auth/logout', null, { headers: { Authorization: `Bearer ${token}` } })
+    } catch (error) {
+      // Already signed out here; a dead or unreachable token just expires on its own.
+    }
   },
 
   // Get current user
   async getCurrentUser() {
     try {
       const response = await api.get('/api/auth/me')
+      // Sliding session: the server returns a fresh token once the current one is past
+      // halfway through its life, so an app that is actually being used never runs into
+      // the short expiry. Absent on every other call — only store one when it is there.
+      if (response.data.token) {
+        localStorage.setItem('auth_token', response.data.token)
+      }
       return response.data.user
     } catch (error) {
       throw error.response?.data || { message: 'Failed to get user' }

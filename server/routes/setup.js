@@ -1,16 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
+const { generateToken } = require('../utils/token');
 const router = express.Router();
-
-// Generate JWT token
-const generateToken = (userId) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is not set. Please set it in Railway dashboard.');
-  }
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
 
 // GET /api/setup/status - Check if system needs setup
 router.get('/status', async (req, res) => {
@@ -116,12 +108,12 @@ router.post('/init-admin', async (req, res) => {
     await pool.query('DELETE FROM users WHERE username = $1', ['admin']);
 
     const result = await pool.query(
-      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
+      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at, token_version',
       [username, email, hashedPassword, 'admin']
     );
 
     const user = result.rows[0];
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.token_version);
 
     res.status(201).json({
       message: 'System initialized successfully! You are now logged in as admin.',

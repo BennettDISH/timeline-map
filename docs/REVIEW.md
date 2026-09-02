@@ -104,7 +104,7 @@ structural fix is to promote subtype/connections to real columns.
 - [x] **[medium]** **Rate limiting inert** — `trust proxy` never set behind Railway, so all clients share one bucket — `server/server.js:19`. Fix: `app.set('trust proxy', 1)` + a stricter limiter on `/auth/login|register`.
 - [x] **[medium]** **Raw Postgres error text leaked** on every 500 (~26 catch blocks bypass the `NODE_ENV` guard; `setup.js` even returns `error.stack`) — e.g. `server/routes/worlds.js:45`. Fix: return a generic message, route through the global handler.
 - [x] **[medium]** **JWT secret generated with `Math.random()`** in the setup helper — `client/src/pages/EnvSetup.jsx:9`. Fix: `crypto.getRandomValues` (or instruct `openssl rand`).
-- [ ] **[medium]** JWTs in `localStorage`, fixed 7-day expiry, **no revocation** — `client/src/services/authService.js:46`. Consider httpOnly cookie + shorter TTL + token version.
+- [x] **[medium]** JWTs in `localStorage`, fixed 7-day expiry, **no revocation** — `client/src/services/authService.js:46`. Took the token-version route: `users.token_version` + a `tv` claim checked in `authenticateToken`, `POST /api/auth/logout` bumps it, TTL now `JWT_EXPIRES_IN` (default 24h) with a sliding re-issue on `/auth/me`. Tokens still live in `localStorage` — httpOnly cookies remain the deeper fix.
 - [ ] **[medium]** Setup success writes token to `localStorage` but **not to AuthContext** → new admin bounced to `/login` — `client/src/pages/Setup.jsx:48`. Fix: update context via a login action.
 
 ### 🟠 P2 — Broken / rough core UX

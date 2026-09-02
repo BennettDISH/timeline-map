@@ -59,8 +59,9 @@ export const AuthProvider = ({ children }) => {
             payload: { user } 
           })
         } catch (error) {
-          // Token might be expired
-          authService.logout()
+          // The stored token did not work. Drop it locally only — this branch also catches
+          // a server blip, and that must not revoke the user's sessions on other devices.
+          authService.clearSession()
           dispatch({ type: 'LOGOUT' })
         }
       } else {
