@@ -663,9 +663,6 @@ function AtlasWorkspace() {
     if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
   }
 
-  // ▶ sweeps the lens through [dispMin, dispMax]; any manual time change, mode switch,
-  // or map navigation kills it. The position advances in a local var, not the state —
-  // reading `now` back mid-sweep would race the batched updates.
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
   const activeBackdropUrl = useMemo(() => {
     if (!map) return null
