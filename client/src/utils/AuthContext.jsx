@@ -139,6 +139,12 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Adopt a session minted outside the login/register flow (e.g. first-run setup)
+  const setSession = (token, user) => {
+    authService.setSession(token, user)
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user } })
+  }
+
   const logout = async () => {
     await authService.logout()
     dispatch({ type: 'LOGOUT' })
@@ -154,6 +160,7 @@ export const AuthProvider = ({ children }) => {
     register,
     ssoLogin,
     guestLogin,
+    setSession,
     logout,
     clearError
   }

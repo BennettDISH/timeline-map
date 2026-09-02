@@ -82,6 +82,12 @@ const authService = {
     }
   },
 
+  // Store a session minted outside the normal login flow (e.g. first-run setup)
+  setSession(token, user) {
+    localStorage.setItem('auth_token', token)
+    localStorage.setItem('user', JSON.stringify(user))
+  },
+
   // Check if user is logged in
   isAuthenticated() {
     return !!localStorage.getItem('auth_token')
