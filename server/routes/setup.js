@@ -82,17 +82,10 @@ router.post('/init-admin', async (req, res) => {
     // Run migration first
     console.log('Running initial migration for first admin setup...');
 
-    const fs = require('fs');
-    const path = require('path');
-
-    // Read and execute schema file
-    const schemaPath = path.join(__dirname, '../config/schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-
-    // Strip comment lines BEFORE splitting on ';' — a semicolon inside a comment shears the
-    // following statement into unparseable fragments (same fix as the boot-time ensure in server.js).
-    const cleaned = schema.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
-    const statements = cleaned.split(';').map((s) => s.trim()).filter(Boolean);
+    // Shared schema loader (config/apply-schema.js) strips comment lines before splitting on ';'
+    // — a semicolon inside a comment shears the following statement into unparseable fragments.
+    const { readStatements } = require('../config/apply-schema');
+    const statements = readStatements();
 
     // Run the whole migration in one transaction so a failure can't leave a half-built schema
     const client = await pool.connect();
