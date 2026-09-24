@@ -144,14 +144,17 @@ below is a wish-shelf, not a gap list.
   (`mind_messages.batch_id`). Messages up to 12k chars; caps 8 images / 60 nodes / 40 asks.
   The image picker's ✦ Paint button remains the precise one-click paint path.
 
-## Voice (ElevenLabs — optional harness)
-- `server/voice/elevenlabs.js` (fetch-only: voices list, TTS, sound-generation) +
-  `server/routes/voice.js` (auth + ownsWorld; **inert without `ELEVENLABS_API_KEY`**, or
-  with `VOICE_ENABLED=0`). Audio lands in R2 (`worlds/<id>/voice-*.mp3`, `ambience-*.mp3`).
-- Nodes: `voice_id`/`voice_name` (chosen in the inspector's Voice section from the
-  account's voices) + one `voice_line`/`voice_url`. Maps: `ambience_prompt`/`ambience_url`
-  (space panel, ≤22s loop). Player View: a visible node's line plays on its sheet; a map's
-  ambience is a tap-to-play toggle in the top bar (autoplay policies need the tap).
+## Voice (optional harness, three providers)
+- `server/voice/providers.js` chooses who speaks: `VOICE_PROVIDER` if pinned, else the
+  first key present — Gemini (`gemini-2.5-flash-tts`, PCM wrapped as WAV server-side),
+  OpenAI (`gpt-4o-mini-tts`), ElevenLabs (`server/voice/elevenlabs.js`). Gemini/OpenAI
+  are STEERABLE: `nodes.voice_style` (a written description) shapes every line. Ambience
+  (sound generation) is ElevenLabs-only. `server/routes/voice.js` is auth + ownsWorld and
+  inert with no key (or `VOICE_ENABLED=0`); `/status` reports provider/steerable/ambience
+  so the inspector adapts. Audio lands in R2 (`worlds/<id>/voice-*`, `ambience-*`).
+- Nodes: `voice_id`/`voice_name`/`voice_style` + one `voice_line`/`voice_url`. Maps:
+  `ambience_prompt`/`ambience_url` (≤22s loop). Player View: a visible node's line plays
+  on its sheet; a map's ambience is a tap-to-play toggle in the top bar.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
   visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
 

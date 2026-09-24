@@ -63,7 +63,8 @@ function AtlasWorkspace() {
   // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
   // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
   const [forgeOn, setForgeOn] = useState(false)
-  const [voiceOn, setVoiceOn] = useState(false) // ELEVENLABS_API_KEY present on the server
+  const [voiceMeta, setVoiceMeta] = useState({ enabled: false }) // which provider speaks, and whether it can be steered / make ambience
+  const voiceOn = voiceMeta.enabled
   const [voices, setVoices] = useState([])
   const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
   const [railW, setRailW] = useState(() => {
@@ -143,14 +144,14 @@ function AtlasWorkspace() {
 
   useEffect(() => { forgeService.status().then(setForgeOn) }, [])
   useEffect(() => {
-    voiceService.status().then((on) => {
-      setVoiceOn(on)
-      if (on) voiceService.voices().then(setVoices).catch(() => {})
+    voiceService.status().then((m) => {
+      setVoiceMeta(m || { enabled: false })
+      if (m?.enabled) voiceService.voices().then(setVoices).catch(() => {})
     })
   }, [])
-  const setNodeVoice = (nodeId, voiceId, voiceName) =>
-    voiceService.setVoice(nodeId, voiceId, voiceName)
-      .then(() => localPatchNode(nodeId, { voiceId, voiceName }))
+  const setNodeVoice = (nodeId, voiceId, voiceName, voiceStyle) =>
+    voiceService.setVoice(nodeId, voiceId, voiceName, voiceStyle)
+      .then(() => localPatchNode(nodeId, { voiceId, voiceName, ...(voiceStyle !== undefined ? { voiceStyle } : {}) }))
       .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't set the voice") }))
   const sayLine = (nodeId, text) =>
     voiceService.sayLine(nodeId, text)
@@ -1252,7 +1253,7 @@ function AtlasWorkspace() {
                     .then(() => setData((d) => d ? { ...d, map: { ...d.map, dmNote: v } } : d))
                     .catch(() => setFlash({ kind: 'err', text: "Couldn't save the map notes" }))
                 }} />
-              {voiceOn && !isList && (
+              {voiceOn && voiceMeta.ambience && !isList && (
                 <>
                   <div className="isect">Ambience — players can play it here</div>
                   <input key={`amb${map?.id}`} className="ambin" maxLength={400} defaultValue={map?.ambiencePrompt || ''}
@@ -1285,8 +1286,8 @@ function AtlasWorkspace() {
               spotlit={world?.spotlightNodeId === sel.node.id}
               onSpotlight={() => toggleSpotlight(sel.node)}
               onStance={(v) => saveNode(sel.node.id, { stance: v })}
-              voiceOn={voiceOn} voices={voices}
-              onVoice={(id, name) => setNodeVoice(sel.node.id, id, name)}
+              voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
+              onVoice={(id, name, style) => setNodeVoice(sel.node.id, id, name, style)}
               onSay={(t) => sayLine(sel.node.id, t)}
               onClearLine={() => clearLine(sel.node.id)}
               onRemoveHere={() => removeFromMap(sel)}
@@ -1548,11 +1549,12 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, onVoice, onSay, onClearLine }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
   const [line, setLine] = useState(p.node.voiceLine || '')
+  const [vstyle, setVstyle] = useState(p.node.voiceStyle || '')
   const [vbusy, setVbusy] = useState(false)
   const [start, setStart] = useState(p.start ?? '')
   const [end, setEnd] = useState(p.end ?? '')
@@ -1627,18 +1629,26 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
       </div>
       {voiceOn && (
         <>
-          <div className="isect">Voice</div>
+          <div className="isect">Voice{voiceMeta?.provider ? <span className="vprov"> · {voiceMeta.provider}</span> : null}</div>
           <div className="fld"><label>Their voice</label>
             <select className="vsel" value={n.voiceId || ''}
               onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); onVoice(v ? v.id : null, v ? v.name : null) }}>
               <option value="">— pick a voice —</option>
               {voices.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.name}{[v.labels?.gender, v.labels?.age, v.labels?.accent].filter(Boolean).map((x) => ` · ${x}`).join('')}
+                  {v.name}{[v.labels?.feel, v.labels?.gender, v.labels?.age, v.labels?.accent].filter(Boolean).map((x) => ` · ${x}`).join('')}
                 </option>
               ))}
             </select>
           </div>
+          {voiceMeta?.steerable && (
+            <div className="fld"><label>How they sound — shapes every line</label>
+              <input className="vstyle" maxLength={400} value={vstyle}
+                placeholder="hoarse and exhausted, pipe-smoke rasp, talks like he's already lost the argument"
+                onChange={(e) => setVstyle(e.target.value)}
+                onBlur={() => { if ((n.voiceStyle || '') !== vstyle.trim()) onVoice(n.voiceId || null, n.voiceName || null, vstyle.trim()) }} />
+            </div>
+          )}
           <div className="fld"><label>A line in their voice — players hear it on their sheet</label>
             <textarea rows={2} maxLength={400} value={line}
               placeholder="“Thirty gold a head, and not a copper more. The light comes first.”"
