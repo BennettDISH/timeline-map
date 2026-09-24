@@ -15,6 +15,10 @@ const assert = require('node:assert');
 const BASE = process.env.BASE_URL || 'https://timeline-map-production.up.railway.app';
 const TOKEN = process.env.SHARE_TOKEN || 'fx89ef1c8ec74cadc99ae56b256c46b337';
 // Fixture ids (stable in the production DB; re-seed fixture.sql and update if recreated)
+// The fixture holds deliberate contradictions the app's own UI never produces — notably
+// "Ghost Spot": a SHARED node whose only placement (id 102) is DM-only, proving placement
+// visibility filters independently of node visibility. Any data sweep that "repairs"
+// shared-node/dm-placement mismatches must skip world 26, or five tests here fail.
 const IDS = {
   root: Number(process.env.FX_ROOT || 60),
   hiddenMap: Number(process.env.FX_HIDDEN_MAP || 61),
