@@ -259,6 +259,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const pl = (await pool.query(`
     SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis,
            n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size,
+           n.voice_id, n.voice_name, n.voice_line, n.voice_url,
            ni.file_path AS node_image_path, im.view AS interior_view
     FROM placements p
     JOIN nodes n ON p.node_id = n.id
@@ -268,6 +269,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const placements = pl.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
+            voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url,
             pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
             imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
@@ -286,6 +288,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   res.json({
     map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id,
            focusStart: map.focus_start, focusEnd: map.focus_end, dmNote: map.dm_note,
+           ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     backdrops: bds.map((b) => ({ id: b.id, imageId: b.image_id, start: b.start_time, end: b.end_time, url: resolveImageUrl(req, b.file_path) })),
     placements, links, breadcrumb: await breadcrumb(req.params.mapId),

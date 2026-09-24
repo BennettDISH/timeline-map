@@ -180,6 +180,16 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS stance VARCHAR(10);
 -- secrecy rule as nodes.dm_note; players never receive it.
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS dm_note TEXT;
 
+-- Voice (ElevenLabs, inert without ELEVENLABS_API_KEY): a person's chosen voice and one
+-- spoken line (MP3 in R2), heard by players on the sheet when the node is visible. Maps
+-- carry a generated ambience loop the same way.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_id VARCHAR(64);
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_name VARCHAR(120);
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_line TEXT;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_url VARCHAR(500);
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS ambience_prompt TEXT;
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS ambience_url VARCHAR(500);
+
 -- A node's story can CHANGE over time: timed description overrides. The displayed body at
 -- moment t is the fact covering t with the latest start (base nodes.body otherwise).
 -- share.js resolves this server-side so other eras' text never reaches players.

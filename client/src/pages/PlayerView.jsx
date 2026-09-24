@@ -28,6 +28,14 @@ function PlayerView() {
   const [markBusy, setMarkBusy] = useState(false)
   const viewTRef = useRef(null); viewTRef.current = viewT
   const worldRef = useRef(null)
+  const ambRef = useRef(null)
+  const [ambOn, setAmbOn] = useState(false) // the space's ambience loop, started by a tap
+  useEffect(() => { const a = ambRef.current; if (a) { a.pause(); a.currentTime = 0 } setAmbOn(false) }, [mapId])
+  const toggleAmb = () => {
+    const a = ambRef.current
+    if (!a) return
+    if (ambOn) { a.pause(); setAmbOn(false) } else { a.play().then(() => setAmbOn(true)).catch(() => {}) }
+  }
 
   // ONE windowed fetch per map: the payload carries everything visible at any revealed
   // moment (lifespans clamped server-side), so scrubbing filters locally with zero
@@ -158,6 +166,12 @@ function PlayerView() {
             🕓 {viewT != null ? `${viewT} ${tl.unit} · the past` : `${tl.current} ${tl.unit}`}
           </span>
         )}
+        {map?.ambienceUrl && (
+          <button className={`ambbtn ${ambOn ? 'on' : ''}`} onClick={toggleAmb} title={ambOn ? 'Quiet the ambience' : 'Hear this place'}>
+            {ambOn ? '🔊 Playing' : '🔈 Ambience'}
+          </button>
+        )}
+        <audio ref={ambRef} loop preload="none" src={map?.ambienceUrl || undefined} />
       </div>
 
       <div className="main">
@@ -175,6 +189,12 @@ function PlayerView() {
           </div>
         )}
         <div className="stage">
+          {(data.breadcrumb || []).length > 1 && (
+            <button className="tool backbtn" title="Back up one level"
+              onClick={() => navigate(`/p/${token}/m/${data.breadcrumb[data.breadcrumb.length - 2].mapId}`)}>
+              ⬆ {data.breadcrumb[data.breadcrumb.length - 2].title}
+            </button>
+          )}
           {!isList ? (
             <MapPlane
               mapKey={mapId || 'root'}
@@ -204,7 +224,11 @@ function PlayerView() {
                       <span className="lbl">{p.node.title}</span>
                     </>
                   )}
-                  {p.node.hasInterior && <span className="open">◎</span>}
+                  {p.node.hasInterior && (
+                    <button className="open enter" title="Go inside"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
+                  )}
                 </div>
               ))}
             </MapPlane>
@@ -216,7 +240,11 @@ function PlayerView() {
                   onDoubleClick={() => enter(p.node)}>
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
                   <div className="lsbody"><div className="lstitle">{p.node.title}</div></div>
-                  {p.node.hasInterior && <span className="open">◎</span>}
+                  {p.node.hasInterior && (
+                    <button className="open enter" title="Go inside"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
+                  )}
                 </div>
               ))}
               {shownPlacements.length === 0 && (
@@ -266,6 +294,13 @@ function PlayerView() {
                 <div className="sby">✍ a player's marker{detail.node.author ? `, signed “${detail.node.author}”` : ''}</div>
               )}
               {detail.node.body && <p className="sbody">{detail.node.body}</p>}
+              {detail.node.voiceUrl && (
+                <div className="svoice">
+                  <div className="rk">In their own voice</div>
+                  <audio controls preload="none" src={detail.node.voiceUrl} />
+                  {detail.node.voiceLine && <span className="sline">“{detail.node.voiceLine}”</span>}
+                </div>
+              )}
               {detail.node.hasInterior && (
                 <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
               )}

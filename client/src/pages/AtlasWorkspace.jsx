@@ -6,6 +6,7 @@ import imageServiceBase64 from '../services/imageServiceBase64'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
+import voiceService from '../services/voiceService'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -62,6 +63,8 @@ function AtlasWorkspace() {
   // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
   // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
   const [forgeOn, setForgeOn] = useState(false)
+  const [voiceOn, setVoiceOn] = useState(false) // ELEVENLABS_API_KEY present on the server
+  const [voices, setVoices] = useState([])
   const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
   const [railW, setRailW] = useState(() => {
     const v = parseInt(localStorage.getItem('atlas_railw'), 10)
@@ -139,6 +142,32 @@ function AtlasWorkspace() {
   const refreshMap = () => loadMap(false) // background refresh: keeps the canvas up while fetching
 
   useEffect(() => { forgeService.status().then(setForgeOn) }, [])
+  useEffect(() => {
+    voiceService.status().then((on) => {
+      setVoiceOn(on)
+      if (on) voiceService.voices().then(setVoices).catch(() => {})
+    })
+  }, [])
+  const setNodeVoice = (nodeId, voiceId, voiceName) =>
+    voiceService.setVoice(nodeId, voiceId, voiceName)
+      .then(() => localPatchNode(nodeId, { voiceId, voiceName }))
+      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't set the voice") }))
+  const sayLine = (nodeId, text) =>
+    voiceService.sayLine(nodeId, text)
+      .then((r) => { localPatchNode(nodeId, { voiceLine: r.line, voiceUrl: r.url }); setFlash({ kind: 'ok', text: 'They spoke — players hear it on their sheet' }) })
+      .catch((e) => setFlash({ kind: 'err', text: errText(e, 'No voice came back') }))
+  const clearLine = (nodeId) =>
+    voiceService.clearLine(nodeId)
+      .then(() => localPatchNode(nodeId, { voiceLine: null, voiceUrl: null }))
+      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't remove the line") }))
+  const setAmbience = (prompt) =>
+    voiceService.setAmbience(map.id, prompt)
+      .then((r) => { setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
+      .catch((e) => setFlash({ kind: 'err', text: errText(e, 'No sound came back') }))
+  const clearAmbience = () =>
+    voiceService.clearAmbience(map.id)
+      .then(() => setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
+      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't remove the ambience") }))
   const toggleForge = () => setForgeOpen((v) => {
     const nv = !v
     try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
@@ -1120,6 +1149,7 @@ function AtlasWorkspace() {
                 {map?.dmNote
                   ? <div className="dmnote"><div className="dmnl">🔒 Map notes</div>{map.dmNote}</div>
                   : <p className="rbody muted">No map notes yet — write them in ✏ Edit with nothing selected.</p>}
+                {map?.ambienceUrl && <audio className="ramb" controls loop preload="none" src={map.ambienceUrl} />}
               </div>
             </div>
           )}
@@ -1160,6 +1190,7 @@ function AtlasWorkspace() {
                 {mode !== 'player' && sel.node.dmNote && (
                   <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
                 )}
+                {sel.node.voiceUrl && <audio className="rvoice" controls preload="none" src={sel.node.voiceUrl} />}
                 {sel.node.hasInterior && (
                   <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
                 )}
@@ -1221,6 +1252,19 @@ function AtlasWorkspace() {
                     .then(() => setData((d) => d ? { ...d, map: { ...d.map, dmNote: v } } : d))
                     .catch(() => setFlash({ kind: 'err', text: "Couldn't save the map notes" }))
                 }} />
+              {voiceOn && !isList && (
+                <>
+                  <div className="isect">Ambience — players can play it here</div>
+                  <input key={`amb${map?.id}`} className="ambin" maxLength={400} defaultValue={map?.ambiencePrompt || ''}
+                    placeholder="the sound of this place — “cold surf on slate, wind through rigging, a far bell”"
+                    onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) setAmbience(e.target.value.trim()) }} />
+                  <div className="vrow">
+                    <button className="btn" onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>🔊 Make it</button>
+                    {map?.ambienceUrl && <audio controls loop preload="none" src={map.ambienceUrl} />}
+                    {map?.ambienceUrl && <button className="lx" title="Remove the ambience" onClick={clearAmbience}>✕</button>}
+                  </div>
+                </>
+              )}
               <hr />
               <div className="empty sphint">Click a node to edit it — or use <b>+ Add node</b>, then click the map.</div>
             </div>
@@ -1241,6 +1285,10 @@ function AtlasWorkspace() {
               spotlit={world?.spotlightNodeId === sel.node.id}
               onSpotlight={() => toggleSpotlight(sel.node)}
               onStance={(v) => saveNode(sel.node.id, { stance: v })}
+              voiceOn={voiceOn} voices={voices}
+              onVoice={(id, name) => setNodeVoice(sel.node.id, id, name)}
+              onSay={(t) => sayLine(sel.node.id, t)}
+              onClearLine={() => clearLine(sel.node.id)}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
           )}
@@ -1500,10 +1548,12 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, onVoice, onSay, onClearLine }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
+  const [line, setLine] = useState(p.node.voiceLine || '')
+  const [vbusy, setVbusy] = useState(false)
   const [start, setStart] = useState(p.start ?? '')
   const [end, setEnd] = useState(p.end ?? '')
   const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
@@ -1575,6 +1625,36 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           </button>
         )}
       </div>
+      {voiceOn && (
+        <>
+          <div className="isect">Voice</div>
+          <div className="fld"><label>Their voice</label>
+            <select className="vsel" value={n.voiceId || ''}
+              onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); onVoice(v ? v.id : null, v ? v.name : null) }}>
+              <option value="">— pick a voice —</option>
+              {voices.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}{[v.labels?.gender, v.labels?.age, v.labels?.accent].filter(Boolean).map((x) => ` · ${x}`).join('')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="fld"><label>A line in their voice — players hear it on their sheet</label>
+            <textarea rows={2} maxLength={400} value={line}
+              placeholder="“Thirty gold a head, and not a copper more. The light comes first.”"
+              onChange={(e) => setLine(e.target.value)} />
+            <div className="vrow">
+              <button className="btn" disabled={!n.voiceId || !line.trim() || vbusy}
+                title={n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first'}
+                onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim())).finally(() => setVbusy(false)) }}>
+                {vbusy ? 'Speaking…' : '🔊 Say it'}
+              </button>
+              {n.voiceUrl && <audio controls preload="none" src={n.voiceUrl} />}
+              {n.voiceUrl && <button className="lx" title="Remove the line" onClick={onClearLine}>✕</button>}
+            </div>
+          </div>
+        </>
+      )}
       {timeline?.enabled && (
         <div className="fld"><label>The story by period — what this reads as at different times</label>
           {(facts || []).map((f) => (

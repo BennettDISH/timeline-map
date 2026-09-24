@@ -144,7 +144,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   }
 
   const map = (await pool.query(
-    'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
+    'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [req.params.mapId])).rows[0];
   if (w.timeline_enabled && req.query.window !== '1') {
     // history may have redrawn this map: the latest-starting timed backdrop covering the
@@ -229,6 +229,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   res.json({
     map: { id: map.id, title: map.title, view: map.view,
            focusStart: map.focus_start, focusEnd: map.focus_end,
+           ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops } : {}),
     placements, links, breadcrumb,
@@ -272,7 +273,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   if (!w) return notFound(res);
   const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
-    `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, n.author, n.visibility AS nvis, i.file_path AS img
+    `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, n.author, n.visibility AS nvis, n.voice_line, n.voice_url, i.file_path AS img
      FROM nodes n LEFT JOIN images i ON n.image_id = i.id
      WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`, [req.params.id, w.id])).rows[0];
   if (!n) return notFound(res);
@@ -298,6 +299,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
     node: { id: n.id, title: n.title, body: n.body, category: n.category,
             player: n.nvis === 'player', author: n.author,
             hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id,
+            voiceLine: n.voice_line || null, voiceUrl: n.voice_url || null,
             imageUrl: resolveImageUrl(req, n.img) },
     links: out.map((l) => shape(l, 'out')), backlinks: back.map((l) => shape(l, 'in')),
   });

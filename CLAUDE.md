@@ -144,6 +144,17 @@ below is a wish-shelf, not a gap list.
   (`mind_messages.batch_id`). Messages up to 12k chars; caps 8 images / 60 nodes / 40 asks.
   The image picker's ✦ Paint button remains the precise one-click paint path.
 
+## Voice (ElevenLabs — optional harness)
+- `server/voice/elevenlabs.js` (fetch-only: voices list, TTS, sound-generation) +
+  `server/routes/voice.js` (auth + ownsWorld; **inert without `ELEVENLABS_API_KEY`**, or
+  with `VOICE_ENABLED=0`). Audio lands in R2 (`worlds/<id>/voice-*.mp3`, `ambience-*.mp3`).
+- Nodes: `voice_id`/`voice_name` (chosen in the inspector's Voice section from the
+  account's voices) + one `voice_line`/`voice_url`. Maps: `ambience_prompt`/`ambience_url`
+  (space panel, ≤22s loop). Player View: a visible node's line plays on its sheet; a map's
+  ambience is a tap-to-play toggle in the top bar (autoplay policies need the tap).
+- Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
+  visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)
