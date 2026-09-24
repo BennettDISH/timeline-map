@@ -625,3 +625,13 @@
 .atlas .stchip.neutral{color:var(--muted)}
 .atlas .stchip.foe{color:#ff9b9b;border-color:#5a2a2a}
 .atlas .spacepanel .mapnotes{width:100%;background:#1d1926;border:1px solid #4a3a5a;border-radius:7px;color:var(--ink);padding:7px 9px;font:inherit;font-size:12.5px;resize:vertical}
+// ---- the Forge as a conversation: threaded cards, context chip, one composer ----
+.atlas .forge .flog .fbatch{flex:none;margin:-2px 0 2px}
+.atlas .forge .fcompose{border-top:1px solid var(--line)}
+.atlas .forge .fctx{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0;
+  &:empty{display:none}}
+.atlas .forge .fchip{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;
+  color:#d9b64e;border:1px solid #6b5a2a;border-radius:10px;padding:4px 8px;
+  button{background:none;border:0;color:#d9b64e;cursor:pointer;font-size:11px;padding:0 0 0 2px;line-height:1}
+  &.dim{color:var(--muted);border-color:var(--line)}}
+.atlas .forge .fsend{border-top:0}

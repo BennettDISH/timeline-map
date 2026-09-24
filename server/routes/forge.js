@@ -37,7 +37,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const mind = await ensureMind(worldId);
   const messages = (await pool.query(
-    'SELECT role, content, created_at FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 40', [worldId])).rows.reverse();
+    'SELECT role, content, batch_id AS "batchId", created_at FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 60', [worldId])).rows.reverse();
   const rows = (await pool.query(
     `SELECT id, summary, created, asks, asks_state, created_at FROM forge_batches WHERE world_id=$1 AND status='pending' ORDER BY id DESC LIMIT 20`,
     [worldId])).rows;
@@ -61,10 +61,11 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
       ? `Move “${nn}” onto “${mT.get(a.to_map) || `#${a.to_map}`}”`
       : `Move “${nn}” to a new spot on “${mT.get(a.map) || `#${a.map}`}”`;
     if (a.op === 'edit') {
-      const what = [a.title != null && 'title', a.body != null && 'description', a.category != null && 'category'].filter(Boolean).join(', ');
+      const what = [a.title != null && 'title', a.body != null && 'description', a.category != null && 'category', a.dm_note != null && 'DM notes'].filter(Boolean).join(', ');
       return `Rewrite the ${what} of “${nn}”`;
     }
     if (a.op === 'drop_era') return `Remove the era “${eT.get(a.era) || `#${a.era}`}”`;
+    if (a.op === 'reveal') return `Reveal “${nn}” to players`;
     return 'Something unrecognized';
   };
   const batches = rows.map((b) => ({
@@ -130,7 +131,7 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
 router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 12000) : '';
   if (!message) return res.status(400).json({ message: 'Say something to the mind' });
   // where the DM is standing — verified against this world, never trusted from the client
   const context = {};

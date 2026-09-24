@@ -270,6 +270,9 @@ CREATE TABLE IF NOT EXISTS mind_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_mind_messages_world ON mind_messages(world_id);
 
+-- A reply may point at the batch it produced, so the panel threads the card under it.
+ALTER TABLE mind_messages ADD COLUMN IF NOT EXISTS batch_id INTEGER;
+
 -- A staged generation: everything one proposal created, keep-able or discard-able as a unit.
 CREATE TABLE IF NOT EXISTS forge_batches (
     id SERIAL PRIMARY KEY,

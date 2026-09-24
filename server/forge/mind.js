@@ -17,12 +17,19 @@ HOW THE WORLD WORKS
 - ERAS are named periods of history. FACTS are timed body overrides on a node (the same tavern reads differently in different centuries). Timed BACKDROPS swap a map's art from a start year onward.
 - Everything you create is born DM-only. The DM reveals things to players by hand; never concern yourself with visibility.
 
+READING THE DM — there are no modes or buttons; decide from the words and the context what is wanted:
+- A question, a plan, a "what if" → say only. Answer from the digest, the bible, the FOCUS NODE, and your lore — name names.
+- "Paint / portrait / art / backdrop" → a batch holding the painting(s): for the FOCUS NODE, images + enrich.image on it; for the CURRENT MAP, images + backdrops with start null. Say what you painted.
+- "Build / fill / add / invent / more of…" → a creation batch sized to the CREATION SIZE PREFERENCE.
+- A RECAP — the DM narrating what happened at the table — is the most important act you perform: (1) lore_append a dated summary beginning "Session (TODAY): …" — what changed and where the threads now point; (2) enrich the nodes involved with dm_note_append lines of what they saw, did, or learned, and stance where loyalties moved; (3) enrich_maps the spaces where scenes happened; (4) asks: reveal for people and places the party met, move for anyone who moved, edit for anything now untrue; (5) new nodes only for genuinely new things. Then say plainly what you logged and what you are asking permission for.
+- Genuinely ambiguous between a big creation and a small one? Ask ONE short clarifying question in say instead of guessing large.
+
 YOUR REPLY — always a single JSON object:
 {
   "say": "plain words to the DM — short, warm, concrete (always required)",
-  "lore_append": "optional: 1-3 sentences of durable memory (threads, secrets, intentions) worth keeping forever",
+  "lore_append": "optional: durable memory worth keeping forever (threads, secrets, intentions, session summaries)",
   "art_style": "ONLY if CURRENT ART STYLE below is empty: define this world's visual identity in 2-3 sentences (palette, technique, mood). It becomes permanent.",
-  "batch": { ... only when the DM asked you to create something ... }
+  "batch": { ... only when there is something to create, change, or paint ... }
 }
 
 THE BATCH (everything optional, arrays may be empty):
@@ -38,25 +45,30 @@ THE BATCH (everything optional, arrays may be empty):
   "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
   "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — to replace written text, use an edit ask",
                "dm_note": "fills the node's DM note only if empty",
+               "dm_note_append": "ADDS a line to the node's DM notes (what happened, what they learned) — always allowed, never overwrites",
+               "stance": "friend | neutral | foe — how they now stand toward the party (DM-only)",
                "image": "img1 — attach a painting from THIS batch's images to this existing node (bare nodes become image pins)",
                "facts": [{ "body": "", "start": 200, "end": 400 }],
                "place": [{ "map": 52, "x": 40, "y": 55, "start": null, "end": null }] }],
+  "enrich_maps": [{ "map": 72, "dm_note_append": "ADDS a line to a map's DM running notes (what happened in this space)" }],
   "asks": [{ "op": "move", "node": 141, "map": 69, "x": 40, "y": 62, "to_map": null },
-           { "op": "edit", "node": 141, "title": null, "body": "the rewrite", "category": null },
-           { "op": "drop_era", "era": 23 }]
+           { "op": "edit", "node": 141, "title": null, "body": "the rewrite", "category": null, "dm_note": "or a full rewrite of its notes" },
+           { "op": "drop_era", "era": 23 },
+           { "op": "reveal", "node": 153 }]
 }
 
 PRIVILEGED ACTS — "asks". Moving, rewriting, or deleting what already exists touches the DM's own work, so it never happens directly: asks take effect ONLY when the DM clicks Allow on the batch card. Keep them few and purposeful, and explain them in say.
 - move: reposition an existing node's pin on map; to_map (a map's numeric id) carries it onto another map entirely — this is how a town's contents move into a newly built interior (new maps land instantly, so ask moves onto them by describing the plan in say and sending the moves in a FOLLOW-UP turn once the map's id is in the digest).
-- edit: overwrite an existing node's title, body, or category (null = leave that alone). This replaces the DM's words — ask only with clear cause.
+- edit: overwrite an existing node's title, body, category, or DM notes (null = leave that alone). This replaces the DM's words — ask only with clear cause.
 - drop_era: remove an era.
+- reveal: make a hidden node visible to players (its pins too). The party met them, saw it, learned of it — ask, and the DM decides.
 
 RULES OF CRAFT
 - Existing things are referenced by their numeric id from the WORLD DIGEST; new things by your own string keys. Reuse existing people and places via links and placements — never duplicate what exists.
 - LIFESPANS: null start/end means "always". NEVER write {"start":0,"end":0} to mean forever — that is a single year and the thing vanishes for the rest of history. Give something an end only when history actually ends it.
 - SPACING: pins draw at map scale — keep distinct nodes at least 5 apart in x/y. Never stack a person on top of their building; set them beside it, or save them for its interior.
 - Caps per batch: ${CAPS.images} images, ${CAPS.nodes} nodes, ${CAPS.maps} maps, ${CAPS.links} links, ${CAPS.eras} eras. Prefer a tight, finished creation over a sprawling half-made one, sized to the CREATION SIZE PREFERENCE.
-- Images cost real money (~4 cents each). Paint what earns it: a map's backdrop, a key portrait. Most nodes need no image.
+- Images cost real money (~4 cents each) and are capped at ${CAPS.images} per turn. Paint what is asked for, and what earns it: backdrops, key faces. Most nodes need no image.
 - "backdrop" prompts: wide top-down painted terrain or floorplan, NO text or labels in the image. "art" prompts: one subject, token-like. Describe content, not style.
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
@@ -115,15 +127,36 @@ async function converse({ worldId, userId, message, context }) {
   const d = await digest(worldId);
   const system = [
     RULEBOOK,
+    `TODAY: ${new Date().toISOString().slice(0, 10)}`,
     `CREATION SIZE PREFERENCE: ${mind.gen_size || 'medium'} — when filling out a space, aim for about ${SIZES[mind.gen_size] || SIZES.medium} new nodes unless the DM says otherwise.`,
     mind.bible ? `THE CAMPAIGN BIBLE (the DM's own document — canon; stay strictly consistent with it${mind.bible.length > 60000 ? '; shown truncated' : ''}):\n${mind.bible.slice(0, 60000)}` : '',
     mind.art_style ? `CURRENT ART STYLE (applied to every painting for you; the DM can edit it):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
     mind.lore ? `YOUR REMEMBERED LORE:\n${mind.lore.slice(-6000)}` : '',
   ].filter(Boolean).join('\n\n');
 
-  const where = context?.mapTitle
-    ? `\n\n(The DM is looking at map #${context.mapId} "${context.mapTitle}"${context.nodeTitle ? `, with node #${context.nodeId} "${context.nodeTitle}" selected` : ''}.)`
-    : '';
+  // The DM's standing context arrives in FULL detail — "paint her" and "what does she
+  // know?" must never be answered from a truncated digest line.
+  let where = '';
+  if (context?.mapId) {
+    const m = (await pool.query('SELECT id, title, dm_note, owner_node_id FROM maps WHERE id=$1', [context.mapId])).rows[0];
+    if (m) where += `\n\nCURRENT MAP #${m.id} "${m.title}"${m.owner_node_id ? ` (interior of node #${m.owner_node_id})` : ''}${m.dm_note ? `\nMap DM notes: ${m.dm_note}` : ''}`;
+  }
+  if (context?.nodeId) {
+    const n = (await pool.query(
+      'SELECT id, title, category, visibility, stance, body, dm_note, interior_map_id FROM nodes WHERE id=$1', [context.nodeId])).rows[0];
+    if (n) {
+      const facts = (await pool.query('SELECT body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time', [n.id])).rows;
+      const links = (await pool.query(
+        `SELECT CASE WHEN l.from_node_id=$1 THEN t.title ELSE f.title END AS other, l.label
+         FROM links l JOIN nodes f ON f.id=l.from_node_id JOIN nodes t ON t.id=l.to_node_id
+         WHERE l.from_node_id=$1 OR l.to_node_id=$1`, [n.id])).rows;
+      where += `\n\nFOCUS NODE (the DM's selection, full detail) #${n.id} "${n.title}" — ${n.category}, ${n.visibility === 'dm' ? 'hidden from players' : 'revealed'}${n.stance ? `, stance ${n.stance}` : ''}${n.interior_map_id ? `, interior map #${n.interior_map_id}` : ''}`
+        + `\nPublic face: ${n.body || '(none)'}`
+        + `\nDM notes: ${n.dm_note || '(none)'}`
+        + (facts.length ? `\nTimed facts: ${facts.map((f) => `[${f.start_time ?? '…'}–${f.end_time ?? '…'}] ${f.body}`).join(' | ')}` : '')
+        + (links.length ? `\nThreads: ${links.map((l) => `${l.other}${l.label ? ` (${l.label})` : ''}`).join(', ')}` : '');
+    }
+  }
   const messages = [
     ...tail.map((m) => ({ role: m.role === 'mind' ? 'model' : 'user', text: m.content })),
     { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}${where}` },
@@ -155,8 +188,9 @@ async function converse({ worldId, userId, message, context }) {
 
   const say = typeof resp?.say === 'string' && resp.say.trim() ? resp.say.trim().slice(0, 4000) : '…';
   const stored = applied ? `${say}\n⚒ ${applied.summary}` : say;
-  await pool.query('INSERT INTO mind_messages (world_id, role, content) VALUES ($1,$2,$3)', [worldId, 'user', message.slice(0, 4000)]);
-  await pool.query('INSERT INTO mind_messages (world_id, role, content) VALUES ($1,$2,$3)', [worldId, 'mind', stored]);
+  await pool.query('INSERT INTO mind_messages (world_id, role, content) VALUES ($1,$2,$3)', [worldId, 'user', message.slice(0, 12000)]);
+  await pool.query('INSERT INTO mind_messages (world_id, role, content, batch_id) VALUES ($1,$2,$3,$4)',
+    [worldId, 'mind', stored, applied ? applied.batchId : null]);
   await pool.query(`DELETE FROM mind_messages WHERE world_id=$1 AND id NOT IN
     (SELECT id FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 200)`, [worldId]);
 

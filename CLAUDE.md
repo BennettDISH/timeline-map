@@ -134,9 +134,15 @@ below is a wish-shelf, not a gap list.
   null start SETS a map's standing image (unmake restores what it replaced); dawn-pinned
   single-instant lifespans ({start:0,end:0} for "always") normalize to open-ended. Chat
   sends the DM's standing context (current map + selected node, server-verified) every turn.
-- Quick actions: paint a node's art (attaches; flips bare nodes to image pins), paint a
-  map's backdrop, "imagine its interior", "fill out this node", "fill out this map".
-  Free chat covers everything else; the mind's memory grows via `lore_append`.
+- **No modes.** The panel is one conversation: the mind reads intent from the words plus
+  the standing context (current map + selected node, sent in FULL detail — body, notes,
+  stance, facts, threads — and shown as a chip on the composer). Questions → say only;
+  "paint X" → images + `enrich.image` / `backdrops`; "build/fill" → creation; a session
+  RECAP → dated `lore_append` + `enrich.dm_note_append` / `stance` + `enrich_maps`
+  (map-note appends) + asks (`reveal`, `move`, `edit` incl. `dm_note`) + new nodes only
+  for new things. Batch cards thread under the reply that made them
+  (`mind_messages.batch_id`). Messages up to 12k chars; caps 8 images / 60 nodes / 40 asks.
+  The image picker's ✦ Paint button remains the precise one-click paint path.
 
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing

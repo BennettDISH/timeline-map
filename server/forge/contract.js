@@ -11,7 +11,8 @@ const { r2Enabled, putObject, deleteObject } = require('./../storage');
 const { generateImage } = require('./gemini');
 
 const CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
-const CAPS = { images: 4, maps: 8, nodes: 40, links: 60, eras: 8, backdrops: 10, enrich: 20, placements: 80, factsPerNode: 12, placementsPerNode: 6 };
+const CAPS = { images: 8, maps: 8, nodes: 60, links: 100, eras: 8, backdrops: 10, enrich: 40, enrichMaps: 20, placements: 120, factsPerNode: 12, placementsPerNode: 6, asks: 40 };
+const STANCES = ['friend', 'neutral', 'foe'];
 
 const s = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
@@ -24,7 +25,7 @@ const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 function validateBatch(batch, world) {
   const errs = [];
   if (!batch || typeof batch !== 'object') return ['batch must be an object'];
-  for (const k of ['images', 'maps', 'nodes', 'links', 'eras', 'backdrops', 'enrich']) {
+  for (const k of ['images', 'maps', 'nodes', 'links', 'eras', 'backdrops', 'enrich', 'enrich_maps']) {
     if (batch[k] == null) batch[k] = [];
     if (!Array.isArray(batch[k])) { errs.push(`${k} must be an array`); batch[k] = []; }
   }
@@ -37,7 +38,7 @@ function validateBatch(batch, world) {
   // anywhere else on the clock is left alone.)
   const openEnded = (o) => { if (o.start != null && o.start === o.end && o.start === min) { o.start = null; o.end = null; } };
 
-  for (const [k, cap] of Object.entries({ images: CAPS.images, maps: CAPS.maps, nodes: CAPS.nodes, links: CAPS.links, eras: CAPS.eras, backdrops: CAPS.backdrops, enrich: CAPS.enrich }))
+  for (const [k, cap] of Object.entries({ images: CAPS.images, maps: CAPS.maps, nodes: CAPS.nodes, links: CAPS.links, eras: CAPS.eras, backdrops: CAPS.backdrops, enrich: CAPS.enrich, enrich_maps: CAPS.enrichMaps }))
     if (batch[k].length > cap) errs.push(`too many ${k} (${batch[k].length} > ${cap})`);
 
   const imgKeys = new Set(), mapKeys = new Set(), nodeKeys = new Set();
@@ -85,6 +86,8 @@ function validateBatch(batch, world) {
     if (typeof en.node !== 'number' || !Number.isInteger(en.node)) errs.push('an enrich entry needs an existing node\'s numeric id');
     en.body = s(en.body, 4000) || null;
     en.dm_note = s(en.dm_note, 2000) || null;
+    en.dm_note_append = s(en.dm_note_append, 2000) || null;
+    if (en.stance != null && !STANCES.includes(en.stance)) { errs.push(`an enrich of node ${en.node} has unknown stance "${en.stance}" (friend | neutral | foe)`); en.stance = null; }
     if (en.image != null && !imgKeys.has(en.image)) { errs.push(`an enrich of node ${en.node} references unknown image "${en.image}"`); en.image = null; }
     en.facts = Array.isArray(en.facts) ? en.facts.slice(0, CAPS.factsPerNode) : [];
     for (const f of en.facts) {
@@ -103,11 +106,18 @@ function validateBatch(batch, world) {
     }
   }
 
+  // enrich_maps: additive running notes on EXISTING maps (DM-only, so no permission needed)
+  for (const em of batch.enrich_maps) {
+    if (!Number.isInteger(em.map)) errs.push('an enrich_maps entry needs an existing map\'s numeric id');
+    em.dm_note_append = s(em.dm_note_append, 2000) || null;
+    if (!em.dm_note_append) errs.push(`enrich_maps for map ${em.map} has nothing to append`);
+  }
+
   // asks: privileged acts on EXISTING things — shape-checked here, executed only when the
   // DM clicks Allow (ids are re-validated against the world at execution time).
   if (batch.asks == null) batch.asks = [];
   if (!Array.isArray(batch.asks)) { errs.push('asks must be an array'); batch.asks = []; }
-  if (batch.asks.length > 25) errs.push(`too many asks (${batch.asks.length} > 25)`);
+  if (batch.asks.length > CAPS.asks) errs.push(`too many asks (${batch.asks.length} > ${CAPS.asks})`);
   for (const a of batch.asks) {
     if (a.op === 'move') {
       if (!Number.isInteger(a.node) || !Number.isInteger(a.map)) errs.push('a move ask needs numeric node and map ids');
@@ -118,11 +128,14 @@ function validateBatch(batch, world) {
       if (!Number.isInteger(a.node)) errs.push('an edit ask needs a numeric node id');
       if (a.title != null) a.title = s(a.title, 255);
       if (a.body != null) a.body = s(a.body, 4000);
+      if (a.dm_note != null) a.dm_note = s(a.dm_note, 2000);
       if (a.category != null && !CATS.includes(a.category)) { errs.push(`an edit ask has unknown category "${a.category}"`); a.category = null; }
-      if (a.title == null && a.body == null && a.category == null) errs.push('an edit ask changes nothing');
+      if (a.title == null && a.body == null && a.category == null && a.dm_note == null) errs.push('an edit ask changes nothing');
     } else if (a.op === 'drop_era') {
       if (!Number.isInteger(a.era)) errs.push('a drop_era ask needs a numeric era id');
-    } else errs.push(`unknown ask op "${a.op}" (move | edit | drop_era)`);
+    } else if (a.op === 'reveal') {
+      if (!Number.isInteger(a.node)) errs.push('a reveal ask needs a numeric node id');
+    } else errs.push(`unknown ask op "${a.op}" (move | edit | drop_era | reveal)`);
   }
 
   const nodeRef = (v) => (typeof v === 'number' && Number.isInteger(v)) || nodeKeys.has(v);
@@ -254,6 +267,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
     wantNodes.add(en.node);
     for (const p of en.place) if (typeof p.map === 'number') wantMaps.add(p.map);
   }
+  for (const em of batch.enrich_maps) wantMaps.add(em.map);
   if (wantNodes.size) {
     const r = await pool.query('SELECT id, interior_map_id FROM nodes WHERE id = ANY($1) AND world_id=$2', [[...wantNodes], worldId]);
     if (r.rows.length !== wantNodes.size) throw new Error('the batch references nodes that are not in this world');
@@ -270,7 +284,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   // Paint. Sequential, not parallel — each painting after the first can only match the
   // anchor once the anchor exists, and the anchor is the first painting.
   const images = new Map(); // key -> { id, url, storageKey }
-  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [], enrichedNotes: [], enrichedImages: [], mapBases: [] };
+  const created = { images: [], nodes: [], maps: [], placements: [], links: [], eras: [], backdrops: [], facts: [], enrichedBodies: [], enrichedNotes: [], enrichedImages: [], noteAppends: [], stanceChanges: [], mapNoteAppends: [], mapBases: [] };
   try {
     for (const im of batch.images) {
       const stored = await paintAndStore({ worldId, userId, kind: im.kind, prompt: im.prompt, artStyle, name: im.name });
@@ -345,6 +359,26 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
           [images.get(en.image).id, en.node]);
         created.enrichedImages.push({ node: en.node, prevImage: prev?.image_id ?? null, prevPin: prev?.pin || 'chip' });
       }
+      if (en.dm_note_append) {
+        // additive: DM-only notes grow (a recap's "what changed"); unmake restores the prior text
+        const prev = (await client.query('SELECT dm_note FROM nodes WHERE id=$1', [en.node])).rows[0];
+        await client.query(
+          `UPDATE nodes SET dm_note = CASE WHEN dm_note IS NULL OR dm_note='' THEN $1 ELSE dm_note || E'\n' || $1 END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+          [en.dm_note_append, en.node]);
+        created.noteAppends.push({ node: en.node, prev: prev?.dm_note ?? null });
+      }
+      if (en.stance != null) {
+        const prev = (await client.query('SELECT stance FROM nodes WHERE id=$1', [en.node])).rows[0];
+        await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [en.stance, en.node]);
+        created.stanceChanges.push({ node: en.node, prev: prev?.stance ?? null });
+      }
+    }
+    for (const em of batch.enrich_maps) {
+      const prev = (await client.query('SELECT dm_note FROM maps WHERE id=$1', [em.map])).rows[0];
+      await client.query(
+        `UPDATE maps SET dm_note = CASE WHEN dm_note IS NULL OR dm_note='' THEN $1 ELSE dm_note || E'\n' || $1 END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+        [em.dm_note_append, em.map]);
+      created.mapNoteAppends.push({ map: em.map, prev: prev?.dm_note ?? null });
       for (const f of en.facts) {
         const r = await client.query(
           `INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -443,12 +477,19 @@ async function allowAsks({ worldId, batchId }) {
           [a.to_map != null ? a.to_map : p.map_id, a.x, a.y, p.id]);
       } else if (a.op === 'edit') {
         const n = (await client.query(
-          'SELECT id, title, body, category FROM nodes WHERE id=$1 AND world_id=$2', [a.node, worldId])).rows[0];
+          'SELECT id, title, body, category, dm_note FROM nodes WHERE id=$1 AND world_id=$2', [a.node, worldId])).rows[0];
         if (!n) continue;
-        undo.push({ op: 'edit', node: n.id, title: n.title, body: n.body, category: n.category });
+        undo.push({ op: 'edit', node: n.id, title: n.title, body: n.body, category: n.category, dm_note: n.dm_note });
         await client.query(
-          `UPDATE nodes SET title=COALESCE($1,title), body=COALESCE($2,body), category=COALESCE($3,category), updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
-          [a.title ?? null, a.body ?? null, a.category ?? null, n.id]);
+          `UPDATE nodes SET title=COALESCE($1,title), body=COALESCE($2,body), category=COALESCE($3,category), dm_note=COALESCE($4,dm_note), updated_at=CURRENT_TIMESTAMP WHERE id=$5`,
+          [a.title ?? null, a.body ?? null, a.category ?? null, a.dm_note ?? null, n.id]);
+      } else if (a.op === 'reveal') {
+        const n = (await client.query('SELECT id, visibility FROM nodes WHERE id=$1 AND world_id=$2', [a.node, worldId])).rows[0];
+        if (!n || n.visibility !== 'dm') continue;
+        await client.query(`UPDATE nodes SET visibility='shared', updated_at=CURRENT_TIMESTAMP WHERE id=$1`, [n.id]);
+        const lifted = (await client.query(
+          `UPDATE placements SET visibility='shared' WHERE node_id=$1 AND visibility='dm' RETURNING id`, [n.id])).rows.map((r) => r.id);
+        undo.push({ op: 'reveal', node: n.id, prevVis: n.visibility, placements: lifted });
       } else if (a.op === 'drop_era') {
         const e = (await client.query(
           'SELECT id, name, start_time, end_time, player_visible FROM eras WHERE id=$1 AND world_id=$2',
@@ -504,6 +545,12 @@ async function discardBatch({ worldId, batchId }) {
       await client.query(
         `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3`,
         [ei.prevImage, ei.prevPin, ei.node]);
+    for (const na of (c.noteAppends || []))
+      await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [na.prev, na.node]);
+    for (const sc of (c.stanceChanges || []))
+      await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [sc.prev, sc.node]);
+    for (const ma of (c.mapNoteAppends || []))
+      await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [ma.prev, ma.map]);
     // granted asks revert too: moves go home, rewrites restore, dropped eras rise again
     if (b.asks_state === 'allowed') {
       for (const u of (b.asks_undo || [])) {
@@ -511,13 +558,17 @@ async function discardBatch({ worldId, batchId }) {
           await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4', [u.map_id, u.x, u.y, u.placement]);
         } else if (u.op === 'edit') {
           await client.query(
-            'UPDATE nodes SET title=$1, body=$2, category=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4',
-            [u.title, u.body, u.category, u.node]);
+            'UPDATE nodes SET title=$1, body=$2, category=$3, dm_note=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5',
+            [u.title, u.body, u.category, u.dm_note ?? null, u.node]);
         } else if (u.op === 'drop_era') {
           await client.query(
             `INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible)
              VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
             [u.row.id, worldId, u.row.name, u.row.start_time, u.row.end_time, u.row.player_visible]);
+        } else if (u.op === 'reveal') {
+          await client.query('UPDATE nodes SET visibility=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [u.prevVis, u.node]);
+          if (u.placements && u.placements.length)
+            await client.query(`UPDATE placements SET visibility='dm' WHERE id = ANY($1)`, [u.placements]);
         }
       }
       await client.query(`SELECT setval(pg_get_serial_sequence('eras','id'), GREATEST((SELECT COALESCE(MAX(id),1) FROM eras), 1))`);
