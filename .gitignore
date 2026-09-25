@@ -71,5 +71,5 @@ temp/
 .claude/settings.local.json
 
 # Browser suite configs (tokens) and deps
-e2e/node_modules/
+e2e/node_modules
 e2e/*.config.json
