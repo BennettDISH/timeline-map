@@ -24,13 +24,15 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
     const g = groups.get(key(p)) || []
     g.push(p.id); groups.set(key(p), g)
   }
-  const pos = (p) => {
+  // the offset is in SCREEN pixels (pins and prints keep their screen size at any zoom),
+  // applied through --ox/--oy in the print's transform, counter-scaled like the pin itself
+  const offset = (p) => {
     const k = groups.get(key(p)).indexOf(p.id)
-    if (k <= 0) return [p.x, p.y]
-    const ring = Math.floor((k - 1) / 6), a = ((k - 1) % 6) * (Math.PI / 3) + Math.PI / 6, r = 1.4 + 0.9 * ring
-    return [p.x + r * Math.cos(a), p.y + r * Math.sin(a)]
+    if (k <= 0) return [0, 0]
+    const ring = Math.floor((k - 1) / 6), a = ((k - 1) % 6) * (Math.PI / 3) + Math.PI / 6, r = 27 + 18 * ring
+    return [Math.round(r * Math.cos(a)), Math.round(r * Math.sin(a))]
   }
-  const pts = steps.map((p) => pos(p).join(',')).join(' ')
+  const pts = steps.map((p) => `${p.x},${p.y}`).join(' ')
   return (
     <>
       {steps.length > 1 && (
@@ -41,10 +43,10 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
       {prints.map((p, i) => {
         const s = sessionOf(at(p.start) === -Infinity ? t : p.start, eras)
         const label = s ? `Session ${s.idx + 1} · footstep ${s.step}` : `footstep ${p.start ?? '…'}`
-        const [x, y] = pos(p)
+        const [ox, oy] = offset(p)
         return (
           <button key={p.id} type="button" className="fstep"
-            style={{ left: `${x}%`, top: `${y}%`, '--sc': sessionColor(s ? s.idx : 0), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
+            style={{ left: `${p.x}%`, top: `${p.y}%`, '--ox': `${ox}px`, '--oy': `${oy}px`, '--sc': sessionColor(s ? s.idx : 0), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
             title={onStep ? `${label} — click to look at this moment` : label}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); if (onStep && p.start != null) onStep(p.start) }} />

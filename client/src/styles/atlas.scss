@@ -678,7 +678,7 @@
 .atlas .pin .stag{position:absolute;top:-9px;right:-10px;font:600 9px/1 ui-monospace,monospace;letter-spacing:.02em;color:#0d0f13;background:var(--sc,#38b6a3);border-radius:8px;padding:3px 5px;white-space:nowrap}
 .atlas .ftrail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
 .atlas .fstep{position:absolute;width:12px;height:12px;border-radius:50%;border:2px solid #0d0f13;background:var(--sc,#38b6a3);z-index:2;padding:0;cursor:pointer;
-  transform:translate(-50%,-50%) scale(var(--pinscale,1))}
+  transform:translate(calc(-50% + var(--ox,0px) * var(--pinscale,1)),calc(-50% + var(--oy,0px) * var(--pinscale,1))) scale(var(--pinscale,1))}
 .atlas .fstep:hover{opacity:1 !important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#38b6a3) 40%,transparent)}
 .atlas .timebar .tstep{position:absolute;top:2px;width:8px;height:8px;border-radius:50%;background:var(--sc,#38b6a3);border:1px solid #0d0f13;transform:translateX(-50%);padding:0;cursor:pointer;z-index:4}
 .atlas .timebar .tstep:hover{transform:translateX(-50%) scale(1.5)}
