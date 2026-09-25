@@ -85,8 +85,14 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   an era (`Session N`, footsteps 10N–10N+9), and "＋ Next session" in the timeline config
   appends the next era and grows the timeline to it, so the latest session is always the
   end of the clock. Every clock label reads era-relative via `utils/moment.js`
-  ("Session 3 · footstep 7"). "The Party" node (per world) carries a placement + fact per
-  footstep, following the players.
+  ("Session 3 · footstep 7"). "The Party" node (category `party`, one per world) carries a
+  placement + fact per footstep, following the players. On any map its PAST footsteps draw
+  as a trail (`components/PartyTrail.jsx`: ghost prints, older fainter, colored per session
+  via `SESSION_COLORS`, joined by a dotted path); the live footstep is the pin itself with
+  a session-colored ring and an `S3·7` tag. The DM timebar shows a clickable tick per
+  footstep (`GET /worlds/:id/trail`) — click sets the lens and jumps to that footstep's map.
+- A spoken line is never overwritten: `POST /nodes/:id/line` refuses (409) while one exists;
+  clear it first.
 - Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose
   from the inspector, never as a side effect.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of

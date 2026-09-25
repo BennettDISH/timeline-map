@@ -4,7 +4,8 @@ import shareService from '../services/shareService'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
-import { momentLabel } from '../utils/moment'
+import PartyTrail from '../components/PartyTrail'
+import { momentLabel, sessionOf, sessionColor } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -206,10 +207,11 @@ function PlayerView() {
               onWorldClick={marking ? onMarkClick : undefined}
               dblZoom={!marking}
             >
+              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} />
               {shownPlacements.map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0) } : {}) }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
@@ -231,6 +233,7 @@ function PlayerView() {
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
                   )}
+                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? <span className="stag">S{so.idx + 1}·{so.step}</span> : null })()}
                 </div>
               ))}
             </MapPlane>

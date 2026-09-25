@@ -8,7 +8,8 @@ import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
-import { momentLabel } from '../utils/moment'
+import PartyTrail from '../components/PartyTrail'
+import { momentLabel, sessionOf, sessionColor } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -64,6 +65,7 @@ function AtlasWorkspace() {
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
   // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
   // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
+  const [trail, setTrail] = useState([]) // every party footstep in the world (timebar ticks)
   const [forgeOn, setForgeOn] = useState(false)
   const [voiceMeta, setVoiceMeta] = useState({ enabled: false }) // which provider speaks, and whether it can be steered / make ambience
   const voiceOn = voiceMeta.enabled
@@ -191,6 +193,10 @@ function AtlasWorkspace() {
     }).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't light the trail") }))
   }
 
+  useEffect(() => {
+    if (!worldId) return
+    atlasService.getTrail(worldId).then(setTrail).catch(() => {})
+  }, [worldId, data]) // eslint-disable-line
   const forgeRefresh = useCallback(() => {
     atlasService.getWorld(worldId).then(setWorld).catch(() => {})
     atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -924,10 +930,12 @@ function AtlasWorkspace() {
               dblZoom={!placing}
               grid={gridOn}
             >
-              {(data?.placements || []).filter(visible).map((p) => (
+              <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras}
+                onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
+              {(data?.placements || []).filter(visible).filter((p) => p.node.category !== 'party' || present(p)).map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0) } : {}) }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
                   {p.node.pin === 'image' && p.node.imageUrl ? (
@@ -945,6 +953,7 @@ function AtlasWorkspace() {
                   {p.node.visibility === 'dm' && <span className="lock" title="DM only">🔒</span>}
                   {p.node.hasInterior && <span className="open">◎</span>}
                   {mode !== 'player' && p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
+                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? now, world?.eras); return so ? <span className="stag" title={`Session ${so.idx + 1} · footstep ${so.step}`}>S{so.idx + 1}·{so.step}</span> : null })()}
                 </div>
               ))}
             </MapPlane>
@@ -1092,6 +1101,24 @@ function AtlasWorkspace() {
             <div className="timebar">
               <span className="tlabel">{dispMin}</span>
               <div className="ttrack">
+                {dispMax > dispMin && (() => {
+                  // one tick per footstep moment; the deepest map for that moment wins the click
+                  const byStart = new Map()
+                  for (const st of trail) {
+                    if (st.start == null || st.start < dispMin || st.start > dispMax) continue
+                    const cur = byStart.get(st.start)
+                    if (!cur || (st.interior && !cur.interior)) byStart.set(st.start, st)
+                  }
+                  return [...byStart.values()].map((st) => {
+                    const so = sessionOf(st.start, world?.eras)
+                    return (
+                      <button key={st.id} type="button" className="tstep"
+                        style={{ left: `${((st.start - dispMin) / (dispMax - dispMin)) * 100}%`, '--sc': sessionColor(so?.idx ?? 0) }}
+                        title={`${so ? `Session ${so.idx + 1} · footstep ${so.step}` : `footstep ${st.start}`} — ${st.mapTitle} (click to go there)`}
+                        onClick={() => { setNow(st.start); if (String(st.mapId) !== String(mapId)) navigate(`/w/${worldId}/m/${st.mapId}`) }} />
+                    )
+                  })
+                })()}
                 {dispMax > dispMin && (world?.eras || [])
                   .map((er) => ({ ...er, s: Math.max(er.start, dispMin), e: Math.min(er.end, dispMax) }))
                   .filter((er) => er.s < er.e)
@@ -1672,8 +1699,8 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
               placeholder="“Thirty gold a head, and not a copper more. The light comes first.”"
               onChange={(e) => setLine(e.target.value)} />
             <div className="vrow">
-              <button className="btn" disabled={!n.voiceId || !line.trim() || vbusy}
-                title={n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first'}
+              <button className="btn" disabled={!n.voiceId || !line.trim() || vbusy || !!n.voiceUrl}
+                title={n.voiceUrl ? 'They already have a line — clear it (✕) to record another' : (n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first')}
                 onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim())).finally(() => setVbusy(false)) }}>
                 {vbusy ? 'Speaking…' : '🔊 Say it'}
               </button>
