@@ -26,11 +26,12 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
   }
   // the offset is in SCREEN pixels (pins and prints keep their screen size at any zoom),
   // applied through --ox/--oy in the print's transform, counter-scaled like the pin itself
+  // (pins are wide, short chips: step below and above first, where a chip never reaches)
   const offset = (p) => {
     const k = groups.get(key(p)).indexOf(p.id)
     if (k <= 0) return [0, 0]
-    const ring = Math.floor((k - 1) / 6), a = ((k - 1) % 6) * (Math.PI / 3) + Math.PI / 6, r = 27 + 18 * ring
-    return [Math.round(r * Math.cos(a)), Math.round(r * Math.sin(a))]
+    const ring = Math.floor((k - 1) / 6), dy = 27 + 18 * ring, dx = 30 + 18 * ring
+    return [[0, dy], [0, -dy], [dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy]][(k - 1) % 6]
   }
   const pts = steps.map((p) => `${p.x},${p.y}`).join(' ')
   return (
