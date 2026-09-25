@@ -24,7 +24,12 @@ npm run dm
 Node 18 works with the pinned Playwright. On WSL without root, Chromium's shared libraries
 (`libnss3`, `libnspr4`, `libasound2`) can be unpacked from `apt-get download` + `dpkg-deb -x`
 into a folder and pointed at with `LD_LIBRARY_PATH=<folder>/usr/lib/x86_64-linux-gnu`
-plus `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1`.
+plus `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1`. On Bennett's machine that folder is
+`~/.cache/atlas-e2e-libs`:
+
+```bash
+cd e2e && LD_LIBRARY_PATH=$HOME/.cache/atlas-e2e-libs/usr/lib/x86_64-linux-gnu PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npm run all
+```
 
 Note: `page.waitForFunction` is blocked by the site's Content Security Policy (no
 `unsafe-eval`); use locator waits instead.
