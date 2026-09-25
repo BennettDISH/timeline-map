@@ -711,7 +711,7 @@
 // ---- outlines: a placement may cover a region of the art; the drawn feature is the button ----
 // The SVG spans the plane in a 0–100 viewBox (non-uniform, like the trail), so strokes use
 // non-scaling-stroke and counter-scale with --pinscale; corner dots are HTML so they stay round.
-.atlas .regions{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;pointer-events:none}
+.atlas .regions{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;pointer-events:none} // under prints (2) and pins (3)
 .atlas .regions.drawing{pointer-events:auto;cursor:crosshair;z-index:5}
 .atlas .region{pointer-events:auto;fill:rgba(201,163,95,.10);stroke:rgba(201,163,95,.55);stroke-linejoin:round;
   stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s ease}

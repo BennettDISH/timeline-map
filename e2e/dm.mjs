@@ -67,7 +67,13 @@ try {
     const vb = await page.locator('.mp-viewport').boundingBox();
     const L = Math.max(wb.x, vb.x), T = Math.max(wb.y, vb.y), R = Math.min(wb.x + wb.width, vb.x + vb.width), B = Math.min(wb.y + wb.height, vb.y + vb.height);
     const at = (fx, fy) => [L + (R - L) * fx, T + (B - T) * fy];
-    for (const [fx, fy] of [[0.55, 0.55], [0.7, 0.55], [0.62, 0.7]]) { const [x, y] = at(fx, fy); await page.mouse.click(x, y); await page.waitForTimeout(200); }
+    // a triangle 15% wide in a spot no pin touches, so the probes hit the region and not a pin
+    const pinBoxes = await page.evaluate(() => [...document.querySelectorAll('.atlas .pin')].map((el) => { const b = el.getBoundingClientRect(); return [b.x - 12, b.y - 12, b.right + 12, b.bottom + 12]; }));
+    const free = ([fx, fy]) => { const [x0, y0] = at(fx, fy), [x1, y1] = at(fx + 0.15, fy + 0.15); return !pinBoxes.some(([a, b, c, d]) => a < x1 && c > x0 && b < y1 && d > y0); };
+    const origin = [[0.55, 0.55], [0.08, 0.75], [0.75, 0.08], [0.08, 0.08], [0.75, 0.75], [0.4, 0.3], [0.3, 0.6]].find(free) || [0.55, 0.55];
+    const [ox, oy] = origin;
+    const corners = [[ox, oy], [ox + 0.15, oy], [ox + 0.07, oy + 0.15]];
+    for (const [fx, fy] of corners) { const [x, y] = at(fx, fy); await page.mouse.click(x, y); await page.waitForTimeout(200); }
     const dots = await page.locator('.atlas .ovtx').count();
     step('three corners show while outlining', dots === 3, `${dots} corner dots`);
     await page.keyboard.press('Enter');
@@ -78,15 +84,36 @@ try {
     // selecting something else, then a click inside the region (away from its anchor pin) selects it again
     const other = page.locator('.atlas .pin:not(.sel)').first();
     if (await other.count()) { await other.click({ force: true }); await page.waitForTimeout(400); }
-    const [ix, iy] = at(0.58, 0.57);
+    const [ix, iy] = at(ox + 0.03, oy + 0.02);
     const top = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); return el ? el.tagName + '.' + (el.getAttribute('class') || '') : 'nothing'; }, [ix, iy]);
     step('the region is the topmost element inside its outline', /^polygon\.region/.test(top), top);
     await page.mouse.click(ix, iy);
     await page.waitForTimeout(500);
     step('a click inside the region selects it', (await page.locator('.atlas .region.sel').count()) === 1);
+    // players get the outline too: the share payload carries it and the Player View draws it
+    const mapNow = page.url().split('/m/')[1];
+    if (cfg.shareToken) {
+      try {
+        const sm = await (await fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${mapNow}`)).json();
+        const shaped = (sm.placements || []).filter((x) => Array.isArray(x.shape) && x.shape.length >= 3).length;
+        step('the share payload carries the outline', shaped >= 1, `${shaped} outlined placement(s) for players`);
+        const pp = await ctx.newPage();
+        await pp.goto(`${BASE}/p/${cfg.shareToken}/m/${mapNow}`, { waitUntil: 'networkidle', timeout: 90000 });
+        await pp.waitForSelector('.pview .mp-world', { timeout: 30000 });
+        await pp.waitForTimeout(800);
+        const pr = await pp.locator('.pview .region').count();
+        step('the Player View draws the region', pr >= 1, `${pr} region(s)`);
+        if (pr) {
+          const rb = await pp.locator('.pview .region').first().boundingBox();
+          await pp.mouse.click(rb.x + rb.width * 0.3, rb.y + rb.height * 0.2);
+          const opened = await pp.locator('.pview .sheet').waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+          step('tapping the region opens its sheet for players', opened);
+        }
+        await pp.close();
+      } catch (e) { step('player-side outline checks ran', false, e.message.slice(0, 120)); }
+    } else step('player-side outline checks (needs shareToken in dm.config.json)', true, 'skipped');
     // clean up: the throwaway world does not keep the test's place
     try {
-      const mapNow = page.url().split('/m/')[1];
       const auth = { headers: { Authorization: `Bearer ${cfg.token}` } };
       const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNow}`, auth)).json();
       let removed = 0;
