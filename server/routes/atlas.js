@@ -240,6 +240,20 @@ router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.parent_map_id, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
 }));
 
+// GET /worlds/:worldId/trail — every footstep of party-category nodes across the world:
+// the placements, with the map each sits on, ordered by when they happened.
+router.get('/worlds/:worldId/trail', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const rows = (await pool.query(`
+    SELECT p.id, p.node_id, p.map_id, m.title AS map_title, m.owner_node_id, p.x, p.y, p.start_time, p.end_time
+    FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id
+    WHERE n.world_id = $1 AND n.category = 'party' AND m.is_active = true
+    ORDER BY p.start_time NULLS FIRST, (m.owner_node_id IS NULL) DESC, p.id`, [req.params.worldId])).rows;
+  res.json({ steps: rows.map((r) => ({
+    id: r.id, nodeId: r.node_id, mapId: r.map_id, mapTitle: r.map_title, interior: !!r.owner_node_id,
+    x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time })) });
+}));
+
 // GET /worlds/:worldId/nodes — the world's node index (for browse + drag-to-place).
 router.get('/worlds/:worldId/nodes', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });

@@ -45,9 +45,10 @@ router.post('/nodes/:id/voice', wrap(async (req, res) => {
 
 // POST /nodes/:id/line — speak one line in the node's voice; players hear it on the sheet.
 router.post('/nodes/:id/line', wrap(async (req, res) => {
-  const n = (await pool.query('SELECT id, world_id, title, voice_id, voice_style FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  const n = (await pool.query('SELECT id, world_id, title, voice_id, voice_style, voice_url FROM nodes WHERE id=$1', [req.params.id])).rows[0];
   if (!n || !(await ownsWorld(n.world_id, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   if (!n.voice_id) return res.status(400).json({ message: 'Pick a voice first' });
+  if (n.voice_url) return res.status(409).json({ message: 'They already have a line — clear it before recording another' });
   if (!r2Enabled) return needStorage(res);
   const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 400) : '';
   if (!text) return res.status(400).json({ message: 'Give them something to say' });

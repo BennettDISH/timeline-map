@@ -7,6 +7,8 @@ export const CATS = {
   item: { c: 'var(--item)', i: '◆', label: 'Item' },
   lore: { c: 'var(--lore)', i: '✦', label: 'Lore' },
   event: { c: 'var(--event)', i: '✷', label: 'Event' },
+  // the players themselves — one node that walks the world, footstep by footstep
+  party: { c: 'var(--party)', i: '⚑', label: 'The party' },
 }
 
 export const cat = (k) => CATS[k] || CATS.note
