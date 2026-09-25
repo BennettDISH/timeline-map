@@ -217,7 +217,8 @@ function PlayerView() {
               onWorldClick={marking ? onMarkClick : undefined}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} />
+              <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
+                onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
               {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
@@ -322,8 +323,8 @@ function PlayerView() {
                 if (!prev && !next) return null
                 return (
                   <div className="rtrail">
-                    {prev && <a onClick={() => navigate(`/p/${token}/m/${prev.mapId}`)}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                    {next && <a onClick={() => navigate(`/p/${token}/m/${next.mapId}`)}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                    {prev && <a onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); navigate(`/p/${token}/m/${prev.mapId}`) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                    {next && <a onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); navigate(`/p/${token}/m/${next.mapId}`) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                   </div>
                 )
               })()}
