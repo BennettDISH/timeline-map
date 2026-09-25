@@ -15,7 +15,22 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
   const last = steps[steps.length - 1]
   const lastAlive = at(last.start) <= t && (last.end == null || t <= last.end)
   const prints = lastAlive ? steps.slice(0, -1) : steps
-  const pts = steps.map((p) => `${p.x},${p.y}`).join(' ')
+  // the party comes back to the same places: footsteps sharing a spot fan out in a small
+  // ring so each stays clickable. The live pin (or, failing that, the oldest print) keeps
+  // the exact spot; later ones step around it.
+  const key = (p) => `${Math.round(p.x * 2) / 2},${Math.round(p.y * 2) / 2}`
+  const groups = new Map()
+  for (const p of (lastAlive ? [last, ...steps.slice(0, -1)] : steps)) {
+    const g = groups.get(key(p)) || []
+    g.push(p.id); groups.set(key(p), g)
+  }
+  const pos = (p) => {
+    const k = groups.get(key(p)).indexOf(p.id)
+    if (k <= 0) return [p.x, p.y]
+    const ring = Math.floor((k - 1) / 6), a = ((k - 1) % 6) * (Math.PI / 3) + Math.PI / 6, r = 1.4 + 0.9 * ring
+    return [p.x + r * Math.cos(a), p.y + r * Math.sin(a)]
+  }
+  const pts = steps.map((p) => pos(p).join(',')).join(' ')
   return (
     <>
       {steps.length > 1 && (
@@ -26,9 +41,10 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
       {prints.map((p, i) => {
         const s = sessionOf(at(p.start) === -Infinity ? t : p.start, eras)
         const label = s ? `Session ${s.idx + 1} · footstep ${s.step}` : `footstep ${p.start ?? '…'}`
+        const [x, y] = pos(p)
         return (
           <button key={p.id} type="button" className="fstep"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, '--sc': sessionColor(s ? s.idx : 0), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
+            style={{ left: `${x}%`, top: `${y}%`, '--sc': sessionColor(s ? s.idx : 0), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
             title={onStep ? `${label} — click to look at this moment` : label}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); if (onStep && p.start != null) onStep(p.start) }} />
