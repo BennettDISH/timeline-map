@@ -233,8 +233,18 @@ function AtlasWorkspace() {
     setFocusExpand(false)
     loadMap(true).then(() => {
       if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
+      // a footstep jump moves the lens only once the destination map is in hand
+      if (pendingNow.current != null) { setNow(pendingNow.current); pendingNow.current = null }
     })
   }, [mapId]) // eslint-disable-line
+  const pendingNow = useRef(null)
+  // Go to a moment on a map: same map → move the lens; another map → travel first, then
+  // set the lens after it loads, so no render ever mixes the old map with the new moment.
+  const goToMoment = (t, targetMapId) => {
+    if (targetMapId == null || String(targetMapId) === String(mapId)) { setNow(t); return }
+    pendingNow.current = t
+    navigate(`/w/${worldId}/m/${targetMapId}`)
+  }
 
   const sel = data?.placements.find((p) => p.id === selId) || null
   const map = data?.map
@@ -1127,7 +1137,7 @@ function AtlasWorkspace() {
                       <button key={st.id} type="button" className="tstep"
                         style={{ left: `${((st.start - dispMin) / (dispMax - dispMin)) * 100}%`, '--sc': sessionColor(so?.idx ?? 0) }}
                         title={`${so ? `Session ${so.idx + 1} · footstep ${so.step}` : `footstep ${st.start}`} — ${st.mapTitle} (click to go there)`}
-                        onClick={() => { setNow(st.start); if (String(st.mapId) !== String(mapId)) navigate(`/w/${worldId}/m/${st.mapId}`) }} />
+                        onClick={() => goToMoment(st.start, st.mapId)} />
                     )
                   })
                 })()}
@@ -1265,8 +1275,8 @@ function AtlasWorkspace() {
                   if (!prev && !next) return null
                   return (
                     <div className="rtrail">
-                      {prev && <a onClick={() => { setNow(prev.start ?? t); navigate(`/w/${worldId}/m/${prev.mapId}`) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                      {next && <a onClick={() => { setNow(next.start); navigate(`/w/${worldId}/m/${next.mapId}`) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                      {prev && <a onClick={() => goToMoment(prev.start ?? t, prev.mapId)}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                      {next && <a onClick={() => goToMoment(next.start, next.mapId)}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                     </div>
                   )
                 })()}
