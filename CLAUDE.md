@@ -81,6 +81,14 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - `map_backdrops` are timed art overrides: the active backdrop at moment t is the row
   covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
   for the DM lens, server-side in `share.js` for players.
+- The table convention: the clock counts **footsteps**, ten per session; each session is
+  an era (`Session N`, footsteps 10N–10N+9), and "＋ Next session" in the timeline config
+  appends the next era and grows the timeline to it, so the latest session is always the
+  end of the clock. Every clock label reads era-relative via `utils/moment.js`
+  ("Session 3 · footstep 7"). "The Party" node (per world) carries a placement + fact per
+  footstep, following the players.
+- Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose
+  from the inspector, never as a side effect.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
@@ -154,7 +162,10 @@ below is a wish-shelf, not a gap list.
   so the inspector adapts. Audio lands in R2 (`worlds/<id>/voice-*`, `ambience-*`).
 - Nodes: `voice_id`/`voice_name`/`voice_style` + one `voice_line`/`voice_url`. Maps:
   `ambience_prompt`/`ambience_url` (≤22s loop). Player View: a visible node's line plays
-  on its sheet; a map's ambience is a tap-to-play toggle in the top bar.
+  on its sheet; a map's ambience is a tap-to-play toggle in the top bar. All players use
+  `components/AudioClip.jsx` (themed; the native controls ignore the palette). helmet's CSP
+  carries `media-src 'self' blob: https:` — without it the browser renders the player but
+  refuses to load R2 audio.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
   visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
 

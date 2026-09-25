@@ -7,6 +7,8 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
+import AudioClip from '../components/AudioClip'
+import { momentLabel } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -297,9 +299,8 @@ function AtlasWorkspace() {
   const openInterior = async (node) => {
     flushSave()
     if (node.interiorMapId) return navigate(`/w/${worldId}/m/${node.interiorMapId}`)
-    const r = await track(atlasService.createInterior(node.id, 'map'), "Couldn't create the interior").catch(() => null)
-    if (!r) return
-    refreshTree(); navigate(`/w/${worldId}/m/${r.mapId}`)
+    // no interior: never invent one on a double-click — that is an explicit act in the inspector
+    setFlash({ kind: 'info', text: `“${node.title}” has no interior — give it one from the inspector (＋ Interior map)` })
   }
   const createInteriorAs = async (node, view) => {
     const r = await track(atlasService.createInterior(node.id, view), "Couldn't create the interior").catch(() => null)
@@ -471,6 +472,20 @@ function AtlasWorkspace() {
     .then(refreshWorldMeta).catch(() => {})
   const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(refreshWorldMeta).catch(() => {})
   const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era").then(refreshWorldMeta).catch(() => {})
+  // Sessions are eras of ten footsteps; the next one starts where the last ended and the
+  // timeline grows to hold it — so the latest session is always the end of the clock.
+  const nextSession = async () => {
+    const eras = world?.eras || []
+    const last = eras.length ? Math.max(...eras.map((e) => e.end)) : (tl?.max ?? 0)
+    const n = eras.filter((e) => /^session\s+\d+/i.test(e.name)).length + 1
+    const start = last + 1, end = last + 10
+    try {
+      await atlasService.addEra(worldId, { name: `Session ${n}`, start_time: start, end_time: end, player_visible: true })
+      if ((tl?.max ?? 0) < end) await atlasService.patchWorld(worldId, { timeline_max_time: end })
+      await refreshWorldMeta()
+      setFlash({ kind: 'ok', text: `Session ${n} begins at footstep ${start} — set canon as the party moves` })
+    } catch (e) { setFlash({ kind: 'err', text: errText(e, "Couldn't start the next session") }) }
+  }
 
   const enableTimeline = () => {
     setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
@@ -1112,8 +1127,8 @@ function AtlasWorkspace() {
                   onKeyDown={(e) => { if (e.key === 'Enter') commitYear(); else if (e.key === 'Escape') setYearEdit(null) }}
                   onBlur={commitYear} />
               ) : (
-                <button className="tnow tnowbtn" title="Click to type an exact year"
-                  onClick={() => setYearEdit(String(now))}>{now}<em> {tl.unit}</em></button>
+                <button className="tnow tnowbtn" title="Click to type an exact moment"
+                  onClick={() => setYearEdit(String(now))}>{momentLabel(now, world?.eras, tl.unit)}</button>
               )}
               <div className="tzone">
                 {canon !== now ? (
@@ -1129,7 +1144,7 @@ function AtlasWorkspace() {
             </div>
           )}
           {mode !== 'player' && tl?.enabled && tlEdit && (
-            <TimelineConfig tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline}
+            <TimelineConfig tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline} onNextSession={nextSession}
               onClose={() => setTlEdit(false)} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
           )}
           {mode === 'player' && tl?.enabled && (
@@ -1150,7 +1165,7 @@ function AtlasWorkspace() {
                 {map?.dmNote
                   ? <div className="dmnote"><div className="dmnl">🔒 Map notes</div>{map.dmNote}</div>
                   : <p className="rbody muted">No map notes yet — write them in ✏ Edit with nothing selected.</p>}
-                {map?.ambienceUrl && <audio className="ramb" controls loop preload="none" src={map.ambienceUrl} />}
+                {map?.ambienceUrl && <AudioClip className="ramb" loop src={map.ambienceUrl} caption="Ambience" />}
               </div>
             </div>
           )}
@@ -1191,7 +1206,7 @@ function AtlasWorkspace() {
                 {mode !== 'player' && sel.node.dmNote && (
                   <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
                 )}
-                {sel.node.voiceUrl && <audio className="rvoice" controls preload="none" src={sel.node.voiceUrl} />}
+                {sel.node.voiceUrl && <AudioClip className="rvoice" src={sel.node.voiceUrl} caption={sel.node.voiceLine ? `“${sel.node.voiceLine}”` : 'In their own voice'} />}
                 {sel.node.hasInterior && (
                   <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
                 )}
@@ -1261,7 +1276,7 @@ function AtlasWorkspace() {
                     onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) setAmbience(e.target.value.trim()) }} />
                   <div className="vrow">
                     <button className="btn" onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>🔊 Make it</button>
-                    {map?.ambienceUrl && <audio controls loop preload="none" src={map.ambienceUrl} />}
+                    {map?.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
                     {map?.ambienceUrl && <button className="lx" title="Remove the ambience" onClick={clearAmbience}>✕</button>}
                   </div>
                 </>
@@ -1510,7 +1525,7 @@ function DeleteImpact({ impact }) {
   )
 }
 
-function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraPatch, onEraDelete }) {
+function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraPatch, onEraDelete, onNextSession }) {
   const [min, setMin] = useState(tl.min)
   const [max, setMax] = useState(tl.max)
   const [unit, setUnit] = useState(tl.unit || 'days')
@@ -1543,7 +1558,10 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
           <button className="ex" title="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
         </div>
       ))}
-      <button className="tool" onClick={onEraAdd}>＋ Add an era</button>
+      <div className="tlrow">
+        <button className="tool on" onClick={onNextSession} title="Adds the next session as an era of ten footsteps after the last, and grows the timeline to hold it">＋ Next session</button>
+        <button className="tool" onClick={onEraAdd}>＋ Add an era</button>
+      </div>
       <button className="tool danger" onClick={onDisable}>Disable timeline</button>
     </div>
   )
@@ -1659,7 +1677,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
                 onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim())).finally(() => setVbusy(false)) }}>
                 {vbusy ? 'Speaking…' : '🔊 Say it'}
               </button>
-              {n.voiceUrl && <audio controls preload="none" src={n.voiceUrl} />}
+              {n.voiceUrl && <AudioClip src={n.voiceUrl} />}
               {n.voiceUrl && <button className="lx" title="Remove the line" onClick={onClearLine}>✕</button>}
             </div>
           </div>

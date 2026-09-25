@@ -655,3 +655,19 @@
   .sline{font-style:italic;color:var(--muted);font-size:12.5px}}
 .atlas .vprov{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)}
 .atlas .vstyle{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;font:inherit;font-size:12.5px}
+
+// ---- themed audio: a lantern-gold play button, a thin track, a small readout ----
+.atlas .aclip{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:6px 0;min-width:0;
+  audio{display:none}
+  .aplay{width:34px;height:34px;border-radius:50%;border:1px solid #6b5a2a;background:#2a2417;color:#d9b64e;font-size:12px;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;padding:0}
+  .aplay:hover{border-color:#d9b64e}
+  &.on .aplay{background:#d9b64e;color:#1a1608}
+  &.err .aplay{color:#e66;border-color:#5a2a2a}
+  .abody{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .acap{font-size:12px;color:var(--muted);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .atrack{height:4px;border-radius:2px;background:#ffffff14;cursor:pointer;overflow:hidden}
+  .afill{height:100%;background:linear-gradient(90deg,#d9b64e,#f0d27a);transition:width .12s linear}
+  .atime{font:500 10.5px/1 ui-monospace,monospace;color:var(--muted);flex:none;letter-spacing:.04em}
+  &.on .atime{color:#d9b64e}}
+.atlas .vrow .aclip{flex:1;margin:0}
+.atlas .rvoice,.atlas .ramb{height:auto}

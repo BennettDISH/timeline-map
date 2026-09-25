@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
+import AudioClip from '../components/AudioClip'
+import { momentLabel } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -163,7 +165,7 @@ function PlayerView() {
         {stale && <span className="stalechip" title="Couldn't refresh — showing the last thing we saw">offline?</span>}
         {tl?.enabled && (
           <span className="nowchip" title={viewT != null ? 'A remembered moment — the era bar goes back to now' : 'The current moment, set by your DM'}>
-            🕓 {viewT != null ? `${viewT} ${tl.unit} · the past` : `${tl.current} ${tl.unit}`}
+            🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
           </span>
         )}
         {map?.ambienceUrl && (
@@ -297,7 +299,7 @@ function PlayerView() {
               {detail.node.voiceUrl && (
                 <div className="svoice">
                   <div className="rk">In their own voice</div>
-                  <audio controls preload="none" src={detail.node.voiceUrl} />
+                  <AudioClip src={detail.node.voiceUrl} />
                   {detail.node.voiceLine && <span className="sline">“{detail.node.voiceLine}”</span>}
                 </div>
               )}

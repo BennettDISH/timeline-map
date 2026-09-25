@@ -33,6 +33,9 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      // Voice lines and ambience are audio objects on R2 — without this the browser
+      // renders the player and silently refuses to load the file.
+      'media-src': ["'self'", 'blob:', 'https:'],
       // Bug-tracker feedback widget: loads widget.js and posts reports back to its API
       'script-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
       'connect-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],

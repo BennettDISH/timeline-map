@@ -1,3 +1,4 @@
+import { momentLabel } from '../utils/moment'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 
 // The player's window into the past: a scrubber whose reachable range is the union of the
@@ -84,7 +85,7 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
         ) : (
           <button className="einfo einfobtn" title="Click to type a year — it snaps into the revealed past"
             onClick={() => setTyped(String(dv >= canon ? canon : dv))}>
-            {dv >= canon ? `now · ${canon} ${tl.unit}` : `${dv} ${tl.unit}${cur ? ` · ${cur.name}` : ''}`}
+            {dv >= canon ? `now · ${momentLabel(canon, eras, tl.unit)}` : momentLabel(dv, eras, tl.unit)}
           </button>
         )}
         <button className="tool enow" style={value == null ? { visibility: 'hidden' } : undefined}
