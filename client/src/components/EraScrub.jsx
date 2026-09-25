@@ -8,8 +8,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 export default function EraScrub({ tl, eras, value, onChange, live = false, win = null }) {
   const canon = tl?.current ?? 0
   // a map's focus period narrows the TRACK to its stretch of history (same one clock)
-  const wLo = win && win.min != null ? win.min : -Infinity
-  const wHi = Math.min(canon, win && win.max != null ? win.max : canon)
+  // a window that leaves no stretch of history to scrub (an instant, or one entirely outside
+  // the revealed range) is treated as no window at all, never as an empty bar
+  const useWin = win && (win.min == null || win.max == null || win.min < win.max)
+  const wLo = useWin && win.min != null ? win.min : -Infinity
+  const wHi = Math.min(canon, useWin && win.max != null ? win.max : canon)
   const segs = useMemo(() => (
     (eras || [])
       .map((e) => ({ name: e.name, s: Math.max(e.start, wLo === -Infinity ? e.start : wLo), en: Math.min(e.end, wHi) }))

@@ -153,6 +153,8 @@ function validateBatch(batch, world) {
     if (!nodeRef(m.owner)) errs.push(`map "${m.key}" needs an owner — the node it is the interior of (a new node's key or an existing node's numeric id)`);
     if (m.backdrop != null && !imgKeys.has(m.backdrop)) { errs.push(`map "${m.key}" references unknown image "${m.backdrop}"`); m.backdrop = null; }
     m.focus_start = clampT(m.focus_start); m.focus_end = clampT(m.focus_end);
+    // a focus window is a STRETCH of history; an instant (or the dawn-pinned 0/0) means none
+    if (m.focus_start != null && m.focus_end != null && m.focus_start >= m.focus_end) { m.focus_start = null; m.focus_end = null; }
   }
   // placements were parsed before mapKeys existed; check their map refs now
   let totalPlacements = 0;
