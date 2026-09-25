@@ -9,7 +9,7 @@ import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import { momentLabel, sessionOf, sessionColor } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyWhere, partyNextFrom } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -931,6 +931,8 @@ function AtlasWorkspace() {
               grid={gridOn}
             >
               <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras}
+                next={partyNextFrom(trail, mapId, mode === 'player' ? (previewT ?? canon) : now)}
+                onGo={(mid) => navigate(`/w/${worldId}/m/${mid}`)}
                 onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
               {(data?.placements || []).filter(visible).filter((p) => p.node.category !== 'party' || present(p)).map((p) => (
                 <div key={p.id}
@@ -1181,6 +1183,18 @@ function AtlasWorkspace() {
           )}
         </div>
 
+          {tl?.enabled && (() => {
+            const lensT = mode === 'player' ? (previewT ?? canon) : now
+            const at = partyWhere(trail, lensT)
+            if (!at || String(at.mapId) === String(mapId)) return null
+            const so = sessionOf(lensT, world?.eras)
+            return (
+              <button className="partychip" onClick={() => navigate(`/w/${worldId}/m/${at.mapId}`)}
+                title="Where the party is at this moment — click to go there">
+                ⚑ The party is at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go there
+              </button>
+            )
+          })()}
           {readerOpen && !sel && (
             <div className="reader">
               <div className="rinner">

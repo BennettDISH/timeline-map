@@ -12,6 +12,30 @@ export function sessionOf(t, eras) {
   return idx < 0 ? null : { idx, era: sorted[idx], step: t - sorted[idx].start + 1 }
 }
 
+// The party's live footstep at a moment, across the whole world (deepest map wins).
+export function partyWhere(trail, t) {
+  const at = (v) => (v == null ? -Infinity : v)
+  const alive = (trail || []).filter((s) => at(s.start) <= t && (s.end == null || t <= s.end))
+  if (!alive.length) return null
+  alive.sort((a, b) => (b.interior ? 1 : 0) - (a.interior ? 1 : 0) || at(b.start) - at(a.start))
+  return alive[0]
+}
+
+// After the party left THIS map (its last footstep here ended before t), the first footstep
+// elsewhere — the deepest map among ties — so a trail can say where they went.
+export function partyNextFrom(trail, mapId, t) {
+  const at = (v) => (v == null ? -Infinity : v)
+  const here = (trail || []).filter((s) => String(s.mapId) === String(mapId) && at(s.start) <= t)
+  if (!here.length) return null
+  here.sort((a, b) => at(b.start) - at(a.start))
+  const last = here[0]
+  if (last.end == null || t <= last.end) return null
+  const after = (trail || []).filter((s) => String(s.mapId) !== String(mapId) && s.start != null && s.start > last.end)
+  if (!after.length) return null
+  after.sort((a, b) => a.start - b.start || (b.interior ? 1 : 0) - (a.interior ? 1 : 0))
+  return after[0]
+}
+
 export function momentLabel(t, eras, unit) {
   const e = (eras || []).find((x) => t >= x.start && t <= x.end)
   if (!e) return `${t}${unit ? ` ${unit}` : ''}`

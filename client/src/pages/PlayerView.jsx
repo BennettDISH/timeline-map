@@ -5,7 +5,7 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import { momentLabel, sessionOf, sessionColor } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyWhere, partyNextFrom } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -192,6 +192,16 @@ function PlayerView() {
           </div>
         )}
         <div className="stage">
+          {tl?.enabled && (() => {
+            const at = partyWhere(data.partyTrail, tEff)
+            if (!at || String(at.mapId) === String(map?.id)) return null
+            const so = sessionOf(tEff, world.eras)
+            return (
+              <button className="partychip" onClick={() => navigate(`/p/${token}/m/${at.mapId}`)} title="Where you are at this moment — tap to go there">
+                ⚑ You are at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go
+              </button>
+            )
+          })()}
           {(data.breadcrumb || []).length > 1 && (
             <button className="tool backbtn" title="Back up one level"
               onClick={() => navigate(`/p/${token}/m/${data.breadcrumb[data.breadcrumb.length - 2].mapId}`)}>
@@ -207,7 +217,9 @@ function PlayerView() {
               onWorldClick={marking ? onMarkClick : undefined}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} />
+              <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
+                next={partyNextFrom(data.partyTrail, map?.id, tEff)}
+                onGo={(mid) => navigate(`/p/${token}/m/${mid}`)} />
               {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}

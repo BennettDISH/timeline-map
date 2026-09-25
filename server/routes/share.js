@@ -226,12 +226,39 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       .map((l) => ({ id: l.id, from: l.from_node_id, to: l.to_node_id, kind: l.kind, label: l.label }));
   }
 
+  // The party's footsteps across the whole world, so a player's view can say where they
+  // are at any allowed moment and where they went after leaving this map. Same interval
+  // envelope as everything else; only maps the player may reach are included.
+  let partyTrail;
+  if (windowed) {
+    const conds = ivs.map((_, i) =>
+      `((p.start_time IS NULL OR p.start_time <= $${i * 2 + 2}) AND (p.end_time IS NULL OR p.end_time >= $${i * 2 + 3}))`).join(' OR ');
+    const args = [w.id];
+    for (const [a, b] of ivs) { args.push(b, a); }
+    const rows = (await pool.query(
+      `SELECT p.id, p.map_id, m.title, m.owner_node_id, p.start_time, p.end_time
+       FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id
+       WHERE n.world_id = $1 AND n.category = 'party' AND n.visibility != 'dm' AND p.visibility != 'dm'
+         AND m.is_active = true AND (${conds}) ORDER BY p.start_time NULLS FIRST, p.id`, args)).rows;
+    const reachable = new Map();
+    partyTrail = [];
+    for (const r of rows) {
+      if (!reachable.has(r.map_id)) reachable.set(r.map_id, !!(await walkUp(r.map_id, w, t)));
+      if (!reachable.get(r.map_id)) continue;
+      partyTrail.push({
+        id: r.id, mapId: r.map_id, mapTitle: r.title, interior: !!r.owner_node_id,
+        start: (r.start_time == null || r.start_time < lo) ? null : r.start_time,
+        end: (r.end_time == null || r.end_time > canonT) ? null : r.end_time,
+      });
+    }
+  }
+
   res.json({
     map: { id: map.id, title: map.title, view: map.view,
            focusStart: map.focus_start, focusEnd: map.focus_end,
            ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
-    ...(windowed ? { backdrops } : {}),
+    ...(windowed ? { backdrops, partyTrail } : {}),
     placements, links, breadcrumb,
     spotlight: await spotlightTrail(w),
   });
