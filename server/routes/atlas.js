@@ -33,6 +33,19 @@ async function tombstone(worldId, userId, kind, payload) {
   return r.rows[0].id;
 }
 const rowsOf = async (sql, args) => (await pool.query(sql, args)).rows;
+// An outline is 3..200 [x,y] points in % of the plane (null clears it); undefined = bad input.
+function cleanShape(raw) {
+  if (raw == null) return null;
+  if (!Array.isArray(raw) || raw.length < 3 || raw.length > 200) return undefined;
+  const out = [];
+  for (const pt of raw) {
+    const x = Number(pt?.[0]), y = Number(pt?.[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined;
+    out.push([Math.round(Math.min(100, Math.max(0, x)) * 100) / 100, Math.round(Math.min(100, Math.max(0, y)) * 100) / 100]);
+  }
+  return out;
+}
+const shapeParam = (sh) => (sh ? JSON.stringify(sh) : null); // pg would send a JS array as a Postgres array, not JSON
 // Build the breadcrumb from a map up to its world root, following owner_node -> a placement's map.
 async function breadcrumb(mapId) {
   const chain = []; let mid = mapId; const seen = new Set();
@@ -194,8 +207,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   for (const pl of await rowsOfC('SELECT p.* FROM placements p JOIN maps m ON m.id=p.map_id WHERE m.world_id=$1', [src.id])) {
     if (!nodeMap.has(pl.node_id) || !mapMap.has(pl.map_id)) continue;
-    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility]);
+    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape)]);
   }
   for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1', [src.id])) {
     if (!nodeMap.has(l.from_node_id) || !nodeMap.has(l.to_node_id)) continue;
@@ -271,7 +284,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const map = (await pool.query(
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
-    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis,
+    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape,
            n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size,
            n.voice_id, n.voice_name, n.voice_line, n.voice_url, n.voice_style,
            ni.file_path AS node_image_path, im.view AS interior_view
@@ -281,7 +294,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     LEFT JOIN maps im ON n.interior_map_id = im.id
     WHERE p.map_id=$1 ORDER BY p.id`, [req.params.mapId])).rows;
   const placements = pl.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis,
+    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
             voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
             pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
@@ -354,12 +367,14 @@ router.delete('/backdrops/:id', wrap(async (req, res) => {
 router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { title = 'New node', category = 'note', x = 50, y = 50, body = null } = req.body;
+  const { title = 'New node', category = 'note', x = 50, y = 50, body = null, shape = null } = req.body;
+  const sh = cleanShape(shape);
+  if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
   const n = (await pool.query(
     'INSERT INTO nodes (world_id, title, category, body, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [wid, title, category, body, req.user.id])).rows[0];
-  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y) VALUES ($1,$2,$3,$4) RETURNING id',
-    [n.id, req.params.mapId, x, y])).rows[0];
+  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [n.id, req.params.mapId, x, y, shapeParam(sh)])).rows[0];
   res.status(201).json({ nodeId: n.id, placementId: p.id });
 }));
 
@@ -367,10 +382,12 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
 router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { node_id, x = 50, y = 50 } = req.body;
+  const { node_id, x = 50, y = 50, shape = null } = req.body;
   if ((await worldIdOfNode(node_id)) !== wid) return res.status(400).json({ message: 'Node is not in this world' });
-  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y) VALUES ($1,$2,$3,$4) RETURNING id',
-    [node_id, req.params.mapId, x, y])).rows[0];
+  const sh = cleanShape(shape);
+  if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
+  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [node_id, req.params.mapId, x, y, shapeParam(sh)])).rows[0];
   res.status(201).json({ placementId: p.id });
 }));
 
@@ -561,9 +578,9 @@ router.post('/undo/:id', wrap(async (req, res) => {
     const insertPlacement = async (pl) => {
       if (!(await exists('nodes', pl.node_id)) || !(await exists('maps', pl.map_id))) return;
       await client.query(
-        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
-        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at]);
+        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at, shape)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
+        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at, shapeParam(pl.shape)]);
     };
     const insertBackdrop = async (b) => {
       if (!(await exists('images', b.image_id))) return;
@@ -630,13 +647,18 @@ router.post('/undo/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// PATCH /placements/:id — move / lifespan / visibility.
+// PATCH /placements/:id — move / lifespan / visibility / outline.
 router.patch('/placements/:id', wrap(async (req, res) => {
   const wid = await worldIdOfPlacement(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Placement not found' });
   const cols = { x: 'x', y: 'y', start_time: 'start_time', end_time: 'end_time', visibility: 'visibility' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  if ('shape' in req.body) {
+    const sh = cleanShape(req.body.shape);
+    if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
+    sets.push(`shape=$${i++}`); vals.push(shapeParam(sh));
+  }
   if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE placements SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
   res.json({ ok: true });
 }));

@@ -9,7 +9,9 @@ import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
+import Regions from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
+import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -28,6 +30,8 @@ function AtlasWorkspace() {
   const [loadState, setLoadState] = useState('loading') // loading | ok | err
   const [selId, setSelId] = useState(null) // selected placement id
   const [placing, setPlacing] = useState(null) // null | {kind:'new'} | {kind:'existing', node}
+  const [drawing, setDrawing] = useState(null) // an outline in progress: { placementId|null, pts:[[x,y]] }
+  const [hovId, setHovId] = useState(null) // the placement whose region is hovered — its pin shows its name
   const [loading, setLoading] = useState(true)
   const [save, setSave] = useState('idle') // idle | saving | saved | err
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
@@ -285,8 +289,8 @@ function AtlasWorkspace() {
   }
 
   // ---- node & placement actions ----------------------------------------------------
-  const dropNode = async (x, y) => {
-    const r = await track(atlasService.addNode(mapId, { x, y }), "Couldn't add the node").catch(() => null)
+  const dropNode = async (x, y, shape = null) => {
+    const r = await track(atlasService.addNode(mapId, { x, y, ...(shape ? { shape } : {}) }), "Couldn't add the node").catch(() => null)
     if (!r) return
     await refreshMap(); refreshTree(); setSelId(r.placementId); setPlacing(null)
   }
@@ -296,6 +300,32 @@ function AtlasWorkspace() {
     if (!r) return
     await refreshMap(); setSelId(r.placementId)
     setFlash({ kind: 'ok', text: `"${node.title}" placed here — same node, new spot.` })
+  }
+  // ---- outlines: trace a region of the art so the feature itself becomes the button ----
+  // placementId null = outline first, then a new place is born from it (anchor at the centroid)
+  const startOutline = (placementId, firstPt) => {
+    setPlacing(null); setCtx(null)
+    setDrawing({ placementId, pts: firstPt ? [firstPt] : [] })
+  }
+  const finishOutline = async () => {
+    const d = drawing
+    if (!d) return
+    if (d.pts.length < 3) { setFlash({ kind: 'info', text: 'An outline needs at least three corners — keep clicking, or drag to trace' }); return }
+    const pts = cleanRing(d.pts)
+    if (pts.length < 3) { setFlash({ kind: 'info', text: 'That outline is too small to keep — trace a larger area' }); return }
+    setDrawing(null)
+    if (d.placementId) {
+      const ok = await track(atlasService.patchPlacement(d.placementId, { shape: pts }), "Couldn't save the outline").then(() => true).catch(() => false)
+      if (!ok) return
+      await refreshMap(); setSelId(d.placementId)
+    } else {
+      const [cx, cy] = centroid(pts)
+      await dropNode(cx, cy, pts)
+    }
+  }
+  const clearOutline = async (placementId) => {
+    const ok = await track(atlasService.patchPlacement(placementId, { shape: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
+    if (ok) await refreshMap()
   }
   const localPatchNode = (nodeId, patch) => setData((d) => d && ({
     ...d, placements: d.placements.map((p) => (p.node.id === nodeId ? { ...p, node: { ...p.node, ...patch } } : p)),
@@ -581,9 +611,12 @@ function AtlasWorkspace() {
     window.removeEventListener('pointerup', onDragUp)
     if (!d) return
     if (d.moved) {
-      // the queued frame no-ops once dragRef is null, so commit the final position here
-      setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: d.lastX, y: d.lastY } : pp)) }))
-      track(atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY })).catch(() => {})
+      // the queued frame no-ops once dragRef is null, so commit the final position here;
+      // an outline rides along with its anchor
+      const dx = d.lastX - d.ox, dy = d.lastY - d.oy
+      const shape = d.shape ? d.shape.map(([x, y]) => [Math.round(clamp(x + dx) * 100) / 100, Math.round(clamp(y + dy) * 100) / 100]) : null
+      setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: d.lastX, y: d.lastY, ...(shape ? { shape } : {}) } : pp)) }))
+      track(atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY, ...(shape ? { shape } : {}) })).catch(() => {})
     } else setSelId(d.id)
   }, [onDragMove, track])
   const onPinDown = (e, p) => {
@@ -591,7 +624,7 @@ function AtlasWorkspace() {
     if (placing) return // placing mode: let the press reach the plane so the click drops there
     e.stopPropagation()
     const rect = worldRef.current.getBoundingClientRect()
-    dragRef.current = { id: p.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, rect, moved: false, lastX: p.x, lastY: p.y }
+    dragRef.current = { id: p.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, rect, moved: false, lastX: p.x, lastY: p.y, shape: p.shape || null }
     window.addEventListener('pointermove', onDragMove)
     window.addEventListener('pointerup', onDragUp)
   }
@@ -639,7 +672,7 @@ function AtlasWorkspace() {
       if (e.key === '/' && !typing) {
         e.preventDefault(); searchRef.current?.querySelector('input')?.focus()
       } else if (e.key === 'Escape') { setPlacing(null); setCtx(null); closeSearch() }
-      else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit') {
+      else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit' && !drawing) {
         // keyboard twin of "+ Add node"
         if (isList) dropNode(50, 50)
         else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
@@ -653,7 +686,18 @@ function AtlasWorkspace() {
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
-  }, [mode, placing, isList, mapId]) // eslint-disable-line
+  }, [mode, placing, isList, mapId, drawing]) // eslint-disable-line
+  useEffect(() => {
+    if (!drawing) return
+    const key = (e) => {
+      if (/input|textarea|select/i.test(e.target.tagName)) return
+      if (e.key === 'Enter') { e.preventDefault(); finishOutline() }
+      else if (e.key === 'Escape') setDrawing(null)
+      else if (e.key === 'Backspace') { e.preventDefault(); setDrawing((d) => d && ({ ...d, pts: d.pts.slice(0, -1) })) }
+    }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [drawing]) // eslint-disable-line
   const unplacedCount = useMemo(() => searchIndex.filter((n) => n.placed === false).length, [searchIndex])
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -749,7 +793,7 @@ function AtlasWorkspace() {
     if (placing.kind === 'new') dropNode(x, y)
     else placeExisting(placing.node, x, y)
   }
-  const onEmptyPointerDown = () => { if (!placing) setSelId(null) }
+  const onEmptyPointerDown = (e) => { if (!placing && !e?.target?.closest?.('.region')) setSelId(null) }
   const onWorldContext = (e) => {
     if (!worldRef.current) return
     const rect = worldRef.current.getBoundingClientRect()
@@ -785,7 +829,7 @@ function AtlasWorkspace() {
     : save === 'err' ? { c: 'bad', t: '⚠ Not saved' } : null
 
   return (
-    <div className={`atlas${labelsOn ? ' labelson' : ''}`}>
+    <div className={`atlas${labelsOn ? ' labelson' : ''}${drawing ? ' drawing' : ''}`}>
       <div className="top">
         {mode === 'player'
           ? <span className="brand">🧭 {world?.name}</span>
@@ -943,16 +987,26 @@ function AtlasWorkspace() {
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
               onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
-              dblZoom={!placing}
+              dblZoom={!placing && !drawing}
               grid={gridOn}
             >
+              <Regions
+                items={(data?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
+                  id: p.id, pts: p.shape, title: p.node.title, node: p.node,
+                  cls: `${selId === p.id ? 'sel' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`,
+                }))}
+                hoverId={hovId} onHover={setHovId}
+                onSelect={(it) => setSelId(it.id)} onOpen={(it) => openInterior(it.node)}
+                inert={!!placing}
+                drawing={drawing}
+                onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline, cancel: () => setDrawing(null) }} />
               {printsOn && (
                 <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras}
                   onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
               )}
               {(data?.placements || []).filter(visible).filter((p) => p.node.category !== 'party' || present(p)).map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''} ${hovId === p.id ? 'hov' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0) } : {}) }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
@@ -1017,6 +1071,11 @@ function AtlasWorkspace() {
               <button className={`tool ${placing?.kind === 'existing' ? 'on' : ''}`}
                 title="Put a node that already exists somewhere onto this map too (one node can live in many places)"
                 onClick={() => setNodePicker('place')}>⤓ Place existing</button>
+              {!isList && (
+                <button className={`tool ${drawing && !drawing.placementId ? 'on' : ''}`}
+                  title="Trace a feature of the art — a house, a district, a lake — and it becomes a clickable place"
+                  onClick={() => (drawing ? setDrawing(null) : startOutline(null))}>◌ Outline</button>
+              )}
               <div className="mapmenu" ref={mapMenuRef}>
                 <button className={`tool ${mapMenu ? 'on' : ''}`} title="This space: backdrop art, name, map or list"
                   onClick={() => setMapMenu((v) => !v)}>Map ▾</button>
@@ -1094,6 +1153,14 @@ function AtlasWorkspace() {
             </div>
           )}
 
+          {drawing && (
+            <div className="drawhud">
+              <span>◌ Outlining <b>{drawing.placementId ? (data?.placements.find((p) => p.id === drawing.placementId)?.node.title || 'this place') : 'a new place'}</b>
+                {' — click corners or drag to trace · '}<b>Enter</b>{' or double-click closes · Backspace undoes · Esc cancels · hold Space to pan'}</span>
+              <button className="btn" disabled={drawing.pts.length < 3} onClick={finishOutline}>✓ Done{drawing.pts.length ? ` (${drawing.pts.length})` : ''}</button>
+              <button className="btn" onClick={() => setDrawing(null)}>✕</button>
+            </div>
+          )}
           {mode === 'edit' && placing && (
             <div className="hint">
               {placing.kind === 'new'
@@ -1378,6 +1445,7 @@ function AtlasWorkspace() {
               voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
               onVoice={(id, name, style) => setNodeVoice(sel.node.id, id, name, style)}
               onSay={(t) => sayLine(sel.node.id, t)}
+              hasOutline={!!sel.shape} onOutline={() => startOutline(sel.id)} onClearOutline={() => clearOutline(sel.id)}
               onClearLine={() => clearLine(sel.node.id)}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
@@ -1471,6 +1539,8 @@ function AtlasWorkspace() {
       {ctx && (
         <div className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={() => { const c = ctx; setCtx(null); dropNode(c.px, c.py) }}>＋ New node here</button>
+          <button onClick={() => { const c = ctx; startOutline(null, [c.px, c.py]) }}>◌ Outline a place from here</button>
+          {sel && <button onClick={() => { const c = ctx; startOutline(sel.id, [c.px, c.py]) }}>◌ Outline “{sel.node.title}” from here</button>}
           <button onClick={() => { placePoint.current = { x: ctx.px, y: ctx.py }; setCtx(null); setNodePicker('place-here') }}>
             ⤓ Place an existing node here…
           </button>
@@ -1688,7 +1758,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, hasOutline, onOutline, onClearOutline }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
@@ -1902,6 +1972,14 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         <button className="btn block" onClick={onLink}>＋ Link to another node</button>
       </div>
       <div className="isect">On this map</div>
+      {onOutline && (
+        <div className="onmaprow">
+          <button className="btn" title="Trace this place on the art — the outline becomes its button on the map" onClick={onOutline}>
+            {hasOutline ? '◌ Redraw the outline' : '◌ Outline on the map'}
+          </button>
+          {hasOutline && <button className="btn" title="Back to a plain pin" onClick={onClearOutline}>✕ Remove outline</button>}
+        </div>
+      )}
       <div className="onmaprow">
         <button className="btn" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>
         <button className="btn danger" onClick={onDelete}>🗑 Delete…</button>

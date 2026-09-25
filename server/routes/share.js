@@ -165,7 +165,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     const args = [req.params.mapId];
     for (const [a, b] of ivs) { args.push(b, a); }
     rows = (await pool.query(
-      `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time,
+      `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.shape,
               n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size, n.author, n.visibility AS nvis,
               i.file_path AS node_image_path
        FROM placements p
@@ -175,7 +175,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
        ORDER BY p.id`, args)).rows;
   } else {
     rows = (await pool.query(
-      `SELECT p.id AS placement_id, p.x, p.y,
+      `SELECT p.id AS placement_id, p.x, p.y, p.shape,
               n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size, n.author, n.visibility AS nvis,
               i.file_path AS node_image_path
        FROM placements p
@@ -187,7 +187,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   const canonT = w.timeline_current_time;
   const placements = rows.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y),
+    id: r.placement_id, x: Number(r.x), y: Number(r.y), shape: r.shape || null,
     // clamped to the revealed envelope: nothing before the first open era or past canon leaks
     ...(windowed ? {
       start: (r.start_time == null || r.start_time < lo) ? null : r.start_time,

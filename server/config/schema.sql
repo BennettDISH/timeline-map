@@ -179,6 +179,9 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS stance VARCHAR(10);
 -- Map notes: the DM's running notes for a SPACE (beats, schedules, secrets) — same
 -- secrecy rule as nodes.dm_note; players never receive it.
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS dm_note TEXT;
+-- An outline: a placement may cover a REGION of the art (a JSON array of [x,y] points in %
+-- of the plane) so the drawn feature itself is the button. x/y stay the anchor point.
+ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape JSONB;
 
 -- Voice (ElevenLabs, inert without ELEVENLABS_API_KEY): a person's chosen voice and one
 -- spoken line (MP3 in R2), heard by players on the sheet when the node is visible. Maps

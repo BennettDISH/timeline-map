@@ -74,6 +74,13 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   clock — never a second clock; `now` and canon stay world-level.
 - Nodes carry a `pin` style: 'chip' (icon + name) or 'image' — the node's art drawn
   directly on the map (frameless, PNG transparency respected), for both DM and players.
+- **Outlines**: a placement may carry a `shape` (JSONB, 3–200 `[x,y]` points in % of the
+  plane) — the DM traces a feature of the art (◌ Outline in the toolbar, the right-click
+  menu, or the inspector's "On this map") and that region becomes the node's button for
+  DM and players (`components/Regions.jsx`, SVG over the plane; click reads, double-click
+  enters). `x/y` stay the anchor (pin, links, trail, lantern); dragging the pin carries the
+  outline along. Validated in `atlas.js` (`cleanShape`), sent by `share.js`, kept by world
+  copies and undo.
 - `nodes.dm_note` is the SECRET half of a node: never selected by `share.js`, never fed to
   the Forge painter, shown only in the inspector + view-posture reader. The body is the
   public face; the inspector's "Reveal" button merges note → body. The mind is ordered to

@@ -58,6 +58,42 @@ try {
     await page.waitForTimeout(1500);
     step('double-click on a pin without an interior stays put', page.url() === before, page.url() === before ? 'no navigation' : 'navigated!');
   } else step('a pin without an interior exists to test', false);
+  // the outline tool: three corners, Enter closes, a region appears and the new place is selected
+  if (await page.locator('.toolbar button', { hasText: 'Outline' }).count()) {
+    const regionsBefore = await page.locator('.atlas .region').count();
+    await page.locator('.toolbar button', { hasText: 'Outline' }).click();
+    await page.waitForTimeout(300);
+    const wb = await page.locator('.mp-world').boundingBox();
+    const vb = await page.locator('.mp-viewport').boundingBox();
+    const L = Math.max(wb.x, vb.x), T = Math.max(wb.y, vb.y), R = Math.min(wb.x + wb.width, vb.x + vb.width), B = Math.min(wb.y + wb.height, vb.y + vb.height);
+    const at = (fx, fy) => [L + (R - L) * fx, T + (B - T) * fy];
+    for (const [fx, fy] of [[0.55, 0.55], [0.7, 0.55], [0.62, 0.7]]) { const [x, y] = at(fx, fy); await page.mouse.click(x, y); await page.waitForTimeout(200); }
+    const dots = await page.locator('.atlas .ovtx').count();
+    step('three corners show while outlining', dots === 3, `${dots} corner dots`);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(3000);
+    const regionsAfter = await page.locator('.atlas .region').count();
+    step('Enter closes the outline into a region', regionsAfter === regionsBefore + 1, `${regionsBefore} → ${regionsAfter}`);
+    step('the new place is selected (region + pin)', (await page.locator('.atlas .region.sel').count()) === 1 && (await page.locator('.atlas .pin.sel').count()) === 1);
+    // selecting something else, then a click inside the region (away from its anchor pin) selects it again
+    const other = page.locator('.atlas .pin:not(.sel)').first();
+    if (await other.count()) { await other.click({ force: true }); await page.waitForTimeout(400); }
+    const [ix, iy] = at(0.58, 0.57);
+    const top = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); return el ? el.tagName + '.' + (el.getAttribute('class') || '') : 'nothing'; }, [ix, iy]);
+    step('the region is the topmost element inside its outline', /^polygon\.region/.test(top), top);
+    await page.mouse.click(ix, iy);
+    await page.waitForTimeout(500);
+    step('a click inside the region selects it', (await page.locator('.atlas .region.sel').count()) === 1);
+    // clean up: the throwaway world does not keep the test's place
+    try {
+      const mapNow = page.url().split('/m/')[1];
+      const auth = { headers: { Authorization: `Bearer ${cfg.token}` } };
+      const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNow}`, auth)).json();
+      let removed = 0;
+      for (const pl of (m.placements || []).filter((x) => x.shape)) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...auth, method: 'DELETE' }); if (r.ok) removed++; }
+      step('the outlined test place is removed again', removed >= 1, `${removed} removed`);
+    } catch (e) { step('the outlined test place is removed again', false, e.message.slice(0, 120)); }
+  } else step('the toolbar offers ◌ Outline', false);
   step('no error boundary at the end', !(await boundary()));
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }

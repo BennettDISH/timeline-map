@@ -5,6 +5,7 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
+import Regions from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
@@ -213,12 +214,18 @@ function PlayerView() {
               mapKey={mapId || 'root'}
               backdropUrl={backdropUrl}
               worldRef={worldRef}
-              onEmptyPointerDown={() => setDetail(null)}
+              onEmptyPointerDown={(e) => { if (!e?.target?.closest?.('.region')) setDetail(null) }}
               onWorldClick={marking ? onMarkClick : undefined}
               dblZoom={!marking}
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
+              <Regions inert={marking}
+                items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
+                  id: p.id, pts: p.shape, title: p.node.title, node: p.node,
+                  cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
+                }))}
+                onSelect={(it) => openNode(it.node.id)} onOpen={(it) => enter(it.node)} />
               {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
