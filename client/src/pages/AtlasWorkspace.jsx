@@ -1102,6 +1102,19 @@ function AtlasWorkspace() {
             </div>
           )}
 
+          {tl?.enabled && (() => {
+            const lensT = mode === 'player' ? (previewT ?? canon) : now
+            const at = partyWhere(trail, lensT)
+            if (!at || String(at.mapId) === String(mapId)) return null
+            const so = sessionOf(lensT, world?.eras)
+            return (
+              <button className="partychip" onClick={() => navigate(`/w/${worldId}/m/${at.mapId}`)}
+                title="Where the party is at this moment — click to go there">
+                ⚑ The party is at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go there
+              </button>
+            )
+          })()}
+
           <div className="helpwrap" ref={helpRef}>
             <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>
             {help && (
@@ -1203,18 +1216,6 @@ function AtlasWorkspace() {
           )}
         </div>
 
-          {tl?.enabled && (() => {
-            const lensT = mode === 'player' ? (previewT ?? canon) : now
-            const at = partyWhere(trail, lensT)
-            if (!at || String(at.mapId) === String(mapId)) return null
-            const so = sessionOf(lensT, world?.eras)
-            return (
-              <button className="partychip" onClick={() => navigate(`/w/${worldId}/m/${at.mapId}`)}
-                title="Where the party is at this moment — click to go there">
-                ⚑ The party is at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go there
-              </button>
-            )
-          })()}
           {readerOpen && !sel && (
             <div className="reader">
               <div className="rinner">
