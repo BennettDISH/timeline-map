@@ -1,0 +1,13 @@
+{
+  "baseUrl": "https://timeline-map-production.up.railway.app",
+  "token": "<JWT of a throwaway DM account>",
+  "user": {
+    "id": 0,
+    "username": "e2e",
+    "email": "e2e@example.invalid",
+    "role": "viewer"
+  },
+  "worldId": 0,
+  "root": 0,
+  "interior": 0
+}

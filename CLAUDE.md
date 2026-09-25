@@ -20,6 +20,9 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
 - **Always push changes to git when finished with a task** - commit and push automatically after completing work
+- Tests run against the LIVE deploy: the API suite is `node --test server/test/share-live.test.js`
+  (from the repo root); the browser suites (Playwright) live in `e2e/` — `player.mjs` for the
+  Player View and `dm.mjs` for the DM workspace on a throwaway world — see `e2e/README.md`
 - The DB schema is ensured on every boot from `server/config/schema.sql` (idempotent statements,
   comment lines stripped before splitting on `;` — keep semicolons out of comments)
 

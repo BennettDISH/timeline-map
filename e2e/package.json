@@ -1,0 +1,13 @@
+{
+  "name": "atlas-e2e",
+  "private": true,
+  "description": "Browser suites against the live deploy (Playwright)",
+  "scripts": {
+    "player": "node player.mjs",
+    "dm": "node dm.mjs",
+    "all": "node player.mjs && node dm.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.52.0"
+  }
+}
