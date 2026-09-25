@@ -23,6 +23,11 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   const [dv, setDv] = useState(value == null ? canon : value)
   const [typed, setTyped] = useState(null) // string while typing an exact year
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
+  // dragging should FEEL live even when each commit costs a server fetch: non-live mode
+  // debounce-commits mid-drag (~200ms of stillness) and commits hard on release.
+  // (Declared here, ABOVE the early return: every hook must run on every render.)
+  const debRef = useRef(0)
+  useEffect(() => () => clearTimeout(debRef.current), [])
 
   if (!tl?.enabled || segs.length === 0 || hi <= lo) return null
 
@@ -38,10 +43,6 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
     return best
   }
   const commit = (t) => onChange(t >= canon ? null : t)
-  // dragging should FEEL live even when each commit costs a server fetch: non-live mode
-  // debounce-commits mid-drag (~200ms of stillness) and commits hard on release
-  const debRef = useRef(0)
-  useEffect(() => () => clearTimeout(debRef.current), [])
   const move = (raw) => {
     const t = snap(Number(raw))
     setDv(t)
