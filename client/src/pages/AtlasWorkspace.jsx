@@ -9,7 +9,7 @@ import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import Regions from '../components/Regions'
+import Regions, { regionIdAt } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
@@ -785,8 +785,11 @@ function AtlasWorkspace() {
     return rows[0].url
   }, [data, map, bdMoment, tl?.enabled])
 
+  const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : (data?.placements.find((p) => p.id === id) || null) }
   const onWorldClick = (e) => {
-    if (!placing || !worldRef.current) return
+    if (drawing) return // the outline layer owns its own presses
+    if (!placing) { const p = regionAt(e); if (p) setSelId(p.id); return }
+    if (!worldRef.current) return
     const rect = worldRef.current.getBoundingClientRect()
     const x = clamp(((e.clientX - rect.left) / rect.width) * 100)
     const y = clamp(((e.clientY - rect.top) / rect.height) * 100)
@@ -987,6 +990,7 @@ function AtlasWorkspace() {
               onWorldClick={onWorldClick}
               onEmptyPointerDown={onEmptyPointerDown}
               onWorldContextMenu={mode === 'edit' ? onWorldContext : undefined}
+              onWorldDoubleClick={(e) => { if (placing || drawing) return false; const p = regionAt(e); if (!p) return false; openInterior(p.node); return true }}
               dblZoom={!placing && !drawing}
               grid={gridOn}
             >
@@ -996,7 +1000,6 @@ function AtlasWorkspace() {
                   cls: `${selId === p.id ? 'sel' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`,
                 }))}
                 hoverId={hovId} onHover={setHovId}
-                onSelect={(it) => setSelId(it.id)} onOpen={(it) => openInterior(it.node)}
                 inert={!!placing}
                 drawing={drawing}
                 onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline, cancel: () => setDrawing(null) }} />

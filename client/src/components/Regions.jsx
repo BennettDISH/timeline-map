@@ -5,12 +5,22 @@ import { simplify, polyPoints } from '../utils/geometry'
 // (the same space pins live in) drawn as a translucent shape that lights up on hover and
 // acts as the node's button: click reads it, double-click steps inside. The pin at the
 // anchor point stays as the small handle (links, trails and the lantern still attach there).
+// A region never stops propagation (a press on it must still pan the map), so the plane's
+// pointer capture retargets its clicks: callers resolve taps via regionAt() from the
+// plane's onWorldClick / onWorldDoubleClick, keyed by the polygon's data-id.
 //
 // Also hosts the DM's drawing mode: click corners or drag to trace freehand; Enter,
 // double-click or a click on the first corner closes; Backspace undoes; Esc cancels;
 // Space held lets the map pan underneath. The stroke counter-scales with the zoom via
 // --pinscale (non-scaling-stroke alone would still be scaled by the plane's CSS transform).
-export default function Regions({ items, hoverId, onHover, onSelect, onOpen, inert = false, drawing, onDraw }) {
+// the placement id of the region under a plane tap, or null
+export const regionIdAt = (e) => {
+  const el = document.elementFromPoint(e.clientX, e.clientY)
+  const poly = el?.closest?.('.region')
+  return poly ? Number(poly.dataset.id) : null
+}
+
+export default function Regions({ items, hoverId, onHover, inert = false, drawing, onDraw }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -65,9 +75,7 @@ export default function Regions({ items, hoverId, onHover, onSelect, onOpen, ine
         onPointerCancel={() => { trace.current = null; setLive([]) }}
         onDoubleClick={on ? (e) => { e.stopPropagation(); onDraw?.finish() } : undefined}>
         {items.map((it) => (
-          <polygon key={it.id} className={`region ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`} points={polyPoints(it.pts)}
-            onClick={(e) => { e.stopPropagation(); onSelect?.(it, e) }}
-            onDoubleClick={(e) => { e.stopPropagation(); onOpen?.(it) }}
+          <polygon key={it.id} data-id={it.id} className={`region ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`} points={polyPoints(it.pts)}
             onPointerEnter={() => onHover?.(it.id)} onPointerLeave={() => onHover?.(null)}>
             <title>{it.title}</title>
           </polygon>

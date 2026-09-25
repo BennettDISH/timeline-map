@@ -30,9 +30,12 @@ export function simplify(pts, eps = 0.25) {
   return pts.filter((_, i) => keep[i])
 }
 
-// A closed ring ready to store: simplified, rounded, no repeated closing point.
+// A closed ring ready to store: simplified, rounded, no repeated closing point, and never
+// more corners than the server keeps (200) — a very long trace is simplified harder.
+export const MAX_CORNERS = 200
 export function cleanRing(pts, eps = 0.25) {
   let out = simplify(pts, eps)
+  for (let e = eps * 1.5; out.length > MAX_CORNERS && e < 50; e *= 1.5) out = simplify(pts, e)
   if (out.length > 3 && Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) < 0.3) out = out.slice(0, -1)
   return out.map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100])
 }

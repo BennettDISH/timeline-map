@@ -5,7 +5,7 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import Regions from '../components/Regions'
+import Regions, { regionIdAt } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
@@ -94,6 +94,9 @@ function PlayerView() {
       .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })
       .catch(() => setFlash("Couldn't find where that is — try again."))
   const enter = (node) => { if (node.hasInterior) navigate(`/p/${token}/m/${node.interiorMapId}`) }
+  // a tap on an outlined region (resolved under the pointer — see Regions.jsx)
+  const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : ((data?.placements || []).find((p) => p.id === id) || null) }
+  const onRegionTap = (e) => { const p = regionAt(e); if (p) openNode(p.node.id) }
 
   const onMarkClick = (e) => {
     if (!marking || !worldRef.current) return
@@ -215,7 +218,8 @@ function PlayerView() {
               backdropUrl={backdropUrl}
               worldRef={worldRef}
               onEmptyPointerDown={(e) => { if (!e?.target?.closest?.('.region')) setDetail(null) }}
-              onWorldClick={marking ? onMarkClick : undefined}
+              onWorldClick={marking ? onMarkClick : onRegionTap}
+              onWorldDoubleClick={(e) => { if (marking) return false; const p = regionAt(e); if (!p) return false; enter(p.node); return true }}
               dblZoom={!marking}
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
@@ -225,7 +229,7 @@ function PlayerView() {
                   id: p.id, pts: p.shape, title: p.node.title, node: p.node,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
                 }))}
-                onSelect={(it) => openNode(it.node.id)} onOpen={(it) => enter(it.node)} />
+ />
               {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}

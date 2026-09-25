@@ -120,6 +120,34 @@ try {
       for (const pl of (m.placements || []).filter((x) => x.shape)) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...auth, method: 'DELETE' }); if (r.ok) removed++; }
       step('the outlined test place is removed again', removed >= 1, `${removed} removed`);
     } catch (e) { step('the outlined test place is removed again', false, e.message.slice(0, 120)); }
+    // freehand: press and drag around a loop, Enter closes it into a region (the page still
+    // shows the first, now-deleted region until it refreshes, so count relative to now)
+    const before2 = await page.locator('.atlas .region').count();
+    await page.locator('.toolbar button', { hasText: 'Outline' }).click();
+    await page.waitForTimeout(300);
+    const [cx, cy] = at(ox + 0.075, oy + 0.075);
+    const rx = (R - L) * 0.06, ry = (B - T) * 0.06;
+    await page.mouse.move(cx + rx, cy);
+    await page.mouse.down();
+    for (let i = 1; i <= 24; i++) { const a = (i / 24) * Math.PI * 2; await page.mouse.move(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); }
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const traced = await page.locator('.atlas .ovtx').count();
+    step('a freehand drag traces a loop of corners', traced >= 6 && traced <= 40, `${traced} corners after simplifying`);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(3000);
+    // the refresh drops the stale first region and shows the traced one, selected
+    const after2 = await page.locator('.atlas .region').count();
+    const sel2 = await page.locator('.atlas .region.sel').count();
+    step('Enter closes the traced loop into a region', after2 >= 1 && sel2 === 1, `${before2} → ${after2} region(s), ${sel2} selected`);
+    try {
+      const mapNow2 = page.url().split('/m/')[1];
+      const auth = { headers: { Authorization: `Bearer ${cfg.token}` } };
+      const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNow2}`, auth)).json();
+      let removed = 0;
+      for (const pl of (m.placements || []).filter((x) => x.shape)) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...auth, method: 'DELETE' }); if (r.ok) removed++; }
+      step('the traced test place is removed again', removed >= 1, `${removed} removed`);
+    } catch (e) { step('the traced test place is removed again', false, e.message.slice(0, 120)); }
   } else step('the toolbar offers ◌ Outline', false);
   step('no error boundary at the end', !(await boundary()));
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));

@@ -10,6 +10,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 // viewport. Pins live in % of the PLANE, so a coordinate is the same point on the map
 // art on every screen. Pins counter-scale (--pinscale) so labels stay readable at any zoom.
 //
+// The viewport captures the pointer on press (so a pan survives leaving the window), which
+// retargets pointerup/click to the viewport: a descendant that wants its own click must
+// stop propagation on pointerdown (pins do). Anything that must stay pannable — regions,
+// whose outlines can cover most of the screen — instead gets the tap through onWorldClick
+// / onWorldDoubleClick and looks up what lies under the pointer.
+//
 // Perf: pointermove/wheel can fire far faster than the display refreshes; every view
 // change is coalesced through one requestAnimationFrame (queueView) so React renders at
 // most once per frame during a gesture instead of once per input event.
@@ -27,6 +33,7 @@ export default function MapPlane({
   onWorldClick,    // click on the plane that was NOT a pan (drop-a-node etc.)
   onEmptyPointerDown, // pointerdown on plane/viewport background (deselect etc.)
   onWorldContextMenu, // right-click on the plane (edit affordances); suppresses the browser menu
+  onWorldDoubleClick, // returns true to claim a double-click (a region under the pointer) instead of zooming
   controlsOffset = 0, // lift zoom buttons above the timebar when it's shown
   dblZoom = true,     // off while placing nodes, so a fast double-drop doesn't also zoom
   grid = false,       // draw a plane-space grid over the art (scales with zoom)
@@ -215,6 +222,7 @@ export default function MapPlane({
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
       onDoubleClick={(e) => {
+        if (onWorldDoubleClick?.(e)) return
         if (!dblZoom) return
         const r = viewportRef.current.getBoundingClientRect()
         zoomAt(1.7, e.clientX - r.left, e.clientY - r.top)
