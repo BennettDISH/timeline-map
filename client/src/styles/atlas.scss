@@ -692,3 +692,17 @@
   b{color:#7fe0d0}}
 .atlas .partychip:hover{border-color:#7fe0d0}
 .atlas.pview .partychip{top:10px;right:10px}
+
+// ---- the Maps rail as a tree: carets, guides, counts, tools ----
+.atlas .trow{position:relative;min-width:0}
+.atlas .trow .ttitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.atlas .trow .tcaret{width:16px;height:16px;flex:none;background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;line-height:16px;padding:0;text-align:center;border-radius:4px}
+.atlas .trow .tcaret:hover{background:#ffffff18;color:var(--ink)}
+.atlas .trow .tcaret.none{cursor:default}
+.atlas .trow .tnothumb{width:22px;height:16px;border-radius:3px;border:1px dashed var(--line);flex:none;opacity:.6}
+.atlas .trow .tguide{position:absolute;top:0;bottom:0;width:1px;background:#ffffff14;pointer-events:none}
+.atlas .trow .tcount{font:500 10px/1 ui-monospace,monospace;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:2px 5px;flex:none}
+.atlas .ttools{display:flex;gap:4px;margin:0 6px 6px;
+  button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 7px;font:inherit;font-size:10.5px;cursor:pointer}
+  button:hover{color:var(--ink);border-color:var(--accent)}}
+.atlas .tsect{margin:10px 6px 4px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
