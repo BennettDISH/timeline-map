@@ -36,6 +36,22 @@ export function partyNextFrom(trail, mapId, t) {
   return after[0]
 }
 
+// The footstep before and after the party's current one (deepest map among ties), so the
+// Party's own text can say where they came from and where they went next.
+export function partyNeighbors(trail, t) {
+  const at = (v) => (v == null ? -Infinity : v)
+  const deep = (list, dir) => {
+    if (!list.length) return null
+    list.sort((a, b) => dir * (at(a.start) - at(b.start)) || (b.interior ? 1 : 0) - (a.interior ? 1 : 0))
+    return list[0]
+  }
+  const cur = partyWhere(trail, t)
+  if (!cur) return { prev: null, next: null }
+  const prev = deep((trail || []).filter((s) => s.end != null && s.end < at(cur.start)), -1)
+  const next = cur.end == null ? null : deep((trail || []).filter((s) => s.start != null && s.start > cur.end), 1)
+  return { prev, next }
+}
+
 export function momentLabel(t, eras, unit) {
   const e = (eras || []).find((x) => t >= x.start && t <= x.end)
   if (!e) return `${t}${unit ? ` ${unit}` : ''}`

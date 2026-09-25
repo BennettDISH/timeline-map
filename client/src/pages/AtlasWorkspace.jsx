@@ -9,7 +9,7 @@ import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import { momentLabel, sessionOf, sessionColor, partyWhere, partyNextFrom } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -57,6 +57,12 @@ function AtlasWorkspace() {
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
   const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
   const [labelsOn, setLabelsOn] = useState(() => localStorage.getItem('atlas_labels') === 'on')
+  const [printsOn, setPrintsOn] = useState(() => localStorage.getItem('atlas_prints') !== 'off')
+  const togglePrints = () => setPrintsOn((v) => {
+    const nv = !v
+    try { localStorage.setItem('atlas_prints', nv ? 'on' : 'off') } catch (err) { /* ignore */ }
+    return nv
+  })
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
   const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
   const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
@@ -930,10 +936,10 @@ function AtlasWorkspace() {
               dblZoom={!placing}
               grid={gridOn}
             >
-              <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras}
-                next={partyNextFrom(trail, mapId, mode === 'player' ? (previewT ?? canon) : now)}
-                onGo={(mid) => navigate(`/w/${worldId}/m/${mid}`)}
-                onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
+              {printsOn && (
+                <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras}
+                  onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
+              )}
               {(data?.placements || []).filter(visible).filter((p) => p.node.category !== 'party' || present(p)).map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
@@ -1024,6 +1030,10 @@ function AtlasWorkspace() {
                     {!isList && (
                       <button title="Keep every pin's name out instead of showing it on hover"
                         onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
+                    )}
+                    {!isList && tl?.enabled && (
+                      <button title="The party's ghost-print trail on this map"
+                        onClick={() => { setMapMenu(false); togglePrints() }}>👣 Footprints {printsOn ? '✓' : ''}</button>
                     )}
                     {tl?.enabled && (
                       <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
@@ -1248,6 +1258,18 @@ function AtlasWorkspace() {
                   <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
                 )}
                 {sel.node.voiceUrl && <AudioClip className="rvoice" src={sel.node.voiceUrl} caption={sel.node.voiceLine ? `“${sel.node.voiceLine}”` : 'In their own voice'} />}
+                {sel.node.category === 'party' && tl?.enabled && (() => {
+                  const t = mode === 'player' ? (previewT ?? canon) : now
+                  const { prev, next } = partyNeighbors(trail, t)
+                  const lab = (st) => { const so = sessionOf(st.start ?? t, world?.eras); return so ? ` · S${so.idx + 1}·${so.step}` : '' }
+                  if (!prev && !next) return null
+                  return (
+                    <div className="rtrail">
+                      {prev && <a onClick={() => { setNow(prev.start ?? t); navigate(`/w/${worldId}/m/${prev.mapId}`) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                      {next && <a onClick={() => { setNow(next.start); navigate(`/w/${worldId}/m/${next.mapId}`) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                    </div>
+                  )
+                })()}
                 {sel.node.hasInterior && (
                   <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
                 )}

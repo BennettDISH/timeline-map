@@ -5,8 +5,8 @@ import { sessionOf, sessionColor } from '../utils/moment'
 // ghost print (older = fainter, colored by session), joined in order by a dotted path. A
 // footstep alive at the moment is drawn as the real pin elsewhere, so it is left out here —
 // but only when it really is alive; a newest step the party has since walked away from
-// stays a print. If they went on to another map, the last print carries an exit marker.
-export default function PartyTrail({ placements, t, eras, next, onStep, onGo }) {
+// stays a print. Where they went next is told in the Party's own text, not on the map.
+export default function PartyTrail({ placements, t, eras, onStep }) {
   const at = (v) => (v == null ? -Infinity : v)
   const steps = (placements || [])
     .filter((p) => p.node?.category === 'party' && at(p.start) <= t)
@@ -16,7 +16,6 @@ export default function PartyTrail({ placements, t, eras, next, onStep, onGo }) 
   const lastAlive = at(last.start) <= t && (last.end == null || t <= last.end)
   const prints = lastAlive ? steps.slice(0, -1) : steps
   const pts = steps.map((p) => `${p.x},${p.y}`).join(' ')
-  const exitAt = next && !lastAlive ? last : null
   return (
     <>
       {steps.length > 1 && (
@@ -35,14 +34,6 @@ export default function PartyTrail({ placements, t, eras, next, onStep, onGo }) 
             onClick={(e) => { e.stopPropagation(); if (onStep && p.start != null) onStep(p.start) }} />
         )
       })}
-      {exitAt && (
-        <button type="button" className="fexit" style={{ left: `${exitAt.x}%`, top: `${exitAt.y}%` }}
-          title={`From here they went on to ${next.mapTitle} — click to follow`}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onGo?.(next.mapId) }}>
-          → {next.mapTitle}
-        </button>
-      )}
     </>
   )
 }

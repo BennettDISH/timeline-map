@@ -5,7 +5,7 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import { momentLabel, sessionOf, sessionColor, partyWhere, partyNextFrom } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -217,9 +217,7 @@ function PlayerView() {
               onWorldClick={marking ? onMarkClick : undefined}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
-                next={partyNextFrom(data.partyTrail, map?.id, tEff)}
-                onGo={(mid) => navigate(`/p/${token}/m/${mid}`)} />
+              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} />
               {shownPlacements.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
@@ -318,6 +316,17 @@ function PlayerView() {
                   {detail.node.voiceLine && <span className="sline">“{detail.node.voiceLine}”</span>}
                 </div>
               )}
+              {detail.node.category === 'party' && tl?.enabled && (() => {
+                const { prev, next } = partyNeighbors(data.partyTrail, tEff)
+                const lab = (st) => { const so = sessionOf(st.start ?? tEff, world.eras); return so ? ` · S${so.idx + 1}·${so.step}` : '' }
+                if (!prev && !next) return null
+                return (
+                  <div className="rtrail">
+                    {prev && <a onClick={() => navigate(`/p/${token}/m/${prev.mapId}`)}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                    {next && <a onClick={() => navigate(`/p/${token}/m/${next.mapId}`)}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                  </div>
+                )
+              })()}
               {detail.node.hasInterior && (
                 <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
               )}

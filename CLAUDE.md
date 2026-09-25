@@ -91,10 +91,11 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   via `SESSION_COLORS`, joined by a dotted path); the live footstep is the pin itself with
   a session-colored ring and an `S3·7` tag. The DM timebar shows a clickable tick per
   footstep (`GET /worlds/:id/trail`) — click sets the lens and jumps to that footstep's map.
-  The trail crosses maps: the last print on a map the party left carries an exit marker
-  ("→ {next map}", click to follow), and any map the party is not on shows a "⚑ The party
-  is at …" chip with a jump (`partyWhere`/`partyNextFrom` in `utils/moment.js`; players
-  get the world-wide `partyTrail` in the windowed share payload, reachable maps only).
+  The trail crosses maps in TEXT, not markers: the Party's reader/sheet says "◂ From …" and
+  "Then on to … ▸" with links (`partyNeighbors` in `utils/moment.js`), and any map the
+  party is not on shows a "⚑ The party is at …" chip with a jump (`partyWhere`); players
+  get the world-wide `partyTrail` in the windowed share payload, reachable maps only.
+  Map ▾ → 👣 Footprints toggles the ghost-print trail (local preference).
 - A spoken line is never overwritten: `POST /nodes/:id/line` refuses (409) while one exists;
   clear it first.
 - Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose
