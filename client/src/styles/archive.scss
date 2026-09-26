@@ -1,3 +1,4 @@
+@use 'z' as *;
 // The Archive — a world's art. Tokens come from shell.scss (.shell).
 .shell.arch {
   display: flex;
@@ -160,7 +161,7 @@
   .dropveil {
     position: fixed;
     inset: 0;
-    z-index: 70;
+    z-index: $z-veil;
     background: rgba(8, 10, 13, .82);
     backdrop-filter: blur(4px);
     display: flex;
@@ -185,7 +186,7 @@
     position: fixed;
     right: 18px;
     bottom: 18px;
-    z-index: 75;
+    z-index: $z-veil-toast;
     width: min(320px, 86vw);
     background: var(--panel);
     border: 1px solid var(--line);
@@ -209,7 +210,7 @@
     left: 50%;
     bottom: 20px;
     transform: translateX(-50%);
-    z-index: 55;
+    z-index: $z-modal-over;
     display: flex;
     align-items: center;
     gap: 9px;

@@ -1,0 +1,20 @@
+// The stacking scale, shared by every stylesheet: one number per layer, in order. Inside the
+// map stage the plane's own layers keep small literal numbers (regions 1, prints 2, pins 3,
+// labels 4); everything that floats over the stage or the page takes a name from here.
+$z-stage: 5;        // over the map plane: the toolbar, the legend, the hint, a hovered pin, an outline being drawn
+$z-chrome: 6;       // the stage's fixed controls: zoom, the rail and editor toggles, the selected pin, the back button
+$z-hud: 7;          // over the chrome: the ? button, the draw HUD, the marker button, the map-info button
+$z-hud-panel: 8;    // the timeline settings panel
+$z-grip: 9;         // column resize grips (and the ? wrap on laptops)
+$z-overlay: 12;     // the reader over the map on phones
+$z-sheet: 15;       // the Player View's sheet
+$z-popover: 20;     // the share popover
+$z-results: 25;     // search results
+$z-menu: 30;        // menus (the Map ▾ menu inside its toolbar), the shell's sticky top bar
+$z-menu-float: 40;  // the shell's floating menus
+$z-modal: 50;       // the workspace's dialog backdrops
+$z-modal-over: 55;  // a picker above the dialog that opened it; the Archive's bulk bar
+$z-context: 60;     // the right-click menu; the shell's dialog backdrop (above its bulk bar)
+$z-veil: 70;        // the Archive's drop veil
+$z-veil-toast: 75;  // the upload toast, over the veil
+$z-toast: 80;       // flashes

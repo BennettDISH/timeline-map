@@ -60,7 +60,7 @@ const imageService = {
   },
 
 
-  // Update image metadata (tags, alt text, etc.)
+  // Update image metadata (name, caption, folder)
   async updateImage(id, updateData) {
     const response = await http.put(`/api/images/${id}`, updateData)
     return response.data

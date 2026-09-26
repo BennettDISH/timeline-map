@@ -1,3 +1,4 @@
+@use 'z' as *;
 // ============================================================================
 // The cartographer's study — shared shell for the pages around the Atlas
 // (Dashboard, Archive). Same palette as atlas.scss so the whole app is one
@@ -51,7 +52,7 @@
     background: rgba(27, 31, 37, .97); // near-solid: a backdrop-filter here repaints on every scroll frame
     position: sticky;
     top: 0;
-    z-index: 30;
+    z-index: $z-menu;
   }
   .wordmark {
     display: flex;
@@ -100,7 +101,7 @@
     padding: 5px;
     display: flex;
     flex-direction: column;
-    z-index: 40;
+    z-index: $z-menu-float;
     a, button {
       background: none;
       border: 0;
@@ -200,7 +201,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 60;
+    z-index: $z-context;
     padding: 18px;
   }
   .smodal {
@@ -261,7 +262,7 @@
     bottom: 22px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 80;
+    z-index: $z-toast;
     background: var(--panel);
     border: 1px solid var(--line);
     border-left: 3px solid var(--ok);

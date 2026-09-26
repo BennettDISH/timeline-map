@@ -1,3 +1,4 @@
+@use 'z' as *;
 // Redesigned "Atlas" workspace — one persistent shell, nested canvas, one inspector.
 .atlas {
   --ink:#e8e8e6; --muted:#9a9a94; --line:#3a3f47; --panel:#232830; --panel2:#1b1f25;
@@ -52,18 +53,18 @@
   .mp-grid{position:absolute;inset:0;pointer-events:none;
      background-image:linear-gradient(#ffffff17 1px,transparent 1px),linear-gradient(90deg,#ffffff17 1px,transparent 1px);
      background-size:160px 160px}
-  .mp-controls{position:absolute;right:12px;bottom:12px;z-index:6;display:flex;flex-direction:column;gap:5px;
+  .mp-controls{position:absolute;right:12px;bottom:12px;z-index:$z-chrome;display:flex;flex-direction:column;gap:5px;
      opacity:.4;transition:opacity .15s;
      button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
        color:var(--ink);font-size:15px;line-height:1;cursor:pointer}
      button:hover{border-color:var(--accent)}}
   .mp-viewport:hover .mp-controls,.mp-controls:hover{opacity:1}
   @media (hover: none){.mp-controls{opacity:1}}
-  .toolbar{position:absolute;top:10px;left:52px;right:100px;z-index:5;display:flex;flex-wrap:wrap;gap:6px} // wraps before it reaches ? and ▸
+  .toolbar{position:absolute;top:10px;left:52px;right:100px;z-index:$z-stage;display:flex;flex-wrap:wrap;gap:6px} // wraps before it reaches ? and ▸
   .tool{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 10px;cursor:pointer}
   .tool.on{outline:2px solid var(--accent)}
   .tool:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
-  .stage .hint{position:absolute;bottom:10px;left:10px;z-index:5;color:var(--muted);font-size:11px;font-style:italic;
+  .stage .hint{position:absolute;bottom:10px;left:10px;z-index:$z-stage;color:var(--muted);font-size:11px;font-style:italic;
      background:#00000066;border:1px dashed var(--line);border-radius:6px;padding:4px 8px;max-width:260px;
      pointer-events:none}
   .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -105,7 +106,7 @@
   label.btn{cursor:pointer}
 
   // image picker modal
-  .modal-back{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal-back{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:$z-modal}
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(560px,92vw);max-height:82vh;overflow:auto;padding:14px}
   .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
   .modal-head h4{margin:0}
@@ -134,7 +135,7 @@
   .invitebtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit}
   .invitebtn.live{color:#7fc98f;border-color:#2e5738}
   .invitewrap{position:relative}
-  .invitepop{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:min(340px,calc(100vw - 24px));
+  .invitepop{position:absolute;top:calc(100% + 8px);right:0;z-index:$z-popover;width:min(340px,calc(100vw - 24px));
      background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;
      display:flex;flex-direction:column;gap:9px;box-shadow:0 10px 30px #0008}
   .invitepop .surl{font-size:11px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
@@ -148,7 +149,7 @@
   &.pview .main{position:absolute;inset:46px 0 0 0;display:flex}
   &.pview .pcol{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
   &.pview .stage{position:relative;flex:1 1 auto}
-  &.pview .sheet{position:fixed;left:0;right:0;bottom:0;z-index:15;max-height:48vh;overflow:auto;
+  &.pview .sheet{position:fixed;left:0;right:0;bottom:0;z-index:$z-sheet;max-height:48vh;overflow:auto;
      background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;
      display:flex;flex-direction:column;gap:9px}
   &.pview .shead{display:flex;align-items:center;gap:8px}
@@ -171,7 +172,7 @@
   .timebar .teraband em{display:block;padding:0 7px;font-style:normal;font-size:10.5px;line-height:19px;color:#e3cf9c;
      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}
   .timebar .teraband:not(.pv) em{color:#d4b8e3}
-  .tlcfg{position:absolute;right:10px;bottom:74px;z-index:8;display:flex;flex-direction:column;align-items:stretch;gap:9px;
+  .tlcfg{position:absolute;right:10px;bottom:74px;z-index:$z-hud-panel;display:flex;flex-direction:column;align-items:stretch;gap:9px;
      width:320px;max-height:70vh;overflow-y:auto;padding:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px #000a}
   .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
   .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
@@ -208,7 +209,7 @@
     input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--ink);
       padding:4px 12px;font:inherit;font-size:12px}
     input:focus{outline:none;border-color:var(--accent)}}
-  .gresults{position:absolute;top:calc(100% + 6px);left:0;width:min(320px,72vw);z-index:25;background:var(--panel);
+  .gresults{position:absolute;top:calc(100% + 6px);left:0;width:min(320px,72vw);z-index:$z-results;background:var(--panel);
     border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 34px #000a;overflow:hidden;
     display:flex;flex-direction:column;max-height:50vh;overflow-y:auto;
     button{display:flex;align-items:center;gap:8px;background:none;border:0;color:var(--ink);font:inherit;
@@ -223,7 +224,7 @@
       button.on{color:var(--ink);border-color:var(--accent)}}}
   .gorphan{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:0 6px;white-space:nowrap;flex:none}
 
-  .legend{position:absolute;left:10px;bottom:10px;z-index:5;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center;max-width:calc(100% - 160px)}
+  .legend{position:absolute;left:10px;bottom:10px;z-index:$z-stage;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center;max-width:calc(100% - 160px)}
   .lchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;
     padding:2px 9px;font-size:11px;background:#0d0f13cc;color:var(--ink);cursor:pointer;
     .ic{width:12px;height:12px;border-radius:50%;color:#fff;font-size:8px;line-height:12px;text-align:center;flex:none}
@@ -245,7 +246,7 @@
     &.on{outline:2px solid var(--accent);outline-offset:1px}
     &.ghost{opacity:.35}}
 
-  .aflash{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:80;max-width:min(520px,92vw);
+  .aflash{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:$z-toast;max-width:min(520px,92vw);
     background:var(--panel2);border:1px solid var(--line);border-left:3px solid #6fcf97;border-radius:9px;
     padding:9px 14px;box-shadow:0 10px 30px #000a;font-size:12.5px;
     &.err{border-left-color:#d05b5b}
@@ -266,7 +267,8 @@
 .atlas {
   // small anchored menus (Map ▾, the ? guide)
   .mapmenu{position:relative}
-  .apop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;min-width:220px;
+  // the menu lives inside .toolbar (a stacking context at $z-stage): this number orders it among the toolbar's own children only
+  .apop{position:absolute;top:calc(100% + 6px);left:0;z-index:$z-menu;min-width:220px;
     background:var(--panel);border:1px solid var(--line);border-radius:9px;
     box-shadow:0 12px 30px #000a;padding:5px;display:flex;flex-direction:column;gap:1px;
     >button{background:none;border:0;color:var(--ink);font:inherit;text-align:left;
@@ -278,7 +280,7 @@
       padding:3px 9px;cursor:pointer;font:inherit;font-size:12px}
     button.on{background:#5b9bd530;color:var(--ink);border-color:var(--accent)}}
 
-  .helpwrap{position:absolute;top:10px;right:10px;z-index:7}
+  .helpwrap{position:absolute;top:10px;right:10px;z-index:$z-hud}
   .tool.round{width:30px;height:30px;padding:0;border-radius:50%;color:var(--muted)}
   .helppop{left:auto;right:0;min-width:280px;padding:10px 12px;font-size:12px;color:var(--muted);gap:7px;
     b{color:var(--ink);font-weight:600}}
@@ -315,7 +317,7 @@
   // small screens: the column would crush the map — overlay instead
   @media (max-width: 700px){
     --readerw: 0px;
-    .reader{position:absolute;inset:0;z-index:12;width:100%}
+    .reader{position:absolute;inset:0;z-index:$z-overlay;width:100%}
   }
 
   // the stage column: map on top, timeline rows underneath
@@ -331,20 +333,20 @@
 
 // ---- workspace layout controls: rail toggle, resizable editor, right-click menu ----
 .atlas {
-  .railtoggle{position:absolute;top:10px;left:10px;z-index:6;width:32px;justify-content:center;color:var(--muted)}
+  .railtoggle{position:absolute;top:10px;left:10px;z-index:$z-chrome;width:32px;justify-content:center;color:var(--muted)}
 
   .main{position:relative}
-  .iresize,.rresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9}
+  .iresize,.rresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:$z-grip}
   .iresize:hover,.iresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
   // the reader (View / Player) resizes from its own left edge
   .reader .rgrip{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
   .reader .rgrip:hover,.reader .rgrip:active{background:linear-gradient(90deg,var(--accent),transparent)}
   @media (max-width: 700px){.reader .rgrip{display:none}}
   .rresize:hover,.rresize:active{background:linear-gradient(270deg,var(--accent),transparent)}
-  .insptoggle{position:absolute;top:10px;right:10px;z-index:6;width:32px;justify-content:center;color:var(--muted)}
+  .insptoggle{position:absolute;top:10px;right:10px;z-index:$z-chrome;width:32px;justify-content:center;color:var(--muted)}
   .main.m-edit .helpwrap{right:52px}
 
-  .ctxmenu{position:fixed;top:0;left:0;min-width:210px;z-index:60}
+  .ctxmenu{position:fixed;top:0;left:0;min-width:210px;z-index:$z-context}
 
   .ttick{position:absolute;bottom:4px;width:1px;height:8px;background:var(--accent);opacity:.55;pointer-events:none}
 
@@ -489,9 +491,9 @@
     .psig{font-size:9px;margin-right:-2px}}
   .pin.pmark.ipin{border:none}
   .sby{color:#6fcf97;font-size:11.5px;font-style:italic}
-  .markbtn{position:absolute;left:10px;bottom:10px;z-index:7;color:#6fcf97;border-color:#6fcf9755;
+  .markbtn{position:absolute;left:10px;bottom:10px;z-index:$z-hud;color:#6fcf97;border-color:#6fcf9755;
     background:#0d0f13d8}
-  .markhint{position:absolute;left:10px;bottom:46px;z-index:7;color:#6fcf97;font-size:11.5px;font-style:italic;
+  .markhint{position:absolute;left:10px;bottom:46px;z-index:$z-hud;color:#6fcf97;font-size:11.5px;font-style:italic;
     background:#0d0f13cc;border:1px dashed #6fcf9755;border-radius:6px;padding:4px 9px;pointer-events:none}
   .mcats{display:flex;align-items:center;gap:6px;margin:10px 0;
     .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#fff;font-size:12px;
@@ -591,7 +593,7 @@
     background:var(--panel);border:1px solid #2e5738;border-radius:50%;font-size:9px}
   .atlas:not(.labelson) .pin.ipin .ilbl{opacity:0;transition:opacity .14s ease}
   .atlas:not(.labelson) .pin.ipin:hover .ilbl,.atlas:not(.labelson) .pin.ipin.sel .ilbl{opacity:1}
-  .atlas .pin:hover{z-index:5}
+  .atlas .pin:hover{z-index:$z-stage}
 }
 .atlas .strow{display:flex;gap:5px;margin-bottom:6px;
   button{flex:1;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:7px;padding:5px 4px;cursor:pointer;font:inherit;font-size:11.5px}
@@ -618,7 +620,7 @@
 // ---- Player View navigation: always a way up, one tap in ----
 .atlas.pview .crumbs{display:flex;overflow-x:auto;white-space:nowrap;scrollbar-width:none;flex:1}
 .atlas.pview .crumbs::-webkit-scrollbar{display:none}
-.atlas.pview .backbtn{position:absolute;top:10px;left:10px;z-index:6;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atlas.pview .backbtn{position:absolute;top:10px;left:10px;z-index:$z-chrome;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .atlas.pview .pin .enter,.atlas.pview .lsrow .enter{background:none;border:0;color:var(--muted);cursor:pointer;font:inherit;font-size:15px;padding:0 3px;line-height:1}
 .atlas.pview .ambbtn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit;white-space:nowrap}
 .atlas.pview .ambbtn.on{color:#7fc98f;border-color:#2e5738}
@@ -681,7 +683,7 @@
 // The SVG spans the plane in a 0–100 viewBox (non-uniform, like the trail), so strokes use
 // non-scaling-stroke and counter-scale with --pinscale; corner dots are HTML so they stay round.
 .atlas .regions{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;pointer-events:none} // under prints (2) and pins (3)
-.atlas .regions.drawing{pointer-events:auto;cursor:crosshair;z-index:5}
+.atlas .regions.drawing{pointer-events:auto;cursor:crosshair;z-index:$z-stage}
 // style toggles per outline (s-fill / s-stroke / s-grow / s-glow; 'pop' lifts a clipped copy of the art)
 .atlas .region{pointer-events:auto;fill:#c9a35f;fill-opacity:0;stroke:transparent;stroke-linejoin:round;
   stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;
@@ -735,10 +737,10 @@
   stroke-dasharray:6 4;stroke-linejoin:round;pointer-events:none}
 .atlas .odraw.fill{fill:rgba(56,182,163,.14);stroke:none}
 .atlas .ovtx{position:absolute;width:10px;height:10px;border-radius:50%;background:#38b6a3;border:2px solid #0d0f13;
-  transform:translate(-50%,-50%) scale(var(--pinscale,1));z-index:6;pointer-events:none}
+  transform:translate(-50%,-50%) scale(var(--pinscale,1));z-index:$z-chrome;pointer-events:none}
 .atlas .ovtx.first{width:16px;height:16px;background:#cfe9e4;pointer-events:auto;cursor:pointer;box-shadow:0 0 0 3px #38b6a355}
 .atlas.drawing .pin{pointer-events:none}
-.atlas .drawhud{position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:10px;
+.atlas .drawhud{position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:$z-hud;display:flex;align-items:center;gap:10px;
   background:#1d2a28ee;border:1px solid #38b6a3;color:#cfe9e4;border-radius:9px;padding:6px 12px;font-size:12px;
   box-shadow:0 2px 8px #0008;white-space:nowrap;max-width:min(94%,980px);
   .dhtext{overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -773,7 +775,7 @@
 .atlas .lsrow.ghost{opacity:1;border:1px dashed #b07bd0}
 .atlas .lsrow.secret{opacity:.45}
 .atlas .ic,.atlas .sic,.atlas .cdot,.atlas .pin .ic,.atlas .lchip .ic{color:#0d0f13}
-.atlas .helpwrap{z-index:9}
+.atlas .helpwrap{z-index:$z-grip}
 .atlas .lnk{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
 @media (min-width:900px){.atlas.pview .sheet .shero{max-height:44vh}}
 // ---- phones: the page fits the screen, the map stays the main thing, targets are tappable ----
@@ -784,7 +786,7 @@
   .atlas{grid-template-rows:auto 1fr}
   .atlas .top{flex-wrap:wrap;height:auto;min-height:46px;padding:4px 8px;gap:6px 8px}
   .atlas .top .crumbs{flex-basis:100%;order:9;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
-  .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:7;width:32px;height:32px;border-radius:50%;padding:0}
+  .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:$z-hud;width:32px;height:32px;border-radius:50%;padding:0}
 }
 .atlas.pview .sheet .shero,.atlas.pview .sheet .sinner{flex:none} // the hero keeps its height; the sheet scrolls
 .atlas.pview .sinner .shead{padding-right:40px}
@@ -834,14 +836,14 @@
 
 // the map surface: a selected pin above its neighbours, a crosshair while placing, a
 // selected outline that can be moved, a labelled group in the space menu
-.atlas .pin.sel{z-index:6}
+.atlas .pin.sel{z-index:$z-chrome}
 .atlas.placing .mp-viewport,.atlas.placing .pin{cursor:crosshair}
 .atlas .m-edit .region.sel{cursor:grab}
 .atlas .apop-sep{padding:7px 10px 2px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin-top:4px}
 .atlas .ctxmenu .apop-sep{border-top:0;margin-top:0;padding-top:4px;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
 
 // the picker: above any dialog that opened it, the current image marked
-.atlas .modal-back.top{z-index:55}
+.atlas .modal-back.top{z-index:$z-modal-over}
 .atlas .pick.current{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
 .atlas .modal .nsearch{margin:8px 0 0}
 
@@ -851,7 +853,7 @@
 .atlas .crumbs a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:2ch}
 .atlas .top .brand .brandrose{color:#c9a35f;flex:none}
 // the Forge column resizes from its left edge, like the editor and the tree
-.atlas .fresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9}
+.atlas .fresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:$z-grip}
 .atlas .fresize:hover,.atlas .fresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
 // the ⚙ partition's boxes keep their rows; the partition scrolls
 .atlas .forge .fmind > *{flex:none}
