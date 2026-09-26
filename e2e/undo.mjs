@@ -21,6 +21,10 @@ if (nodeId) {
   await api('POST', `/worlds/${cfg.worldId}/spotlight`, { nodeId });
   const lit = (await api('GET', `/worlds/${cfg.worldId}`)).body.world?.spotlightNodeId;
   step('the lantern points at the probe before the delete', lit === nodeId, String(lit));
+  // a footstep is born with its moment: the placements POST takes a lifespan
+  const born = await api('POST', `/maps/${cfg.root}/placements`, { node_id: nodeId, x: 6, y: 6, start_time: 3, end_time: 7 });
+  const bornRow = (await api('GET', `/maps/${cfg.root}`)).body.placements?.find((p) => p.id === born.body?.placementId);
+  step('a placement can be born with its lifespan', born.status === 201 && bornRow?.start === 3 && bornRow?.end === 7, `${born.status} ${JSON.stringify(bornRow && [bornRow.start, bornRow.end])}`);
   const interior = await api('POST', `/nodes/${nodeId}/interior`, { view: 'map' });
   const mapId = interior.body.mapId;
   await api('PATCH', `/maps/${mapId}`, { dm_note: 'INTERIOR-NOTE', focus_start: 1, focus_end: 5 });

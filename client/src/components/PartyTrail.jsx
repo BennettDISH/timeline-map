@@ -1,12 +1,12 @@
 import React from 'react'
-import { sessionOf, sessionColor } from '../utils/moment'
+import { sessionOf, sessionColor, sessionLabel } from '../utils/moment'
 
 // Where the party has BEEN on this map, up to the moment shown: every past footstep as a
 // ghost print (older = fainter, colored by session), joined in order by a dotted path. A
 // footstep alive at the moment is drawn as the real pin elsewhere, so it is left out here —
 // but only when it really is alive; a newest step the party has since walked away from
 // stays a print. Where they went next is told in the Party's own text, not on the map.
-export default function PartyTrail({ placements, t, eras, onStep }) {
+export default function PartyTrail({ placements, t, eras, unit, onStep }) {
   const at = (v) => (v == null ? -Infinity : v)
   const steps = (placements || [])
     .filter((p) => p.node?.category === 'party' && at(p.start) <= t)
@@ -43,7 +43,7 @@ export default function PartyTrail({ placements, t, eras, onStep }) {
       )}
       {prints.map((p, i) => {
         const s = sessionOf(at(p.start) === -Infinity ? t : p.start, eras)
-        const label = s ? `Session ${s.idx + 1} · footstep ${s.step}` : `footstep ${p.start ?? '…'}`
+        const label = s ? sessionLabel(s, unit) : `${unit ? unit.replace(/s$/i, '') : 'moment'} ${p.start ?? '…'}`
         const [ox, oy] = offset(p)
         return (
           <button key={p.id} type="button" className="fstep"

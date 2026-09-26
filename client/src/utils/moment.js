@@ -5,11 +5,33 @@
 export const SESSION_COLORS = ['#38b6a3', '#d9a441', '#b07bd0', '#5b9bd5', '#d05b5b', '#4f9f6f', '#e0968f', '#c9c3ae']
 export const sessionColor = (idx) => SESSION_COLORS[((idx % SESSION_COLORS.length) + SESSION_COLORS.length) % SESSION_COLORS.length]
 
+// A session era is one NAMED "Session N": its number is read from the name, never from its
+// position among the eras (DM-only lore eras and overlaps would shift it).
+export const sessionNum = (era) => { const m = /^session\s+(\d+)/i.exec(era?.name || ''); return m ? Number(m[1]) : null }
+const shortName = (era) => String(era?.name || '').split(/\s+[—–-]\s+/)[0]
+// Among the eras containing a moment, a session era wins; otherwise the narrowest one.
+const eraAt = (t, eras) => {
+  const inside = (eras || []).filter((e) => t >= e.start && t <= e.end)
+  if (!inside.length) return null
+  return inside.find((e) => sessionNum(e) != null) || inside.slice().sort((a, b) => (a.end - a.start) - (b.end - b.start))[0]
+}
+
 // Which era (session) a moment falls in, and the footstep within it — or null outside all.
+// idx drives the colour: session N is hue N-1 on every screen, DM and players alike.
 export function sessionOf(t, eras) {
+  const era = eraAt(t, eras)
+  if (!era) return null
+  const num = sessionNum(era)
   const sorted = [...(eras || [])].sort((a, b) => a.start - b.start)
-  const idx = sorted.findIndex((e) => t >= e.start && t <= e.end)
-  return idx < 0 ? null : { idx, era: sorted[idx], step: t - sorted[idx].start + 1 }
+  const idx = num != null ? num - 1 : sorted.indexOf(era)
+  return { idx, num, era, short: shortName(era), step: t - era.start + 1 }
+}
+// the tag on the party's pin: S3·7 in a session, the era's name otherwise
+export const stepTag = (so) => (so.num != null ? `S${so.num}·${so.step}` : `${so.short}·${so.step}`)
+// the same moment in words: "Session 3 · footstep 7"
+export const sessionLabel = (so, unit) => {
+  const one = unit ? `${unit.replace(/s$/i, '')} ` : ''
+  return `${so.num != null ? `Session ${so.num}` : so.short} · ${one}${so.step}`
 }
 
 // The party's live footstep at a moment, across the whole world (deepest map wins).
@@ -53,9 +75,15 @@ export function partyNeighbors(trail, t) {
 }
 
 export function momentLabel(t, eras, unit) {
-  const e = (eras || []).find((x) => t >= x.start && t <= x.end)
+  const e = eraAt(t, eras)
   if (!e) return `${t}${unit ? ` ${unit}` : ''}`
-  const short = String(e.name).split(/\s+[—–-]\s+/)[0]
   const one = unit ? `${unit.replace(/s$/i, '')} ` : ''
-  return `${short} · ${one}${t - e.start + 1}`
+  return `${shortName(e)} · ${one}${t - e.start + 1}`
+}
+// a lifespan in words: "from …", "until …", or "… – …" — never a substituted clock minimum
+export function spanLabel(start, end, eras, unit) {
+  if (start == null && end == null) return 'always'
+  if (start == null) return `until ${momentLabel(end, eras, unit)}`
+  if (end == null) return `from ${momentLabel(start, eras, unit)}`
+  return `${momentLabel(start, eras, unit)} – ${momentLabel(end, eras, unit)}`
 }

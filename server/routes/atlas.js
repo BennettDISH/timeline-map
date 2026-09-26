@@ -4,6 +4,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { r2Enabled, putObject, copyObject } = require('../storage');
+const { spotlightTrail, pendingForge } = require('./share');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -151,7 +152,11 @@ router.post('/worlds/:worldId/spotlight', wrap(async (req, res) => {
   const n = (await pool.query('SELECT id FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, req.params.worldId])).rows[0];
   if (!n) return res.status(400).json({ message: 'That node is not in this world' });
   await pool.query('UPDATE worlds SET spotlight_node_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [nodeId, req.params.worldId]);
-  res.json({ ok: true });
+  // the reply says what players actually see: the trail as the share API resolves it
+  const w = (await pool.query(
+    'SELECT id, root_map_id, timeline_enabled, timeline_current_time, spotlight_node_id FROM worlds WHERE id=$1', [req.params.worldId])).rows[0];
+  w.pending = await pendingForge(w.id);
+  res.json({ ok: true, trail: await spotlightTrail(w) });
 }));
 router.delete('/worlds/:worldId/spotlight', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
@@ -468,13 +473,18 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
 router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { node_id, x = 50, y = 50, shape = null, shape_kind = null } = req.body;
+  const { node_id, x = 50, y = 50, shape = null, shape_kind = null, start_time = null, end_time = null } = req.body;
   if ((await worldIdOfNode(node_id)) !== wid) return res.status(400).json({ message: 'Node is not in this world' });
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
-  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-    [node_id, req.params.mapId, x, y, shapeParam(sh), kind])).rows[0];
+  // a footstep is born with its moment: start/end are integers on the world clock or null
+  const tval = (v) => (v == null ? null : (Number.isInteger(Number(v)) ? Number(v) : undefined));
+  const st = tval(start_time), en = tval(end_time);
+  if (st === undefined || en === undefined) return res.status(400).json({ message: 'A lifespan is whole numbers on the clock' });
+  if (st != null && en != null && st > en) return res.status(400).json({ message: 'A lifespan ends after it starts' });
+  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+    [node_id, req.params.mapId, x, y, shapeParam(sh), kind, st, en])).rows[0];
   res.status(201).json({ placementId: p.id });
 }));
 

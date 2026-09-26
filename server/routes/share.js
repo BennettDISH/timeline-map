@@ -179,9 +179,13 @@ async function spotlightTrail(w) {
       'SELECT id, title, category, visibility FROM nodes WHERE id = $1 AND world_id = $2',
       [nid, w.id])).rows[0];
     if (!n) return [];
+    // the step players can see: a visible placement ALIVE at canon before any other
     const p = (await pool.query(
       `SELECT map_id, visibility, start_time, end_time FROM placements
-       WHERE node_id = $1 ORDER BY (visibility = 'dm') ASC, id LIMIT 1`, [nid])).rows[0];
+       WHERE node_id = $1
+       ORDER BY (visibility = 'dm') ASC,
+         (($2::int IS NULL) OR ((start_time IS NULL OR start_time <= $2::int) AND (end_time IS NULL OR end_time >= $2::int))) DESC, id
+       LIMIT 1`, [nid, canon])).rows[0];
     if (!p) return []; // placed nowhere — there is no way to walk to it
     steps.unshift({ n, p });
     const m = (await pool.query(
@@ -502,3 +506,5 @@ router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
 }));
 
 module.exports = router;
+module.exports.spotlightTrail = spotlightTrail;
+module.exports.pendingForge = pendingForge;

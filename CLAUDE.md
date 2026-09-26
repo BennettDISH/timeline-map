@@ -162,6 +162,18 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   world-wide `partyTrail` in the windowed share payload, reachable maps only. (The
   "⚑ The party is at …" chip was removed on 2026-09-25 as clutter.)
   Map ▾ → 👣 Footprints toggles the ghost-print trail (local preference).
+  **A session is an era NAMED "Session N"** (`sessionNum` in `utils/moment.js`): tags, tick
+  titles, colours and labels number from the name, never from the era's position; where
+  eras overlap, a session era wins, else the narrowest (`momentLabel`, `sessionOf`).
+  **The party moves by footsteps**: right-click → "👣 The party moves here" (or the Party's
+  inspector "Next footstep here", or placing the Party) ends the live footstep at the lens
+  moment and POSTs a new placement with `start_time` (the placements POST accepts
+  `start_time`/`end_time`), growing the clock if needed; the lens and selection follow. With
+  the clock off, one party pin (the latest footstep) and no prints. "＋ Next session" shows
+  only in footstep worlds (or where a Session era exists), follows the last SESSION era and
+  numbers past the highest. A placement of a shared node can be hidden on ONE map
+  (`placements.visibility`, the inspector's "Hidden on this map"); it draws faint with 🔒.
+  Setting the lantern returns the resolved player trail so the toast says what players see.
 - A spoken line is never overwritten: `POST /nodes/:id/line` refuses (409) while one exists;
   clear it first.
 - Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose

@@ -6,7 +6,7 @@ import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
-import { momentLabel, sessionOf, sessionColor, partyNeighbors } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors } from '../utils/moment'
 import { CATS, MARKABLE, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -331,7 +331,7 @@ function PlayerView() {
               onWorldDoubleClick={(e) => { if (marking) return false; const p = regionAt(e); if (!p) return false; enter(p.node); return true }}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
+              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} unit={tl?.unit}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
               <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
@@ -343,6 +343,7 @@ function PlayerView() {
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0) } : {}) }}
+                  title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
@@ -364,7 +365,7 @@ function PlayerView() {
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
                   )}
-                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? <span className="stag">S{so.idx + 1}·{so.step}</span> : null })()}
+                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? <span className="stag">{stepTag(so)}</span> : null })()}
                 </div>
               ))}
             </MapPlane>
@@ -420,8 +421,7 @@ function PlayerView() {
           </div>
         </div>
         {tl?.enabled && (
-          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live
-            win={map?.focusStart != null || map?.focusEnd != null ? { min: map.focusStart, max: map.focusEnd } : null} />
+          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live />
         )}
         </div>
 
@@ -452,7 +452,7 @@ function PlayerView() {
               )}
               {detail.node.category === 'party' && tl?.enabled && (() => {
                 const { prev, next } = partyNeighbors(data.partyTrail, tEff)
-                const lab = (st) => { const so = sessionOf(st.start ?? tEff, world.eras); return so ? ` · S${so.idx + 1}·${so.step}` : '' }
+                const lab = (st) => { const so = sessionOf(st.start ?? tEff, world.eras); return so ? ` · ${stepTag(so)}` : '' }
                 if (!prev && !next) return null
                 return (
                   <div className="rtrail">

@@ -131,7 +131,6 @@
   .tcanon{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
   .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
   .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;text-align:right}
-  .timebar .tnow em{color:var(--muted);font-style:normal;font-weight:400}
   // share link (DM popover) + Player View chrome
   .invitebtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit}
   .invitebtn.live{color:#7fc98f;border-color:#2e5738}
@@ -168,14 +167,13 @@
   .timebar .tgear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
   .timebar .tgear:hover{color:var(--ink)}
   // era bands: history's stripes behind the scrubber — gold if players may walk them.
-  // The input is positioned so paint order follows the DOM: bands under it, ticks over it.
-  .timebar .ttrack input{position:relative}
+  // (the input stays absolute, from the rule above: bands under it, ticks over it)
   .timebar .teraband{position:absolute;top:10px;height:20px;border-radius:5px;pointer-events:none;overflow:hidden;
      background:rgba(176,123,208,.10);border:1px solid rgba(176,123,208,.25)}
   .timebar .teraband.pv{background:rgba(201,163,95,.20);border-color:rgba(201,163,95,.45)}
   .timebar .teraband em{display:block;padding:0 7px;font-style:normal;font-size:10.5px;line-height:19px;color:#e3cf9c;
      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}
-  .timebar .teraband:not(.pv) em{color:#c9a9d8;opacity:.8}
+  .timebar .teraband:not(.pv) em{color:#d4b8e3}
   .tlcfg{position:absolute;right:10px;bottom:74px;left:auto;z-index:8;display:flex;flex-direction:column;align-items:stretch;gap:9px;
      width:250px;padding:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px #000a}
   .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}

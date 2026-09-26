@@ -24,7 +24,8 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   const hi = wHi
   const span = Math.max(1, hi - lo)
   const [dv, setDv] = useState(value == null ? canon : value)
-  const [typed, setTyped] = useState(null) // string while typing an exact year
+  const [typed, setTyped] = useState(null) // string while typing an exact moment
+  const unitOne = tl?.unit ? tl.unit.replace(/s$/i, '') : 'moment'
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
   // dragging should FEEL live even when each commit costs a server fetch: non-live mode
   // debounce-commits mid-drag (~200ms of stillness) and commits hard on release.
@@ -59,7 +60,14 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   }
   const commit = (t) => onChange(t >= canon ? null : t)
   const move = (raw) => {
-    const t = snap(Number(raw))
+    const r = Number(raw)
+    let t = snap(r)
+    // a one-step move (arrow keys) that leaves a revealed stretch crosses the gap in the
+    // direction pressed, instead of snapping back to the edge it just left
+    if (t !== r && r < canon) {
+      if (r > dv) { const nxt = segs.find((g) => g.s > dv); if (nxt) t = nxt.s }
+      else if (r < dv) { const prv = [...segs].reverse().find((g) => g.en < dv); if (prv) t = prv.en }
+    }
     setDv(t)
     if (live) { commit(t); return }
     clearTimeout(debRef.current)
@@ -99,7 +107,7 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
               if (raw !== '' && Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
             }} />
         ) : (
-          <button className="einfo einfobtn" title="Click to type a year — it snaps into the revealed past"
+          <button className="einfo einfobtn" title={`Click to type a ${unitOne} number — it snaps into the revealed past`}
             onClick={() => setTyped(String(dv >= canon ? canon : dv))}>
             {dv >= canon ? `now · ${momentLabel(canon, eras, tl.unit)}` : momentLabel(dv, eras, tl.unit)}
           </button>
