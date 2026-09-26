@@ -46,6 +46,8 @@ function cleanShape(raw) {
   return out;
 }
 const shapeParam = (sh) => (sh ? JSON.stringify(sh) : null); // pg would send a JS array as a Postgres array, not JSON
+const SHAPE_KINDS = new Set(['area', 'button']);
+const shapeKind = (k) => (k == null ? 'area' : (SHAPE_KINDS.has(k) ? k : undefined));
 // Build the breadcrumb from a map up to its world root, following owner_node -> a placement's map.
 async function breadcrumb(mapId) {
   const chain = []; let mid = mapId; const seen = new Set();
@@ -207,8 +209,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   for (const pl of await rowsOfC('SELECT p.* FROM placements p JOIN maps m ON m.id=p.map_id WHERE m.world_id=$1', [src.id])) {
     if (!nodeMap.has(pl.node_id) || !mapMap.has(pl.map_id)) continue;
-    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape)]);
+    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape), pl.shape_kind || 'area']);
   }
   for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1', [src.id])) {
     if (!nodeMap.has(l.from_node_id) || !nodeMap.has(l.to_node_id)) continue;
@@ -284,7 +286,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const map = (await pool.query(
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
-    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape,
+    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape, p.shape_kind,
            n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size,
            n.voice_id, n.voice_name, n.voice_line, n.voice_url, n.voice_style,
            ni.file_path AS node_image_path, im.view AS interior_view
@@ -294,7 +296,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     LEFT JOIN maps im ON n.interior_map_id = im.id
     WHERE p.map_id=$1 ORDER BY p.id`, [req.params.mapId])).rows;
   const placements = pl.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null,
+    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area',
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
             voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
             pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
@@ -367,14 +369,15 @@ router.delete('/backdrops/:id', wrap(async (req, res) => {
 router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { title = 'New node', category = 'note', x = 50, y = 50, body = null, shape = null } = req.body;
-  const sh = cleanShape(shape);
+  const { title = 'New node', category = 'note', x = 50, y = 50, body = null, shape = null, shape_kind = null } = req.body;
+  const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
+  if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
   const n = (await pool.query(
     'INSERT INTO nodes (world_id, title, category, body, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [wid, title, category, body, req.user.id])).rows[0];
-  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [n.id, req.params.mapId, x, y, shapeParam(sh)])).rows[0];
+  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+    [n.id, req.params.mapId, x, y, shapeParam(sh), kind])).rows[0];
   res.status(201).json({ nodeId: n.id, placementId: p.id });
 }));
 
@@ -382,12 +385,13 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
 router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { node_id, x = 50, y = 50, shape = null } = req.body;
+  const { node_id, x = 50, y = 50, shape = null, shape_kind = null } = req.body;
   if ((await worldIdOfNode(node_id)) !== wid) return res.status(400).json({ message: 'Node is not in this world' });
-  const sh = cleanShape(shape);
+  const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
-  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [node_id, req.params.mapId, x, y, shapeParam(sh)])).rows[0];
+  if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
+  const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+    [node_id, req.params.mapId, x, y, shapeParam(sh), kind])).rows[0];
   res.status(201).json({ placementId: p.id });
 }));
 
@@ -578,9 +582,9 @@ router.post('/undo/:id', wrap(async (req, res) => {
     const insertPlacement = async (pl) => {
       if (!(await exists('nodes', pl.node_id)) || !(await exists('maps', pl.map_id))) return;
       await client.query(
-        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at, shape)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
-        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at, shapeParam(pl.shape)]);
+        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at, shape, shape_kind)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
+        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at, shapeParam(pl.shape), pl.shape_kind || 'area']);
     };
     const insertBackdrop = async (b) => {
       if (!(await exists('images', b.image_id))) return;
@@ -658,6 +662,11 @@ router.patch('/placements/:id', wrap(async (req, res) => {
     const sh = cleanShape(req.body.shape);
     if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
     sets.push(`shape=$${i++}`); vals.push(shapeParam(sh));
+  }
+  if ('shape_kind' in req.body) {
+    const kind = shapeKind(req.body.shape_kind);
+    if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
+    sets.push(`shape_kind=$${i++}`); vals.push(kind);
   }
   if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE placements SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
   res.json({ ok: true });

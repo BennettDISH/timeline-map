@@ -182,6 +182,8 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS dm_note TEXT;
 -- An outline: a placement may cover a REGION of the art (a JSON array of [x,y] points in %
 -- of the plane) so the drawn feature itself is the button. x/y stay the anchor point.
 ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape JSONB;
+-- how an outline behaves: 'area' (a faint district wash) or 'button' (a house that grows on hover)
+ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape_kind VARCHAR(10) NOT NULL DEFAULT 'area';
 
 -- Voice (ElevenLabs, inert without ELEVENLABS_API_KEY): a person's chosen voice and one
 -- spoken line (MP3 in R2), heard by players on the sheet when the node is visible. Maps

@@ -75,12 +75,15 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Nodes carry a `pin` style: 'chip' (icon + name) or 'image' — the node's art drawn
   directly on the map (frameless, PNG transparency respected), for both DM and players.
 - **Outlines**: a placement may carry a `shape` (JSONB, 3–200 `[x,y]` points in % of the
-  plane) — the DM traces a feature of the art (◌ Outline in the toolbar, the right-click
-  menu, or the inspector's "On this map") and that region becomes the node's button for
-  DM and players (`components/Regions.jsx`, SVG over the plane; click reads, double-click
-  enters). `x/y` stay the anchor (pin, links, trail, lantern); dragging the pin carries the
-  outline along. Validated in `atlas.js` (`cleanShape`), sent by `share.js`, kept by world
-  copies and undo.
+  plane) and a `shape_kind` ('area' = a district, a faint wash that fades with size;
+  'button' = a house, grows and glows on hover). The DM traces a feature of the art
+  (◌ Outline in the toolbar, the right-click menu, or the inspector's "On this map") and
+  that region becomes the node's button for DM and players (`components/Regions.jsx`, SVG
+  over the plane; click reads, double-click enters). **An outlined placement draws no pin**:
+  its name floats at the anchor (`x/y`) on hover, when selected, when labels are always on,
+  and always on touch screens. Regions stack smallest-on-top so a house inside a district
+  stays clickable; pins always float above regions. Validated in `atlas.js`
+  (`cleanShape`/`shapeKind`), sent by `share.js`, kept by world copies and undo.
 - `nodes.dm_note` is the SECRET half of a node: never selected by `share.js`, never fed to
   the Forge painter, shown only in the inspector + view-posture reader. The body is the
   public face; the inspector's "Reveal" button merges note → body. The mind is ordered to
