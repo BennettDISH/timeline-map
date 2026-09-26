@@ -37,7 +37,7 @@ const initialState = {
 
 const TOKEN_DEAD = /token|access token|user not found/i
 // only the server saying the TOKEN is bad ends a session — a 5xx, a 429 or no network is a blip
-const tokenDead = (e) => { const s = e?.response?.status; return s === 401 || (s === 403 && TOKEN_DEAD.test(e?.response?.data?.message || '')) }
+const tokenDead = (e) => e?.response?.status === 401 // every dead session is a 401; 403 is a live session without permission
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState)

@@ -3,6 +3,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, putObject, deleteObject } = require('../storage');
 const { isId } = require('../lib/validate');
+const { ownsWorld, notFound } = require('../lib/route');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
@@ -19,15 +20,7 @@ const upload = async (req, res) => {
       return res.status(400).json({ message: 'Image data, original name, and world ID are required' });
     }
 
-    // Verify user owns the world
-    const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
-      [world_id, req.user.id]
-    );
-
-    if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found' });
-    }
+    if (!(await ownsWorld(world_id, req.user.id))) return notFound(res, 'World not found');
 
     // Validate base64 image data
     const base64Match = typeof imageData === 'string' && imageData.match(/^data:image\/(jpeg|jpg|png|gif|webp);base64,(.+)$/);

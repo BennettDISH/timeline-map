@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { idParam, isId, text } = require('../lib/validate');
+const { ownsWorld, notFound } = require('../lib/route');
 const router = express.Router();
 router.param('id', idParam);
 
@@ -17,15 +18,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ message: 'World ID is required' });
     }
 
-    // Verify user owns the world
-    const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
-      [world_id, req.user.id]
-    );
-
-    if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found' });
-    }
+    if (!(await ownsWorld(world_id, req.user.id))) return notFound(res, 'World not found');
 
     // Get all folders for this world
     const result = await pool.query(`
@@ -77,15 +70,7 @@ router.post('/', async (req, res) => {
     }
     if (parent_id != null && parent_id !== '' && !isId(parent_id)) return res.status(400).json({ message: 'That is not a folder id' });
 
-    // Verify user owns the world
-    const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
-      [world_id, req.user.id]
-    );
-
-    if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found' });
-    }
+    if (!(await ownsWorld(world_id, req.user.id))) return notFound(res, 'World not found');
 
     // If parent_id is provided, verify it exists and belongs to the same world
     if (parent_id) {

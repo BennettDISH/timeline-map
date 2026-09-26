@@ -4,13 +4,13 @@ const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deleteObject } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { idParam, isId, whole, text } = require('../lib/validate');
+const { ownsWorld, notFound } = require('../lib/route');
 const router = express.Router();
 router.param('id', idParam);
 
-// An image belongs to whoever uploaded it or owns the world it lives in — the same
-// world-owner rule as every other route; nobody reaches across tenants
-const canTouch = async (image, userId) => image.uploaded_by === userId
-  || (await pool.query('SELECT 1 FROM images i JOIN worlds w ON w.id = i.world_id WHERE i.id = $1 AND w.created_by = $2', [image.id, userId])).rows.length > 0;
+// An image belongs to the world it lives in: the world's owner may touch it, nobody else —
+// the same rule as every world-scoped route, and a stranger's image reads as absent (404)
+const canTouch = (image, userId) => ownsWorld(image.world_id, userId);
 
 // All image routes require authentication
 router.use(authenticateToken);
@@ -32,15 +32,7 @@ router.get('/', async (req, res) => {
     if (limit == null || limit < 1 || limit > 200 || offset == null || offset < 0) return res.status(400).json({ message: 'limit is 1 to 200 and offset is a whole number' });
     if (folder_id != null && folder_id !== '' && !isId(folder_id)) return res.status(400).json({ message: 'That is not a folder id' });
 
-    // Verify user owns the world
-    const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
-      [world_id, req.user.id]
-    );
-
-    if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found' });
-    }
+    if (!(await ownsWorld(world_id, req.user.id))) return notFound(res, 'World not found');
     
     // Shared WHERE fragments so the page query and the total-count query always agree.
     let filters = '';
@@ -182,9 +174,7 @@ router.put('/:id', async (req, res) => {
 
     const image = imageResult.rows[0];
     
-    if (!(await canTouch(image, req.user.id))) {
-      return res.status(403).json({ message: "That image isn't in one of your worlds" });
-    }
+    if (!(await canTouch(image, req.user.id))) return notFound(res, 'Image not found');
 
     // If folder_id is provided, verify it exists and belongs to the same world (null = Unsorted)
     if ('folder_id' in req.body) {
@@ -242,9 +232,7 @@ router.delete('/:id', async (req, res) => {
 
     const image = imageResult.rows[0];
     
-    if (!(await canTouch(image, req.user.id))) {
-      return res.status(403).json({ message: "That image isn't in one of your worlds" });
-    }
+    if (!(await canTouch(image, req.user.id))) return notFound(res, 'Image not found');
 
     // Delete from database, capturing the R2 key so we can remove the object too
     const del = await pool.query('DELETE FROM images WHERE id = $1 RETURNING storage_key', [id]);

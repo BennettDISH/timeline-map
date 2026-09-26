@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const pool = require('../config/database');
 const { idParam } = require('../lib/validate');
+const { wrap: wrapWith, ownsWorld } = require('../lib/route');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, putObject, deleteObject, keyFromUrl } = require('../storage');
 const voice = require('../voice/providers');
@@ -20,14 +21,9 @@ router.use((req, res, next) => (voice.status().enabled ? next() : res.status(404
 router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120 }));
 
 // the raw error (provider body, SQL) goes to the log; the DM gets one plain sentence
-const wrap = (fn) => (req, res) =>
-  fn(req, res).catch((err) => { console.error('voice error:', err); res.status(500).json({ message: err.userMessage || "Couldn't make the audio — try again" }); });
+const wrap = wrapWith('voice', "Couldn't make the audio — try again");
 router.param('id', idParam);
 
-async function ownsWorld(worldId, userId) {
-  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2', [worldId, userId]);
-  return r.rows.length > 0;
-}
 const needStorage = (res) => res.status(400).json({ message: 'Audio needs object storage (R2) configured' });
 
 router.get('/voices', wrap(async (req, res) => {

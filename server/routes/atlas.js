@@ -6,6 +6,7 @@ const { resolveImageUrl } = require('../utils/imageUrl');
 const { r2Enabled, putObject, copyObject } = require('../storage');
 const { spotlightTrail, pendingForge } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
+const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
 const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
@@ -20,14 +21,9 @@ router.param('id', idParam);
 // every write reads req.body as an object; a missing or odd body is an empty one
 router.use((req, res, next) => { if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) req.body = {}; next(); });
 
-const wrap = (fn) => (req, res) =>
-  fn(req, res).catch((err) => { console.error('atlas error:', err); res.status(500).json({ message: 'Server error' }); });
+const wrap = wrapWith('atlas');
 
-// ---- ownership resolution (a caller may only touch their own worlds) ----
-async function ownsWorld(worldId, userId) {
-  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2', [worldId, userId]);
-  return r.rows.length > 0;
-}
+// ---- ownership resolution (ownsWorld from lib/route: a caller may only touch their own worlds) ----
 const worldIdOfMap = async (id) => (await pool.query('SELECT world_id FROM maps WHERE id=$1', [id])).rows[0]?.world_id;
 const worldIdOfNode = async (id) => (await pool.query('SELECT world_id FROM nodes WHERE id=$1', [id])).rows[0]?.world_id;
 const worldIdOfEra = async (id) => (await pool.query('SELECT world_id FROM eras WHERE id=$1', [id])).rows[0]?.world_id;
@@ -1011,13 +1007,13 @@ router.delete('/eras/:id', wrap(async (req, res) => {
 // POST /links — connect two nodes in the same world; DELETE /links/:id.
 router.post('/links', wrap(async (req, res) => {
   const { from_node_id, to_node_id } = req.body;
-  if (!isId(from_node_id) || !isId(to_node_id)) return bad(res, 'A link joins two nodes of the same world');
+  if (!isId(from_node_id) || !isId(to_node_id)) return bad(res, 'A link joins two nodes');
   if (String(from_node_id) === String(to_node_id)) return bad(res, 'A link joins two different nodes');
   const label = text(req.body.label, 255);
   if (label === undefined) return bad(res, 'A link label is text of up to 255 characters');
-  const wid = await worldIdOfNode(from_node_id);
-  if (!wid || wid !== (await worldIdOfNode(to_node_id)) || !(await ownsWorld(wid, req.user.id)))
-    return bad(res, 'A link joins two nodes of the same world');
+  const wid = await worldIdOfNode(from_node_id), wid2 = await worldIdOfNode(to_node_id);
+  if (!wid || !wid2 || !(await ownsWorld(wid, req.user.id)) || !(await ownsWorld(wid2, req.user.id))) return notFound(res); // not yours: as if absent
+  if (wid !== wid2) return bad(res, 'A link joins two nodes of the same world');
   // one thread between two things, whichever end it was made from
   if ((await pool.query('SELECT 1 FROM links WHERE (from_node_id=$1 AND to_node_id=$2) OR (from_node_id=$2 AND to_node_id=$1)', [from_node_id, to_node_id])).rows.length)
     return res.status(409).json({ message: 'Those two are already threaded' });

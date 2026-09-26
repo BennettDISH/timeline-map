@@ -11,8 +11,7 @@ const router = express.Router();
 // and while the timeline is enabled neither does anything outside the current moment. The
 // DM-side "Player" toggle is just a preview of what these routes actually enforce.
 
-const wrap = (fn) => (req, res) =>
-  fn(req, res).catch((err) => { console.error('share error:', err); res.status(500).json({ message: 'Server error' }); });
+const wrap = require('../lib/route').wrap('share');
 
 const notFound = (res) => res.status(404).json({ message: 'Not found' });
 

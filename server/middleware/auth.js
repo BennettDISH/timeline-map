@@ -10,7 +10,9 @@ const ADMIN_IDS = new Set((process.env.ADMIN_CENTRAL_USER_IDS ?? '1').split(',')
   .map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0));
 const isAdmin = (u) => !!u && !u.is_guest && u.central_user_id != null && ADMIN_IDS.has(Number(u.central_user_id));
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token. Every way a session can be dead — no token, a bad one, an
+// expired one, a revoked one, a deleted user — is a 401, so the client can end the session on
+// the status alone; 403 means a live session that lacks permission (admin routes).
 const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
@@ -29,7 +31,7 @@ const authenticateToken = async (req, res, next) => {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(403).json({ message: 'User not found' });
+      return res.status(401).json({ message: 'User not found' });
     }
 
     const { token_version: tokenVersion, ...user } = userResult.rows[0];
@@ -39,7 +41,7 @@ const authenticateToken = async (req, res, next) => {
     // already handed out for this user. A token with no `tv` predates this check and is
     // therefore one of the unrevocable ones; refuse it rather than honour it for a week.
     if (!Number.isInteger(decoded.tv) || decoded.tv !== tokenVersion) {
-      return res.status(403).json({ message: 'Token no longer valid. Please sign in again.' });
+      return res.status(401).json({ message: 'Token no longer valid. Please sign in again.' });
     }
 
     req.user = { ...user, isAdmin: isAdmin(user) };
@@ -50,10 +52,10 @@ const authenticateToken = async (req, res, next) => {
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
-      return res.status(403).json({ message: 'Invalid token' });
+      return res.status(401).json({ message: 'Invalid token' });
     }
     if (error.name === 'TokenExpiredError') {
-      return res.status(403).json({ message: 'Token expired' });
+      return res.status(401).json({ message: 'Token expired' });
     }
 
     console.error('Auth middleware error:', error);

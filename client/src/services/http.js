@@ -22,15 +22,14 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-// Credential endpoints legitimately return 401/403 to a user who is TRYING to log in;
-// never bounce those. Everywhere else, only bounce when the message is about the token —
-// a plain "insufficient permissions" 403 (e.g. non-admin hitting /api/admin) is not a
-// reason to end the session.
+// Credential endpoints legitimately return 401 to a user who is TRYING to log in; never
+// bounce those. Everywhere else a 401 means the session is dead (the server answers every
+// missing, bad, expired or revoked token with 401); a 403 is a live session without
+// permission (a non-admin on /api/admin) and is not a reason to end the session.
 // `logout` is in here for the opposite reason to the others: it is the one call that is
 // SUPPOSED to end the session, so a 401/403 from it is expected, not a signal to hard-
 // redirect on top of the sign-out the caller is already performing.
 const CREDENTIAL_URL = /\/auth\/(login|logout|register|guest|sso)/
-const TOKEN_MSG = /token|access token|user not found/i
 
 http.interceptors.response.use(
   (response) => {
@@ -41,9 +40,8 @@ http.interceptors.response.use(
   },
   (error) => {
     const status = error.response?.status
-    const message = error.response?.data?.message || ''
     const url = error.config?.url || ''
-    const tokenDead = status === 401 || (status === 403 && TOKEN_MSG.test(message))
+    const tokenDead = status === 401
     if (tokenDead && !CREDENTIAL_URL.test(url) && !/^\/p(\/|$)/.test(window.location.pathname)) { // never off a player's page
       // let the workspace stash unsaved edits first (synchronous listeners), then say why
       try { window.dispatchEvent(new CustomEvent('atlas:auth-expired')) } catch (e) { /* ignore */ }

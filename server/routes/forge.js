@@ -7,6 +7,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
 const { idParam, whole } = require('../lib/validate');
+const { wrap: wrapWith, ownsWorld } = require('../lib/route');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
@@ -25,15 +26,10 @@ router.use((req, res, next) => (enabled() ? next() : res.status(404).json({ mess
 router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120 }));
 
 // the raw error (provider JSON, SQL, a stack) goes to the log; the DM gets one plain sentence
-const wrap = (fn) => (req, res) =>
-  fn(req, res).catch((err) => { console.error('forge error:', err); res.status(500).json({ message: err.userMessage || 'The Forge hit a problem — try again' }); });
+const wrap = wrapWith('forge', 'The Forge hit a problem — try again');
 router.param('worldId', idParam);
 router.param('id', idParam);
 
-async function ownsWorld(worldId, userId) {
-  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2', [worldId, userId]);
-  return r.rows.length > 0;
-}
 
 // GET /worlds/:worldId — the panel's state: conversation tail + pending batches.
 router.get('/worlds/:worldId', wrap(async (req, res) => {
