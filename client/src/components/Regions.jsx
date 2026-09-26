@@ -8,7 +8,7 @@ import { simplify, polyPoints, centroid } from '../utils/geometry'
 // inside the outline, clipped from the same backdrop and lifted 5% with a shadow — no
 // second image). Two presets seed them: 'area' (fill + stroke) and 'button' (stroke +
 // grow + glow + pop). The name floats at the anchor on hover, always on touch screens
-// (no hover there) and when the DM's "labels always" is on. Click reads it, double-click
+// (no hover there) and when the DM's "labels always" is on (a root class in CSS). Click reads it, double-click
 // steps inside. Regions stack smallest-on-top, so a house inside a district is the one
 // you hit.
 //
@@ -46,7 +46,7 @@ const areaOf = (pts) => {
 // district stays a faint wash
 const tint = (area) => Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(area, 300)))).toFixed(3)
 
-export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw, onEnter, onDragSelected }) {
+export default function Regions({ items, backdropUrl, hoverId, onHover, inert = false, drawing, onDraw, onEnter, onDragSelected }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -103,7 +103,7 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn
 
   // largest first, so the smallest region at any point is on top and takes the tap
   const ordered = useMemo(() => items.map((it) => ({ ...it, area: areaOf(it.pts), st: it.style || OUTLINE_PRESETS.area })).sort((a, b) => b.area - a.area), [items])
-  const isSel = (it) => /\bsel\b/.test(it.cls || '')
+  const isSel = (it) => !!it.selected
   // the one region whose art is lifted: under the pointer, else the selected one (touch)
   const popped = !on && backdropUrl ? (ordered.find((it) => it.id === hoverId && it.st.pop) || ordered.find((it) => isSel(it) && it.st.pop)) : null
   const popC = popped ? centroid(popped.pts) : null
@@ -139,7 +139,7 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn
         {on && preview.length > 1 && <polyline className="odraw" points={polyPoints(preview)} />}
       </svg>
       {ordered.map((it) => (
-        <span key={it.id} className={`rlabel${hoverId === it.id || labelsOn || isSel(it) ? ' on' : ''}${it.secret ? ' secret' : ''}`}
+        <span key={it.id} className={`rlabel${hoverId === it.id || isSel(it) ? ' on' : ''}${it.secret ? ' secret' : ''}`}
           style={{ left: `${it.x}%`, top: `${it.y}%` }}>
           {it.secret && <em className="lock" title="DM only">🔒</em>}
           {it.title}

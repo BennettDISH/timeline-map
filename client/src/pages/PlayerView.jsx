@@ -89,7 +89,7 @@ function PlayerView() {
     const seq = ++loadSeq.current
     // when the URL already names the map, both requests go out at once — a tap into a
     // building never waits a whole round trip for /world first
-    const early = mapId ? shareService.getMap(token, mapId, null, true).catch((e) => ({ failed: e })) : null
+    const early = mapId ? shareService.getMap(token, mapId, null).catch((e) => ({ failed: e })) : null
     return shareService.getWorld(token)
       .then((w) => {
         if (seq !== loadSeq.current) return
@@ -103,7 +103,7 @@ function PlayerView() {
           if (!ok) { setViewT(null); say("Back to now — that stretch of the past isn't open any more", 'info') }
         }
         const target = mapId || w.rootMapId
-        return (early ? early.then((d) => { if (d?.failed) throw d.failed; return d }) : shareService.getMap(token, target, null, true))
+        return (early ? early.then((d) => { if (d?.failed) throw d.failed; return d }) : shareService.getMap(token, target, null))
           .then((d) => {
             if (seq !== loadSeq.current) return
             if (String(d?.map?.id) !== String(target)) return // never another map under this URL
@@ -343,7 +343,7 @@ function PlayerView() {
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
               <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
-                  id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior,
+                  id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior, selected: detail?.node?.id === p.node.id,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
                 }))}
  />
@@ -429,7 +429,7 @@ function PlayerView() {
           </div>
         </div>
         {tl?.enabled && (
-          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live />
+          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />
         )}
         </div>
 

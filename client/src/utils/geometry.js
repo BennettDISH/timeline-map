@@ -32,7 +32,7 @@ export function simplify(pts, eps = 0.25) {
 
 // A closed ring ready to store: simplified, rounded, no repeated closing point, and never
 // more corners than the server keeps (200) — a very long trace is simplified harder.
-export const MAX_CORNERS = 200
+const MAX_CORNERS = 200
 export function cleanRing(pts, eps = 0.25) {
   let out = simplify(pts, eps)
   for (let e = eps * 1.5; out.length > MAX_CORNERS && e < 50; e *= 1.5) out = simplify(pts, e)

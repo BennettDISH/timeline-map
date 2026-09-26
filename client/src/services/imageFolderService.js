@@ -59,26 +59,6 @@ const imageFolderService = {
     return rootFolders
   },
 
-  // Get folder path for breadcrumbs
-  getFolderPath(folders, folderId) {
-    const folderMap = new Map()
-    folders.forEach(folder => folderMap.set(folder.id, folder))
-
-    const path = []
-    let currentId = folderId
-
-    while (currentId) {
-      const folder = folderMap.get(currentId)
-      if (folder) {
-        path.unshift(folder)
-        currentId = folder.parentId
-      } else {
-        break
-      }
-    }
-
-    return path
-  }
 }
 
 export default imageFolderService

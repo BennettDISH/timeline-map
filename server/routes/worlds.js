@@ -40,7 +40,6 @@ router.get('/', async (req, res) => {
       description: row.description,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      settings: row.settings,
       mapCount: parseInt(row.map_count),
       imageCount: parseInt(row.image_count),
       nodeCount: parseInt(row.node_count),
@@ -62,56 +61,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/worlds/:id - Get specific world
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT w.*, 
-             COUNT(DISTINCT m.id) as map_count,
-             COUNT(DISTINCT i.id) as image_count
-      FROM worlds w
-      LEFT JOIN maps m ON w.id = m.world_id AND m.is_active = true
-      LEFT JOIN images i ON w.id = i.world_id
-      WHERE w.id = $1 AND w.created_by = $2 AND w.is_active = true
-      GROUP BY w.id
-    `, [id, req.user.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found' });
-    }
-
-    const row = result.rows[0];
-    const world = {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      settings: row.settings,
-      mapCount: parseInt(row.map_count),
-      imageCount: parseInt(row.image_count),
-      timelineEnabled: row.timeline_enabled,
-      timelineSettings: {
-        minTime: row.timeline_min_time,
-        maxTime: row.timeline_max_time,
-        currentTime: row.timeline_current_time,
-        timeUnit: row.timeline_time_unit
-      }
-    };
-
-    res.json({ world });
-  } catch (error) {
-    console.error('Get world error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 // POST /api/worlds - Create new world
 router.post('/', async (req, res) => {
   try {
-    const { settings = {} } = req.body || {};
     // the one world-name rule (shared with rename and clone in atlas.js): text, 1 to 255 characters
     const name = worldName(req.body?.name);
     if (name === undefined) return res.status(400).json({ message: 'A world needs a name of 1 to 255 characters' });
@@ -129,10 +81,10 @@ router.post('/', async (req, res) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO worlds (name, description, created_by, settings)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO worlds (name, description, created_by)
+      VALUES ($1, $2, $3)
       RETURNING *
-    `, [name, description || null, req.user.id, JSON.stringify(settings)]);
+    `, [name, description || null, req.user.id]);
 
     const world = result.rows[0];
     
@@ -144,7 +96,6 @@ router.post('/', async (req, res) => {
         description: world.description,
         createdAt: world.created_at,
         updatedAt: world.updated_at,
-        settings: world.settings,
         mapCount: 0,
         imageCount: 0
       }

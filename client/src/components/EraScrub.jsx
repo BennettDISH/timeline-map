@@ -1,11 +1,12 @@
 import { momentLabel, sessionNum } from '../utils/moment'
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
 // The player's window into the past: a scrubber whose reachable range is the union of the
 // DM's player-visible eras, hard-stopped at the canon moment. Dragging snaps to the nearest
-// revealed stretch; the commit only fires when the drag ends (value=null means "now").
-// The server re-validates every requested moment — this bar is UX, not the security boundary.
-export default function EraScrub({ tl, eras, value, onChange, live = false, win = null }) {
+// revealed stretch and commits on every step; the parent filters locally (value=null means
+// "now"). The server re-validates every requested moment — this bar is UX, not the
+// security boundary.
+export default function EraScrub({ tl, eras, value, onChange, win = null }) {
   const canon = tl?.current ?? 0
   // a map's focus period narrows the TRACK to its stretch of history (same one clock)
   // a window that leaves no stretch of history to scrub (an instant, or one entirely outside
@@ -27,11 +28,6 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   const [typed, setTyped] = useState(null) // string while typing an exact moment
   const unitOne = tl?.unit ? tl.unit.replace(/s$/i, '') : 'moment'
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
-  // dragging should FEEL live even when each commit costs a server fetch: non-live mode
-  // debounce-commits mid-drag (~200ms of stillness) and commits hard on release.
-  // (Declared here, ABOVE the early return: every hook must run on every render.)
-  const debRef = useRef(0)
-  useEffect(() => () => clearTimeout(debRef.current), [])
 
   if (!tl?.enabled) return null
   if (segs.length === 0 || hi <= lo) {
@@ -69,9 +65,7 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
       else if (r < dv) { const prv = [...segs].reverse().find((g) => g.en < dv); if (prv) t = prv.en }
     }
     setDv(t)
-    if (live) { commit(t); return }
-    clearTimeout(debRef.current)
-    debRef.current = setTimeout(() => commit(t), 200)
+    commit(t)
   }
   const pct = (t) => `${((t - lo) / span) * 100}%`
   const cur = segs.find((g) => dv >= g.s && dv <= g.en)
@@ -91,8 +85,6 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
         <input
           type="range" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}
-          onPointerUp={() => { if (!live) { clearTimeout(debRef.current); commit(dv) } }}
-          onKeyUp={(e) => { if (!live && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) { clearTimeout(debRef.current); commit(dv) } }}
         />
       </div>
       <div className="ezone">

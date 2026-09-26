@@ -143,7 +143,7 @@ function ImageManager() {
       const f = files[i]
       setUploads((u) => u && ({ ...u, name: f.name, pct: 0 }))
       try {
-        await imageServiceBase64.uploadImage(f, world.id, '', '', (p) => setUploads((u) => u && ({ ...u, pct: p })), targetFolder)
+        await imageServiceBase64.uploadImage(f, world.id, { onProgress: (p) => setUploads((u) => u && ({ ...u, pct: p })), folderId: targetFolder })
       } catch (e) {
         failed.push(`${f.name}: ${errText(e, 'upload failed')}`)
       }

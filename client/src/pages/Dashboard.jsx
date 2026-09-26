@@ -121,7 +121,7 @@ function Dashboard() {
   )
   const rest = useMemo(() => (worlds || []).filter((w) => w.id !== featured?.id), [worlds, featured])
 
-  const open = (w) => { worldService.setCurrentWorld(w); navigate(`/w/${w.id}`) }
+  const open = (w) => navigate(`/w/${w.id}`)
 
   const createWorld = async (name, description, sampleId) => {
     setBusy(true)
@@ -147,7 +147,6 @@ function Dashboard() {
     try {
       await atlasService.patchWorld(world.id, { name, description })
       setWorlds((ws) => ws.map((w) => (w.id === world.id ? { ...w, name, description } : w)))
-      if (stored?.id === world.id) worldService.setCurrentWorld({ ...stored, name, description })
       setModal(null)
     } catch (e) {
       setFlash({ kind: 'err', text: errText(e, "Couldn't save the changes") })
@@ -158,7 +157,6 @@ function Dashboard() {
     setBusy(true)
     try {
       await worldService.deleteWorld(world.id)
-      if (stored?.id === world.id) worldService.setCurrentWorld(null)
       worldService.clearLastLocation(world.id)
       setWorlds((ws) => ws.filter((w) => w.id !== world.id))
       setModal(null)

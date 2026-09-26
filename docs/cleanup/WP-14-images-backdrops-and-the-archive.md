@@ -10,28 +10,28 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B019** · medium · xs · 'Backdrops over time' opens the image picker underneath itself, so 'Add art for a period' and 'Change…' look like they do nothing
-- [ ] **B034** · medium · xs · ✦ Paint in the 'Add art for a period' picker overwrites the map's base backdrop instead of adding a period
-- [ ] **B042** · medium · s · Global error handler turns body-parser 400/413 into 500s, so 7.5–10 MB image uploads fail with 'Something went wrong!'
-- [ ] **B047** · medium · s · Workspace image picker only lists the 50 newest images: older art, even a map's current backdrop, cannot be picked
-- [ ] **C003** · medium · s · The backdrop controls change the base art while a timed backdrop is what's on screen, so they seem to do nothing
-- [ ] **C008** · medium · s · 'In use' is described wrongly: timed backdrops show as 'In use —' / '0 maps, 0 nodes', and deleting one silently removes the backdrop period
-- [ ] **P010** · medium · s · Upload feedback hides what went wrong: failure reasons dropped, only the last rejection shown, progress bar is fake
-- [ ] **P011** · medium · s · Load failures show false empty states: 'The archive awaits a world', 'The archive is empty', 'All art 0'
-- [ ] **B064** · low · xs · Esc on the 'Delete this image?' dialog closes the lightbox behind it and leaves the dialog open
-- [ ] **B065** · low · xs · Switching worlds with a folder selected fires a query using the old world's folder id, with no stale-response guard
-- [ ] **B072** · low · xs · Image pins drawn from SVG art ignore 'Size on the map' and are capped at the width of their name label
-- [ ] **B080** · low · s · Upload accepts non-images and over-long names: a text file saved as .png becomes a broken tile; a 300-char name 500s and orphans the R2 object
-- [ ] **C028** · low · xs · A bad or foreign world id in /worlds/:id/images silently shows another world's Archive; the ?world= / last-used fallbacks are dead
-- [ ] **C031** · low · xs · Duplicate folder names are allowed at the top level but refused inside a folder; the API also accepts a blank name
-- [ ] **C053** · low · xs · The picker accepts SVGs and then rejects them with 'Invalid image data format', while the sample world's own maps are SVGs
-- [ ] **P043** · low · s · Bulk upload, move and delete send one request per image into the shared 300-per-15-min limiter; a failed folder assignment on upload is swallowed
-- [ ] **P044** · low · xs · Deleting a folder that has subfolders: the dialog warns but its Delete button stays live and fails with a 400
-- [ ] **P045** · low · s · Folder rail and upload button are unreachable by keyboard; folder ⋯ menu items also switch folders
-- [ ] **P052** · low · xs · Workspace picker uploads skip client validation and show jargon errors; its file input is never reset
-- [ ] **P054** · low · s · The image picker doesn't say what it's for, which image is current, or what the thumbnails are called
-- [ ] **P062** · low · xs · Image and folder routes 500 on non-numeric params, and search treats _ and % as wildcards
-- [ ] **P093** · low · s · Images can't be renamed or captioned: pasted files are all 'image.png' forever; alt text is hidden but searched and can't be cleared
+- [x] **B019** · medium · xs · 'Backdrops over time' opens the image picker underneath itself, so 'Add art for a period' and 'Change…' look like they do nothing — done 486d740 (the picker sits above the dialog that opened it)
+- [x] **B034** · medium · xs · ✦ Paint in the 'Add art for a period' picker overwrites the map's base backdrop instead of adding a period — done 486d740 (Paint from the period picker adds a timed backdrop from the lens moment; the forge route takes start_time)
+- [x] **B042** · medium · s · Global error handler turns body-parser 400/413 into 500s, so 7.5–10 MB image uploads fail with 'Something went wrong!' — done 486d740 (a 14 MB JSON limit on the upload route ahead of the global parser; a too-big body is a plain 413 sentence)
+- [x] **B047** · medium · s · Workspace image picker only lists the 50 newest images: older art, even a map's current backdrop, cannot be picked — done 486d740 (the picker pages the whole archive with Show more and searches it)
+- [x] **C003** · medium · s · The backdrop controls change the base art while a timed backdrop is what's on screen, so they seem to do nothing — done 486d740 (the backdrop controls say which art is on screen — a period's or the base — and change that one)
+- [x] **C008** · medium · s · 'In use' is described wrongly: timed backdrops show as 'In use —' / '0 maps, 0 nodes', and deleting one silently removes the backdrop period — done 486d740 (describeUse in utils/images.js names all four uses everywhere; the confirm says what a timed period loses — no undo for that delete)
+- [x] **P010** · medium · s · Upload feedback hides what went wrong: failure reasons dropped, only the last rejection shown, progress bar is fake — done 486d740 (each skipped or failed file is named with its reason; progress follows the real transfer)
+- [x] **P011** · medium · s · Load failures show false empty states: 'The archive awaits a world', 'The archive is empty', 'All art 0' — done 486d740 (worlds, folders and images each say when they failed to load, with Retry; the flash renders in every early return)
+- [x] **B064** · low · xs · Esc on the 'Delete this image?' dialog closes the lightbox behind it and leaves the dialog open — done 486d740 (the lightbox ignores keys while a confirm sits on top)
+- [x] **B065** · low · xs · Switching worlds with a folder selected fires a query using the old world's folder id, with no stale-response guard — done 486d740 (a request counter drops late replies; a folder belongs to its world and never queries another)
+- [x] **B072** · low · xs · Image pins drawn from SVG art ignore 'Size on the map' and are capped at the width of their name label — done 486d740 (image pins get an explicit width and height with object-fit contain)
+- [x] **B080** · low · s · Upload accepts non-images and over-long names: a text file saved as .png becomes a broken tile; a 300-char name 500s and orphans the R2 object — done 486d740 (bytes decide the type; names clamp to 255; a failed insert deletes its R2 object)
+- [x] **C028** · low · xs · A bad or foreign world id in /worlds/:id/images silently shows another world's Archive; the ?world= / last-used fallbacks are dead — done 486d740 (a world that is not the account's shows "isn't in your atlas"; the dead fallbacks are gone)
+- [x] **C031** · low · xs · Duplicate folder names are allowed at the top level but refused inside a folder; the API also accepts a blank name — done 486d740 (one name per level including the top, case-insensitively, never blank; the old UNIQUE constraint stays harmless)
+- [x] **C053** · low · xs · The picker accepts SVGs and then rejects them with 'Invalid image data format', while the sample world's own maps are SVGs — done 486d740 (accept lists the four formats; the refusal names them)
+- [x] **P043** · low · s · Bulk upload, move and delete send one request per image into the shared 300-per-15-min limiter; a failed folder assignment on upload is swallowed — done 486d740 (a folder rides along on upload; bulk move and delete are one request — no separate limiter bucket)
+- [x] **P044** · low · xs · Deleting a folder that has subfolders: the dialog warns but its Delete button stays live and fails with a 400 — done 486d740 (a folder deletes with its subfolders; every image inside returns to Unsorted)
+- [x] **P045** · low · s · Folder rail and upload button are unreachable by keyboard; folder ⋯ menu items also switch folders — done 486d740 (folder rows and the caret are keyboard-reachable buttons, Add art is a button, ⋯ is labelled, menu actions no longer select the folder)
+- [x] **P052** · low · xs · Workspace picker uploads skip client validation and show jargon errors; its file input is never reset — done 486d740 (the picker validates like the Archive, accepts only the four formats, and resets its input)
+- [x] **P054** · low · s · The image picker doesn't say what it's for, which image is current, or what the thumbnails are called — done 486d740 (the picker says what it is for, marks the current image and names its tiles)
+- [x] **P062** · low · xs · Image and folder routes 500 on non-numeric params, and search treats _ and % as wildcards — done 486d740 (list parameters and ids are checked; search is literal)
+- [x] **P093** · low · s · Images can't be renamed or captioned: pasted files are all 'image.png' forever; alt text is hidden but searched and can't be cleared — done 486d740 (rename and caption from the lightbox; an empty caption clears — no sort control)
 
 ## Items
 

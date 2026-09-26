@@ -219,7 +219,7 @@ router.get('/:token/world', wrap(async (req, res) => {
   } });
 }));
 
-// GET /:token/maps/:mapId — the filtered canvas: visible present placements, links among them.
+// GET /:token/maps/:mapId — the filtered canvas: visible present placements (threads come with a node's sheet).
 router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
@@ -228,6 +228,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const t = await allowedTime(w, req.query.t);
   const breadcrumb = await walkUp(mapId, w, t);
   if (!breadcrumb) return notFound(res);
+  // The Player View always asks windowed (window=1). The one-moment form (?t= without a
+  // window) is kept for the API suite, which proves the clamps moment by moment.
   // ?window=1: instead of one resolved moment, return everything visible at ANY allowed
   // moment (the union of player_visible eras clipped to canon, plus canon itself), with
   // lifespans CLAMPED to that envelope — the client then scrubs with zero round trips.
@@ -328,16 +330,6 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       }));
   }
 
-  const nodeIds = placements.map((p) => p.node.id);
-  let links = [];
-  if (nodeIds.length) {
-    links = (await pool.query(
-      `SELECT id, from_node_id, to_node_id, kind, label
-       FROM links WHERE from_node_id = ANY($1::int[]) AND to_node_id = ANY($1::int[]) AND NOT (id = ANY($2::int[]))`,
-      [nodeIds, [...pend.links]])).rows
-      .map((l) => ({ id: l.id, from: l.from_node_id, to: l.to_node_id, kind: l.kind, label: l.label }));
-  }
-
   // The party's footsteps across the whole world, so a player's view can say where they
   // are at any allowed moment and where they went after leaving this map. Same interval
   // envelope as everything else; only maps the player may reach are included.
@@ -376,7 +368,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
            ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops, partyTrail } : {}),
-    placements, links, breadcrumb,
+    placements, breadcrumb,
     spotlight: await spotlightTrail(w),
   });
 }));
@@ -386,9 +378,9 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 // FORCED to 'player', inputs are capped, hidden branches reject writes (walkUp at
 // canon), and both an IP rate limit and a per-world marker cap bound the blast radius.
 const markLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40 });
-const markBody = express.json({ limit: '16kb' }); // a marker is tiny; don't parse 10mb of junk
+// the 16 KB body limit for this router is mounted in server.js, ahead of the global parser
 const MARK_CATS = CATEGORIES;
-router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req, res) => {
+router.post('/:token/maps/:mapId/nodes', markLimiter, wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
   const mapId = intId(req.params.mapId);

@@ -251,4 +251,4 @@ async function converse({ worldId, userId, message, context }) {
   return { say, batch: applied, applyError, digestNote };
 }
 
-module.exports = { converse, ensureMind, digest };
+module.exports = { converse, ensureMind };

@@ -401,13 +401,13 @@ router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
 router.get('/worlds/:worldId/trail', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
-    SELECT p.id, p.node_id, p.map_id, m.title AS map_title, m.owner_node_id, p.x, p.y, p.start_time, p.end_time
+    SELECT p.id, p.node_id, p.map_id, m.title AS map_title, m.owner_node_id, p.start_time, p.end_time
     FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id
     WHERE n.world_id = $1 AND n.category = 'party' AND m.is_active = true
     ORDER BY p.start_time NULLS FIRST, (m.owner_node_id IS NULL) DESC, p.id`, [req.params.worldId])).rows;
   res.json({ steps: rows.map((r) => ({
     id: r.id, nodeId: r.node_id, mapId: r.map_id, mapTitle: r.map_title, interior: !!r.owner_node_id,
-    x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time })) });
+    start: r.start_time, end: r.end_time })) });
 }));
 
 // GET /worlds/:worldId/nodes — the world's node index (for browse + drag-to-place).
@@ -430,27 +430,18 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape, p.shape_kind, p.shape_style,
            n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size, n.image_id,
            n.voice_id, n.voice_name, n.voice_line, n.voice_url, n.voice_style,
-           ni.file_path AS node_image_path, im.view AS interior_view
+           ni.file_path AS node_image_path
     FROM placements p
     JOIN nodes n ON p.node_id = n.id
     LEFT JOIN images ni ON n.image_id = ni.id
-    LEFT JOIN maps im ON n.interior_map_id = im.id
     WHERE p.map_id=$1 ORDER BY p.id`, [req.params.mapId])).rows;
   const placements = pl.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
             voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
-            pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
+            pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
             imageId: r.image_id, imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
-  const nodeIds = placements.map((p) => p.node.id);
-  let links = [];
-  if (nodeIds.length) {
-    links = (await pool.query(
-      `SELECT id, from_node_id, to_node_id, kind, label, time_context
-       FROM links WHERE from_node_id = ANY($1::int[]) AND to_node_id = ANY($1::int[])`, [nodeIds])).rows
-      .map((l) => ({ id: l.id, from: l.from_node_id, to: l.to_node_id, kind: l.kind, label: l.label, timeContext: l.time_context }));
-  }
   const bds = (await pool.query(
     `SELECT b.id, b.image_id, b.start_time, b.end_time, i.file_path
      FROM map_backdrops b JOIN images i ON i.id = b.image_id
@@ -461,7 +452,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
            ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     backdrops: bds.map((b) => ({ id: b.id, imageId: b.image_id, start: b.start_time, end: b.end_time, url: resolveImageUrl(req, b.file_path) })),
-    placements, links, breadcrumb: await breadcrumb(req.params.mapId),
+    placements, breadcrumb: await breadcrumb(req.params.mapId),
   });
 }));
 
@@ -584,9 +575,9 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const n = (await pool.query('SELECT n.*, i.file_path AS img FROM nodes n LEFT JOIN images i ON n.image_id=i.id WHERE n.id=$1', [req.params.id])).rows[0];
-  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
-  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
-  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, timeContext: l.time_context, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
+  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
+  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
+  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
   const facts = (await pool.query(
     'SELECT id, body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time NULLS FIRST, id',
     [req.params.id])).rows.map((f) => ({ id: f.id, body: f.body, start: f.start_time, end: f.end_time }));
@@ -1022,9 +1013,9 @@ router.post('/links', wrap(async (req, res) => {
   if (!isId(from_node_id) || !isId(to_node_id)) return bad(res, 'A link joins two nodes of the same world');
   if (String(from_node_id) === String(to_node_id)) return bad(res, 'A link joins two different nodes');
   const kind = req.body.kind == null ? 'reference' : text(req.body.kind, 20, { required: true });
-  const label = text(req.body.label, 255), time_context = text(req.body.time_context, 255);
+  const label = text(req.body.label, 255);
   if (kind === undefined) return bad(res, 'A link kind is a word of 1 to 20 characters');
-  if (label === undefined || time_context === undefined) return bad(res, 'A link label is text of up to 255 characters');
+  if (label === undefined) return bad(res, 'A link label is text of up to 255 characters');
   const wid = await worldIdOfNode(from_node_id);
   if (!wid || wid !== (await worldIdOfNode(to_node_id)) || !(await ownsWorld(wid, req.user.id)))
     return bad(res, 'A link joins two nodes of the same world');
@@ -1032,8 +1023,8 @@ router.post('/links', wrap(async (req, res) => {
   if ((await pool.query('SELECT 1 FROM links WHERE (from_node_id=$1 AND to_node_id=$2) OR (from_node_id=$2 AND to_node_id=$1)', [from_node_id, to_node_id])).rows.length)
     return res.status(409).json({ message: 'Those two are already threaded' });
   const l = (await pool.query(
-    'INSERT INTO links (world_id, from_node_id, to_node_id, kind, label, time_context) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-    [wid, Number(from_node_id), Number(to_node_id), kind, label || null, time_context || null])).rows[0];
+    'INSERT INTO links (world_id, from_node_id, to_node_id, kind, label) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [wid, Number(from_node_id), Number(to_node_id), kind, label || null])).rows[0];
   res.status(201).json({ id: l.id });
 }));
 router.patch('/links/:id', wrap(async (req, res) => {

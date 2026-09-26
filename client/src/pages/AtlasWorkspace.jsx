@@ -78,7 +78,7 @@ function AtlasWorkspace() {
   const [selId, setSelId] = useState(null) // selected placement id
   const [placing, setPlacing] = useState(null) // null | {kind:'new'} | {kind:'existing', node}
   const [drawing, setDrawing] = useState(null) // an outline in progress: { placementId|null, pts:[[x,y]], kind }
-  const [hovId, setHovId] = useState(null) // the placement whose region is hovered — its pin shows its name
+  const [hovId, setHovId] = useState(null) // the placement whose region is hovered — its name label lights
   const [loading, setLoading] = useState(true)
   const [save, setSave] = useState('idle') // idle | saving | saved | err
   const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
@@ -1363,9 +1363,6 @@ function AtlasWorkspace() {
                 onChange={(e) => {
                   const id = e.target.value
                   if (id === String(worldId)) return
-                  const w = (worldList || []).find((x) => String(x.id) === id)
-                  if (w) worldService.setCurrentWorld(w)
-                  else worldService.setCurrentWorldId(id)
                   navigate(`/w/${id}`)
                 }}
               >
@@ -1521,14 +1518,14 @@ function AtlasWorkspace() {
             >
               <Regions backdropUrl={activeBackdropUrl} onEnter={(it) => openInterior(it.node)}
                 items={(data?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
-                  id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node,
+                  id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, selected: selId === p.id,
                   secret: p.visibility === 'dm' || p.node.visibility === 'dm', hasInterior: p.node.hasInterior,
                   cls: `${selId === p.id ? 'sel' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`,
                 }))}
-                hoverId={hovId} onHover={setHovId} labelsOn={labelsOn}
+                hoverId={hovId} onHover={setHovId}
                 inert={!!placing}
                 drawing={drawing}
-                onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline, cancel: () => setDrawing(null) }}
+                onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline }}
                 onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = data?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined} />
               {printsOn && tl?.enabled && (mode === 'player' || !hiddenCats.has('party')) && (
                 <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras} unit={tl?.unit}
@@ -1539,7 +1536,7 @@ function AtlasWorkspace() {
                 const off = stackOffsets(pins)
                 return pins.map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''} ${hovId === p.id ? 'hov' : ''}`}
+                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(off.get(p.id) ? { '--ox': `${off.get(p.id)[0]}px`, '--oy': `${off.get(p.id)[1]}px` } : {}), ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onContextMenu={mode === 'edit' ? (e) => onPinContext(e, p) : undefined}
@@ -2860,7 +2857,7 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
 }
 
 // Pick a node from this world (searchable). onPick gets the id; onPickNode the whole node.
-function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title = 'Thread to…', unplacedFirst, onPick, onPickNode, onClose }) {
+function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unplacedFirst, onPick, onPickNode, onClose }) {
   const [nodes, setNodes] = useState(null) // null = loading
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')
@@ -3149,7 +3146,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
             </div>
           )}
           <div className="fsect">Creation size</div>
-          <div className="fhint">How much a “fill this out” makes at once.</div>
+          <div className="fhint">How many new things a build request (“fill out this map”) aims for at once.</div>
           <select value={mind.genSize} onChange={(e) => setMind((m) => ({ ...m, genSize: e.target.value }))}>
             <option value="small">Small — a handful (3–6 nodes)</option>
             <option value="medium">Medium — a lived-in space (8–14)</option>

@@ -1,9 +1,6 @@
-// A moment on the world clock, read the way a table reads it: "Session 3 · footstep 7"
-// when the moment falls inside a named era (the era's short name, before any dash, and
-// the position within it), the raw number otherwise.
 // One hue per session for the most recent eight; older sessions go quiet grey, so the
 // colours keep telling recent sessions apart at campaign length instead of repeating.
-export const SESSION_COLORS = ['#38b6a3', '#d9a441', '#b07bd0', '#5b9bd5', '#d05b5b', '#4f9f6f', '#e0968f', '#c9c3ae']
+const SESSION_COLORS = ['#38b6a3', '#d9a441', '#b07bd0', '#5b9bd5', '#d05b5b', '#4f9f6f', '#e0968f', '#c9c3ae']
 export const OLD_SESSION_COLOR = '#8b909a'
 export const sessionColor = (idx, latest = null) => {
   if (latest != null && latest - idx >= SESSION_COLORS.length) return OLD_SESSION_COLOR
@@ -42,7 +39,7 @@ export const sessionLabel = (so, unit) => {
 }
 
 // The party's live footstep at a moment, across the whole world (deepest map wins).
-export function partyWhere(trail, t) {
+function partyWhere(trail, t) {
   const at = (v) => (v == null ? -Infinity : v)
   const alive = (trail || []).filter((s) => at(s.start) <= t && (s.end == null || t <= s.end))
   if (!alive.length) return null
@@ -50,20 +47,6 @@ export function partyWhere(trail, t) {
   return alive[0]
 }
 
-// After the party left THIS map (its last footstep here ended before t), the first footstep
-// elsewhere — the deepest map among ties — so a trail can say where they went.
-export function partyNextFrom(trail, mapId, t) {
-  const at = (v) => (v == null ? -Infinity : v)
-  const here = (trail || []).filter((s) => String(s.mapId) === String(mapId) && at(s.start) <= t)
-  if (!here.length) return null
-  here.sort((a, b) => at(b.start) - at(a.start))
-  const last = here[0]
-  if (last.end == null || t <= last.end) return null
-  const after = (trail || []).filter((s) => String(s.mapId) !== String(mapId) && s.start != null && s.start > last.end)
-  if (!after.length) return null
-  after.sort((a, b) => a.start - b.start || (b.interior ? 1 : 0) - (a.interior ? 1 : 0))
-  return after[0]
-}
 
 // The footstep before and after the party's current one (deepest map among ties), so the
 // Party's own text can say where they came from and where they went next.
@@ -81,6 +64,9 @@ export function partyNeighbors(trail, t) {
   return { prev, next }
 }
 
+// A moment on the world clock, read the way a table reads it: "Session 3 · footstep 7"
+// when the moment falls inside a named era (the era's short name, before any dash, and
+// the position within it), the raw number otherwise.
 export function momentLabel(t, eras, unit) {
   const e = eraAt(t, eras)
   if (!e) return `${t}${unit ? ` ${unit}` : ''}`

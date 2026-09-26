@@ -29,15 +29,9 @@ router.get('/', async (req, res) => {
 
     // Get all folders for this world
     const result = await pool.query(`
-      SELECT f.*,
-             parent.name as parent_name,
-             COUNT(DISTINCT child.id) as child_count,
-             (SELECT COUNT(*) FROM images i WHERE i.folder_id = f.id) as image_count
+      SELECT f.*, (SELECT COUNT(*) FROM images i WHERE i.folder_id = f.id) as image_count
       FROM image_folders f
-      LEFT JOIN image_folders parent ON f.parent_id = parent.id
-      LEFT JOIN image_folders child ON f.id = child.parent_id
       WHERE f.world_id = $1
-      GROUP BY f.id, parent.name
       ORDER BY f.parent_id NULLS FIRST, f.name
     `, [world_id]);
 
@@ -45,13 +39,9 @@ router.get('/', async (req, res) => {
       id: row.id,
       name: row.name,
       parentId: row.parent_id,
-      parentName: row.parent_name,
       worldId: row.world_id,
       createdBy: row.created_by,
       createdAt: row.created_at,
-      color: row.color,
-      icon: row.icon,
-      childCount: parseInt(row.child_count),
       imageCount: parseInt(row.image_count)
     }));
 
@@ -79,7 +69,7 @@ async function nameTaken(worldId, parentId, name, exceptId = null) {
 // POST /api/image-folders - Create a new folder
 router.post('/', async (req, res) => {
   try {
-    const { parent_id, world_id, color = '#4CAF50', icon = '📁' } = req.body;
+    const { parent_id, world_id } = req.body;
     const name = text(req.body.name, 255, { required: true });
     if (name === undefined) return res.status(400).json({ message: 'A folder needs a name of 1 to 255 characters' });
     if (!isId(world_id)) {
@@ -113,10 +103,10 @@ router.post('/', async (req, res) => {
     if (await nameTaken(world_id, parent_id || null, name)) return res.status(409).json({ message: 'A folder with this name already exists here' });
     // Create the folder
     const result = await pool.query(`
-      INSERT INTO image_folders (name, parent_id, world_id, created_by, color, icon)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO image_folders (name, parent_id, world_id, created_by)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [name, parent_id || null, world_id, req.user.id, color, icon]);
+    `, [name, parent_id || null, world_id, req.user.id]);
 
     const folder = result.rows[0];
 
@@ -129,9 +119,7 @@ router.post('/', async (req, res) => {
         worldId: folder.world_id,
         createdBy: folder.created_by,
         createdAt: folder.created_at,
-        color: folder.color,
-        icon: folder.icon,
-        childCount: 0
+        imageCount: 0
       }
     });
     
@@ -148,7 +136,6 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { color, icon } = req.body;
     const name = req.body.name == null ? null : text(req.body.name, 255, { required: true });
     if (name === undefined) return res.status(400).json({ message: 'A folder needs a name of 1 to 255 characters' });
 
@@ -169,12 +156,10 @@ router.put('/:id', async (req, res) => {
     // Update folder
     const result = await pool.query(`
       UPDATE image_folders 
-      SET name = COALESCE($1, name), 
-          color = COALESCE($2, color), 
-          icon = COALESCE($3, icon)
-      WHERE id = $4
+      SET name = COALESCE($1, name)
+      WHERE id = $2
       RETURNING *
-    `, [name, color, icon, id]);
+    `, [name, id]);
 
     const folder = result.rows[0];
 
@@ -186,9 +171,7 @@ router.put('/:id', async (req, res) => {
         parentId: folder.parent_id,
         worldId: folder.world_id,
         createdBy: folder.created_by,
-        createdAt: folder.created_at,
-        color: folder.color,
-        icon: folder.icon
+        createdAt: folder.created_at
       }
     });
     

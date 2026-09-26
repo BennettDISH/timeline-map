@@ -10,30 +10,30 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B025** · medium · xs · Drawing HUD clips its own 'Area' button at every desktop width (fully hidden at 1280px and below)
-- [ ] **B026** · medium · s · You cannot move an outlined place or its name anchor; outlining an existing pin leaves its name at the old pin spot
-- [ ] **B033** · medium · xs · Outline drawing survives a posture switch and map navigation: View/Player can still trace and save, and Done lands the shape on the wrong map
-- [ ] **B046** · medium · xs · A category hidden on one map stays hidden on every map, and list spaces or one-category maps go blank with no way to show it again
-- [ ] **C011** · medium · s · One toggle click saves all five style keys, so the Button/Area kind (and the HUD's kind on redraw) stops doing anything
-- [ ] **C024** · medium · s · Panning the map deselects the node being edited (the inspector falls back to 'This space')
-- [ ] **P029** · medium · s · Selecting a node from search (or a thread link) on the same map leaves its pin off-screen; the UX doc marks 'selection frames on map' as done
-- [ ] **B066** · low · xs · A list-view interior still offers '◌ Outline on the map', which opens a drawing HUD with nothing to draw on
-- [ ] **B068** · low · xs · DM-only outlined places show their name all the time; other outlines show it only on hover
-- [ ] **B074** · low · s · An interior whose owner node stands only inside itself disappears from the Maps tree, and its crumb reads 'X ▸ X'
-- [ ] **B075** · low · xs · The Maps tree thumbnail stays stale after the backdrop is changed or removed
-- [ ] **B083** · low · s · The 'Glow' style toggle has no visible effect, and the 'Pop' shadow is clipped away
-- [ ] **B085** · low · xs · After 'Switch world', the Maps tree keeps the previous world's folds and overwrites the new world's saved folds
-- [ ] **B086** · low · xs · Double-clicking the zoom ＋/−/⊡ buttons also fires the map's double-click zoom
-- [ ] **B089** · low · s · Right mouse button drags pins, and right-clicking a pin offers only map actions
-- [ ] **C029** · low · xs · The Map ▾ menu is inconsistent: 'Show as' keeps it open, Footprints shows in worlds with no party, and global settings sit in a 'This space' menu
-- [ ] **C032** · low · xs · Outlining an existing pin always starts as 'Area'; a new outline starts as the remembered kind or 'Button'
-- [ ] **C045** · low · xs · The '?' help only describes pins; outlined places and the Outline tool are missing
-- [ ] **C060** · low · xs · Map tree: folding an ancestor of the current map silently does nothing, then takes effect later
-- [ ] **C066** · low · s · Clicking a thread or search result enters the target's interior if it has one, instead of showing the target
-- [ ] **C079** · low · xs · In a list view, ＋ Add node and the N key create a node instantly with no feedback, while the hints say 'then click the map'
-- [ ] **P047** · low · xs · Right-click in the middle of a trace opens the menu, and picking 'Outline a place from here' silently discards the trace
-- [ ] **P069** · low · s · Co-located pins stack exactly: the lower one can't be seen, hovered or clicked (only footprints fan out)
-- [ ] **P089** · low · xs · No cursor change in placing mode: the only cue is a small italic hint in the corner
+- [x] **B025** · medium · xs · Drawing HUD clips its own 'Area' button at every desktop width (fully hidden at 1280px and below) — done b6a726c (the HUD text shrinks with its own class; the kind buttons and Done never do)
+- [x] **B026** · medium · s · You cannot move an outlined place or its name anchor; outlining an existing pin leaves its name at the old pin spot — done b6a726c (a redraw moves the name anchor onto the shape; a SELECTED outline drags in Edit with its shape riding along)
+- [x] **B033** · medium · xs · Outline drawing survives a posture switch and map navigation: View/Player can still trace and save, and Done lands the shape on the wrong map — done b6a726c (an outline, the dialogs and the legend filter end with the posture and with the map)
+- [x] **B046** · medium · xs · A category hidden on one map stays hidden on every map, and list spaces or one-category maps go blank with no way to show it again — done b6a726c (the category filter applies only where the legend shows and resets per map)
+- [x] **C011** · medium · s · One toggle click saves all five style keys, so the Button/Area kind (and the HUD's kind on redraw) stops doing anything — done b6a726c (toggles store only what differs from the preset; a kind change on redraw resets them; removing an outline clears kind and style)
+- [x] **C024** · medium · s · Panning the map deselects the node being edited (the inspector falls back to 'This space') — done 486d740 (a pan keeps the selection; only a clean tap on empty space, the letterbox included, deselects)
+- [x] **P029** · medium · s · Selecting a node from search (or a thread link) on the same map leaves its pin off-screen; the UX doc marks 'selection frames on map' as done — done 486d740 (a search hit, a thread or a footstep tick frames the pin: focusAt on MapPlane, framed directly on the same map)
+- [x] **B066** · low · xs · A list-view interior still offers '◌ Outline on the map', which opens a drawing HUD with nothing to draw on — done b6a726c (no outline tools on lists or the Party)
+- [x] **B068** · low · xs · DM-only outlined places show their name all the time; other outlines show it only on hover — done b6a726c (DM-only outline names follow the same show rules, fainter)
+- [x] **B074** · low · s · An interior whose owner node stands only inside itself disappears from the Maps tree, and its crumb reads 'X ▸ X' — done b6a726c (a place cannot stand inside its own interior; the tree files self-owned or cyclic spaces under Unplaced; the crumb skips the loop)
+- [x] **B075** · low · xs · The Maps tree thumbnail stays stale after the backdrop is changed or removed — done b6a726c (the tree refreshes with the backdrop)
+- [x] **B083** · low · s · The 'Glow' style toggle has no visible effect, and the 'Pop' shadow is clipped away — done b6a726c (filters in the SVG's own units: glow ~0.35 units, the pop shadow on a wrapper outside the clip — not re-measured pixel by pixel)
+- [x] **B085** · low · xs · After 'Switch world', the Maps tree keeps the previous world's folds and overwrites the new world's saved folds — done b6a726c (the tree remounts per world)
+- [x] **B086** · low · xs · Double-clicking the zoom ＋/−/⊡ buttons also fires the map's double-click zoom — done b6a726c (the zoom buttons and the footprints swallow their double-clicks)
+- [x] **B089** · low · s · Right mouse button drags pins, and right-clicking a pin offers only map actions — done b6a726c (only the primary button drags; a right-click on a pin opens the pin's own menu)
+- [x] **C029** · low · xs · The Map ▾ menu is inconsistent: 'Show as' keeps it open, Footprints shows in worlds with no party, and global settings sit in a 'This space' menu — done b6a726c (Show as closes the menu, Footprints needs a trail, the view settings are labelled)
+- [x] **C032** · low · xs · Outlining an existing pin always starts as 'Area'; a new outline starts as the remembered kind or 'Button' — done b6a726c (one rule: the outline's own kind when it has one, else the remembered choice)
+- [x] **C045** · low · xs · The '?' help only describes pins; outlined places and the Outline tool are missing — done b6a726c (the help covers outlined places and the Outline tool)
+- [x] **C060** · low · xs · Map tree: folding an ancestor of the current map silently does nothing, then takes effect later — done b6a726c (an ancestor of the open map cannot fold; the caret says so and no fold is recorded)
+- [x] **C066** · low · s · Clicking a thread or search result enters the target's interior if it has one, instead of showing the target — done b6a726c (locate shows the thing — a placement on the current map first — and names its interior; ◎ is the way in)
+- [x] **C079** · low · xs · In a list view, ＋ Add node and the N key create a node instantly with no feedback, while the hints say 'then click the map' — done b6a726c (a list row is added with a flash and the hints match lists; the new row's title is focused and selected — no separate undo offer)
+- [x] **P047** · low · xs · Right-click in the middle of a trace opens the menu, and picking 'Outline a place from here' silently discards the trace — done b6a726c (right-click while tracing takes a corner back; the toolbar button reflects any outline in progress)
+- [x] **P069** · low · s · Co-located pins stack exactly: the lower one can't be seen, hovered or clicked (only footprints fan out) — done b6a726c (pins sharing a spot fan out in a ring; the selected pin sits on top — keyboard drops are not nudged)
+- [x] **P089** · low · xs · No cursor change in placing mode: the only cue is a small italic hint in the corner — done b6a726c (a crosshair while placing)
 
 ## Items
 

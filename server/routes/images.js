@@ -18,7 +18,7 @@ router.use(authenticateToken);
 // GET /api/images
 router.get('/', async (req, res) => {
   try {
-    const { tags, search, world_id, folder_id, unassigned } = req.query;
+    const { search, world_id, folder_id, unassigned } = req.query;
 
     if (!isId(world_id)) {
       return res.status(400).json({ message: 'World ID is required' });
@@ -43,13 +43,6 @@ router.get('/', async (req, res) => {
     let filters = '';
     const params = [world_id];
     let paramCount = 1;
-
-    // Filter by tags if provided
-    if (tags) {
-      paramCount++;
-      filters += ` AND i.tags && $${paramCount}`;
-      params.push(tags.split(',').map(tag => tag.trim()));
-    }
 
     // Search in filename or alt_text — the typed text is matched literally (\, % and _ are escaped)
     if (search) {
@@ -78,13 +71,11 @@ router.get('/', async (req, res) => {
     // so the UI can say "in use" before anyone deletes it.
     const query = `
       SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.tags, i.folder_id, i.created_at,
-             u.username as uploaded_by_username,
              (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id AND m.is_active = true) as map_uses,
              (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses,
              (SELECT COUNT(*) FROM map_backdrops b WHERE b.image_id = i.id) as backdrop_uses,
              (SELECT COUNT(*) FROM world_minds wm WHERE wm.style_image_id = i.id) as anchor_uses
       FROM images i
-      LEFT JOIN users u ON i.uploaded_by = u.id
       WHERE i.world_id = $1${filters}
       ORDER BY i.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
     params.push(limit, offset);
@@ -102,7 +93,6 @@ router.get('/', async (req, res) => {
       tags: row.tags,
       folderId: row.folder_id,
       uploadedAt: row.created_at,
-      uploadedBy: row.uploaded_by_username,
       usage: { maps: parseInt(row.map_uses), nodes: parseInt(row.node_uses),
                backdrops: parseInt(row.backdrop_uses), anchor: parseInt(row.anchor_uses) },
       url: resolveImageUrl(req, row.file_path)
@@ -111,53 +101,10 @@ router.get('/', async (req, res) => {
     res.json({
       images,
       total,
-      hasMore: offset + images.length < total
     });
     
   } catch (error) {
     console.error('Get images error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// GET /api/images/:id
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.tags, i.folder_id, i.created_at,
-             u.username as uploaded_by_username
-      FROM images i
-      LEFT JOIN users u ON i.uploaded_by = u.id
-      JOIN worlds w ON i.world_id = w.id
-      WHERE i.id = $1 AND w.created_by = $2 AND w.is_active = true
-    `, [id, req.user.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Image not found' });
-    }
-
-    const row = result.rows[0];
-    const image = {
-      id: row.id,
-      filename: row.filename,
-      originalName: row.original_name,
-      filePath: row.file_path,
-      fileSize: row.file_size,
-      mimeType: row.mime_type,
-      altText: row.alt_text,
-      tags: row.tags,
-      folderId: row.folder_id,
-      uploadedAt: row.created_at,
-      uploadedBy: row.uploaded_by_username,
-      url: resolveImageUrl(req, row.file_path)
-    };
-
-    res.json({ image });
-    
-  } catch (error) {
-    console.error('Get image error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -211,7 +158,7 @@ router.delete('/bulk', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { alt_text, tags, folder_id } = req.body;
+    const { alt_text, folder_id } = req.body;
     const sets = [], vals = [];
     if ('original_name' in req.body) {
       const nm = text(req.body.original_name, 255, { required: true });
@@ -245,9 +192,6 @@ router.put('/:id', async (req, res) => {
         }
       }
       sets.push('folder_id'); vals.push(folder_id == null ? null : Number(folder_id));
-    }
-    if ('tags' in req.body) {
-      sets.push('tags'); vals.push(tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : tags) : null);
     }
     if (!sets.length) return res.status(400).json({ message: 'Nothing to change' });
 

@@ -253,7 +253,7 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt: start == null ? prompt : `${prompt}. This is how it looks in a later period`, artStyle: mind.art_style, name: `${m.title} — ${start == null ? 'backdrop' : `from ${start}`}` });
   if (start == null) {
     await pool.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [img.id, m.id]);
-    return res.json({ image: { id: img.id, url: img.url }, previousImageId: m.image_id });
+    return res.json({ image: { id: img.id, url: img.url } });
   }
   const b = (await pool.query('INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,NULL) RETURNING id', [m.id, img.id, start])).rows[0];
   res.json({ image: { id: img.id, url: img.url }, backdropId: b.id, start });

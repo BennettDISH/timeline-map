@@ -681,4 +681,4 @@ async function discardBatch({ worldId, batchId }) {
   return { ok: true, keptImages: keep.size, skipped };
 }
 
-module.exports = { validateBatch, applyBatch, discardBatch, allowAsks, paintAndStore, CAPS, CATS };
+module.exports = { validateBatch, applyBatch, discardBatch, allowAsks, paintAndStore, CAPS };

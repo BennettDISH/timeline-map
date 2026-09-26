@@ -31,4 +31,4 @@ const refreshIfStale = (decoded, tokenVersion) => {
   return generateToken(decoded.userId, tokenVersion);
 };
 
-module.exports = { generateToken, refreshIfStale, TOKEN_TTL };
+module.exports = { generateToken, refreshIfStale };

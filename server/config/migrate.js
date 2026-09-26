@@ -50,4 +50,3 @@ if (require.main === module) {
   runMigration();
 }
 
-module.exports = runMigration;

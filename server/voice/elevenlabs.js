@@ -3,7 +3,6 @@
 // env-overridable so a successor model is a variable bump, not a code change.
 
 const BASE = 'https://api.elevenlabs.io';
-const enabled = () => Boolean(process.env.ELEVENLABS_API_KEY) && process.env.VOICE_ENABLED !== '0';
 const headers = () => ({ 'xi-api-key': process.env.ELEVENLABS_API_KEY });
 
 async function fail(res, what) {
@@ -60,4 +59,4 @@ async function soundscape(prompt, seconds = 20) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-module.exports = { enabled, listVoices, speak, soundscape };
+module.exports = { listVoices, speak, soundscape };

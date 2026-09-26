@@ -71,17 +71,17 @@ function AdminPanel() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Username</th>
-                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Email</th>
-                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Joined</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Joined</th>
                       </tr>
                     </thead>
                     <tbody>
                       {users.map((u) => (
                         <tr key={u.id}>
-                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.username}</td>
-                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.email || '—'}</td>
-                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td>{u.username}</td>
+                          <td>{u.email || '—'}</td>
+                          <td>{new Date(u.created_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>

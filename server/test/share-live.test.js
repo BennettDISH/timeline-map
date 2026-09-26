@@ -233,7 +233,7 @@ test('pending Forge output: its link, fact and timed backdrop are absent', async
   assert.equal(n.body.node.body, 'era text', 'the pending fact must not win over the real one');
   assert.ok(!n.body.links.some((l) => l.label === 'pending thread'), 'the pending link is not a thread');
   const map = await get(`/maps/${IDS.root}?window=1`);
-  assert.ok(!map.body.links.some((l) => l.label === 'pending thread'));
+  assert.equal(map.body.links, undefined, 'a map payload carries no links: threads come with the node sheet');
   assert.equal(map.body.backdrops.length, 1, 'the pending timed backdrop is not listed');
   const canon = await get(`/maps/${IDS.root}`);
   assert.ok((canon.body.map.backdropUrl || '').endsWith('fixture-a.svg'), 'the pending timed backdrop (from 45) must not replace the real one');

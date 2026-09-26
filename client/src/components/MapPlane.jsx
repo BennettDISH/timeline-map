@@ -22,7 +22,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 // 2560 raster width: the plane's layout size is the resolution the browser rasterizes
 // at — 1600 went blurry two wheel-clicks in. Pins live in %, so the constant is free to
 // change; fit() just computes a smaller base scale.
-export const PLANE_W = 2560
+const PLANE_W = 2560
 const DEFAULT_H = 1600
 const MAX_SCALE = 8
 // framed (Spellforge's Map tab): the host page owns plain scrolling and the Back button
@@ -46,7 +46,6 @@ export default function MapPlane({
   onEmptyPointerDown, // pointerdown on plane/viewport background (deselect etc.)
   onWorldContextMenu, // right-click on the plane (edit affordances); suppresses the browser menu
   onWorldDoubleClick, // returns true to claim a double-click (a region under the pointer) instead of zooming
-  controlsOffset = 0, // lift zoom buttons above the timebar when it's shown
   dblZoom = true,     // off while placing nodes, so a fast double-drop doesn't also zoom
   grid = false,       // draw a plane-space grid over the art (scales with zoom)
   focusAt = null,     // { x, y (plane %), key }: a new key pans the camera so that point is in view (a search hit, a thread)
@@ -311,7 +310,7 @@ export default function MapPlane({
         {grid && <div className="mp-grid" />}
         {children}
       </div>
-      <div className="mp-controls" style={controlsOffset ? { bottom: controlsOffset } : undefined} onDoubleClick={(e) => e.stopPropagation()}>
+      <div className="mp-controls" onDoubleClick={(e) => e.stopPropagation()}>
         <button title="Zoom in" aria-label="Zoom in" onClick={(e) => { e.stopPropagation(); zoomCenter(1.5) }}
           onPointerDown={(e) => e.stopPropagation()}>＋</button>
         <button title="Zoom out" aria-label="Zoom out" onClick={(e) => { e.stopPropagation(); zoomCenter(1 / 1.5) }}

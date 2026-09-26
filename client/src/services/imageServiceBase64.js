@@ -15,12 +15,10 @@ const imageServiceBase64 = {
 
   // Upload an image as base64. onProgress(0..100) follows the REAL transfer (the browser's
   // upload progress), after a short read of the file; folderId files it in one request.
-  async uploadImage(file, worldId, altText = '', tags = '', onProgress = null, folderId = null) {
+  async uploadImage(file, worldId, { onProgress = null, folderId = null } = {}) {
     if (onProgress) onProgress(2)
     const base64Data = await this.fileToBase64(file)
     const uploadData = { imageData: base64Data, originalName: file.name, world_id: worldId }
-    if (altText) uploadData.alt_text = altText
-    if (tags) uploadData.tags = tags
     if (folderId != null) uploadData.folder_id = folderId
     const response = await http.post(`${API_BASE}/upload`, uploadData, {
       timeout: 180000, // a 10 MB image on a slow link
@@ -42,11 +40,10 @@ const imageServiceBase64 = {
   // Get all images with optional filtering (reuse from regular image service)
   async getImages(options = {}) {
     try {
-      const { worldId, tags, search, limit = 50, offset = 0, folderId, unassigned } = options
+      const { worldId, search, limit = 50, offset = 0, folderId, unassigned } = options
       
       const params = new URLSearchParams()
       if (worldId) params.append('world_id', worldId)
-      if (tags) params.append('tags', tags)
       if (search) params.append('search', search)
       if (folderId) params.append('folder_id', folderId)
       if (unassigned) params.append('unassigned', 'true')
@@ -60,11 +57,6 @@ const imageServiceBase64 = {
     }
   },
 
-  // Get single image by ID
-  async getImage(id) {
-    const response = await http.get(`/api/images/${id}`)
-    return response.data
-  },
 
   // Update image metadata (tags, alt text, etc.)
   async updateImage(id, updateData) {

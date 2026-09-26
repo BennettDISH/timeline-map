@@ -9,11 +9,6 @@ const worldService = {
     return response.data
   },
 
-  // Get specific world by ID
-  async getWorld(id) {
-    const response = await http.get(`${API_BASE}/${id}`)
-    return response.data
-  },
 
   // Create new world
   async createWorld(worldData) {
@@ -27,33 +22,6 @@ const worldService = {
     return response.data
   },
 
-  // Get/Set current world from localStorage
-  getCurrentWorldId() {
-    return localStorage.getItem('current_world_id')
-  },
-
-  setCurrentWorldId(worldId) {
-    if (worldId) {
-      localStorage.setItem('current_world_id', worldId)
-    } else {
-      localStorage.removeItem('current_world_id')
-    }
-  },
-
-  getCurrentWorld() {
-    const worldData = localStorage.getItem('current_world')
-    return worldData ? JSON.parse(worldData) : null
-  },
-
-  setCurrentWorld(world) {
-    if (world) {
-      localStorage.setItem('current_world', JSON.stringify(world))
-      this.setCurrentWorldId(world.id)
-    } else {
-      localStorage.removeItem('current_world')
-      localStorage.removeItem('current_world_id')
-    }
-  },
 
   // Last map the user had open — "/" resumes there on the next visit
   getLastLocation() {

@@ -126,4 +126,4 @@ async function ambience(prompt, seconds) {
   return { bytes: await eleven.soundscape(prompt, seconds), mimeType: 'audio/mpeg', ext: 'mp3' };
 }
 
-module.exports = { status, provider, listVoices, speak, ambience };
+module.exports = { status, listVoices, speak, ambience };
