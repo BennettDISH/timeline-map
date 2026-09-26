@@ -62,6 +62,8 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path
+- The top-level `ErrorBoundary` resets on a URL change via `resetKey` (App.jsx `RoutedBoundary`);
+  never key it on the pathname — that remounts the whole page on every map hop.
 - **The server stays up**: `database.js` never exits on a pool error; transactions use
   `pool.connectTx()` (an error listener + a release that discards a broken client). First-run
   setup holds an advisory lock. SSO profile sync skips a username/email another row holds

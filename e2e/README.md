@@ -7,6 +7,7 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   story, ◎ enters an interior and ⬆ comes back, a ghost footprint is clickable, the era bar
   scrubs into the past, no page errors. Needs a share token of a world that has a party
   trail and at least one player-visible era (`player.config.json` or `SHARE_TOKEN`).
+- `server.mjs` — API only: non-canonical map ids 404 before any write (read-only on the fixture world), a marker lands whole on the throwaway world and is removed again, and the server answers.
 - `undo.mjs` — API only, on the throwaway world: Undo restores every column (DM note, stance, body, interior notes and focus) and the delete impact tells the truth.
 - `dm.mjs` — the DM workspace on a THROWAWAY world: View posture reader, timebar ticks
   (nothing may cover them), a tick moves the lens, the Party reader's "Then on to" link

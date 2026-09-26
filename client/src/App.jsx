@@ -113,9 +113,12 @@ function AppRoutes() {
 }
 
 // the boundary is keyed on the path, so leaving a broken page really leaves it
+// the boundary forgets a crash when the URL changes (Back, or a link out of the error page)
+// WITHOUT remounting the page tree on every navigation — the workspace and the Player View
+// keep their state and caches across map hops
 function RoutedBoundary({ children }) {
   const location = useLocation()
-  return <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
 }
 
 function App() {

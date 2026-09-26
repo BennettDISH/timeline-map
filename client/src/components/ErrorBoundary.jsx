@@ -17,6 +17,13 @@ class ErrorBoundary extends React.Component {
     this.setState({ info })
   }
 
+  componentDidUpdate(prev) {
+    // a navigation after a crash (browser Back, a link) shows the new page, not the old error
+    if (this.state.hasError && prev.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null, info: null, copied: false })
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       const { error, info } = this.state

@@ -5,8 +5,9 @@
   "scripts": {
     "player": "node player.mjs",
     "dm": "node dm.mjs",
-    "all": "node player.mjs && node dm.mjs && node undo.mjs",
-    "undo": "node undo.mjs"
+    "all": "node player.mjs && node dm.mjs && node undo.mjs && node server.mjs",
+    "undo": "node undo.mjs",
+    "server": "node server.mjs"
   },
   "dependencies": {
     "playwright": "1.52.0"

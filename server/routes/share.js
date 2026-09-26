@@ -102,7 +102,9 @@ async function reachableIds(nodeIds, w, t) {
   for (const r of interiors) if (!ok.has(r.id) && (await walk(r.interior_map_id))) ok.add(r.id);
   return ok;
 }
-const intId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null; };
+// one canonical spelling per id: '60.0' and '6e1' are not ids, so nothing downstream ever sees a
+// value that Number() accepted and Postgres would not
+const intId = (v) => { const n = /^[1-9]\d{0,9}$/.test(String(v)) ? Number(v) : NaN; return Number.isInteger(n) && n <= 2147483647 ? n : null; };
 
 // Walk a map up its owner chain to the world root. Returns the breadcrumb (root → here) when
 // every step is player-visible RIGHT NOW, else null. This is what makes deep links safe: a map
