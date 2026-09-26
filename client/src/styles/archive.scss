@@ -317,3 +317,12 @@
     .lbnav { display: none; }
   }
 }
+
+// a rail that says when its folders did not load; a name and a caption to edit in the viewer
+.arch .ferr{padding:6px 10px;font-size:12px;color:#ff9b9b;
+  .lnk{background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;padding:0}}
+.arch .frow.fdir:focus-visible{outline:2px solid var(--accent,#c9a35f);outline-offset:-2px}
+.arch .caret{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0}
+.arch .lbtitle{cursor:text}
+.arch .lbtitle .lbedit{opacity:.5;font-size:.8em}
+.arch .lbname{font-size:1.05rem;margin-bottom:6px}

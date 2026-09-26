@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { idParam } = require('../lib/validate');
+const { idParam, isId, text } = require('../lib/validate');
 const router = express.Router();
 router.param('id', idParam);
 
@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
   try {
     const { world_id } = req.query;
 
-    if (!world_id) {
+    if (!isId(world_id)) {
       return res.status(400).json({ message: 'World ID is required' });
     }
 
@@ -68,14 +68,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+// the same name at the same level, case-insensitively, the top level included
+async function nameTaken(worldId, parentId, name, exceptId = null) {
+  const r = await pool.query(
+    'SELECT 1 FROM image_folders WHERE world_id = $1 AND parent_id IS NOT DISTINCT FROM $2 AND lower(name) = lower($3) AND ($4::int IS NULL OR id <> $4)',
+    [worldId, parentId == null ? null : Number(parentId), name, exceptId]);
+  return r.rows.length > 0;
+}
+
 // POST /api/image-folders - Create a new folder
 router.post('/', async (req, res) => {
   try {
-    const { name, parent_id, world_id, color = '#4CAF50', icon = '📁' } = req.body;
-
-    if (!name || !world_id) {
+    const { parent_id, world_id, color = '#4CAF50', icon = '📁' } = req.body;
+    const name = text(req.body.name, 255, { required: true });
+    if (name === undefined) return res.status(400).json({ message: 'A folder needs a name of 1 to 255 characters' });
+    if (!isId(world_id)) {
       return res.status(400).json({ message: 'Name and world_id are required' });
     }
+    if (parent_id != null && parent_id !== '' && !isId(parent_id)) return res.status(400).json({ message: 'That is not a folder id' });
 
     // Verify user owns the world
     const worldCheck = await pool.query(
@@ -99,12 +109,14 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // one name per level, top level included (the UNIQUE constraint treats NULL parents as all different)
+    if (await nameTaken(world_id, parent_id || null, name)) return res.status(409).json({ message: 'A folder with this name already exists here' });
     // Create the folder
     const result = await pool.query(`
       INSERT INTO image_folders (name, parent_id, world_id, created_by, color, icon)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [name.trim(), parent_id || null, world_id, req.user.id, color, icon]);
+    `, [name, parent_id || null, world_id, req.user.id, color, icon]);
 
     const folder = result.rows[0];
 
@@ -136,7 +148,9 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, color, icon } = req.body;
+    const { color, icon } = req.body;
+    const name = req.body.name == null ? null : text(req.body.name, 255, { required: true });
+    if (name === undefined) return res.status(400).json({ message: 'A folder needs a name of 1 to 255 characters' });
 
     // Get folder and verify ownership
     const folderCheck = await pool.query(`
@@ -149,6 +163,8 @@ router.put('/:id', async (req, res) => {
     if (folderCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Folder not found or access denied' });
     }
+    const cur = folderCheck.rows[0];
+    if (name && (await nameTaken(cur.world_id, cur.parent_id, name, cur.id))) return res.status(409).json({ message: 'A folder with this name already exists here' });
 
     // Update folder
     const result = await pool.query(`
@@ -158,7 +174,7 @@ router.put('/:id', async (req, res) => {
           icon = COALESCE($3, icon)
       WHERE id = $4
       RETURNING *
-    `, [name?.trim(), color, icon, id]);
+    `, [name, color, icon, id]);
 
     const folder = result.rows[0];
 
@@ -202,20 +218,14 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Folder not found or access denied' });
     }
 
-    // Check if folder has children
-    const childrenCheck = await pool.query(
-      'SELECT COUNT(*) as count FROM image_folders WHERE parent_id = $1',
-      [id]
-    );
-
-    if (parseInt(childrenCheck.rows[0].count) > 0) {
-      return res.status(400).json({ message: 'Cannot delete folder that contains subfolders. Delete subfolders first.' });
-    }
-
-    // Delete folder (this will also remove any image associations via cascade)
+    // the folder goes with its subfolders (parent_id cascades); every image in the subtree
+    // returns to Unsorted (folder_id is set null), never deleted
+    const sub = (await pool.query(
+      `WITH RECURSIVE t(id) AS (SELECT id FROM image_folders WHERE id = $1 UNION SELECT f.id FROM image_folders f JOIN t ON f.parent_id = t.id)
+       SELECT COUNT(*) - 1 AS subfolders FROM t`, [id])).rows[0];
     await pool.query('DELETE FROM image_folders WHERE id = $1', [id]);
 
-    res.json({ message: 'Folder deleted successfully' });
+    res.json({ message: 'Folder deleted successfully', subfolders: parseInt(sub.subfolders) });
     
   } catch (error) {
     console.error('Delete folder error:', error);

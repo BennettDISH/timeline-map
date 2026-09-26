@@ -42,7 +42,7 @@ export default function MapPlane({
   mapKey,          // change => reset & refit (map navigation)
   backdropUrl,
   worldRef,        // exposed plane element: callers do pointer→% math against its rect
-  onWorldClick,    // click on the plane that was NOT a pan (drop-a-node etc.)
+  onWorldClick,    // (e, inside) — a clean tap on the viewport that was NOT a pan; inside = on the plane (drop-a-node etc.)
   onEmptyPointerDown, // pointerdown on plane/viewport background (deselect etc.)
   onWorldContextMenu, // right-click on the plane (edit affordances); suppresses the browser menu
   onWorldDoubleClick, // returns true to claim a double-click (a region under the pointer) instead of zooming
@@ -259,9 +259,10 @@ export default function MapPlane({
     }
     if (tap && onWorldClick) {
       const r = worldRef?.current?.getBoundingClientRect?.()
-      if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        onWorldClick(e)
-      }
+      // every clean tap reaches the caller; `inside` says whether it landed on the plane
+      // (a drop needs the plane, a deselect happens on the letterbox around it too)
+      const inside = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+      onWorldClick(e, inside)
     }
   }
 

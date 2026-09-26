@@ -17,7 +17,8 @@ const forgeService = {
   allowAsks: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/allow`).then((r) => r.data),
   refuseAsks: (worldId, id) => http.post(`${B}/worlds/${worldId}/batches/${id}/refuse`).then((r) => r.data),
   nodeArt: (nodeId, guidance) => http.post(`${B}/nodes/${nodeId}/art`, { guidance }, LONG).then((r) => r.data),
-  mapBackdrop: (mapId, guidance) => http.post(`${B}/maps/${mapId}/backdrop`, { guidance }, LONG).then((r) => r.data),
+  // with startTime the painting becomes a new timed period's art from then on, not the base
+  mapBackdrop: (mapId, guidance, startTime) => http.post(`${B}/maps/${mapId}/backdrop`, { guidance, ...(startTime != null ? { start_time: startTime } : {}) }, LONG).then((r) => r.data),
 }
 
 export default forgeService

@@ -112,6 +112,46 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       step('the thread probe nodes are removed again', gone === 3, `${gone} removed`);
     } else step('probe nodes for the thread rules', false, JSON.stringify([a, b, c]));
   }
+  // images and folders: the bytes decide, names are clamped, list parameters are checked,
+  // search is literal, bulk moves and deletes are one request, folder names have one rule
+  {
+    const api = (method, path, body) => fetch(`${BASE}${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const up = (name, data, extra = {}) => api('POST', '/api/images-base64/upload', { imageData: data, originalName: name, world_id: cfg.worldId, ...extra });
+    const fake = await up('notanimage.png', `data:image/png;base64,${Buffer.from('this is not an image\n').toString('base64')}`);
+    step('a text file called .png is refused by its bytes', fake.status === 400 && /not a PNG/.test((await json(fake))?.message || ''), String(fake.status));
+    const svg = await up('tiny.svg', `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`);
+    step('an SVG upload is refused with the accepted formats named', svg.status === 400 && /PNG, JPEG, GIF or WebP/.test((await json(svg))?.message || ''), String(svg.status));
+    const longName = await up(`${'L'.repeat(300)}.png`, PNG);
+    const lb = await json(longName);
+    step('a 300-character name is clamped, not a 500', longName.status === 200 && lb?.image?.originalName?.length === 255, `${longName.status} length ${lb?.image?.originalName?.length}`);
+    const second = await json(await up('server-probe-two.png', PNG));
+    const ids = [lb?.image?.id, second?.image?.id].filter(Boolean);
+    if (ids.length === 2) {
+      const bad = await api('GET', `/api/images/?world_id=${cfg.worldId}&limit=abc`);
+      step('a bad list parameter is a 400, not a 500', bad.status === 400, String(bad.status));
+      const pct = await json(await api('GET', `/api/images/?world_id=${cfg.worldId}&search=${encodeURIComponent('%')}`));
+      step('a % in the search is matched literally', pct?.total === 0, `total ${pct?.total}`);
+      const renamed = await api('PUT', `/api/images/${ids[0]}`, { original_name: 'server-probe-renamed.png', alt_text: 'a caption' });
+      const rj = await json(renamed);
+      step('an image can be renamed and captioned', renamed.ok && rj?.image?.originalName === 'server-probe-renamed.png' && rj?.image?.altText === 'a caption', `${renamed.status} ${rj?.image?.originalName} / ${rj?.image?.altText}`);
+      const cleared = await json(await api('PUT', `/api/images/${ids[0]}`, { alt_text: '' }));
+      step('an empty caption clears it', cleared?.image?.altText == null, JSON.stringify(cleared?.image?.altText));
+      const blank = await api('POST', '/api/image-folders/', { name: '   ', world_id: cfg.worldId });
+      step('a blank folder name is refused', blank.status === 400, String(blank.status));
+      const f1 = await json(await api('POST', '/api/image-folders/', { name: 'server-probe-folder', world_id: cfg.worldId }));
+      const dup = await api('POST', '/api/image-folders/', { name: 'Server-Probe-Folder', world_id: cfg.worldId });
+      step('a second top-level folder with the same name is refused', !!f1?.folder?.id && dup.status === 409, `${f1?.folder?.id ? 'made' : 'not made'} then ${dup.status}`);
+      const child = await json(await api('POST', '/api/image-folders/', { name: 'server-probe-child', world_id: cfg.worldId, parent_id: f1?.folder?.id }));
+      const moved = await json(await api('PUT', '/api/images/bulk', { ids, folder_id: f1?.folder?.id }));
+      step('a bulk move files every image in one request', moved?.moved === 2, JSON.stringify(moved));
+      const gone = await json(await api('DELETE', `/api/image-folders/${f1?.folder?.id}`));
+      const listed = await json(await api('GET', `/api/images/?world_id=${cfg.worldId}&search=server-probe`));
+      step('a folder deletes with its subfolders and the images return to Unsorted', gone?.subfolders === 1 && !!child?.folder?.id && (listed?.images || []).filter((i) => ids.includes(i.id)).every((i) => i.folderId == null), `subfolders ${gone?.subfolders}`);
+      const del = await json(await api('DELETE', '/api/images/bulk', { ids }));
+      step('a bulk delete removes every image in one request', del?.deleted === 2, JSON.stringify(del));
+    } else step('two probe images to file and delete', false, JSON.stringify([lb, second]).slice(0, 160));
+  }
   // the default root map follows a world rename while it still reads '<world> — World Map'
   {
     const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));

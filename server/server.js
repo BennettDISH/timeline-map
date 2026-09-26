@@ -84,9 +84,11 @@ app.use(cors({
   exposedHeaders: ['X-Refreshed-Token'],
 }));
 
-// Body parsing middleware
+// Body parsing middleware. The upload route carries a base64 image (about 4/3 of the file:
+// a 10 MB image is ~13.4 MB of JSON), so it gets its own, larger limit first; the parser
+// skips a body already read. Nothing sends form bodies, so no urlencoded parser.
+app.use('/api/images-base64/upload', express.json({ limit: '14mb' }));
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -134,7 +136,8 @@ app.use((err, req, res, next) => {
   // the body parser and friends set err.status: a malformed body is the caller's 400, not a 500
   const status = err.status || err.statusCode;
   if (status && status < 500) {
-    return res.status(status).json({ message: err.type === 'entity.parse.failed' ? 'The request body is not valid JSON' : (err.message || 'Bad request') });
+    return res.status(status).json({ message: err.type === 'entity.parse.failed' ? 'The request body is not valid JSON'
+      : err.type === 'entity.too.large' ? 'That is too big to send — images are limited to 10 MB' : (err.message || 'Bad request') });
   }
   console.error(err.stack);
   res.status(500).json({ 

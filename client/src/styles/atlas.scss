@@ -871,3 +871,8 @@
 .atlas .m-edit .region.sel{cursor:grab}
 .atlas .apop-sep{padding:7px 10px 2px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin-top:4px}
 .atlas .ctxmenu .apop-sep{border-top:0;margin-top:0;padding-top:4px;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+
+// the picker: above any dialog that opened it, the current image marked
+.atlas .modal-back.top{z-index:55}
+.atlas .pick.current{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
+.atlas .modal .nsearch{margin:8px 0 0}

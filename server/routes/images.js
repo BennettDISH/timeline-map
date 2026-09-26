@@ -3,7 +3,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deleteObject } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
-const { idParam } = require('../lib/validate');
+const { idParam, isId, whole, text } = require('../lib/validate');
 const router = express.Router();
 router.param('id', idParam);
 
@@ -18,11 +18,16 @@ router.use(authenticateToken);
 // GET /api/images
 router.get('/', async (req, res) => {
   try {
-    const { tags, search, limit = 50, offset = 0, world_id, folder_id, unassigned } = req.query;
+    const { tags, search, world_id, folder_id, unassigned } = req.query;
 
-    if (!world_id) {
+    if (!isId(world_id)) {
       return res.status(400).json({ message: 'World ID is required' });
     }
+    // a page is 1 to 200 images from a whole offset; anything else is the caller's mistake
+    const limit = req.query.limit == null ? 50 : whole(req.query.limit);
+    const offset = req.query.offset == null ? 0 : whole(req.query.offset);
+    if (limit == null || limit < 1 || limit > 200 || offset == null || offset < 0) return res.status(400).json({ message: 'limit is 1 to 200 and offset is a whole number' });
+    if (folder_id != null && folder_id !== '' && !isId(folder_id)) return res.status(400).json({ message: 'That is not a folder id' });
 
     // Verify user owns the world
     const worldCheck = await pool.query(
@@ -46,11 +51,11 @@ router.get('/', async (req, res) => {
       params.push(tags.split(',').map(tag => tag.trim()));
     }
 
-    // Search in filename or alt_text
+    // Search in filename or alt_text — the typed text is matched literally (\, % and _ are escaped)
     if (search) {
       paramCount++;
-      filters += ` AND (i.original_name ILIKE $${paramCount} OR i.alt_text ILIKE $${paramCount})`;
-      params.push(`%${search}%`);
+      filters += ` AND (i.original_name ILIKE $${paramCount} ESCAPE '\\' OR i.alt_text ILIKE $${paramCount} ESCAPE '\\')`;
+      params.push(`%${String(search).replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
     }
 
     // Filter by folder
@@ -82,7 +87,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN users u ON i.uploaded_by = u.id
       WHERE i.world_id = $1${filters}
       ORDER BY i.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
-    params.push(parseInt(limit), parseInt(offset));
+    params.push(limit, offset);
 
     const result = await pool.query(query, params);
 
@@ -106,7 +111,7 @@ router.get('/', async (req, res) => {
     res.json({
       images,
       total,
-      hasMore: parseInt(offset) + images.length < total
+      hasMore: offset + images.length < total
     });
     
   } catch (error) {
@@ -157,11 +162,67 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// the ids of a bulk request: 1 to 500 distinct canonical ids, all in the caller's worlds
+async function ownedIds(req) {
+  const raw = Array.isArray(req.body?.ids) ? req.body.ids : null;
+  if (!raw || !raw.length || raw.length > 500 || !raw.every(isId)) return null;
+  const ids = [...new Set(raw.map(Number))];
+  const r = await pool.query(
+    'SELECT i.id FROM images i JOIN worlds w ON w.id = i.world_id WHERE i.id = ANY($1::int[]) AND w.created_by = $2 AND w.is_active = true', [ids, req.user.id]);
+  return r.rows.length === ids.length ? ids : null;
+}
+// PUT /api/images/bulk - file many images under one folder (null = Unsorted) in one request
+router.put('/bulk', async (req, res) => {
+  try {
+    const ids = await ownedIds(req);
+    if (!ids) return res.status(400).json({ message: 'ids must be your own images (1 to 500)' });
+    const folder_id = req.body.folder_id;
+    if (folder_id != null) {
+      if (!isId(folder_id)) return res.status(400).json({ message: 'That is not a folder id' });
+      // one folder, and every image in its world
+      const f = (await pool.query('SELECT world_id FROM image_folders WHERE id=$1', [folder_id])).rows[0];
+      const same = f && (await pool.query('SELECT COUNT(*) FROM images WHERE id = ANY($1::int[]) AND world_id = $2', [ids, f.world_id])).rows[0];
+      if (!f || parseInt(same.count) !== ids.length) return res.status(400).json({ message: 'That folder is not in the images\' world' });
+    }
+    const r = await pool.query('UPDATE images SET folder_id = $1 WHERE id = ANY($2::int[])', [folder_id == null ? null : Number(folder_id), ids]);
+    res.json({ ok: true, moved: r.rowCount });
+  } catch (error) {
+    console.error('Bulk move error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// DELETE /api/images/bulk - remove many images in one request (their R2 objects go too, best effort)
+router.delete('/bulk', async (req, res) => {
+  try {
+    const ids = await ownedIds(req);
+    if (!ids) return res.status(400).json({ message: 'ids must be your own images (1 to 500)' });
+    const del = await pool.query('DELETE FROM images WHERE id = ANY($1::int[]) RETURNING storage_key', [ids]);
+    if (r2Enabled) {
+      for (const row of del.rows) if (row.storage_key) await deleteObject(row.storage_key).catch((e) => console.error('R2 delete failed (DB row already removed):', e.message));
+    }
+    res.json({ ok: true, deleted: del.rowCount });
+  } catch (error) {
+    console.error('Bulk delete error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT /api/images/:id - Update image metadata
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { alt_text, tags, folder_id } = req.body;
+    const sets = [], vals = [];
+    if ('original_name' in req.body) {
+      const nm = text(req.body.original_name, 255, { required: true });
+      if (nm === undefined) return res.status(400).json({ message: 'A name is 1 to 255 characters' });
+      sets.push('original_name'); vals.push(nm);
+    }
+    if ('alt_text' in req.body) { // a caption: '' or null clears it
+      const cap = alt_text == null ? null : text(alt_text, 2000);
+      if (cap === undefined) return res.status(400).json({ message: 'A caption is text' });
+      sets.push('alt_text'); vals.push(cap || null);
+    }
     
     // Get image info first to check ownership
     const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, tags, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
@@ -176,30 +237,26 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ message: "That image isn't in one of your worlds" });
     }
 
-    // If folder_id is provided, verify it exists and belongs to the same world
-    if (folder_id) {
-      const folderCheck = await pool.query(
-        'SELECT id FROM image_folders WHERE id = $1 AND world_id = $2',
-        [folder_id, image.world_id]
-      );
-
-      if (folderCheck.rows.length === 0) {
-        return res.status(400).json({ message: 'Invalid folder ID or folder does not belong to this world' });
+    // If folder_id is provided, verify it exists and belongs to the same world (null = Unsorted)
+    if ('folder_id' in req.body) {
+      if (folder_id != null) {
+        if (!isId(folder_id) || !(await pool.query('SELECT id FROM image_folders WHERE id = $1 AND world_id = $2', [folder_id, image.world_id])).rows.length) {
+          return res.status(400).json({ message: 'That folder is not in this world' });
+        }
       }
+      sets.push('folder_id'); vals.push(folder_id == null ? null : Number(folder_id));
     }
+    if ('tags' in req.body) {
+      sets.push('tags'); vals.push(tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : tags) : null);
+    }
+    if (!sets.length) return res.status(400).json({ message: 'Nothing to change' });
 
     // Update image metadata
     const updateResult = await pool.query(`
-      UPDATE images 
-      SET alt_text = $1, tags = $2, folder_id = $3
-      WHERE id = $4
+      UPDATE images SET ${sets.map((c, i) => `${c} = $${i + 1}`).join(', ')}
+      WHERE id = $${sets.length + 1}
       RETURNING id, filename, original_name, file_path, file_size, mime_type, alt_text, tags, folder_id, created_at
-    `, [
-      alt_text || image.alt_text,
-      tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()) : tags) : image.tags,
-      folder_id !== undefined ? folder_id : image.folder_id,
-      id
-    ]);
+    `, [...vals, id]);
 
     const updatedImage = updateResult.rows[0];
     

@@ -14,6 +14,7 @@ import Regions, { regionIdAt, styleOf, STYLE_KEYS, OUTLINE_PRESETS } from '../co
 import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessionLabel, stepTag, sessionNum, latestSession } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
+import { usesOf, describeUse, ACCEPT } from '../utils/images'
 import '../styles/atlas.scss'
 
 const clamp = (v) => Math.max(0, Math.min(100, v))
@@ -193,6 +194,7 @@ function AtlasWorkspace() {
   const inspEl = useRef(null) // the editor panel: it opens at the top for each newly selected thing
   const frameNext = useRef(null) // a placement selected from afar (search, a thread, a tick): the camera brings it into view
   const [frameReq, setFrameReq] = useState(null) // { x, y, key } handed to the plane
+  const frame = (placementId) => { const p = data?.placements.find((pp) => pp.id === placementId); if (p) setFrameReq({ x: p.x, y: p.y, key: Date.now() }) }
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
   // and failures surface as a toast instead of vanishing into an empty catch.
@@ -391,7 +393,7 @@ function AtlasWorkspace() {
   // Go to a moment on a map: same map → move the lens; another map → travel first, then
   // set the lens after it loads, so no render ever mixes the old map with the new moment.
   const goToMoment = (t, targetMapId, placementId = null) => {
-    if (targetMapId == null || String(targetMapId) === String(mapId)) { setNow(t); if (placementId != null) { frameNext.current = placementId; setSelId(placementId) } return }
+    if (targetMapId == null || String(targetMapId) === String(mapId)) { setNow(t); if (placementId != null) { setSelId(placementId); frame(placementId) } return }
     pendingNow.current = t
     if (placementId != null) { pendingSelect.current = placementId; frameNext.current = placementId } // the footstep stays open on the other map, in view
     navigate(`/w/${worldId}/m/${targetMapId}`)
@@ -484,7 +486,7 @@ function AtlasWorkspace() {
     }
     if (!loc || !loc.mapId) { openStray(nodeId); return }
     // the thing is SHOWN — its pin, framed, story open; ◎ is the explicit way inside
-    if (String(loc.mapId) === String(mapId)) { if (loc.placementId) { frameNext.current = loc.placementId; setSelId(loc.placementId) } return }
+    if (String(loc.mapId) === String(mapId)) { if (loc.placementId) { setSelId(loc.placementId); frame(loc.placementId) } return }
     if (loc.placementId) { pendingSelect.current = loc.placementId; frameNext.current = loc.placementId }
     navigate(`/w/${worldId}/m/${loc.mapId}`)
   }
@@ -825,6 +827,7 @@ function AtlasWorkspace() {
     const pk = picker; setPicker(null); if (!pk) return
     if (pk.kind === 'backdrop') setBackdrop(imageId)
     else if (pk.kind === 'backdrop-timed') { if (imageId) addTimedBackdrop(imageId) }
+    else if (pk.kind === 'backdrop-row') { if (imageId) patchBackdrop(pk.rowId, { image_id: imageId }) }
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
   }
 
@@ -1264,21 +1267,23 @@ function AtlasWorkspace() {
   }
 
   const bdMoment = mode === 'player' ? (previewT ?? canon) : now
-  const activeBackdropUrl = useMemo(() => {
-    if (!map) return null
-    if (!tl?.enabled) return map.backdropUrl
+  // the timed period whose art is on screen at the viewed moment (the latest-starting one
+  // covering it wins), or null when the base art shows
+  const activeBackdropRow = useMemo(() => {
+    if (!map || !tl?.enabled) return null
     const rows = (data?.backdrops || []).filter((b) =>
       (b.start == null || b.start <= bdMoment) && (b.end == null || b.end >= bdMoment))
-    if (!rows.length) return map.backdropUrl
+    if (!rows.length) return null
     rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
-    return rows[0].url
+    return rows[0]
   }, [data, map, bdMoment, tl?.enabled])
+  const activeBackdropUrl = map ? (activeBackdropRow ? activeBackdropRow.url : map.backdropUrl) : null
 
   const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : (data?.placements.find((p) => p.id === id) || null) }
-  const onWorldClick = (e) => {
+  const onWorldClick = (e, inside = true) => {
     if (drawing) return // the outline layer owns its own presses
-    if (!placing) { const p = regionAt(e); setSelId(p ? p.id : null); return } // a clean tap: a region selects, empty space deselects — a pan keeps the selection
-    if (!worldRef.current) return
+    if (!placing) { const p = inside ? regionAt(e) : null; setSelId(p ? p.id : null); return } // a clean tap: a region selects, empty space (the letterbox too) deselects — a pan keeps the selection
+    if (!inside || !worldRef.current) return // a drop needs the plane
     const rect = worldRef.current.getBoundingClientRect()
     const x = clamp(((e.clientX - rect.left) / rect.width) * 100)
     const y = clamp(((e.clientY - rect.top) / rect.height) * 100)
@@ -1542,7 +1547,7 @@ function AtlasWorkspace() {
                   {p.node.pin === 'image' && p.node.imageUrl ? (
                     <>
                       <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
-                        style={{ maxWidth: p.node.pinSize || 64, maxHeight: p.node.pinSize || 64 }} />
+                        style={{ width: p.node.pinSize || 64, height: p.node.pinSize || 64, objectFit: 'contain' }} />
                       <span className="ilbl">{p.node.title}</span>
                     </>
                   ) : (
@@ -1611,13 +1616,21 @@ function AtlasWorkspace() {
                   onClick={() => setMapMenu((v) => !v)}>Map ▾</button>
                 {mapMenu && (
                   <div className="apop">
+                    {!isList && activeBackdropRow && (
+                      <button title="The art on screen belongs to a timed period — change that period's art"
+                        onClick={() => { setMapMenu(false); setPicker({ kind: 'backdrop-row', rowId: activeBackdropRow.id, imageId: activeBackdropRow.imageId, start: activeBackdropRow.start, hasCurrent: false }) }}>
+                        🖼 Change this period's art…
+                      </button>
+                    )}
                     {!isList && (
-                      <button onClick={() => { setMapMenu(false); setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl }) }}>
-                        🖼 {map?.backdropUrl ? 'Change the backdrop…' : 'Set a backdrop image…'}
+                      <button title={activeBackdropRow ? 'The base art shows outside every timed period — it is not what is on screen now' : undefined}
+                        onClick={() => { setMapMenu(false); setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl }) }}>
+                        🖼 {map?.backdropUrl ? (activeBackdropRow ? 'Change the base art…' : 'Change the backdrop…') : (activeBackdropRow ? 'Set base art…' : 'Set a backdrop image…')}
                       </button>
                     )}
                     {!isList && map?.backdropUrl && (
-                      <button onClick={() => { setMapMenu(false); setBackdrop(null) }}>Remove the backdrop</button>
+                      <button title={activeBackdropRow ? 'Removes the BASE art (hidden right now behind the period art)' : undefined}
+                        onClick={() => { setMapMenu(false); setBackdrop(null) }}>{activeBackdropRow ? 'Remove the base art' : 'Remove the backdrop'}</button>
                     )}
                     {!isList && tl?.enabled && (
                       <button title="Different map art for different periods — the asteroid falls, the chart changes"
@@ -1961,8 +1974,17 @@ function AtlasWorkspace() {
                   {activeBackdropUrl
                     ? <img className="spbd" src={activeBackdropUrl} alt="" />
                     : <div className="muted spnone">No art yet — this space is a blank plane.</div>}
-                  <button className="btn block" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>
-                    🖼 {map?.backdropUrl ? 'Change the backdrop…' : 'Set a backdrop image…'}
+                  {activeBackdropRow && (
+                    <div className="muted esmall">Showing the period art from {momentLabel(activeBackdropRow.start ?? 0, world?.eras, tl?.unit)} — the base art shows outside every period.</div>
+                  )}
+                  {activeBackdropRow && (
+                    <button className="btn block" onClick={() => setPicker({ kind: 'backdrop-row', rowId: activeBackdropRow.id, imageId: activeBackdropRow.imageId, start: activeBackdropRow.start, hasCurrent: false })}>
+                      🖼 Change this period's art…
+                    </button>
+                  )}
+                  <button className="btn block" title={activeBackdropRow ? 'The base art is hidden right now, behind the period art' : undefined}
+                    onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map?.backdropUrl })}>
+                    🖼 {map?.backdropUrl ? (activeBackdropRow ? 'Change the base art…' : 'Change the backdrop…') : (activeBackdropRow ? 'Set base art…' : 'Set a backdrop image…')}
                   </button>
                   {tl?.enabled && (
                     <button className="btn block" title="Different map art for different periods"
@@ -2063,14 +2085,27 @@ function AtlasWorkspace() {
         )}
       </div>
 
-      {picker && (
-        <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent}
-          onPick={handlePick} onClose={() => setPicker(null)}
-          generate={forgeOn ? (picker.kind === 'node'
-            ? { label: `Paint art for “${trunc(sel?.node?.title || 'this node')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
-            : { label: 'Paint this map a backdrop', run: (g) => forgeService.mapBackdrop(map.id, g) }) : null}
-          onGenerated={() => { setPicker(null); setFlash({ kind: 'ok', text: 'Painted and attached' }); forgeRefresh() }} />
-      )}
+      {picker && (() => {
+        const pkNode = picker.kind === 'node' ? ((data?.placements || []).find((pp) => pp.node.id === picker.nodeId)?.node || (stray?.id === picker.nodeId ? stray : null)) : null
+        const periodAt = momentLabel(Math.round(now), world?.eras, tl?.unit)
+        const title = picker.kind === 'node' ? `Art for “${trunc(pkNode?.title || 'this node')}”`
+          : picker.kind === 'backdrop-timed' ? `Art for “${trunc(map?.title || 'this space')}” from ${periodAt}`
+          : picker.kind === 'backdrop-row' ? `Art for the period from ${momentLabel(picker.start ?? 0, world?.eras, tl?.unit)} on “${trunc(map?.title || 'this space')}”`
+          : `${activeBackdropRow ? 'Base art' : 'Backdrop'} for “${trunc(map?.title || 'this space')}”`
+        const currentId = picker.kind === 'node' ? (pkNode?.imageId ?? null) : picker.kind === 'backdrop' ? (map?.imageId ?? null) : picker.kind === 'backdrop-row' ? (picker.imageId ?? null) : null
+        const generate = !forgeOn ? null
+          : picker.kind === 'node' ? { label: `Paint art for “${trunc(pkNode?.title || 'this node')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
+          : picker.kind === 'backdrop-timed' ? { label: `Paint art for the period from ${periodAt}`, run: (g) => forgeService.mapBackdrop(map.id, g, Math.round(now)) }
+          : picker.kind === 'backdrop' ? { label: activeBackdropRow ? 'Paint this map new base art' : 'Paint this map a backdrop', run: (g) => forgeService.mapBackdrop(map.id, g) }
+          : null
+        return (
+          <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent} title={title} currentId={currentId}
+            removeLabel={picker.kind === 'node' ? 'Remove the art from this node' : 'Remove the base art'}
+            onPick={handlePick} onClose={() => setPicker(null)}
+            generate={generate}
+            onGenerated={() => { const k = picker.kind; setPicker(null); setFlash({ kind: 'ok', text: k === 'backdrop-timed' ? `Painted — a new period from ${periodAt} on this map` : 'Painted and attached' }); forgeRefresh() }} />
+        )
+      })()}
       {nodePicker === 'link' && sel && (
         <NodePicker worldId={worldId} excludeId={sel.node.id} title="Thread to…" excludedNote="Already threaded"
           excludeIds={[...(nodeLinks.out || []), ...(nodeLinks.in || [])].map((l) => l.otherId)}
@@ -2733,12 +2768,20 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
 
 // Upload a new image (to R2 via the existing pipeline), pick an existing one from this
 // world, or — when the Forge is on — paint one for exactly the thing being decorated.
-function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerated }) {
+const PICK_PAGE = 60
+function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerated, title = 'Choose image', currentId = null, removeLabel = 'Remove current image' }) {
   const [images, setImages] = useState(null) // null = loading
+  const [total, setTotal] = useState(0)
+  const [q, setQ] = useState('')
+  const [needle, setNeedle] = useState('') // debounced search
+  const [more, setMore] = useState(false)
+  const fileRef = useRef(null)
+  const seq = useRef(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [genBusy, setGenBusy] = useState(false)
   const [gGuide, setGGuide] = useState('')
+  useEffect(() => { const t = setTimeout(() => setNeedle(q.trim()), 300); return () => clearTimeout(t) }, [q])
   const runGen = () => {
     if (genBusy || busy) return
     setGenBusy(true); setErr('')
@@ -2747,16 +2790,23 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
       .catch((e) => setErr(errText(e, 'Painting failed')))
       .finally(() => setGenBusy(false))
   }
-  const usesOf = (im) => (im.usage
-    ? (im.usage.maps || 0) + (im.usage.nodes || 0) + (im.usage.backdrops || 0) + (im.usage.anchor || 0)
-    : 0)
-
-  useEffect(() => {
-    imageServiceBase64.getImages({ worldId }).then((r) => setImages(r.images || [])).catch((e) => { setImages([]); setErr(errText(e, "Couldn't load the images")) })
-  }, [worldId])
+  // every image in the world is reachable: pages of PICK_PAGE, and the same search the Archive has
+  const load = (reset) => {
+    const my = ++seq.current
+    if (reset) setImages(null)
+    else setMore(true)
+    setErr('')
+    imageServiceBase64.getImages({ worldId, limit: PICK_PAGE, offset: reset ? 0 : (images || []).length, search: needle || undefined })
+      .then((r) => { if (my !== seq.current) return; setImages((prev) => (reset || !prev ? r.images || [] : [...prev, ...(r.images || [])])); setTotal(r.total ?? (r.images || []).length) })
+      .catch((e) => { if (my !== seq.current) return; setImages((prev) => prev || []); setErr(errText(e, "Couldn't load the images")) })
+      .finally(() => { if (my === seq.current) setMore(false) })
+  }
+  useEffect(() => { load(true) }, [worldId, needle]) // eslint-disable-line
 
   const upload = async (file) => {
     if (!file) return
+    const v = imageServiceBase64.validateImage(file) // the same rules as the Archive, said before anything is sent
+    if (!v.valid) { setErr(v.error); return }
     setBusy(true); setErr('')
     try {
       const r = await imageServiceBase64.uploadImage(file, worldId)
@@ -2767,9 +2817,9 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
   }
 
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-back top" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>Choose image</h4><button onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-head"><h4>{title}</h4><button onClick={onClose} aria-label="Close">✕</button></div>
         {generate && (
           <div className="pgen">
             <button className="btn primary block" disabled={genBusy || busy} onClick={runGen}
@@ -2782,17 +2832,16 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
               onKeyDown={(e) => { if (e.key === 'Enter') runGen() }} />
           </div>
         )}
-        <label className="btn block">
-          {busy ? 'Uploading…' : '⬆ Upload new image'}
-          <input type="file" accept="image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files[0])} />
-        </label>
-        {hasCurrent && <button className="btn block" onClick={() => onPick(null, null)}>Remove current image</button>}
+        <button type="button" className="btn block" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? 'Uploading…' : '⬆ Upload new image (PNG, JPEG, GIF or WebP, up to 10 MB)'}</button>
+        <input ref={fileRef} type="file" accept={ACCEPT} hidden disabled={busy} onChange={(e) => { upload(e.target.files[0]); e.target.value = '' }} />
+        {hasCurrent && <button className="btn block" onClick={() => onPick(null, null)}>{removeLabel}</button>}
         {err && <div className="muted" style={{ color: '#ff9b9b' }}>{err}</div>}
+        <input className="nsearch" placeholder="Search the archive…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="pick-grid">
           {images === null && <div className="muted">Loading…</div>}
           {(images || []).map((im) => (
-            <button key={im.id} className="pick" onClick={() => onPick(im.id, im.url)}
-              title={`${im.originalName}${usesOf(im) > 0 ? ' — in use in your world' : ' — not used anywhere yet'}`}>
+            <button key={im.id} className={`pick${im.id === currentId ? ' current' : ''}`} onClick={() => onPick(im.id, im.url)}
+              title={`${im.originalName}${im.id === currentId ? ' — the current image' : ''} — ${describeUse(im)}`}>
               <img src={im.url} alt={im.originalName} loading="lazy" />
               <span className="pname">{im.originalName}</span>
               {usesOf(im) > 0
@@ -2800,8 +2849,11 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
                 : <span className="puse" title="Not used anywhere yet">○</span>}
             </button>
           ))}
-          {images !== null && images.length === 0 && !err && <div className="muted">No images in this world yet — upload one above.</div>}
+          {images !== null && images.length === 0 && !err && <div className="muted">{needle ? `Nothing named like “${needle}”.` : 'No images in this world yet — upload one above.'}</div>}
         </div>
+        {images !== null && images.length < total && (
+          <button type="button" className="btn block" disabled={more} onClick={() => load(false)}>{more ? 'Loading…' : `Show more (${total - images.length} remain)`}</button>
+        )}
       </div>
     </div>
   )

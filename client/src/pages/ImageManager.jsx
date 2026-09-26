@@ -1,28 +1,33 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import imageFolderService from '../services/imageFolderService'
 import { errText } from '../services/http'
+import { usesOf, describeUse, ACCEPT } from '../utils/images'
 import '../styles/shell.scss'
 import '../styles/archive.scss'
 
 const PAGE = 60
 const plural = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`
-const usesOf = (im) => (im.usage
-  ? (im.usage.maps || 0) + (im.usage.nodes || 0) + (im.usage.backdrops || 0) + (im.usage.anchor || 0)
-  : 0)
 
 // The Archive: one world's art — maps, portraits, handouts. Scoped to a single world
 // (switchable in the header); upload by button, by dragging anywhere, or by pasting.
 function ImageManager() {
   const { worldId: paramWorldId } = useParams()
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
   const [worlds, setWorlds] = useState(null)
   const [world, setWorld] = useState(null)
+  const [worldsErr, setWorldsErr] = useState(null) // the world list did not load
+  const [missing, setMissing] = useState(false) // the URL names a world that is not in this account
+  const [foldersErr, setFoldersErr] = useState(null)
+  const [imagesErr, setImagesErr] = useState(null)
+  const [tick, setTick] = useState(0) // ⟳ Try again
+  const fileRef = useRef(null)
+  const loadSeq = useRef(0) // a late reply never overwrites a newer view
+  const folderWorld = useRef(null) // the world the selected folder belongs to
   const [folders, setFolders] = useState([]) // tree
   const [counts, setCounts] = useState({ total: 0, unsorted: 0 })
   const [folderSel, setFolderSel] = useState('all') // 'all' | 'unsorted' | folder id (number)
@@ -52,23 +57,19 @@ function ImageManager() {
   const dragDepth = useRef(0)
   const uploadRef = useRef(() => {})
 
-  // ---- world resolution: /worlds/:id/images → ?world= → last used → first ----
+  // ---- world resolution: the URL names the world; one that is not yours says so ----
   useEffect(() => {
     let live = true
+    setWorldsErr(null); setMissing(false)
     worldService.getWorlds().then(({ worlds: ws }) => {
       if (!live) return
       setWorlds(ws || [])
-      const wanted = paramWorldId || searchParams.get('world') || worldService.getCurrentWorld()?.id
-      const w = (ws || []).find((x) => String(x.id) === String(wanted)) || (ws || [])[0]
-      if (!w) { setWorld(null); setLoading(false); return }
-      if (String(w.id) !== String(paramWorldId)) {
-        navigate(`/worlds/${w.id}/images`, { replace: true })
-      } else {
-        setWorld(w)
-      }
-    }).catch(() => { if (live) { setWorlds([]); setLoading(false); setFlash({ kind: 'err', text: 'Could not load your worlds' }) } })
+      const w = (ws || []).find((x) => String(x.id) === String(paramWorldId))
+      if (!w) { setWorld(null); setLoading(false); if ((ws || []).length) setMissing(true); return }
+      setWorld(w)
+    }).catch((e) => { if (live) { setWorlds(null); setLoading(false); setWorldsErr(errText(e, "Couldn't load your worlds")) } })
     return () => { live = false }
-  }, [paramWorldId]) // eslint-disable-line
+  }, [paramWorldId, tick]) // eslint-disable-line
 
   useEffect(() => {
     document.title = world ? `The Archive · ${world.name}` : 'The Archive · Fantasy Map Timeline'
@@ -76,28 +77,38 @@ function ImageManager() {
   }, [world])
 
   // ---- folders ----
-  const loadFolders = useCallback((wid) =>
-    imageFolderService.getFolders(wid).then((r) => {
+  const loadFolders = useCallback((wid) => {
+    setFoldersErr(null)
+    return imageFolderService.getFolders(wid).then((r) => {
       setFolders(imageFolderService.buildFolderTree(r.folders || []))
       setCounts({ total: r.total ?? 0, unsorted: r.unsorted ?? 0 })
-    }).catch(() => {}), [])
+    }).catch((e) => setFoldersErr(errText(e, "Couldn't load the folders")))
+  }, [])
   useEffect(() => { if (world) { setFolderSel('all'); loadFolders(world.id) } }, [world?.id]) // eslint-disable-line
+  // a folder is chosen for the world it belongs to: a switch to another world never queries with it
+  const pickFolder = (sel) => { folderWorld.current = world?.id ?? null; setFolderSel(sel) }
 
   // ---- images ----
   useEffect(() => { const t = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(t) }, [search])
   const loadImages = useCallback(async (reset) => {
     if (!world) return
+    if (typeof folderSel === 'number' && folderWorld.current !== world.id) return // another world's folder: the reset lands next
+    const seq = ++loadSeq.current
     reset ? setLoading(true) : setLoadingMore(true)
+    setImagesErr(null)
     const params = { worldId: world.id, search: q || undefined, limit: PAGE, offset: reset ? 0 : images.length }
     if (folderSel === 'unsorted') params.unassigned = true
     else if (folderSel !== 'all') params.folderId = folderSel
     try {
       const r = await imageServiceBase64.getImages(params)
+      if (seq !== loadSeq.current) return // a newer view was asked for since
       setImages((prev) => (reset ? r.images : [...prev, ...r.images]))
       setTotal(r.total ?? r.images.length)
     } catch (e) {
-      setFlash({ kind: 'err', text: errText(e, "Couldn't load the archive") })
-    } finally { setLoading(false); setLoadingMore(false) }
+      if (seq !== loadSeq.current) return
+      setImagesErr(errText(e, "Couldn't load the archive"))
+      if (reset) { setImages([]); setTotal(0) }
+    } finally { if (seq === loadSeq.current) { setLoading(false); setLoadingMore(false) } }
   }, [world?.id, folderSel, q, images.length]) // eslint-disable-line
   useEffect(() => { if (world) { setBox(-1); setSelected(new Set()); loadImages(true) } }, [world?.id, folderSel, q]) // eslint-disable-line
 
@@ -105,7 +116,7 @@ function ImageManager() {
 
   useEffect(() => {
     if (!flash) return
-    const t = setTimeout(() => setFlash(null), 3500)
+    const t = setTimeout(() => setFlash(null), flash.sticky ? 12000 : 3500) // a list of what went wrong stays long enough to read
     return () => clearTimeout(t)
   }, [flash])
 
@@ -120,31 +131,30 @@ function ImageManager() {
   // ---- upload: button, drag-anywhere, paste ----
   const doUpload = async (fileList) => {
     if (!world) return
-    const files = Array.from(fileList).filter((f) => {
+    // every file gets a verdict; the summary names each one that was skipped or failed, and why
+    const skipped = [], failed = [], files = []
+    for (const f of Array.from(fileList)) {
       const v = imageServiceBase64.validateImage(f)
-      if (!v.valid) setFlash({ kind: 'err', text: `${f.name}: ${v.error}` })
-      return v.valid
-    })
-    if (!files.length) return
+      if (v.valid) files.push(f); else skipped.push(`${f.name}: ${v.error}`)
+    }
     const targetFolder = typeof folderSel === 'number' ? folderSel : null
-    let fails = 0
-    setUploads({ done: 0, total: files.length, name: files[0].name, pct: 0 })
+    if (files.length) setUploads({ done: 0, total: files.length, name: files[0].name, pct: 0 })
     for (let i = 0; i < files.length; i++) {
       const f = files[i]
       setUploads((u) => u && ({ ...u, name: f.name, pct: 0 }))
       try {
-        const r = await imageServiceBase64.uploadImage(f, world.id, '', '', (p) => setUploads((u) => u && ({ ...u, pct: p })))
-        if (targetFolder && r.image) await imageServiceBase64.updateImage(r.image.id, { folder_id: targetFolder }).catch(() => {})
+        await imageServiceBase64.uploadImage(f, world.id, '', '', (p) => setUploads((u) => u && ({ ...u, pct: p })), targetFolder)
       } catch (e) {
-        fails += 1
+        failed.push(`${f.name}: ${errText(e, 'upload failed')}`)
       }
       setUploads((u) => u && ({ ...u, done: i + 1 }))
     }
     setUploads(null)
-    setFlash(fails
-      ? { kind: 'err', text: `Added ${files.length - fails} of ${plural(files.length, 'image')} — ${fails} failed` }
-      : { kind: 'ok', text: `${plural(files.length, 'new piece')} in the archive` })
-    refresh()
+    const added = files.length - failed.length
+    const problems = [...failed, ...skipped]
+    if (!problems.length) setFlash({ kind: 'ok', text: `${plural(added, 'new piece')} in the archive` })
+    else setFlash({ kind: added ? 'err' : 'err', sticky: true, text: `${added ? `${plural(added, 'image')} added · ` : ''}${problems.slice(0, 3).join(' · ')}${problems.length > 3 ? ` · and ${problems.length - 3} more` : ''}` })
+    if (added) refresh()
   }
   uploadRef.current = doUpload
 
@@ -181,15 +191,14 @@ function ImageManager() {
     return out
   }, [folders])
 
-  const moveImages = async (ids, folderId) => { // folderId: number | null (unsorted)
-    let fails = 0
-    for (const id of ids) {
-      try { await imageServiceBase64.updateImage(id, { folder_id: folderId }) } catch (e) { fails += 1 }
-    }
+  const moveImages = async (ids, folderId) => { // folderId: number | null (unsorted) — one request for all of them
     const dest = folderId == null ? 'Unsorted' : (flatFolders.find((f) => f.id === folderId)?.name || 'folder')
-    setFlash(fails
-      ? { kind: 'err', text: `Moved ${ids.length - fails} of ${ids.length} — ${fails} failed` }
-      : { kind: 'ok', text: `Filed ${plural(ids.length, 'image')} under ${dest}` })
+    try {
+      await imageServiceBase64.moveImages(ids, folderId)
+      setFlash({ kind: 'ok', text: `Filed ${plural(ids.length, 'image')} under ${dest}` })
+    } catch (e) {
+      setFlash({ kind: 'err', text: errText(e, "Couldn't file them") })
+    }
     setSelected(new Set())
     setMoveMenu(false)
     setBox(-1)
@@ -200,13 +209,12 @@ function ImageManager() {
   const [busyAct, setBusyAct] = useState(false)
   const guarded = async (fn) => { if (busyRef.current) return; busyRef.current = true; setBusyAct(true); try { await fn() } finally { busyRef.current = false; setBusyAct(false) } }
   const deleteImages = (ids) => guarded(async () => {
-    let fails = 0
-    for (const id of ids) {
-      try { await imageServiceBase64.deleteImage(id) } catch (e) { fails += 1 }
+    try {
+      await imageServiceBase64.deleteImages(ids)
+      setFlash({ kind: 'ok', text: `${plural(ids.length, 'image')} removed from the archive` })
+    } catch (e) {
+      setFlash({ kind: 'err', text: errText(e, "Couldn't delete them") })
     }
-    setFlash(fails
-      ? { kind: 'err', text: `Deleted ${ids.length - fails} of ${ids.length} — ${fails} failed` }
-      : { kind: 'ok', text: `${plural(ids.length, 'image')} removed from the archive` })
     setConfirmDel(null)
     setSelected(new Set())
     setSelectMode(false)
@@ -235,12 +243,24 @@ function ImageManager() {
       if (folderSel === folder.id) setFolderSel('all')
       loadFolders(world.id)
       loadImages(true)
-      setFlash({ kind: 'ok', text: `Folder "${folder.name}" removed — its images went back to Unsorted` })
+      setFlash({ kind: 'ok', text: `Folder "${folder.name}" removed${folder.children?.length ? ' with its subfolders' : ''} — its images went back to Unsorted` })
     } catch (e) {
       setConfirmFolderDel(null)
       setFlash({ kind: 'err', text: errText(e, "Couldn't delete the folder") })
     }
   })
+
+  // a name or caption edited in the lightbox lands on the server and in the grid at once
+  const editImage = async (id, patch) => {
+    try {
+      const r = await imageServiceBase64.updateImage(id, patch)
+      setImages((list) => list.map((im) => (im.id === id ? { ...im, originalName: r.image?.originalName ?? im.originalName, altText: r.image?.altText ?? null } : im)))
+      return true
+    } catch (e) {
+      setFlash({ kind: 'err', text: errText(e, "Couldn't save that") })
+      return false
+    }
+  }
 
   // ---- selection ----
   const toggleSel = (id) => setSelected((s) => {
@@ -257,6 +277,33 @@ function ImageManager() {
   }, [selectMode, confirmDel, confirmFolderDel, folderForm, box])
 
   // ================================================================ render ====
+  if (worldsErr) {
+    return (
+      <div className="shell arch">
+        <TopBar crumb="The Archive" />
+        <div className="voidstate">
+          <Compass size={92} className="void-rose" />
+          <h2>The archive is out of reach</h2>
+          <p>{worldsErr}</p>
+          <div className="mrow"><button className="sbtn primary" onClick={() => setTick((t) => t + 1)}>⟳ Try again</button><Link to="/dashboard" className="sbtn ghost">To your worlds</Link></div>
+        </div>
+        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
+      </div>
+    )
+  }
+  if (missing) {
+    return (
+      <div className="shell arch">
+        <TopBar crumb="The Archive" />
+        <div className="voidstate">
+          <Compass size={92} className="void-rose" />
+          <h2>That world isn't in your atlas</h2>
+          <p>The link names a world this account does not have — it may have been deleted, or it belongs to someone else.</p>
+          <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
+        </div>
+      </div>
+    )
+  }
   if (worlds !== null && worlds.length === 0) {
     return (
       <div className="shell arch">
@@ -267,6 +314,7 @@ function ImageManager() {
           <p>Art lives inside a world. Found one first, then fill its archive with maps and portraits.</p>
           <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
         </div>
+        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
       </div>
     )
   }
@@ -307,24 +355,23 @@ function ImageManager() {
           onClick={() => { setSelectMode((v) => !v); setSelected(new Set()) }}
           disabled={!images.length}
         >{selectMode ? 'Done' : 'Select'}</button>
-        <label className="sbtn primary">
-          ⬆ Add art
-          <input type="file" accept="image/*" multiple hidden onChange={(e) => { doUpload(e.target.files); e.target.value = '' }} />
-        </label>
+        <button type="button" className="sbtn primary" onClick={() => fileRef.current?.click()}>⬆ Add art</button>
+        <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { doUpload(e.target.files); e.target.value = '' }} />
       </div>
 
       <div className="archmain">
         <aside className="frail">
-          <button className={`frow ${folderSel === 'all' ? 'on' : ''}`} onClick={() => setFolderSel('all')}>
+          <button className={`frow ${folderSel === 'all' ? 'on' : ''}`} onClick={() => pickFolder('all')}>
             <span className="fico">❖</span> All art <span className="fcount">{counts.total}</span>
           </button>
-          <button className={`frow ${folderSel === 'unsorted' ? 'on' : ''}`} onClick={() => setFolderSel('unsorted')}>
+          <button className={`frow ${folderSel === 'unsorted' ? 'on' : ''}`} onClick={() => pickFolder('unsorted')}>
             <span className="fico">◌</span> Unsorted <span className="fcount">{counts.unsorted}</span>
           </button>
+          {foldersErr && <div className="ferr">{foldersErr} <button type="button" className="lnk" onClick={() => world && loadFolders(world.id)}>Retry</button></div>}
           {folders.length > 0 && <div className="fsep" />}
           {folders.map((f) => (
             <FolderRow key={f.id} folder={f} depth={0}
-              sel={folderSel} onSel={setFolderSel}
+              sel={folderSel} onSel={pickFolder}
               collapsed={collapsed}
               onToggle={(id) => setCollapsed((c) => { const n = new Set(c); n.has(id) ? n.delete(id) : n.add(id); return n })}
               menu={folderMenu} onMenu={setFolderMenu}
@@ -340,6 +387,13 @@ function ImageManager() {
           {loading ? (
             <div className="tilegrid">
               {Array.from({ length: 10 }).map((_, i) => <div key={i} className="skel tile-skel" />)}
+            </div>
+          ) : imagesErr && images.length === 0 ? (
+            <div className="voidstate">
+              <Compass size={72} className="void-rose" />
+              <h2>The archive didn't answer</h2>
+              <p>{imagesErr}</p>
+              <button className="sbtn primary" onClick={() => loadImages(true)}>⟳ Try again</button>
             </div>
           ) : images.length === 0 ? (
             <div className="voidstate">
@@ -370,7 +424,7 @@ function ImageManager() {
                     >
                       <img src={im.url} alt={im.altText || im.originalName} loading="lazy" />
                       <span className="tname">{im.originalName}</span>
-                      {usesOf(im) > 0 && <span className="inuse" title={`Placed in your world — ${plural(im.usage.maps, 'map')}, ${plural(im.usage.nodes, 'node')}`}>◈</span>}
+                      {usesOf(im) > 0 && <span className="inuse" title={describeUse(im)}>◈</span>}
                       {selectMode && <span className={`pickmark ${picked ? 'on' : ''}`}>{picked ? '✓' : ''}</span>}
                     </button>
                   )
@@ -378,8 +432,9 @@ function ImageManager() {
               </div>
               {images.length < total && (
                 <div className="loadmore">
+                  {imagesErr && <div className="muted" style={{ marginBottom: 6 }}>{imagesErr}</div>}
                   <button className="sbtn" disabled={loadingMore} onClick={() => loadImages(false)}>
-                    {loadingMore ? 'Unrolling…' : `Show more (${total - images.length} remain)`}
+                    {loadingMore ? 'Unrolling…' : imagesErr ? '⟳ Try again' : `Show more (${total - images.length} remain)`}
                   </button>
                 </div>
               )}
@@ -440,6 +495,8 @@ function ImageManager() {
           onMove={(fid) => moveImages([boxImg.id], fid)}
           onDelete={() => setConfirmDel({ ids: [boxImg.id] })}
           onFlash={setFlash}
+          onEdit={(patch) => editImage(boxImg.id, patch)}
+          blocked={!!confirmDel}
         />
       )}
 
@@ -465,7 +522,7 @@ function ImageManager() {
       {confirmFolderDel && (
         <Modal title={`Delete “${confirmFolderDel.name}”?`} onClose={() => setConfirmFolderDel(null)}>
           <p className="mnote">The folder goes; its {plural(confirmFolderDel.imageCount ?? 0, 'image')} stay in the archive and return to Unsorted.</p>
-          {(confirmFolderDel.children?.length > 0) && <p className="mwarn">It has subfolders — delete those first.</p>}
+          {(confirmFolderDel.children?.length > 0) && <p className="mwarn">Its {plural(confirmFolderDel.children.length, 'subfolder')} go with it — every image inside returns to Unsorted.</p>}
           <div className="mrow">
             <button className="sbtn ghost" onClick={() => setConfirmFolderDel(null)}>Keep it</button>
             <button className="sbtn danger" disabled={busyAct} onClick={() => deleteFolder(confirmFolderDel)}>{busyAct ? 'Deleting…' : 'Delete folder'}</button>
@@ -484,18 +541,20 @@ function FolderRow({ folder, depth, sel, onSel, collapsed, onToggle, menu, onMen
   return (
     <>
       <div className={`frow fdir ${sel === folder.id ? 'on' : ''}`} style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => onSel(folder.id)}>
-        <span
-          className={`caret ${kids.length ? '' : 'blank'}`}
-          onClick={(e) => { if (kids.length) { e.stopPropagation(); onToggle(folder.id) } }}
-        >{kids.length ? (isOpen ? '▾' : '▸') : ''}</span>
+        role="button" tabIndex={0} aria-label={`Folder ${folder.name}`}
+        onClick={() => onSel(folder.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSel(folder.id) } else if (e.key === 'ArrowRight' && kids.length && !isOpen) onToggle(folder.id); else if (e.key === 'ArrowLeft' && kids.length && isOpen) onToggle(folder.id) }}>
+        {kids.length
+          ? <button type="button" className="caret" aria-label={isOpen ? 'Fold' : 'Unfold'} title={isOpen ? 'Fold' : 'Unfold'}
+              onClick={(e) => { e.stopPropagation(); onToggle(folder.id) }}>{isOpen ? '▾' : '▸'}</button>
+          : <span className="caret blank" />}
         <span className="fico">▤</span>
         <span className="fname">{folder.name}</span>
         <span className="fcount">{folder.imageCount ?? 0}</span>
         <span className="fmenu" onPointerDown={(e) => e.stopPropagation()}>
-          <button className="fdots" onClick={(e) => { e.stopPropagation(); onMenu(menu === folder.id ? null : folder.id) }}>⋯</button>
+          <button className="fdots" aria-label={`Options for ${folder.name}`} title="Folder options" onClick={(e) => { e.stopPropagation(); onMenu(menu === folder.id ? null : folder.id) }}>⋯</button>
           {menu === folder.id && (
-            <div className="menupop">
+            <div className="menupop" onClick={(e) => e.stopPropagation()}>
               <button onClick={() => { onMenu(null); onRename(folder) }}>Rename</button>
               <button onClick={() => { onMenu(null); onSub(folder) }}>New subfolder</button>
               <button className="dngr" onClick={() => { onMenu(null); onDelete(folder) }}>Delete…</button>
@@ -557,12 +616,16 @@ function FolderModal({ form, parentName, busy, onClose, onSubmit }) {
 function ConfirmDelete({ ids, images, busy, onClose, onConfirm }) {
   const targets = images.filter((i) => ids.includes(i.id))
   const used = targets.filter((i) => usesOf(i) > 0)
+  const periods = targets.reduce((a, i) => a + (i.usage?.backdrops || 0), 0)
+  const anchors = targets.reduce((a, i) => a + (i.usage?.anchor || 0), 0)
   return (
     <Modal title={ids.length === 1 ? 'Delete this image?' : `Delete ${ids.length} images?`} onClose={onClose}>
       {used.length > 0 && (
         <p className="mwarn">
-          {used.length === 1 ? 'One of them is' : `${used.length} of them are`} placed in your world —
-          maps and nodes using {used.length === 1 ? 'it' : 'them'} will lose their art.
+          {ids.length === 1 ? `This image is ${describeUse(targets[0]).replace(/^In use — /, '')}.` : `${used.length === 1 ? 'One of them is' : `${used.length} of them are`} placed in your world.`}
+          {' '}Maps and nodes using {ids.length === 1 ? 'it' : 'them'} lose their art
+          {periods > 0 ? `, and ${plural(periods, 'timed backdrop period')} ${periods === 1 ? 'is' : 'are'} removed with it` : ''}
+          {anchors > 0 ? `; the Forge loses its style anchor` : ''}.
         </p>
       )}
       <p className="mnote">Gone from the archive and from storage. This cannot be undone.</p>
@@ -574,13 +637,20 @@ function ConfirmDelete({ ids, images, busy, onClose, onConfirm }) {
   )
 }
 
-function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onFlash }) {
+function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onFlash, onEdit, blocked = false }) {
   // browsing the folder list with the arrow keys must not file the image: Move (or Enter) does
   const cur = img.folderId == null ? '' : String(img.folderId)
   const [pick, setPick] = useState(cur)
   useEffect(() => { setPick(cur) }, [cur])
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState(img.originalName || '')
+  const [caption, setCaption] = useState(img.altText || '')
+  useEffect(() => { setName(img.originalName || ''); setCaption(img.altText || ''); setNaming(false) }, [img.id]) // eslint-disable-line
+  const saveName = async () => { const v = name.trim(); setNaming(false); if (!v || v === img.originalName) { setName(img.originalName || ''); return } if (!(await onEdit?.({ original_name: v }))) setName(img.originalName || '') }
+  const saveCaption = async () => { const v = caption.trim(); if (v === (img.altText || '')) return; if (!(await onEdit?.({ alt_text: v }))) setCaption(img.altText || '') }
   useEffect(() => {
     const key = (e) => {
+      if (blocked) return // a confirm sits on top: Esc is its alone
       if (/select|input|textarea/i.test(e.target?.tagName)) return // a field keeps its own keys
       if (e.key === 'Escape') onClose()
       else if (e.key === 'ArrowLeft' && onPrev) onPrev()
@@ -588,19 +658,14 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
-  }, [onClose, onPrev, onNext])
+  }, [onClose, onPrev, onNext, blocked])
 
   const copyUrl = () => navigator.clipboard?.writeText(img.url)
     .then(() => onFlash({ kind: 'ok', text: 'Image address copied' }))
     .catch(() => onFlash({ kind: 'err', text: 'Could not copy' }))
 
   const uses = usesOf(img)
-  const useLine = uses === 0
-    ? 'Not placed anywhere yet'
-    : ['In use —',
-        img.usage.maps > 0 ? `backdrop of ${plural(img.usage.maps, 'map')}` : null,
-        img.usage.nodes > 0 ? `art of ${plural(img.usage.nodes, 'node')}` : null,
-      ].filter(Boolean).join(' ').replace('maps art', 'maps · art')
+  const useLine = describeUse(img)
 
   return (
     <div className="modal-back lightbox" onClick={onClose}>
@@ -610,12 +675,22 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
           <img src={img.url} alt={img.altText || img.originalName} />
         </div>
         <div className="lbside">
-          <h3 className="lbtitle">{img.originalName}</h3>
+          {naming
+            ? <input className="sinput lbname" autoFocus value={name} maxLength={255} onChange={(e) => setName(e.target.value)}
+                onBlur={saveName} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setName(img.originalName || ''); setNaming(false) } }} />
+            : <h3 className="lbtitle" title="Click to rename" onClick={() => onEdit && setNaming(true)}>{img.originalName}{onEdit && <span className="lbedit" aria-hidden="true"> ✎</span>}</h3>}
           <div className="lbmeta">
             {imageServiceBase64.formatFileSize(img.fileSize)} · {(img.mimeType || '').replace('image/', '')} ·{' '}
             {new Date(img.uploadedAt).toLocaleDateString()}
           </div>
           <div className={`lbuse ${uses ? 'live' : ''}`}>{uses > 0 && <span className="inuse-dot">◈</span>}{useLine}</div>
+          {onEdit && (
+            <div className="fld">
+              <label>Caption — searched, shown to no one else</label>
+              <input className="sinput" value={caption} maxLength={2000} placeholder="a note to find it by…" onChange={(e) => setCaption(e.target.value)}
+                onBlur={saveCaption} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+            </div>
+          )}
           <div className="fld">
             <label>Filed under</label>
             <div style={{ display: 'flex', gap: 6 }}>

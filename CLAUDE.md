@@ -364,6 +364,30 @@ see, Undo and world clone drop DM notes / stance / voice, the timeline panel can
 wipe the clock, and two autosaves share one timer. Work a package at a time and tick items off
 in its file with the commit hash.
 
+## Image rules
+- Uploads: the BYTES decide the type (PNG/JPEG/GIF/WebP magic numbers; an SVG or a text file
+  called .png is refused with the formats named), names are clamped to 255, a folder can ride
+  along (`folder_id`, checked against the world), and a failed insert deletes the R2 object it
+  just wrote. The upload route has its own 14 MB JSON limit (base64 is 4/3 of the file); a
+  too-big body is a plain 413 sentence.
+- Lists: `limit` 1–200 and `offset` whole, ids canonical, else 400; search matches `\`, `%`
+  and `_` literally (ILIKE with ESCAPE). PUT /images/:id builds SET from the keys sent:
+  `original_name` renames, `alt_text` '' or null clears the caption. PUT/DELETE
+  /images/bulk `{ids[, folder_id]}` move or delete up to 500 of your own images at once.
+- Folders: one name per level, the top level included (409), never blank; a folder
+  deletes WITH its subfolders (cascade) and every image inside returns to Unsorted.
+- The Archive says when a load failed (world list, folders, images) with Retry, never a
+  false empty state; a world that is not the account's shows "isn't in your atlas". Upload
+  feedback names each file that was skipped or failed and why; progress is the real transfer.
+  The lightbox renames and captions; Esc there closes only the top layer.
+- The workspace picker says what it is for (art for X / backdrop for Y / art from a moment),
+  marks the current image, pages and searches the whole archive, validates before sending,
+  sits above the dialog that opened it, and ✦ Paint from the period picker ADDS a timed
+  backdrop (`start_time` on the forge route) instead of replacing the base art. The backdrop
+  controls say which art is on screen (a period's, or the base) and change that one.
+- `utils/images.js` (`usesOf`, `describeUse`, `ACCEPT`) is the one vocabulary for an image's
+  uses: base art of N maps · art for N timed periods · art of N nodes · the Forge's anchor.
+
 ## Map surface rules
 - A clean tap on empty space deselects; a pan never does. A thread, a search hit or a
   footstep tick SHOWS the thing: its pin is selected and framed (`focusAt` on MapPlane;

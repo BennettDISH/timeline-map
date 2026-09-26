@@ -6,7 +6,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
-const { idParam } = require('../lib/validate');
+const { idParam, whole } = require('../lib/validate');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
@@ -246,9 +246,17 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
     feats.length ? `with ground for these features (do not label them): ${feats.map((f) => f.title).join(', ')}` : '',
     guidance,
   ].filter(Boolean).join('. ');
-  const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt, artStyle: mind.art_style, name: `${m.title} — backdrop` });
-  await pool.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [img.id, m.id]);
-  res.json({ image: { id: img.id, url: img.url }, previousImageId: m.image_id });
+  // with a start moment the painting is a PERIOD's art (a new timed backdrop from then on);
+  // without one it is the base art
+  const start = req.body?.start_time == null ? null : whole(req.body.start_time);
+  if (start === undefined) return res.status(400).json({ message: 'A period starts at a whole number on the clock' });
+  const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt: start == null ? prompt : `${prompt}. This is how it looks in a later period`, artStyle: mind.art_style, name: `${m.title} — ${start == null ? 'backdrop' : `from ${start}`}` });
+  if (start == null) {
+    await pool.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [img.id, m.id]);
+    return res.json({ image: { id: img.id, url: img.url }, previousImageId: m.image_id });
+  }
+  const b = (await pool.query('INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,NULL) RETURNING id', [m.id, img.id, start])).rows[0];
+  res.json({ image: { id: img.id, url: img.url }, backdropId: b.id, start });
 }));
 
 module.exports = router;

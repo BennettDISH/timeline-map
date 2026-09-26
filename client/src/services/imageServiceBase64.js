@@ -13,34 +13,30 @@ const imageServiceBase64 = {
     })
   },
 
-  // Upload image as base64 with progress tracking
-  async uploadImage(file, worldId, altText = '', tags = '', onProgress = null) {
-    try {
-      if (onProgress) onProgress(10) // Converting to base64
-      
-      const base64Data = await this.fileToBase64(file)
-      
-      if (onProgress) onProgress(30) // Starting upload
-      
-      const uploadData = {
-        imageData: base64Data,
-        originalName: file.name,
-        world_id: worldId
-      }
-      
-      if (altText) uploadData.alt_text = altText
-      if (tags) uploadData.tags = tags
-
-      if (onProgress) onProgress(60) // Uploading
-      
-      const response = await http.post(`${API_BASE}/upload`, uploadData)
-      
-      if (onProgress) onProgress(100) // Complete
-      
-      return response.data
-    } catch (error) {
-      throw error // the same error shape everywhere: callers show errText(e, fallback)
-    }
+  // Upload an image as base64. onProgress(0..100) follows the REAL transfer (the browser's
+  // upload progress), after a short read of the file; folderId files it in one request.
+  async uploadImage(file, worldId, altText = '', tags = '', onProgress = null, folderId = null) {
+    if (onProgress) onProgress(2)
+    const base64Data = await this.fileToBase64(file)
+    const uploadData = { imageData: base64Data, originalName: file.name, world_id: worldId }
+    if (altText) uploadData.alt_text = altText
+    if (tags) uploadData.tags = tags
+    if (folderId != null) uploadData.folder_id = folderId
+    const response = await http.post(`${API_BASE}/upload`, uploadData, {
+      timeout: 180000, // a 10 MB image on a slow link
+      onUploadProgress: (ev) => { if (onProgress && ev.total) onProgress(Math.max(2, Math.min(99, Math.round((ev.loaded / ev.total) * 100)))) },
+    })
+    if (onProgress) onProgress(100)
+    return response.data
+  },
+  // many images at once, one request: file them under a folder (null = Unsorted), or delete them
+  async moveImages(ids, folderId) {
+    const response = await http.put('/api/images/bulk', { ids, folder_id: folderId })
+    return response.data
+  },
+  async deleteImages(ids) {
+    const response = await http.delete('/api/images/bulk', { data: { ids } })
+    return response.data
   },
 
   // Get all images with optional filtering (reuse from regular image service)
