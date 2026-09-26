@@ -1,6 +1,7 @@
 const {
   S3Client,
   PutObjectCommand,
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -44,6 +45,15 @@ async function putObject(key, body, contentType) {
   return `${cfg.publicUrl}/${key}`;
 }
 
+// Copy an object inside the bucket (a world clone taking ownership of its art); returns the
+// new public URL.
+async function copyObject(srcKey, dstKey) {
+  await client.send(new CopyObjectCommand({
+    Bucket: cfg.bucket, CopySource: `/${cfg.bucket}/${encodeURI(srcKey)}`, Key: dstKey,
+  }));
+  return `${cfg.publicUrl}/${dstKey}`;
+}
+
 // Delete one object from R2 (no-op if the key is missing or R2 is off).
 async function deleteObject(key) {
   if (!key || !client) return;
@@ -68,4 +78,4 @@ async function deletePrefix(prefix) {
   } while (token);
 }
 
-module.exports = { r2Enabled, putObject, deleteObject, deletePrefix };
+module.exports = { r2Enabled, putObject, copyObject, deleteObject, deletePrefix };

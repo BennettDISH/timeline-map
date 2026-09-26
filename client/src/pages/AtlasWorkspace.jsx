@@ -1693,9 +1693,12 @@ function AtlasWorkspace() {
               <button onClick={() => setConfirmInterior(null)}>✕</button></div>
             {confirmInterior.impact && (confirmInterior.impact.interiorMaps > 0) ? (
               <div className="impact">
-                <p>The space inside ({confirmInterior.impact.interiorMaps} {confirmInterior.impact.interiorMaps === 1 ? 'map' : 'maps'}) is deleted.</p>
+                <p>The space inside is deleted.</p>
                 {confirmInterior.impact.nodesInside > 0 && (
                   <p>{confirmInterior.impact.nodesInside} {confirmInterior.impact.nodesInside === 1 ? 'node' : 'nodes'} inside will be left unplaced — they still exist (findable with search).</p>
+                )}
+                {confirmInterior.impact.nestedMaps > 0 && (
+                  <p>{confirmInterior.impact.nestedMaps} {confirmInterior.impact.nestedMaps === 1 ? 'space' : 'spaces'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.</p>
                 )}
                 <p className="muted">The node itself stays exactly where it is.</p>
               </div>
@@ -1890,9 +1893,12 @@ function DeleteImpact({ impact }) {
   const bits = []
   if (impact.placements > 1) bits.push(`It sits on ${impact.placements} maps — it disappears from all of them.`)
   if (impact.interiorMaps > 0) {
-    bits.push(`Its interior (${impact.interiorMaps} ${impact.interiorMaps === 1 ? 'map' : 'maps'}) is deleted too.`)
+    bits.push('Its interior is deleted too.')
     if (impact.nodesInside > 0) {
       bits.push(`${impact.nodesInside} ${impact.nodesInside === 1 ? 'node' : 'nodes'} inside will be left unplaced — they still exist (findable with search), but lose their spot.`)
+    }
+    if (impact.nestedMaps > 0) {
+      bits.push(`${impact.nestedMaps} ${impact.nestedMaps === 1 ? 'space' : 'spaces'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.`)
     }
   }
   if (bits.length === 0) bits.push('It has no interior and sits only on this map.')

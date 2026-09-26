@@ -76,6 +76,19 @@ try {
   // the outline tool: three corners, Enter closes, a region appears and the new place is selected
   if (await page.locator('.toolbar button', { hasText: 'Outline' }).count()) {
     const regionsBefore = await page.locator('.atlas .region').count();
+    // remember which outlined places already existed: the cleanup deletes only what this run makes
+    const dmAuthH = { headers: { Authorization: `Bearer ${cfg.token}` } };
+    const shapedIds = async () => new Set(((await (await fetch(`${BASE}/api/atlas/maps/${page.url().split('/m/')[1]}`, dmAuthH)).json()).placements || []).filter((x) => x.shape).map((x) => x.id));
+    const shapedBefore = await shapedIds();
+    const removeNew = async (label) => {
+      try {
+        const mapNowC = page.url().split('/m/')[1];
+        const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNowC}`, dmAuthH)).json();
+        let removed = 0;
+        for (const pl of (m.placements || []).filter((x) => x.shape && !shapedBefore.has(x.id))) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...dmAuthH, method: 'DELETE' }); if (r.ok) removed++; }
+        step(label, removed >= 1, `${removed} removed`);
+      } catch (e) { step(label, false, e.message.slice(0, 120)); }
+    };
     await page.locator('.toolbar button', { hasText: 'Outline' }).click();
     await page.waitForTimeout(300);
     const wb = await page.locator('.mp-world').boundingBox();
@@ -134,14 +147,8 @@ try {
         await pp.close();
       } catch (e) { step('player-side outline checks ran', false, e.message.slice(0, 120)); }
     } else step('player-side outline checks (needs shareToken in dm.config.json)', true, 'skipped');
-    // clean up: the throwaway world does not keep the test's place
-    try {
-      const auth = { headers: { Authorization: `Bearer ${cfg.token}` } };
-      const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNow}`, auth)).json();
-      let removed = 0;
-      for (const pl of (m.placements || []).filter((x) => x.shape)) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...auth, method: 'DELETE' }); if (r.ok) removed++; }
-      step('the outlined test place is removed again', removed >= 1, `${removed} removed`);
-    } catch (e) { step('the outlined test place is removed again', false, e.message.slice(0, 120)); }
+    // clean up: the throwaway world does not keep the test's place (only the ones this run made)
+    await removeNew('the outlined test place is removed again');
     // freehand: press and drag around a loop, Enter closes it into a region (the page still
     // shows the first, now-deleted region until it refreshes, so count relative to now)
     const before2 = await page.locator('.atlas .region').count();
@@ -162,14 +169,7 @@ try {
     const after2 = await page.locator('.atlas .region').count();
     const sel2 = await page.locator('.atlas .region.sel').count();
     step('Enter closes the traced loop into a region', after2 >= 1 && sel2 === 1, `${before2} → ${after2} region(s), ${sel2} selected`);
-    try {
-      const mapNow2 = page.url().split('/m/')[1];
-      const auth = { headers: { Authorization: `Bearer ${cfg.token}` } };
-      const m = await (await fetch(`${BASE}/api/atlas/maps/${mapNow2}`, auth)).json();
-      let removed = 0;
-      for (const pl of (m.placements || []).filter((x) => x.shape)) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...auth, method: 'DELETE' }); if (r.ok) removed++; }
-      step('the traced test place is removed again', removed >= 1, `${removed} removed`);
-    } catch (e) { step('the traced test place is removed again', false, e.message.slice(0, 120)); }
+    await removeNew('the traced test place is removed again');
   } else step('the toolbar offers ◌ Outline', false);
   // a DM note survives reselecting the node (it used to land under the wrong key and go stale)
   {
@@ -193,4 +193,6 @@ try {
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();
-console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: out.steps.filter((s) => !s.ok).length }));
+const failed = out.steps.filter((s) => !s.ok).length;
+console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: failed }));
+process.exitCode = failed ? 1 : 0; // a red step is a red run

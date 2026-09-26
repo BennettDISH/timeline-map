@@ -1,5 +1,7 @@
 # timeline-map — Deep-Dive Review (July 2026)
 
+> **Historical (banner added 2026-09-26):** as of September 2026 production holds a real, live campaign. The lines below that call the data disposable or say the schema may be recreated freely are OUT OF DATE — migrations must be additive and preserve data. See CLAUDE.md.
+
 Multi-agent audit + R2 migration design. Every finding below was independently
 verified against the source (adversarial pass); severities are the **post-verification**
 values. Line numbers were accurate at time of writing — re-check after edits.

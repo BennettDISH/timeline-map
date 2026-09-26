@@ -13,7 +13,16 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   put. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
-Both configs are gitignored — copy the `*.config.example.json` files.
+Both configs are gitignored — copy the `*.config.example.json` files. A FAIL step makes the run exit
+non-zero, so `npm run all` stops on the first red suite.
+
+The DM suite expects a throwaway world laid out like the proving ground (world 30): a clock in
+footsteps with three sessions as eras (one DM-only era named differently), a Party node with a
+footstep on the root map and one in the interior, and the world's own share token (`shareToken`)
+for the player-side outline checks. To mint the JWT: `POST /api/auth/login` with the throwaway
+account's username and password and copy `token` (it expires after `JWT_EXPIRES_IN`, 24 h by
+default — re-mint when the suite starts failing at "workspace opens"). The suite creates outlined
+places and deletes only the ones it made.
 
 ```bash
 cd e2e && npm install && npx playwright install chromium

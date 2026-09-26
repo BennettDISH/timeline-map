@@ -112,8 +112,7 @@ function Dashboard() {
       let w
       if (sampleId) {
         // begin from the sample: a deep clone the newcomer can safely break
-        const r = await atlasService.cloneWorld(sampleId, name)
-        if (description) await atlasService.patchWorld(r.worldId, { description }).catch(() => {})
+        const r = await atlasService.cloneWorld(sampleId, name, description || '') // theirs, even if empty
         w = { id: r.worldId, name }
       } else {
         const r = await worldService.createWorld({ name, description: description || null })

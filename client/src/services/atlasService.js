@@ -16,7 +16,7 @@ const atlasService = {
   clearSpotlight: (worldId) => http.delete(`${B}/worlds/${worldId}/spotlight`).then((r) => r.data),
 
   getTemplates: () => http.get(`${B}/templates`).then((r) => r.data.templates),
-  cloneWorld: (sourceId, name) => http.post(`${B}/worlds/clone`, { source_id: sourceId, name }).then((r) => r.data),
+  cloneWorld: (sourceId, name, description) => http.post(`${B}/worlds/clone`, { source_id: sourceId, name, description }).then((r) => r.data),
 
   getMap: (mapId) => http.get(`${B}/maps/${mapId}`).then((r) => r.data),
   patchMap: (mapId, data) => http.patch(`${B}/maps/${mapId}`, data).then((r) => r.data),

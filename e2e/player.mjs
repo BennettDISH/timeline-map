@@ -94,8 +94,10 @@ try {
     const chip = (await page.locator('.pview .nowchip').textContent().catch(() => '')).trim();
     step('era bar scrubs into the past', /past/.test(chip), chip);
   } else step('era bar present', false);
-  // the trail layer and party chip exist in the DOM without throwing
+  // nothing on the page threw while all of the above ran
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message); }
 await browser.close();
-console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: out.steps.filter((s) => !s.ok).length, errors: out.errors.slice(0, 5) }));
+const failed = out.steps.filter((s) => !s.ok).length;
+console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: failed, errors: out.errors.slice(0, 5) }));
+process.exitCode = failed ? 1 : 0; // a red step is a red run

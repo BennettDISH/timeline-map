@@ -44,6 +44,13 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` redirects R2-backed paths
 
 ## Database
+**Production holds a real campaign** (Bennett's world 29: DM notes, R2 art, the Forge bible, a
+share link in use). The data is NOT disposable: migrations are additive (`ADD COLUMN IF NOT
+EXISTS`), never a recreate, and anything destructive gets a snapshot first (`tombstones`, or an
+export like `~/atlas-backups/`). Undo and world clone both insert from ONE column list per
+table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
+Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
+base64 rows are lifted into R2, and folders, the lantern and the mind travel too.
 Live tables: `users`, `worlds`, `maps`, `nodes`, `placements`, `links`, `images`,
 `image_folders`, `eras`, `map_backdrops`, `node_facts`.
 Orphaned tables still present in production but absent from schema.sql and all code — droppable

@@ -9,5 +9,6 @@
   },
   "worldId": 0,
   "root": 0,
-  "interior": 0
+  "interior": 0,
+  "shareToken": "<the throwaway world's own share link token \u2014 player-side checks skip without it>"
 }

@@ -42,6 +42,7 @@ Railway.
 ## Notes
 **Image storage:** Cloudflare R2 is the primary store — uploads go to R2 whenever all five `R2_*`
 vars are set (`server/storage.js`, `r2Enabled`). Base64-in-Postgres (`images.base64_data`, served by
-`/api/images-base64/serve`) is the deliberate fallback when R2 is off, and is also what world clones
-use: `routes/atlas.js` duplicates image rows with `storage_key NULL` so clones never cascade-delete
-each other's R2 objects. Both paths are live; neither is dead code.
+`/api/images-base64/serve`) is the deliberate fallback when R2 is off. World clones own their art:
+`routes/atlas.js` copies each R2 object under the clone's own prefix (and lifts base64 rows into R2
+when it is on), so deleting anything in either world never breaks the other. Both paths are live;
+neither is dead code.

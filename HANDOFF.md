@@ -44,7 +44,8 @@ and it has been running in production for a while. Almost everything lives in
 - **Image pins**: nodes carry a `pin` style — 'chip' or 'image' (the node's art drawn
   frameless on the map).
 - **Undo tombstones**: destructive deletes (node, placement, interior) are snapshotted into
-  `tombstones` and restorable for 24 hours via the flash-bar Undo.
+  `tombstones`; the flash-bar Undo offers them for a few seconds, and the server honours a tombstone
+  for 24 hours (there is no "recently deleted" list yet — P048 on the cleanup list).
 - **Share / Player View**: the DM mints `/p/:token` (public, no account); `worlds.share_token`
   is the whole capability. **All secrecy is enforced server-side in `share.js`** — hidden and
   out-of-time data never leaves the DB; deep links into hidden branches 404.

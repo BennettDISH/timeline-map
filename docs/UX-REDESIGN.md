@@ -1,5 +1,7 @@
 # timeline-map — Ground-Up Redesign Plan (vision locked)
 
+> **Historical (banner added 2026-09-26):** as of September 2026 production holds a real, live campaign (world 29, DM notes, R2 art, a Forge bible, a share link in use). Every statement below that calls the data disposable or says the schema may be recreated is OUT OF DATE — migrations must be additive and preserve data. See CLAUDE.md.
+
 A plan, not changes. Built from a multi-agent UX deep dive, a study of comparable tools (World Anvil,
 LegendKeeper, Kanka, Foundry VTT, Campfire, Obsidian+Leaflet, Aeon Timeline, kepler.gl, tldraw/Figma),
 and the owner's own concrete vision. This version reflects the decided direction.

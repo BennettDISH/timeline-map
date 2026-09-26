@@ -3,6 +3,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const { r2Enabled, putObject, copyObject } = require('../storage');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -65,6 +66,28 @@ function cleanStyle(raw) {
   return out;
 }
 const styleParam = (st) => (st ? JSON.stringify(st) : null);
+
+// One list per table of the content columns a COPY (clone) or a RESTORE (undo) carries, so a
+// column added later (dm_note, stance, voice_*, ambience_*) can never again be forgotten by
+// one path while the other keeps it. Both paths insert from these lists.
+const NODE_COLS = ['id', 'world_id', 'title', 'body', 'category', 'interior_map_id', 'image_id', 'visibility', 'pin', 'pin_size', 'author',
+  'created_by', 'created_at', 'updated_at', 'dm_note', 'stance', 'voice_id', 'voice_name', 'voice_line', 'voice_url', 'voice_style'];
+const MAP_COLS = ['id', 'title', 'description', 'world_id', 'image_id', 'parent_map_id', 'created_by', 'created_at', 'updated_at', 'is_active',
+  'zoom_level', 'map_order', 'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url'];
+const MIND_COLS = ['lore', 'art_style', 'style_image_id', 'gen_size', 'bible'];
+const without = (cols, ...drop) => cols.filter((c) => !drop.includes(c));
+// INSERT a row from a snapshot, copying every listed column the snapshot has, with overrides
+// (an override of undefined drops the column). Returns the inserted row.
+async function insertRow(client, table, cols, row, overrides = {}) {
+  const data = {};
+  for (const k of cols) if (row && row[k] !== undefined) data[k] = row[k];
+  for (const [k, v] of Object.entries(overrides)) { if (v === undefined) delete data[k]; else data[k] = v; }
+  const keys = Object.keys(data);
+  const r = await client.query(
+    `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+    keys.map((k) => data[k]));
+  return r.rows[0];
+}
 // Build the breadcrumb from a map up to its world root, following owner_node -> a placement's map.
 async function breadcrumb(mapId) {
   const chain = []; let mid = mapId; const seen = new Set();
@@ -177,11 +200,12 @@ router.get('/templates', wrap(async (req, res) => {
 }));
 
 // POST /worlds/clone — deep-copy a world (a template, or one you own) into a new world the
-// caller owns. Every id is remapped. Image ROWS are duplicated with storage_key NULL so
-// clones never share — or cascade-delete — each other's R2 objects; base64 art is copied,
-// R2-backed art keeps pointing at the original URL.
+// caller owns. Every id is remapped and every content column travels (NODE_COLS/MAP_COLS,
+// folders, the lantern, the Forge mind's style/lore/bible). The clone OWNS its art: with R2
+// on, each object is copied under worlds/<newId>/ (base64 rows are lifted into R2 too), so
+// deleting anything in the source can never break the clone, and vice versa.
 router.post('/worlds/clone', wrap(async (req, res) => {
-  const { source_id, name } = req.body;
+  const { source_id, name, description } = req.body;
   const src = (await pool.query('SELECT * FROM worlds WHERE id=$1 AND is_active=true', [source_id])).rows[0];
   if (!src || (!src.is_template && src.created_by !== req.user.id)) return res.status(404).json({ message: 'World not found' });
   // storage-amplification backstop: cloning duplicates base64 art rows per clone
@@ -192,39 +216,56 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   try {
   await client.query('BEGIN');
   const rowsOfC = async (sql, args) => (await client.query(sql, args)).rows;
+  // the caller's description wins, even an empty one — a template's blurb never lands on their world
+  const desc = description === undefined ? src.description : (String(description || '').trim().slice(0, 2000) || null);
   const w = (await client.query(
     `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [String(name || src.name).slice(0, 255), src.description, req.user.id, src.timeline_enabled,
+    [String(name || src.name).slice(0, 255), desc, req.user.id, src.timeline_enabled,
      src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit])).rows[0];
 
-  const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map();
+  const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
+  const folders = await rowsOfC('SELECT * FROM image_folders WHERE world_id=$1 ORDER BY id', [src.id]);
+  for (const f of folders) {
+    const r = (await client.query(
+      'INSERT INTO image_folders (name, world_id, created_by, color, icon) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [f.name, w.id, req.user.id, f.color, f.icon])).rows[0];
+    folderMap.set(f.id, r.id);
+  }
+  for (const f of folders) if (f.parent_id && folderMap.has(f.parent_id)) {
+    await client.query('UPDATE image_folders SET parent_id=$1 WHERE id=$2', [folderMap.get(f.parent_id), folderMap.get(f.id)]);
+  }
   for (const im of await rowsOfC('SELECT * FROM images WHERE world_id=$1', [src.id])) {
     const ext = im.filename.includes('.') ? im.filename.split('.').pop() : 'png';
     const fname = `clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
+    let filePath = im.file_path, storageKey = null, base64 = im.base64_data;
+    if (r2Enabled) {
+      const key = `worlds/${w.id}/${fname}`;
+      if (im.storage_key) { filePath = await copyObject(im.storage_key, key); storageKey = key; }
+      else if (im.base64_data) {
+        const m = /^data:[^;]+;base64,(.+)$/.exec(im.base64_data);
+        filePath = await putObject(key, Buffer.from(m ? m[1] : im.base64_data, 'base64'), im.mime_type || 'image/png');
+        storageKey = key; base64 = null;
+      }
+    } else if (im.base64_data) filePath = `/api/images-base64/serve/${fname}`;
     const r = (await client.query(
-      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL) RETURNING id`,
-      [fname, im.original_name, im.base64_data ? `/api/images-base64/serve/${fname}` : im.file_path,
-       im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, im.tags, im.base64_data])).rows[0];
+      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key, folder_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, im.tags, base64, storageKey,
+       im.folder_id ? (folderMap.get(im.folder_id) || null) : null])).rows[0];
     imgMap.set(im.id, r.id);
   }
   const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 AND is_active=true', [src.id]);
   for (const m of maps) {
-    const r = (await client.query(
-      `INSERT INTO maps (title, description, world_id, image_id, created_by, view, focus_start, focus_end)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [m.title, m.description, w.id, m.image_id ? (imgMap.get(m.image_id) || null) : null,
-       req.user.id, m.view, m.focus_start, m.focus_end])).rows[0];
+    const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'parent_map_id', 'owner_node_id'), m,
+      { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null });
     mapMap.set(m.id, r.id);
   }
   const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1', [src.id]);
   for (const n of nodes) {
-    const r = (await client.query(
-      `INSERT INTO nodes (world_id, title, body, category, image_id, visibility, pin, pin_size, author, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [w.id, n.title, n.body, n.category, n.image_id ? (imgMap.get(n.image_id) || null) : null,
-       n.visibility, n.pin || 'chip', n.pin_size || 64, n.author, req.user.id])).rows[0];
+    const r = await insertRow(client, 'nodes', without(NODE_COLS, 'id', 'created_at', 'updated_at'), n,
+      { world_id: w.id, created_by: req.user.id, interior_map_id: null, image_id: n.image_id ? (imgMap.get(n.image_id) || null) : null,
+        pin: n.pin || 'chip', pin_size: n.pin_size || 64 });
     nodeMap.set(n.id, r.id);
   }
   for (const m of maps) if (m.owner_node_id && nodeMap.has(m.owner_node_id)) {
@@ -259,6 +300,16 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   if (src.root_map_id && mapMap.has(src.root_map_id)) {
     await client.query('UPDATE worlds SET root_map_id=$1 WHERE id=$2', [mapMap.get(src.root_map_id), w.id]);
+  }
+  if (src.spotlight_node_id && nodeMap.has(src.spotlight_node_id)) {
+    await client.query('UPDATE worlds SET spotlight_node_id=$1 WHERE id=$2', [nodeMap.get(src.spotlight_node_id), w.id]);
+  }
+  // the Forge mind travels too (art style, lore, bible, size, anchor): a clone is a deep copy,
+  // and a newcomer's sample world should think like the original
+  const mind = (await client.query('SELECT * FROM world_minds WHERE world_id=$1', [src.id])).rows[0];
+  if (mind) {
+    await insertRow(client, 'world_minds', MIND_COLS, mind,
+      { world_id: w.id, style_image_id: mind.style_image_id ? (imgMap.get(mind.style_image_id) || null) : null });
   }
   await client.query('COMMIT');
   res.status(201).json({ worldId: w.id });
@@ -487,6 +538,9 @@ router.get('/nodes/:id/locate', wrap(async (req, res) => {
 router.get('/nodes/:id/impact', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  // Only the DIRECT interior is deleted (maps.owner_node_id cascades one level). Spaces
+  // nested deeper keep their owner nodes and survive under "Unplaced"; a node counts as
+  // stranded only when every placement it has sits on the deleted map.
   const r = (await pool.query(`
     WITH RECURSIVE tree(map_id) AS (
       SELECT interior_map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL
@@ -496,16 +550,19 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
       JOIN placements p ON p.map_id = t.map_id
       JOIN nodes n ON n.id = p.node_id
       WHERE n.interior_map_id IS NOT NULL
-    )
+    ), direct AS (SELECT interior_map_id AS map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL)
     SELECT
       (SELECT COUNT(*) FROM placements WHERE node_id = $1) AS placements,
-      (SELECT COUNT(*) FROM tree) AS interior_maps,
-      (SELECT COUNT(DISTINCT p.node_id) FROM placements p
-        WHERE p.map_id IN (SELECT map_id FROM tree) AND p.node_id != $1) AS nodes_inside`,
+      (SELECT COUNT(*) FROM direct) AS interior_maps,
+      GREATEST((SELECT COUNT(*) FROM tree) - (SELECT COUNT(*) FROM direct), 0) AS nested_maps,
+      (SELECT COUNT(*) FROM nodes n WHERE n.id != $1
+         AND EXISTS (SELECT 1 FROM placements p JOIN direct d ON d.map_id = p.map_id WHERE p.node_id = n.id)
+         AND NOT EXISTS (SELECT 1 FROM placements p2 WHERE p2.node_id = n.id AND p2.map_id NOT IN (SELECT map_id FROM direct))) AS nodes_inside`,
     [req.params.id])).rows[0];
   res.json({
     placements: parseInt(r.placements),
     interiorMaps: parseInt(r.interior_maps),
+    nestedMaps: parseInt(r.nested_maps),
     nodesInside: parseInt(r.nodes_inside),
   });
 }));
@@ -607,7 +664,7 @@ router.delete('/nodes/:id', wrap(async (req, res) => {
 // tombstone. References that vanished in the meantime (an image deleted since, a
 // linked node gone) are skipped rather than failing the restore.
 router.post('/undo/:id', wrap(async (req, res) => {
-  const t = (await pool.query('SELECT * FROM tombstones WHERE id=$1', [req.params.id])).rows[0];
+  const t = (await pool.query(`SELECT * FROM tombstones WHERE id=$1 AND created_at > NOW() - INTERVAL '24 hours'`, [req.params.id])).rows[0];
   if (!t || !(await ownsWorld(t.world_id, req.user.id))) return res.status(404).json({ message: 'Nothing to undo' });
   const p = t.payload;
 
@@ -619,12 +676,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
 
     const insertMap = async (m, ownerNodeId) => {
       const imageId = (await exists('images', m.image_id)) ? m.image_id : null;
-      await client.query(
-        `INSERT INTO maps (id, title, description, world_id, image_id, parent_map_id, created_by, created_at, updated_at,
-                           is_active, zoom_level, map_order, owner_node_id, view, focus_start, focus_end)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-        [m.id, m.title, m.description, m.world_id, imageId, m.parent_map_id, m.created_by, m.created_at, m.updated_at,
-         m.is_active, m.zoom_level, m.map_order, ownerNodeId, m.view, m.focus_start, m.focus_end]);
+      await insertRow(client, 'maps', MAP_COLS, m, { image_id: imageId, owner_node_id: ownerNodeId });
     };
     const insertPlacement = async (pl) => {
       if (!(await exists('nodes', pl.node_id)) || !(await exists('maps', pl.map_id))) return;
@@ -643,10 +695,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
     if (t.kind === 'node') {
       const n = p.node;
       const imageId = (await exists('images', n.image_id)) ? n.image_id : null;
-      await client.query(
-        `INSERT INTO nodes (id, world_id, title, body, category, interior_map_id, image_id, visibility, pin, pin_size, author, created_by, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [n.id, n.world_id, n.title, n.body, n.category, imageId, n.visibility, n.pin || 'chip', n.pin_size || 64, n.author || null, n.created_by, n.created_at, n.updated_at]);
+      await insertRow(client, 'nodes', NODE_COLS, n, { interior_map_id: null, image_id: imageId, pin: n.pin || 'chip', pin_size: n.pin_size || 64 });
       if (p.interior && p.interior.map) {
         await insertMap(p.interior.map, n.id);
         await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.interior.map.id, n.id]);
