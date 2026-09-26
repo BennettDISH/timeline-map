@@ -60,8 +60,8 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   sign-out; the app's guest is browser-bound (no claim path exists — Waypoint would need a
   proxy claim endpoint).
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` (utils/imageUrl.js) passes
-  absolute R2 URLs through and prefixes relative paths; `/api/images-base64/serve/:filename`
-  streams base64 rows and redirects R2-backed ones
+  absolute R2 URLs through and prefixes relative paths; `/api/images/upload` takes the upload (base64 JSON; `/api/images-base64/upload` is its older alias) and `/api/images-base64/serve/:filename`
+  streams the Postgres-fallback rows (bytes in the table when R2 is not configured)
 
 ## Database
 **Production holds a real campaign** (Bennett's world 29: DM notes, R2 art, the Forge bible, a

@@ -3,7 +3,7 @@ import { plural } from '../utils/format'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
-import imageServiceBase64 from '../services/imageServiceBase64'
+import imageService from '../services/imageService'
 import imageFolderService from '../services/imageFolderService'
 import { errText } from '../services/http'
 import { usesOf, describeUse, ACCEPT } from '../utils/images'
@@ -101,7 +101,7 @@ function ImageManager() {
     if (folderSel === 'unsorted') params.unassigned = true
     else if (folderSel !== 'all') params.folderId = folderSel
     try {
-      const r = await imageServiceBase64.getImages(params)
+      const r = await imageService.getImages(params)
       if (seq !== loadSeq.current) return // a newer view was asked for since
       setImages((prev) => (reset ? r.images : [...prev, ...r.images]))
       setTotal(r.total ?? r.images.length)
@@ -136,7 +136,7 @@ function ImageManager() {
     // every file gets a verdict; the summary names each one that was skipped or failed, and why
     const skipped = [], failed = [], files = []
     for (const f of Array.from(fileList)) {
-      const v = imageServiceBase64.validateImage(f)
+      const v = imageService.validateImage(f)
       if (v.valid) files.push(f); else skipped.push(`${f.name}: ${v.error}`)
     }
     const targetFolder = typeof folderSel === 'number' ? folderSel : null
@@ -145,7 +145,7 @@ function ImageManager() {
       const f = files[i]
       setUploads((u) => u && ({ ...u, name: f.name, pct: 0 }))
       try {
-        await imageServiceBase64.uploadImage(f, world.id, { onProgress: (p) => setUploads((u) => u && ({ ...u, pct: p })), folderId: targetFolder })
+        await imageService.uploadImage(f, world.id, { onProgress: (p) => setUploads((u) => u && ({ ...u, pct: p })), folderId: targetFolder })
       } catch (e) {
         failed.push(`${f.name}: ${errText(e, 'upload failed')}`)
       }
@@ -196,7 +196,7 @@ function ImageManager() {
   const moveImages = async (ids, folderId) => { // folderId: number | null (unsorted) — one request for all of them
     const dest = folderId == null ? 'Unsorted' : (flatFolders.find((f) => f.id === folderId)?.name || 'folder')
     try {
-      await imageServiceBase64.moveImages(ids, folderId)
+      await imageService.moveImages(ids, folderId)
       setFlash({ kind: 'ok', text: `Filed ${plural(ids.length, 'image')} under ${dest}` })
     } catch (e) {
       setFlash({ kind: 'err', text: errText(e, "Couldn't file them") })
@@ -212,7 +212,7 @@ function ImageManager() {
   const guarded = async (fn) => { if (busyRef.current) return; busyRef.current = true; setBusyAct(true); try { await fn() } finally { busyRef.current = false; setBusyAct(false) } }
   const deleteImages = (ids) => guarded(async () => {
     try {
-      await imageServiceBase64.deleteImages(ids)
+      await imageService.deleteImages(ids)
       setFlash({ kind: 'ok', text: `${plural(ids.length, 'image')} deleted` })
     } catch (e) {
       setFlash({ kind: 'err', text: errText(e, "Couldn't delete them") })
@@ -255,7 +255,7 @@ function ImageManager() {
   // a name or caption edited in the lightbox lands on the server and in the grid at once
   const editImage = async (id, patch) => {
     try {
-      const r = await imageServiceBase64.updateImage(id, patch)
+      const r = await imageService.updateImage(id, patch)
       setImages((list) => list.map((im) => (im.id === id ? { ...im, originalName: r.image?.originalName ?? im.originalName, altText: r.image?.altText ?? null } : im)))
       return true
     } catch (e) {
@@ -662,7 +662,7 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
                 onBlur={saveName} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setName(img.originalName || ''); setNaming(false) } }} />
             : <h3 className="lbtitle" title="Click to rename" onClick={() => onEdit && setNaming(true)}>{img.originalName}{onEdit && <span className="lbedit" aria-hidden="true"> ✎</span>}</h3>}
           <div className="lbmeta">
-            {imageServiceBase64.formatFileSize(img.fileSize)} · {(img.mimeType || '').replace('image/', '')} ·{' '}
+            {imageService.formatFileSize(img.fileSize)} · {(img.mimeType || '').replace('image/', '')} ·{' '}
             {new Date(img.uploadedAt).toLocaleDateString()}
           </div>
           <div className={`lbuse ${uses ? 'live' : ''}`}>{uses > 0 && <span className="inuse-dot">◈</span>}{useLine}</div>

@@ -1,8 +1,9 @@
 import http from './http'
 
-const API_BASE = '/api/images-base64'
+// The one image client: upload, list, rename, move and delete through /api/images.
+const API_BASE = '/api/images'
 
-const imageServiceBase64 = {
+const imageService = {
   // Convert file to base64
   fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -13,8 +14,9 @@ const imageServiceBase64 = {
     })
   },
 
-  // Upload an image as base64. onProgress(0..100) follows the REAL transfer (the browser's
-  // upload progress), after a short read of the file; folderId files it in one request.
+  // Upload an image (the bytes travel base64-encoded in a JSON body). onProgress(0..100)
+  // follows the REAL transfer (the browser's upload progress), after a short read of the
+  // file; folderId files it in one request.
   async uploadImage(file, worldId, { onProgress = null, folderId = null } = {}) {
     if (onProgress) onProgress(2)
     const base64Data = await this.fileToBase64(file)
@@ -37,7 +39,7 @@ const imageServiceBase64 = {
     return response.data
   },
 
-  // Get all images with optional filtering (reuse from regular image service)
+  // Get all images with optional filtering
   async getImages(options = {}) {
     try {
       const { worldId, search, limit = 50, offset = 0, folderId, unassigned } = options
@@ -102,4 +104,4 @@ const imageServiceBase64 = {
   }
 }
 
-export default imageServiceBase64
+export default imageService

@@ -170,7 +170,7 @@ debounce to ~1s and coalesce patches per node.
 
 JWTs expire after 7 days (`auth.js:33`). Only `authService`'s axios instance has a response
 interceptor that catches 403 and redirects to login (`authService.js:23–34`). `atlasService`,
-`shareService`, `worldService` and `imageServiceBase64` each construct their own bare axios
+`shareService`, `worldService` and `imageService` each construct their own bare axios
 instance with no interceptor.
 
 So when your token expires while the workspace is open, nothing happens visibly — every call 403s

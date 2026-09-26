@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Modal from '../Modal'
 import atlasService from '../../services/atlasService'
-import imageServiceBase64 from '../../services/imageServiceBase64'
+import imageService from '../../services/imageService'
 import { errText } from '../../services/http'
 import { cat } from '../../utils/categories'
 import { usesOf, describeUse, ACCEPT } from '../../utils/images'
@@ -36,7 +36,7 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
     if (reset) setImages(null)
     else setMore(true)
     setErr('')
-    imageServiceBase64.getImages({ worldId, limit: PICK_PAGE, offset: reset ? 0 : (images || []).length, search: needle || undefined })
+    imageService.getImages({ worldId, limit: PICK_PAGE, offset: reset ? 0 : (images || []).length, search: needle || undefined })
       .then((r) => { if (my !== seq.current) return; setImages((prev) => (reset || !prev ? r.images || [] : [...prev, ...(r.images || [])])); setTotal(r.total ?? (r.images || []).length) })
       .catch((e) => { if (my !== seq.current) return; setImages((prev) => prev || []); setErr(errText(e, "Couldn't load the images")) })
       .finally(() => { if (my === seq.current) setMore(false) })
@@ -45,11 +45,11 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
 
   const upload = async (file) => {
     if (!file) return
-    const v = imageServiceBase64.validateImage(file) // the same rules as the Archive, said before anything is sent
+    const v = imageService.validateImage(file) // the same rules as the Archive, said before anything is sent
     if (!v.valid) { setErr(v.error); return }
     setBusy(true); setErr('')
     try {
-      const r = await imageServiceBase64.uploadImage(file, worldId)
+      const r = await imageService.uploadImage(file, worldId)
       onPick(r.image.id, r.image.url)
     } catch (e) {
       setBusy(false); setErr(errText(e, 'Upload failed'))

@@ -117,7 +117,7 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   {
     const api = (method, path, body) => fetch(`${BASE}${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
     const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-    const up = (name, data, extra = {}) => api('POST', '/api/images-base64/upload', { imageData: data, originalName: name, world_id: cfg.worldId, ...extra });
+    const up = (name, data, extra = {}) => api('POST', '/api/images/upload', { imageData: data, originalName: name, world_id: cfg.worldId, ...extra });
     const fake = await up('notanimage.png', `data:image/png;base64,${Buffer.from('this is not an image\n').toString('base64')}`);
     step('a text file called .png is refused by its bytes', fake.status === 400 && /not a PNG/.test((await json(fake))?.message || ''), String(fake.status));
     const svg = await up('tiny.svg', `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`);

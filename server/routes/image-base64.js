@@ -6,8 +6,10 @@ const { isId } = require('../lib/validate');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
-// POST /api/images-base64/upload - Upload image as base64 (requires auth)
-router.post('/upload', authenticateToken, async (req, res) => {
+// POST /api/images/upload (and the older /api/images-base64/upload): the bytes arrive
+// base64-encoded in a JSON body and land in R2 — or, with no R2 configured, in Postgres
+// (the fallback the /serve route below reads back).
+const upload = async (req, res) => {
   try {
     const { imageData, world_id, alt_text, tags, folder_id } = req.body;
     // a name is a string of 1 to 255 characters (a pasted file arrives as 'image.png')
@@ -121,7 +123,8 @@ router.post('/upload', authenticateToken, async (req, res) => {
     console.error('Base64 upload error:', error);
     res.status(500).json({ message: 'Upload failed' });
   }
-});
+};
+router.post('/upload', authenticateToken, upload);
 
 // the first bytes of each accepted format; 'jpg' and 'jpeg' both store as image/jpeg
 function sniff(buf) {
@@ -138,23 +141,17 @@ router.get('/serve/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
     
-    const result = await pool.query('SELECT base64_data, mime_type, file_path FROM images WHERE filename = $1', [filename]);
+    const result = await pool.query('SELECT base64_data, mime_type FROM images WHERE filename = $1', [filename]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    const { base64_data, mime_type, file_path } = result.rows[0];
+    const { base64_data, mime_type } = result.rows[0];
 
-    if (!base64_data) {
-      // R2-backed rows store the absolute R2 URL in file_path. Legacy references to this
-      // serve endpoint keep working via
-      // redirect after the bytes move out of Postgres.
-      if (file_path && /^https?:\/\//i.test(file_path)) {
-        return res.redirect(file_path);
-      }
-      return res.status(404).json({ message: 'Image data not found' });
-    }
+    // only Postgres-fallback rows have bytes here; R2-backed rows are never referenced by this
+    // path (resolveImageUrl hands out their absolute URL), so there is nothing to redirect to
+    if (!base64_data) return res.status(404).json({ message: 'Image data not found' });
 
     // Extract base64 data
     const base64Match = base64_data.match(/^data:image\/[^;]+;base64,(.+)$/);
@@ -180,3 +177,4 @@ router.get('/serve/:filename', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.upload = upload;

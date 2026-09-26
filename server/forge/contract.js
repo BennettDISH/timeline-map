@@ -200,7 +200,7 @@ function validateBatch(batch, world) {
 // ---- images ----------------------------------------------------------------------
 
 // The style anchor: the world's first painted image, sent as a reference with every later
-// generation so the artwork stays one hand. Bytes come from R2 (or legacy base64 rows).
+// generation so the artwork stays one hand. Bytes come from R2 (or Postgres-fallback rows).
 async function loadAnchor(worldId) {
   try {
     const r = await pool.query(

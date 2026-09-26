@@ -15,6 +15,9 @@ const canTouch = async (image, userId) => image.uploaded_by === userId
 // All image routes require authentication
 router.use(authenticateToken);
 
+// POST /api/images/upload — the upload lives in image-base64.js (its JSON body is base64)
+router.post('/upload', require('./image-base64').upload);
+
 // GET /api/images
 router.get('/', async (req, res) => {
   try {

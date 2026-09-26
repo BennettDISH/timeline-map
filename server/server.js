@@ -79,7 +79,7 @@ app.use('/api/images-base64/serve', rateLimit({ windowMs: 15 * 60 * 1000, max: 4
 // Body parsing middleware. The upload route carries a base64 image (about 4/3 of the file:
 // a 10 MB image is ~13.4 MB of JSON), so it gets its own, larger limit first; the parser
 // skips a body already read. Nothing sends form bodies, so no urlencoded parser.
-app.use('/api/images-base64/upload', express.json({ limit: '14mb' }));
+app.use(['/api/images/upload', '/api/images-base64/upload'], express.json({ limit: '14mb' }));
 // the public share API takes small bodies only (a marker is tiny): this limit must sit
 // AHEAD of the global parser, which skips a body already read
 app.use('/api/share', express.json({ limit: '16kb' }));
