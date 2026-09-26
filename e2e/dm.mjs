@@ -22,6 +22,21 @@ try {
   await page.locator('.mode button', { hasText: 'View' }).click();
   await page.waitForTimeout(500);
   step('View posture shows the space reader', (await page.locator('.reader').count()) > 0);
+  // the reader resizes from its own edge in View posture (the editor already did in Edit)
+  {
+    const reader = page.locator('.reader').first();
+    const before = (await reader.boundingBox())?.width || 0;
+    const grip = page.locator('.reader .rgrip').first();
+    if (await grip.count()) {
+      const gb = await grip.boundingBox();
+      await page.mouse.move(gb.x + 3, gb.y + 200); await page.mouse.down();
+      await page.mouse.move(gb.x - 60, gb.y + 200, { steps: 6 }); await page.mouse.move(gb.x - 120, gb.y + 200, { steps: 6 }); await page.mouse.up();
+      await page.waitForTimeout(400);
+      const after = (await reader.boundingBox())?.width || 0;
+      step('the reader resizes from its edge', after > before + 80, `${Math.round(before)} → ${Math.round(after)}px`);
+      await grip.dblclick(); await page.waitForTimeout(300);
+    } else step('the reader has a resize grip', false);
+  }
   // the party pin at the lens moment (canon 37 → inside the interior; on the root it is a past print)
   // move the lens to footstep 15 so the party stands on the root map, then open it
   const tick = page.locator('.timebar .tstep').first();
