@@ -19,14 +19,8 @@ try {
   await page.waitForSelector('.pview .pin', { timeout: 30000 });
   const pins = await page.locator('.pview .pin').count();
   step('world map renders pins', pins > 0, `${pins} pins`);
-  // a regular (non-party) pin — or, on a map where every place is outlined, a region — opens the sheet
-  const regular = page.locator('.pview .pin:not(.party)').first();
-  let title = '';
-  if (await regular.count()) {
-    title = (await regular.getAttribute('title')) || (await regular.locator('.lbl, .ilbl').first().textContent().catch(() => ''));
-    await regular.click({ force: true });
-  } else {
-    // tap the centroid of the first region (an outlined place has no pin)
+  // taps the centroid of the first outlined place (regions have no pin) and returns its title
+  const tapRegion = async () => {
     const c = await page.evaluate(() => {
       const poly = document.querySelector('.pview polygon.region'); if (!poly) return null;
       const pts = poly.getAttribute('points').trim().split(/\s+/).map((s) => s.split(',').map(Number));
@@ -36,8 +30,18 @@ try {
       a *= 0.5; cx /= 6 * a; cy /= 6 * a;
       return { x: w.x + w.width * cx / 100, y: w.y + w.height * cy / 100, title: poly.querySelector('title')?.textContent || '' };
     });
-    title = c ? c.title : '';
     if (c) await page.mouse.click(c.x, c.y);
+    return c;
+  };
+  // a regular (non-party) pin — or, on a map where every place is outlined, a region — opens the sheet
+  const regular = page.locator('.pview .pin:not(.party)').first();
+  let title = '';
+  if (await regular.count()) {
+    title = (await regular.getAttribute('title')) || (await regular.locator('.lbl, .ilbl').first().textContent().catch(() => ''));
+    await regular.click({ force: true });
+  } else {
+    const c = await tapRegion();
+    title = c ? c.title : '';
   }
   const sheet = page.locator('.pview .sheet');
   const opened = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
@@ -53,10 +57,16 @@ try {
     step('the party pin opens with its footstep story', ok && body.length > 20, `${body.slice(0, 60)}… trail links: ${trail}`);
     if (ok) await page.locator('.pview .sclose').click();
   } else step('a party pin is on the world map at canon', false, 'none found');
-  // enter an interior via ◎ and come back via ⬆
+  // enter an interior via ◎ (a pin's button, or an outlined place's sheet) and come back via ⬆
   const enter = page.locator('.pview .pin .enter').first();
-  if (await enter.count()) {
-    await enter.click({ force: true });
+  let entered = false;
+  if (await enter.count()) { await enter.click({ force: true }); entered = true; }
+  else {
+    await tapRegion();
+    const go = page.locator('.pview .sgo');
+    if (await go.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false)) { await go.click(); entered = true; }
+  }
+  if (entered) {
     const back = await page.locator('.pview .backbtn').waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
     step('◎ enters an interior (back button appears)', back, back ? (await page.locator('.pview .backbtn').textContent()).trim() : '');
     if (back) {
@@ -66,7 +76,7 @@ try {
       const home = await page.locator('.pview .backbtn').waitFor({ state: 'detached', timeout: 45000 }).then(() => true).catch(() => false); // (waitForFunction trips the site CSP)
       step('⬆ returns to the parent map', home, `${page.url().split('/p/')[1]} in ${Date.now() - t0}ms (was ${inside.split('/p/')[1]})`);
     }
-  } else step('some pin offers ◎ to enter', false, 'no ◎ found');
+  } else step('some pin or outlined place offers ◎ to enter', false, 'no ◎ found');
   // a ghost footprint is clickable (no force) and moves the lens to that moment
   const print = page.locator('.pview .fstep').first();
   if (await print.count()) {
