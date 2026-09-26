@@ -62,6 +62,7 @@
   .toolbar{position:absolute;top:10px;left:52px;z-index:5;display:flex;gap:6px}
   .tool{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 10px;cursor:pointer}
   .tool.on{outline:2px solid var(--accent)}
+  .tool:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
   .stage .hint{position:absolute;bottom:10px;left:10px;z-index:5;color:var(--muted);font-size:11px;font-style:italic;
      background:#00000066;border:1px dashed var(--line);border-radius:6px;padding:4px 8px;max-width:260px;
      pointer-events:none}
@@ -774,3 +775,9 @@
 @media (hover: hover){
   .atlas:not(.labelson) .pin.hov:not(.ipin) .lbl{opacity:1;transform:translateY(-50%) translateX(0)}
 }
+
+// the Forge: a message that never arrived, the composer's limit, unsaved settings
+.atlas .fmsg.failed{opacity:.8;border:1px dashed #b07bd0}
+.atlas .ffail{font-size:11px;color:#c9a35f;margin-top:4px}
+.atlas .fcount{font-size:11px;color:var(--muted);margin-left:6px;align-self:center}
+.atlas .forge .gear.dirty{color:#c9a35f}

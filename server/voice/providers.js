@@ -62,7 +62,7 @@ function wavFromPcm(pcm, sampleRate = 24000, channels = 1) {
 }
 
 async function speakGemini({ voiceId, style, text }) {
-  const models = [process.env.VOICE_TTS_MODEL || 'gemini-2.5-flash-tts', 'gemini-2.5-flash-preview-tts'];
+  const models = [process.env.VOICE_TTS_MODEL_GEMINI || process.env.VOICE_TTS_MODEL || 'gemini-2.5-flash-tts', 'gemini-2.5-flash-preview-tts'];
   const prompt = style ? `${style}. Say exactly this, in that voice: ${text}` : text;
   let last;
   for (const model of [...new Set(models)]) {

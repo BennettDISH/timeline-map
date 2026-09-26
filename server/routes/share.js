@@ -186,8 +186,10 @@ router.get('/:token/world', wrap(async (req, res) => {
 router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const mapId = intId(req.params.mapId);
+  if (!mapId) return notFound(res);
   const t = await allowedTime(w, req.query.t);
-  const breadcrumb = await walkUp(Number(req.params.mapId), w, t);
+  const breadcrumb = await walkUp(mapId, w, t);
   if (!breadcrumb) return notFound(res);
   // ?window=1: instead of one resolved moment, return everything visible at ANY allowed
   // moment (the union of player_visible eras clipped to canon, plus canon itself), with
@@ -202,7 +204,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   const map = (await pool.query(
     'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
-    [req.params.mapId])).rows[0];
+    [mapId])).rows[0];
   if (w.timeline_enabled && req.query.window !== '1') {
     // history may have redrawn this map: the latest-starting timed backdrop covering the
     // allowed moment wins; none covering it keeps the base art
@@ -210,7 +212,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       `SELECT i.file_path FROM map_backdrops b JOIN images i ON i.id = b.image_id
        WHERE b.map_id = $1 AND (b.start_time IS NULL OR b.start_time <= $2)
          AND (b.end_time IS NULL OR b.end_time >= $2)
-       ORDER BY b.start_time DESC NULLS LAST, b.id DESC LIMIT 1`, [req.params.mapId, t])).rows[0];
+       ORDER BY b.start_time DESC NULLS LAST, b.id DESC LIMIT 1`, [mapId, t])).rows[0];
     if (bd) map.backdrop_path = bd.file_path;
   }
 
@@ -219,7 +221,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     // alive during ANY allowed interval: lifespan [s,e] meets [a,b] iff s<=b AND e>=a
     const conds = ivs.map((_, i) =>
       `((p.start_time IS NULL OR p.start_time <= $${i * 2 + 2}) AND (p.end_time IS NULL OR p.end_time >= $${i * 2 + 3}))`).join(' OR ');
-    const args = [req.params.mapId];
+    const args = [mapId];
     for (const [a, b] of ivs) { args.push(b, a); }
     rows = (await pool.query(
       `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.shape, p.shape_kind, p.shape_style,
@@ -239,7 +241,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
        JOIN nodes n ON p.node_id = n.id
        LEFT JOIN images i ON n.image_id = i.id
        WHERE p.map_id = $1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND ${PRESENT(2)}
-       ORDER BY p.id`, [req.params.mapId, t])).rows;
+       ORDER BY p.id`, [mapId, t])).rows;
   }
 
   const canonT = w.timeline_current_time ?? NEVER;
@@ -257,7 +259,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   if (windowed) {
     const conds = ivs.map((_, i) =>
       `((b.start_time IS NULL OR b.start_time <= $${i * 2 + 2}) AND (b.end_time IS NULL OR b.end_time >= $${i * 2 + 3}))`).join(' OR ');
-    const args = [req.params.mapId];
+    const args = [mapId];
     for (const [a, b] of ivs) { args.push(b, a); }
     backdrops = (await pool.query(
       `SELECT b.id, b.start_time, b.end_time, i.file_path
@@ -328,8 +330,10 @@ const MARK_CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
 router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const mapId = intId(req.params.mapId);
+  if (!mapId) return notFound(res);
   const t = await allowedTime(w, null); // markers land at canon reachability
-  if (!(await walkUp(Number(req.params.mapId), w, t))) return notFound(res);
+  if (!(await walkUp(mapId, w, t))) return notFound(res);
   const title = String(req.body.title || '').trim().slice(0, 80);
   if (!title) return res.status(400).json({ message: 'A marker needs a name' });
   const body = String(req.body.body || '').trim().slice(0, 500) || null;
@@ -341,10 +345,11 @@ router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req,
   const count = (await pool.query(
     `SELECT COUNT(*) FROM nodes WHERE world_id=$1 AND visibility='player'`, [w.id])).rows[0];
   if (parseInt(count.count) >= 200) return res.status(400).json({ message: 'The map is full of markers — ask your DM to tidy up' });
+  // one statement: the node and its placement land together or not at all
   const n = (await pool.query(
-    `INSERT INTO nodes (world_id, title, body, category, visibility, author) VALUES ($1,$2,$3,$4,'player',$5) RETURNING id`,
-    [w.id, title, body, category, author])).rows[0];
-  await pool.query('INSERT INTO placements (node_id, map_id, x, y) VALUES ($1,$2,$3,$4)', [n.id, req.params.mapId, x, y]);
+    `WITH n AS (INSERT INTO nodes (world_id, title, body, category, visibility, author) VALUES ($1,$2,$3,$4,'player',$5) RETURNING id)
+     INSERT INTO placements (node_id, map_id, x, y) SELECT id, $6, $7, $8 FROM n RETURNING node_id AS id`,
+    [w.id, title, body, category, author, mapId, x, y])).rows[0];
   res.status(201).json({ nodeId: n.id });
 }));
 

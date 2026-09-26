@@ -298,7 +298,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
     throw new Error(`painting failed: ${e.message}`);
   }
 
-  const client = await pool.connect();
+  const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
     const nodeIds = new Map(); // key -> id
@@ -344,13 +344,13 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
         const r = await client.query(
           `UPDATE nodes SET body=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND (body IS NULL OR body='') RETURNING id`,
           [en.body, en.node]);
-        if (r.rows.length) created.enrichedBodies.push(en.node);
+        if (r.rows.length) created.enrichedBodies.push({ node: en.node, wrote: en.body });
       }
       if (en.dm_note) {
         const r = await client.query(
           `UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND (dm_note IS NULL OR dm_note='') RETURNING id`,
           [en.dm_note, en.node]);
-        if (r.rows.length) created.enrichedNotes.push(en.node);
+        if (r.rows.length) created.enrichedNotes.push({ node: en.node, wrote: en.dm_note });
       }
       if (en.image != null) {
         // attach this batch's painting to the existing node; bare nodes flip to image pins.
@@ -367,20 +367,15 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
         await client.query(
           `UPDATE nodes SET dm_note = CASE WHEN dm_note IS NULL OR dm_note='' THEN $1 ELSE dm_note || E'\n' || $1 END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
           [en.dm_note_append, en.node]);
-        created.noteAppends.push({ node: en.node, prev: prev?.dm_note ?? null });
+        created.noteAppends.push({ node: en.node, prev: prev?.dm_note ?? null, wrote: en.dm_note_append });
       }
       if (en.stance != null) {
         const prev = (await client.query('SELECT stance FROM nodes WHERE id=$1', [en.node])).rows[0];
         await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [en.stance, en.node]);
-        created.stanceChanges.push({ node: en.node, prev: prev?.stance ?? null });
+        created.stanceChanges.push({ node: en.node, prev: prev?.stance ?? null, wrote: en.stance });
       }
-    }
-    for (const em of batch.enrich_maps) {
-      const prev = (await client.query('SELECT dm_note FROM maps WHERE id=$1', [em.map])).rows[0];
-      await client.query(
-        `UPDATE maps SET dm_note = CASE WHEN dm_note IS NULL OR dm_note='' THEN $1 ELSE dm_note || E'\n' || $1 END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
-        [em.dm_note_append, em.map]);
-      created.mapNoteAppends.push({ map: em.map, prev: prev?.dm_note ?? null });
+      // an existing node's new facts and extra placements (these once sat in the map loop
+      // below by mistake, where `en` did not exist — every recap with map notes crashed)
       for (const f of en.facts) {
         const r = await client.query(
           `INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -394,6 +389,13 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
            VALUES ($1,$2,$3,$4,$5,$6,'dm') RETURNING id`, [en.node, mid, p.x, p.y, p.start, p.end]);
         created.placements.push(r.rows[0].id);
       }
+    }
+    for (const em of batch.enrich_maps) {
+      const prev = (await client.query('SELECT dm_note FROM maps WHERE id=$1', [em.map])).rows[0];
+      await client.query(
+        `UPDATE maps SET dm_note = CASE WHEN dm_note IS NULL OR dm_note='' THEN $1 ELSE dm_note || E'\n' || $1 END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+        [em.dm_note_append, em.map]);
+      created.mapNoteAppends.push({ map: em.map, prev: prev?.dm_note ?? null, wrote: em.dm_note_append });
     }
     for (const l of batch.links) {
       const from = typeof l.from === 'number' ? l.from : nodeIds.get(l.from);
@@ -460,13 +462,13 @@ async function allowAsks({ worldId, batchId }) {
     [batchId, worldId])).rows[0];
   if (!b) return null;
   const undo = [];
-  const client = await pool.connect();
+  const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
     for (const a of b.asks || []) {
       if (a.op === 'move') {
         const p = (await client.query(
-          `SELECT p.id, p.map_id, p.x, p.y FROM placements p JOIN maps m ON m.id=p.map_id
+          `SELECT p.id, p.map_id, p.x, p.y, p.shape FROM placements p JOIN maps m ON m.id=p.map_id
            WHERE p.node_id=$1 AND p.map_id=$2 AND m.world_id=$3 ORDER BY p.id LIMIT 1`,
           [a.node, a.map, worldId])).rows[0];
         if (!p) continue;
@@ -474,14 +476,24 @@ async function allowAsks({ worldId, batchId }) {
           const m2 = (await client.query('SELECT id FROM maps WHERE id=$1 AND world_id=$2', [a.to_map, worldId])).rows[0];
           if (!m2) continue;
         }
-        undo.push({ op: 'move', placement: p.id, map_id: p.map_id, x: p.x, y: p.y });
-        await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4',
-          [a.to_map != null ? a.to_map : p.map_id, a.x, a.y, p.id]);
+        // an outline traced on this map's art travels with a move here, and is cleared by a
+        // move onto another map (its ring would mean nothing over different art)
+        const crossing = a.to_map != null && Number(a.to_map) !== Number(p.map_id);
+        let shape = p.shape || null;
+        if (shape) {
+          const c = (v) => Math.round(Math.max(0, Math.min(100, v)) * 100) / 100;
+          const dx = a.x - Number(p.x), dy = a.y - Number(p.y);
+          shape = crossing ? null : shape.map(([x, y]) => [c(x + dx), c(y + dy)]);
+        }
+        undo.push({ op: 'move', placement: p.id, map_id: p.map_id, x: p.x, y: p.y, shape: p.shape || null });
+        await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5',
+          [a.to_map != null ? a.to_map : p.map_id, a.x, a.y, shape ? JSON.stringify(shape) : null, p.id]);
       } else if (a.op === 'edit') {
         const n = (await client.query(
           'SELECT id, title, body, category, dm_note FROM nodes WHERE id=$1 AND world_id=$2', [a.node, worldId])).rows[0];
         if (!n) continue;
-        undo.push({ op: 'edit', node: n.id, title: n.title, body: n.body, category: n.category, dm_note: n.dm_note });
+        undo.push({ op: 'edit', node: n.id, title: n.title, body: n.body, category: n.category, dm_note: n.dm_note,
+          wrote: { title: a.title ?? null, body: a.body ?? null, category: a.category ?? null, dm_note: a.dm_note ?? null } });
         await client.query(
           `UPDATE nodes SET title=COALESCE($1,title), body=COALESCE($2,body), category=COALESCE($3,category), dm_note=COALESCE($4,dm_note), updated_at=CURRENT_TIMESTAMP WHERE id=$5`,
           [a.title ?? null, a.body ?? null, a.category ?? null, a.dm_note ?? null, n.id]);
@@ -526,7 +538,7 @@ async function discardBatch({ worldId, batchId }) {
   if (!b) return null;
   const c = b.created || {};
   const keys = (await pool.query('SELECT storage_key FROM images WHERE id = ANY($1) AND storage_key IS NOT NULL', [c.images || []])).rows;
-  const client = await pool.connect();
+  const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
     for (const [table, ids] of [
@@ -538,30 +550,54 @@ async function discardBatch({ worldId, batchId }) {
     // standing backdrops the batch set go back to what they replaced (NULL if that image is gone)
     for (const mb of (c.mapBases || []))
       await client.query('UPDATE maps SET image_id=(SELECT id FROM images WHERE id=$1) WHERE id=$2', [mb.prev, mb.map]);
-    // bodies the batch filled (only ever onto empty nodes) go back to empty
-    if (c.enrichedBodies && c.enrichedBodies.length)
-      await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedBodies]);
-    if (c.enrichedNotes && c.enrichedNotes.length)
-      await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ANY($1)`, [c.enrichedNotes]);
+    // Everything the batch wrote INTO existing things is reverted only while the field still
+    // holds exactly what the batch wrote: a line the DM edited since is theirs and stays.
+    // (Batches from before this rule carry plain ids and no `wrote`; those revert as before.)
+    const appended = (prev, wrote) => (prev == null || prev === '' ? wrote : `${prev}\n${wrote}`);
+    for (const eb of (c.enrichedBodies || [])) {
+      const id = typeof eb === 'number' ? eb : eb.node, wrote = typeof eb === 'number' ? null : eb.wrote;
+      if (wrote == null) await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, [id]);
+      else await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND body=$2`, [id, wrote]);
+    }
+    for (const en of (c.enrichedNotes || [])) {
+      const id = typeof en === 'number' ? en : en.node, wrote = typeof en === 'number' ? null : en.wrote;
+      if (wrote == null) await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, [id]);
+      else await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND dm_note=$2`, [id, wrote]);
+    }
     for (const ei of (c.enrichedImages || []))
       await client.query(
         `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3`,
         [ei.prevImage, ei.prevPin, ei.node]);
-    for (const na of (c.noteAppends || []))
-      await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [na.prev, na.node]);
-    for (const sc of (c.stanceChanges || []))
-      await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [sc.prev, sc.node]);
-    for (const ma of (c.mapNoteAppends || []))
-      await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [ma.prev, ma.map]);
+    for (const na of (c.noteAppends || [])) {
+      if (na.wrote == null) await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [na.prev, na.node]);
+      else await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND dm_note=$3', [na.prev, na.node, appended(na.prev, na.wrote)]);
+    }
+    for (const sc of (c.stanceChanges || [])) {
+      if (sc.wrote == null) await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [sc.prev, sc.node]);
+      else await client.query('UPDATE nodes SET stance=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND stance IS NOT DISTINCT FROM $3', [sc.prev, sc.node, sc.wrote]);
+    }
+    for (const ma of (c.mapNoteAppends || [])) {
+      if (ma.wrote == null) await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [ma.prev, ma.map]);
+      else await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND dm_note=$3', [ma.prev, ma.map, appended(ma.prev, ma.wrote)]);
+    }
     // granted asks revert too: moves go home, rewrites restore, dropped eras rise again
     if (b.asks_state === 'allowed') {
       for (const u of (b.asks_undo || [])) {
         if (u.op === 'move') {
-          await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4', [u.map_id, u.x, u.y, u.placement]);
+          if (u.shape === undefined) await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4', [u.map_id, u.x, u.y, u.placement]);
+          else await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5', [u.map_id, u.x, u.y, u.shape ? JSON.stringify(u.shape) : null, u.placement]);
         } else if (u.op === 'edit') {
-          await client.query(
-            'UPDATE nodes SET title=$1, body=$2, category=$3, dm_note=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5',
-            [u.title, u.body, u.category, u.dm_note ?? null, u.node]);
+          if (!u.wrote) {
+            await client.query(
+              'UPDATE nodes SET title=$1, body=$2, category=$3, dm_note=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5',
+              [u.title, u.body, u.category, u.dm_note ?? null, u.node]);
+          } else {
+            // per field: put the old value back only where the ask's value still stands
+            for (const f of ['title', 'body', 'category', 'dm_note']) {
+              if (u.wrote[f] == null) continue;
+              await client.query(`UPDATE nodes SET ${f}=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND ${f} IS NOT DISTINCT FROM $3`, [u[f] ?? null, u.node, u.wrote[f]]);
+            }
+          }
         } else if (u.op === 'drop_era') {
           await client.query(
             `INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible)
@@ -576,6 +612,7 @@ async function discardBatch({ worldId, batchId }) {
       await client.query(`SELECT setval(pg_get_serial_sequence('eras','id'), GREATEST((SELECT COALESCE(MAX(id),1) FROM eras), 1))`);
     }
     await client.query(`UPDATE forge_batches SET status='discarded' WHERE id=$1`, [batchId]);
+    await client.query(`UPDATE mind_messages SET content = content || E'\n↩ Unmade — none of this stands.' WHERE batch_id=$1 AND world_id=$2`, [batchId, worldId]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});

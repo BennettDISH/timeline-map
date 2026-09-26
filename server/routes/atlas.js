@@ -212,7 +212,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1 AND is_active=true', [req.user.id])).rows[0];
   if (parseInt(owned.count) >= 50) return res.status(400).json({ message: 'That is a lot of worlds — delete some first' });
 
-  const client = await pool.connect();
+  const client = await pool.connectTx();
   try {
   await client.query('BEGIN');
   const rowsOfC = async (sql, args) => (await client.query(sql, args)).rows;
@@ -668,7 +668,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
   if (!t || !(await ownsWorld(t.world_id, req.user.id))) return res.status(404).json({ message: 'Nothing to undo' });
   const p = t.payload;
 
-  const client = await pool.connect();
+  const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
     const exists = async (table, id) =>

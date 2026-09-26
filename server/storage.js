@@ -78,4 +78,10 @@ async function deletePrefix(prefix) {
   } while (token);
 }
 
-module.exports = { r2Enabled, putObject, copyObject, deleteObject, deletePrefix };
+// The object key behind one of our public URLs (null for anything else).
+function keyFromUrl(url) {
+  if (!url || !cfg.publicUrl || !String(url).startsWith(`${cfg.publicUrl}/`)) return null;
+  return String(url).slice(cfg.publicUrl.length + 1);
+}
+
+module.exports = { r2Enabled, putObject, copyObject, deleteObject, deletePrefix, keyFromUrl };

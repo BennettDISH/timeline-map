@@ -61,8 +61,14 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
       ? `Move “${nn}” onto “${mT.get(a.to_map) || `#${a.to_map}`}”`
       : `Move “${nn}” to a new spot on “${mT.get(a.map) || `#${a.map}`}”`;
     if (a.op === 'edit') {
-      const what = [a.title != null && 'title', a.body != null && 'description', a.category != null && 'category', a.dm_note != null && 'DM notes'].filter(Boolean).join(', ');
-      return `Rewrite the ${what} of “${nn}”`;
+      // the card shows the proposed words, so Allow never approves text the DM has not read
+      const ex = (t) => (t.length > 140 ? `${t.slice(0, 140)}…` : t);
+      const parts = [];
+      if (a.title != null) parts.push(`rename it “${a.title}”`);
+      if (a.category != null) parts.push(`make it a ${a.category}`);
+      if (a.body != null) parts.push(`rewrite its description to “${ex(a.body)}”`);
+      if (a.dm_note != null) parts.push(`rewrite its DM notes to “${ex(a.dm_note)}”`);
+      return `“${nn}”: ${parts.join('; ')}`;
     }
     if (a.op === 'drop_era') return `Remove the era “${eT.get(a.era) || `#${a.era}`}”`;
     if (a.op === 'reveal') return `Reveal “${nn}” to players`;
@@ -101,7 +107,7 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
   }
   if ('lore' in b) {
     if (typeof b.lore !== 'string') return res.status(400).json({ message: 'lore must be text' });
-    sets.push(`lore=$${vals.push(b.lore.slice(0, 20000))}`);
+    sets.push(`lore=$${vals.push(b.lore.slice(-20000))}`); // the newest memory is the memory worth keeping
   }
   if ('bible' in b) {
     if (typeof b.bible !== 'string') return res.status(400).json({ message: 'bible must be text' });
@@ -131,8 +137,9 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
 router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 12000) : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ message: 'Say something to the mind' });
+  if (message.length > 12000) return res.status(400).json({ message: 'Messages are limited to 12,000 characters — split it in two' });
   // where the DM is standing — verified against this world, never trusted from the client
   const context = {};
   const mapId = Number(req.body?.context?.mapId);

@@ -65,7 +65,8 @@ router.get('/', async (req, res) => {
     // map_uses/node_uses: where this image is placed in the world (backdrop / node art),
     // so the UI can say "in use" before anyone deletes it.
     const query = `
-      SELECT i.*, u.username as uploaded_by_username,
+      SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.tags, i.folder_id, i.created_at,
+             u.username as uploaded_by_username,
              (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id AND m.is_active = true) as map_uses,
              (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses,
              (SELECT COUNT(*) FROM map_backdrops b WHERE b.image_id = i.id) as backdrop_uses,
@@ -113,7 +114,8 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     
     const result = await pool.query(`
-      SELECT i.*, u.username as uploaded_by_username
+      SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.tags, i.folder_id, i.created_at,
+             u.username as uploaded_by_username
       FROM images i
       LEFT JOIN users u ON i.uploaded_by = u.id
       JOIN worlds w ON i.world_id = w.id
@@ -155,7 +157,7 @@ router.put('/:id', async (req, res) => {
     const { alt_text, tags, folder_id } = req.body;
     
     // Get image info first to check ownership
-    const imageResult = await pool.query('SELECT * FROM images WHERE id = $1', [id]);
+    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, tags, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
     
     if (imageResult.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
@@ -185,7 +187,7 @@ router.put('/:id', async (req, res) => {
       UPDATE images 
       SET alt_text = $1, tags = $2, folder_id = $3
       WHERE id = $4
-      RETURNING *
+      RETURNING id, filename, original_name, file_path, file_size, mime_type, alt_text, tags, folder_id, created_at
     `, [
       alt_text || image.alt_text,
       tags ? (typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()) : tags) : image.tags,
@@ -224,7 +226,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Get image info first
-    const imageResult = await pool.query('SELECT * FROM images WHERE id = $1', [id]);
+    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, tags, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
     
     if (imageResult.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });

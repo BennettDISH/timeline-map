@@ -194,8 +194,8 @@ function AtlasWorkspace() {
     track(voiceService.setVoice(nodeId, voiceId, voiceName, voiceStyle), "Couldn't set the voice")
       .then(() => localPatchNode(nodeId, { voiceId, voiceName, ...(voiceStyle !== undefined ? { voiceStyle } : {}) }))
       .catch(() => {})
-  const sayLine = (nodeId, text) =>
-    track(voiceService.sayLine(nodeId, text), 'No voice came back')
+  const sayLine = (nodeId, text, style) =>
+    track(voiceService.sayLine(nodeId, text, style), 'No voice came back')
       .then((r) => { localPatchNode(nodeId, { voiceLine: r.line, voiceUrl: r.url }); setFlash({ kind: 'ok', text: 'They spoke — players hear it on their sheet' }) })
       .catch(() => {})
   const clearLine = (nodeId) =>
@@ -1629,7 +1629,7 @@ function AtlasWorkspace() {
               onStance={(v) => saveNode(sel.node.id, { stance: v })}
               voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
               onVoice={(id, name, style) => setNodeVoice(sel.node.id, id, name, style)}
-              onSay={(t) => sayLine(sel.node.id, t)}
+              onSay={(t, style) => sayLine(sel.node.id, t, style)}
               onReveal={() => revealNote(sel.node.id)}
               hasOutline={!!sel.shape} onOutline={() => startOutline(sel.id)} onClearOutline={() => clearOutline(sel.id)}
               outlineKind={sel.shapeKind || 'area'} onOutlineKind={(k) => setOutlineKind(sel.id, k)}
@@ -2040,7 +2040,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
       </div>
       {voiceOn && (
         <>
-          <div className="isect">Voice{voiceMeta?.provider ? <span className="vprov"> · {voiceMeta.provider}</span> : null}</div>
+          <div className="isect">Voice{voiceMeta?.provider ? <span className="vprov"> · {({ gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' })[voiceMeta.provider] || voiceMeta.provider}</span> : null}</div>
           <div className="fld"><label>Their voice</label>
             <select className="vsel" value={n.voiceId || ''}
               onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); onVoice(v ? v.id : null, v ? v.name : null) }}>
@@ -2061,17 +2061,19 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
             </div>
           )}
           <div className="fld"><label>A line in their voice — players hear it on their sheet</label>
-            <textarea rows={2} maxLength={400} value={line}
+            <textarea rows={2} maxLength={400} value={line} readOnly={!!n.voiceUrl}
               placeholder="“Thirty gold a head, and not a copper more. The light comes first.”"
               onChange={(e) => setLine(e.target.value)} />
+            {n.voiceUrl && <div className="muted esmall">This line is recorded. Remove it (✕) to write and record a new one.</div>}
             <div className="vrow">
               <button className="btn" disabled={!n.voiceId || !line.trim() || vbusy || !!n.voiceUrl}
                 title={n.voiceUrl ? 'They already have a line — clear it (✕) to record another' : (n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first')}
-                onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim())).finally(() => setVbusy(false)) }}>
+                onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim(), voiceMeta?.steerable ? vstyle.trim() : undefined)).finally(() => setVbusy(false)) }}>
                 {vbusy ? 'Speaking…' : '🔊 Say it'}
               </button>
               {n.voiceUrl && <AudioClip src={n.voiceUrl} />}
-              {n.voiceUrl && <button className="lx" title="Remove the line" onClick={onClearLine}>✕</button>}
+              {n.voiceUrl && <button className="lx" title="Remove the line — its audio is deleted; recording again costs a new generation"
+                onClick={() => { if (window.confirm('Remove this recorded line? Its audio is deleted, and recording again costs a new generation.')) onClearLine() }}>✕</button>}
             </div>
           </div>
         </>
@@ -2247,7 +2249,7 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
         {generate && (
           <div className="pgen">
             <button className="btn primary block" disabled={genBusy || busy} onClick={runGen}
-              title="Nano Banana paints in this world's style and attaches it right here">
+              title="Paints art in this world's style and attaches it right here">
               {genBusy ? 'Painting… about half a minute' : `✦ ${generate.label}`}
             </button>
             <input value={gGuide} maxLength={480} disabled={genBusy}
@@ -2315,36 +2317,71 @@ function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', unpl
 // build, a painting — from the words and the standing context (current map + selected
 // node, shown as a chip). Whatever it makes lands as a card threaded under the reply that
 // made it, keep/unmake-able; privileged acts wait behind Allow.
+// plain words for what a creation made, singular and plural
+const COUNT_WORDS = {
+  images: ['painting', 'paintings'], nodes: ['new thing', 'new things'], maps: ['new space', 'new spaces'],
+  placements: ['spot on a map', 'spots on maps'], links: ['thread', 'threads'], eras: ['era', 'eras'],
+  backdrops: ['timed backdrop', 'timed backdrops'], facts: ['period text', 'period texts'],
+  enrichedBodies: ['description filled', 'descriptions filled'], enrichedNotes: ['note filled', 'notes filled'],
+  enrichedImages: ['piece of art attached', 'pieces of art attached'], noteAppends: ['note extended', 'notes extended'],
+  stanceChanges: ['stance set', 'stances set'], mapNoteAppends: ['map note extended', 'map notes extended'], mapBases: ['backdrop set', 'backdrops set'],
+}
+const countLabel = (k, v) => `${v} ${(COUNT_WORDS[k] || [k, k])[v === 1 ? 0 : 1]}`
+
 function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const [msgs, setMsgs] = useState(null) // null while the history loads
   const [batches, setBatches] = useState([]) // pending cards
   const [text, setText] = useState('')
-  const [busy, setBusy] = useState(null) // null | 'chat' | 'mind' | batch id
+  const [busy, setBusy] = useState(null) // null | 'chat' | { id, act } for a batch card action
+  const [savingMind, setSavingMind] = useState(false)
+  const [loadErr, setLoadErr] = useState(false)
   const [view, setView] = useState('chat') // 'chat' | 'mind' (the mind's settings partition)
   const [mind, setMind] = useState({ artStyle: '', lore: '', bible: '', genSize: 'medium', styleImage: null })
+  const base = useRef(null) // the mind as last loaded or saved: only fields that differ are ever saved
+  const MIND_FIELDS = ['artStyle', 'lore', 'bible', 'genSize']
+  const dirty = base.current ? MIND_FIELDS.filter((k) => mind[k] !== base.current[k]) : []
   const [anchorPick, setAnchorPick] = useState(false)
   const [dropNode, setDropNode] = useState(false) // the DM cleared the selection chip for this message
   const logRef = useRef(null)
   useEffect(() => { setDropNode(false) }, [sel?.node?.id])
 
+  const fromServer = (d) => ({ artStyle: d.artStyle || '', lore: d.lore || '', bible: d.bible || '', genSize: d.genSize || 'medium', styleImage: d.styleImage || null })
+  // the mind's state is refreshed after every reply (a recap appends memory): fields the DM
+  // has not touched take the server's value, fields mid-edit keep the DM's text
+  const refreshMind = useCallback((withHistory) => forgeService.getWorld(worldId).then((d) => {
+    const fresh = fromServer(d)
+    const prevBase = base.current || fresh
+    setMind((m) => { const next = { ...m }; for (const k of Object.keys(fresh)) if (m[k] === prevBase[k]) next[k] = fresh[k]; return next })
+    base.current = fresh
+    setBatches(d.batches)
+    if (withHistory) setMsgs(d.messages)
+    setLoadErr(false)
+  }), [worldId])
   useEffect(() => {
     let live = true
+    setLoadErr(false)
     forgeService.getWorld(worldId)
       .then((d) => {
         if (!live) return
         setMsgs(d.messages); setBatches(d.batches)
-        setMind({ artStyle: d.artStyle, lore: d.lore, bible: d.bible || '', genSize: d.genSize, styleImage: d.styleImage })
+        const m = fromServer(d); base.current = m; setMind(m)
       })
-      .catch(() => { if (live) setMsgs([]) })
+      .catch(() => { if (live) { setLoadErr(true); setMsgs((m) => m || []) } }) // a load error says so — and nothing saves until it loads
     return () => { live = false }
   }, [worldId])
 
   const saveMind = () => {
-    setBusy('mind')
-    forgeService.patchMind(worldId, { art_style: mind.artStyle, lore: mind.lore, bible: mind.bible, gen_size: mind.genSize })
-      .then(() => onFlash({ kind: 'ok', text: 'The mind took it in' }))
+    if (!base.current || !dirty.length) return
+    const body = {}
+    if (dirty.includes('artStyle')) body.art_style = mind.artStyle
+    if (dirty.includes('lore')) body.lore = mind.lore
+    if (dirty.includes('bible')) body.bible = mind.bible
+    if (dirty.includes('genSize')) body.gen_size = mind.genSize
+    setSavingMind(true)
+    forgeService.patchMind(worldId, body) // only what changed: memory the mind wrote meanwhile is never overwritten
+      .then(() => { base.current = { ...base.current, ...Object.fromEntries(dirty.map((k) => [k, mind[k]])) }; onFlash({ kind: 'ok', text: 'The mind took it in' }) })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't save") }))
-      .finally(() => setBusy(null))
+      .finally(() => setSavingMind(false))
   }
   const setAnchor = (imageId, url) => {
     setAnchorPick(false)
@@ -2360,7 +2397,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     r.onload = () => {
       const full = String(r.result || '')
       setMind((m) => ({ ...m, bible: full.slice(0, 100000) }))
-      if (full.length > 100000) onFlash({ kind: 'info', text: 'The bible was trimmed to 100,000 characters' })
+      onFlash({ kind: 'info', text: full.length > 100000 ? 'Loaded and trimmed to 100,000 characters — Save the mind to keep it' : 'Loaded — Save the mind to keep it' })
     }
     r.readAsText(f)
   }
@@ -2380,25 +2417,28 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     const nodeId = sel && !dropNode ? sel.node.id : undefined
     forgeService.chat(worldId, message, { mapId: map?.id, nodeId })
       .then((r) => {
-        setMsgs((m) => [...m, { role: 'mind', content: r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.say, batchId: r.batch?.batchId || null }])
+        const content = r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.applyError ? `${r.say}\n⚠ Nothing was changed: ${r.applyError}` : r.say
+        setMsgs((m) => [...m, { role: 'mind', content, batchId: r.batch?.batchId || null }])
         if (r.batch) {
-          if (r.batch.askCount) {
-            // asks need their server-rendered plain-word lines — reload the panel state
-            forgeService.getWorld(worldId).then((d) => setBatches(d.batches)).catch(() => {})
-          } else {
-            setBatches((b) => [{ id: r.batch.batchId, summary: r.batch.summary, counts: r.batch.counts, asksState: 'none', asksText: [] }, ...b])
-          }
+          if (!r.batch.askCount) setBatches((b) => [{ id: r.batch.batchId, summary: r.batch.summary, counts: r.batch.counts, asksState: 'none', asksText: [] }, ...b])
           onRefresh()
         }
+        refreshMind(false).catch(() => {}) // memory and cards as the server now holds them
         if (r.applyError) onFlash({ kind: 'err', text: `The mind spoke, but the creation failed: ${r.applyError}` })
       })
-      .catch((e) => onFlash({ kind: 'err', text: errText(e, 'The mind did not answer') }))
+      .catch((e) => {
+        // the words come back to the box and the bubble says they never arrived
+        setText((t) => t || message)
+        setMsgs((m) => m.map((x, i) => (i === m.length - 1 && x.role === 'user' && x.content === message ? { ...x, failed: true } : x)))
+        onFlash({ kind: 'err', text: e?.response ? errText(e, 'The mind did not answer') : 'No connection to the mind — your message is back in the box' })
+      })
       .finally(() => setBusy(null))
   }
 
+  const isBusy = (b, act) => !!busy && typeof busy === 'object' && busy.id === b.id && busy.act === act
   const askAct = (b, allow) => {
     if (busy) return
-    setBusy(b.id)
+    setBusy({ id: b.id, act: allow ? 'allow' : 'refuse' })
     ;(allow ? forgeService.allowAsks(worldId, b.id) : forgeService.refuseAsks(worldId, b.id))
       .then((r) => {
         setBatches((list) => list.map((x) => x.id === b.id ? { ...x, asksState: allow ? 'allowed' : 'refused' } : x))
@@ -2409,41 +2449,48 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   }
   const batchAct = (b, keep) => {
     if (busy) return
-    setBusy(b.id)
+    if (!keep) {
+      const what = Object.entries(b.counts || {}).map(([k, v]) => countLabel(k, v)).join(', ')
+      if (!window.confirm(`Unmake this creation? It removes ${what || 'what it made'}. Anything you edited since stays as you left it.`)) return
+    }
+    setBusy({ id: b.id, act: keep ? 'keep' : 'unmake' })
     ;(keep ? forgeService.keepBatch(worldId, b.id) : forgeService.discardBatch(worldId, b.id))
       .then(() => {
         setBatches((list) => list.filter((x) => x.id !== b.id))
-        if (!keep) { onFlash({ kind: 'info', text: 'Unmade — everything that creation added is gone' }); onRefresh() }
+        if (keep && b.asksState === 'pending') onFlash({ kind: 'info', text: 'Kept — its request for permission was declined' })
+        if (!keep) { onFlash({ kind: 'info', text: 'Unmade — what that creation added is gone; your later edits stay' }); refreshMind(true).catch(() => {}); onRefresh() }
       })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't do that") }))
       .finally(() => setBusy(null))
   }
 
-  const COUNT_LABELS = {
-    enrichedBodies: 'bodies filled', enrichedNotes: 'notes filled', enrichedImages: 'art attached',
-    noteAppends: 'notes extended', stanceChanges: 'stances set', mapNoteAppends: 'map notes extended', mapBases: 'backdrops set',
-  }
-  const card = (b) => (
+  const card = (b) => {
+    const counts = Object.entries(b.counts || {})
+    const meta = counts.map(([k, v]) => countLabel(k, v)).join(' · ') || 'nothing new'
+    const madeThings = (b.counts?.nodes || 0) + (b.counts?.maps || 0) > 0
+    return (
     <div key={`b${b.id}`} className="fbatch">
-      <div className="fbsum">{b.summary}</div>
-      <div className="fbmeta">{Object.entries(b.counts || {}).map(([k, v]) => `${v} ${COUNT_LABELS[k] || k}`).join(' · ') || 'no new things'} — new things stay DM-only until you reveal them</div>
+      <div className="fbsum">{b.summary && b.summary !== 'A generation' ? b.summary : (meta[0].toUpperCase() + meta.slice(1))}</div>
+      <div className="fbmeta">{meta}{madeThings ? ' — new things stay DM-only until you reveal them' : ''}</div>
       {b.asksState === 'pending' && (b.asksText || []).length > 0 && (
         <div className="fasks">
           <div className="faskhead">It asks permission to:</div>
           {b.asksText.map((t, i) => <div key={i} className="fask">• {t}</div>)}
           <div className="fbrow">
-            <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{busy === b.id ? '…' : 'Allow'}</button>
-            <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>Refuse</button>
+            <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{isBusy(b, 'allow') ? '…' : 'Allow'}</button>
+            <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>{isBusy(b, 'refuse') ? '…' : 'Refuse'}</button>
           </div>
         </div>
       )}
       {b.asksState === 'allowed' && <div className="fbmeta">✓ permission granted — Unmake reverts it all</div>}
       <div className="fbrow">
-        <button className="tool on" disabled={!!busy} onClick={() => batchAct(b, true)}>Keep</button>
-        <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{busy === b.id ? '…' : 'Unmake'}</button>
+        <button className="tool on" disabled={!!busy} title={b.asksState === 'pending' ? 'Keep the creation — its request for permission is declined' : 'Keep the creation'}
+          onClick={() => batchAct(b, true)}>{isBusy(b, 'keep') ? '…' : (b.asksState === 'pending' ? 'Keep (decline the request)' : 'Keep')}</button>
+        <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{isBusy(b, 'unmake') ? '…' : 'Unmake'}</button>
       </div>
     </div>
-  )
+    )
+  }
   const pendingById = new Map(batches.map((b) => [b.id, b]))
   const threaded = new Set()
 
@@ -2452,15 +2499,16 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       <div className="fhead">
         <h4>✦ The Forge</h4>
         <div className="fhbtns">
-          <button className={`gear ${view === 'mind' ? 'on' : ''}`} onClick={() => setView(view === 'mind' ? 'chat' : 'mind')}
-            title="The mind itself — bible, art style, anchor, memory, creation size">⚙</button>
-          <button className="x" onClick={onClose} title="Close the Forge">✕</button>
+          <button className={`gear ${view === 'mind' ? 'on' : ''}${dirty.length ? ' dirty' : ''}`} onClick={() => setView(view === 'mind' ? 'chat' : 'mind')}
+            title={dirty.length ? 'The mind has unsaved settings' : 'The mind itself — bible, art style, anchor, memory, creation size'}>⚙{dirty.length ? '•' : ''}</button>
+          <button className="x" title="Close the Forge"
+            onClick={() => { if (dirty.length && !window.confirm('The mind has unsaved settings. Close and discard them?')) return; onClose() }}>✕</button>
         </div>
       </div>
       {view === 'mind' && (
         <div className="fmind">
           <div className="fsect">Campaign bible</div>
-          <div className="fhint">Your own document — the mind treats it as canon on every turn. Paste it, or load a .md file.</div>
+          <div className="fhint">Your own document — the mind reads all of it (up to 100,000 characters) as canon on every turn. Paste it, or load a .md file.</div>
           <textarea rows={7} value={mind.bible} placeholder="Nothing here yet — paste your campaign bible, or load the file."
             onChange={(e) => setMind((m) => ({ ...m, bible: e.target.value }))} />
           <div className="fbrow">
@@ -2497,16 +2545,22 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
             <option value="large">Large — a whole quarter (18–35)</option>
           </select>
           <div className="fsect">The mind's memory</div>
-          <div className="fhint">Threads, secrets, and session summaries it keeps between sessions. It reads this every turn — edit freely.</div>
+          <div className="fhint">Threads, secrets, and session summaries it keeps between sessions. It reads the latest 20,000 characters every turn — edit freely.</div>
           <textarea rows={8} value={mind.lore} placeholder="Nothing remembered yet."
             onChange={(e) => setMind((m) => ({ ...m, lore: e.target.value }))} />
-          <button className="tool on" disabled={busy === 'mind'} onClick={saveMind}>{busy === 'mind' ? 'Saving…' : 'Save the mind'}</button>
+          <button className="tool on" disabled={savingMind || !base.current || !dirty.length} onClick={saveMind}
+            title={!base.current ? 'The mind has not loaded yet' : dirty.length ? `Saves ${dirty.length} changed ${dirty.length === 1 ? 'field' : 'fields'}` : 'Nothing changed'}>
+            {savingMind ? 'Saving…' : dirty.length ? 'Save the mind' : 'Saved'}</button>
         </div>
       )}
       {view === 'chat' && (<>
       <div className="flog" ref={logRef}>
         {msgs === null && <div className="fintro">Waking the mind…</div>}
-        {msgs !== null && msgs.length === 0 && (
+        {loadErr && (
+          <div className="fintro">Couldn't wake the mind — the conversation and settings did not load.
+            <div className="fbrow"><button className="tool" onClick={() => refreshMind(true).catch(() => setLoadErr(true))}>Retry</button></div></div>
+        )}
+        {msgs !== null && msgs.length === 0 && !loadErr && (
           <div className="fintro">
             Talk to the world. Ask what anyone knows, tell it what happened last session, or say
             what to build or paint — it reads the words and does the rest. It knows what you
@@ -2518,7 +2572,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           if (b) threaded.add(b.id)
           return (
             <React.Fragment key={i}>
-              <div className={`fmsg ${m.role === 'user' ? 'me' : 'mind'}`}>{m.content}</div>
+              <div className={`fmsg ${m.role === 'user' ? 'me' : 'mind'}${m.failed ? ' failed' : ''}`}>{m.content}{m.failed && <div className="ffail">⚠ Not sent — your words are back in the box</div>}</div>
               {b && card(b)}
             </React.Fragment>
           )
@@ -2537,11 +2591,12 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           {map && <span className="fchip dim">in {trunc(map.title)}</span>}
         </div>
         <div className="fsend">
-          <textarea rows={2} value={text}
+          <textarea rows={2} value={text} maxLength={12000}
             placeholder="Ask, recap, or ask for something — “paint him”, “what does Ren know?”, “last night the party…”"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} />
           <button className="tool on" disabled={!!busy || !text.trim()} onClick={send}>Send</button>
+          {text.length > 9000 && <span className="fcount">{text.length.toLocaleString()} / 12,000</span>}
         </div>
       </div>
       </>)}

@@ -66,10 +66,17 @@ router.post('/init-admin', async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
+    // Exactly one setup may win: an advisory lock held for this whole request serialises two
+    // first-run requests, so the second sees the first admin and gets 409
+    const gate = await pool.connectTx();
+    try {
+    await gate.query('BEGIN');
+    await gate.query('SELECT pg_advisory_xact_lock(424242)');
     // Check if database is already initialized
     try {
-      const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
+      const existingUsers = await gate.query('SELECT COUNT(*) FROM users');
       if (parseInt(existingUsers.rows[0].count) > 0) {
+        await gate.query('ROLLBACK');
         return res.status(409).json({ message: 'System already initialized. Please use normal login.' });
       }
     } catch (dbError) {
@@ -77,6 +84,7 @@ router.post('/init-admin', async (req, res) => {
       if (dbError.code !== '42P01') {
         throw dbError;
       }
+      await gate.query('ROLLBACK'); await gate.query('BEGIN'); await gate.query('SELECT pg_advisory_xact_lock(424242)');
     }
 
     // Run migration first
@@ -88,7 +96,7 @@ router.post('/init-admin', async (req, res) => {
     const statements = readStatements();
 
     // Run the whole migration in one transaction so a failure can't leave a half-built schema
-    const client = await pool.connect();
+    const client = await pool.connectTx();
     try {
       await client.query('BEGIN');
       for (const statement of statements) {
@@ -109,12 +117,13 @@ router.post('/init-admin', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create admin user (override any default admin from schema)
-    await pool.query('DELETE FROM users WHERE username = $1', ['admin']);
+    await gate.query('DELETE FROM users WHERE username = $1', ['admin']);
 
-    const result = await pool.query(
+    const result = await gate.query(
       'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at, token_version',
       [username, email, hashedPassword, 'admin']
     );
+    await gate.query('COMMIT');
 
     const user = result.rows[0];
     const token = generateToken(user.id, user.token_version);
@@ -132,6 +141,7 @@ router.post('/init-admin', async (req, res) => {
       setupComplete: true
     });
 
+    } finally { try { await gate.query('ROLLBACK'); } catch (e) { /* committed or never begun */ } gate.release(); }
   } catch (error) {
     console.error('Setup initialization error:', error);
     res.status(500).json({

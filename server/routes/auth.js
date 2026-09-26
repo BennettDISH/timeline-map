@@ -42,13 +42,31 @@ async function findOrCreateLocalUser(centralUser) {
 
   if (existing.rows.length > 0) {
     const local = existing.rows[0];
-    // Sync profile data from central on each login
-    if (local.email !== centralUser.email || local.username !== centralUser.username) {
-      await pool.query(
-        'UPDATE users SET username = $1, email = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-        [centralUser.username, centralUser.email, local.id]
-      );
-      return { ...local, username: centralUser.username, email: centralUser.email };
+    // Sync profile data from central on each login — but a username or email another local
+    // row holds, or one wider than the column, is skipped rather than allowed to 500 the
+    // sign-in forever (the central id is the identity; these are just labels)
+    const want = {};
+    if (centralUser.username && centralUser.username !== local.username) {
+      const u = String(centralUser.username).slice(0, 100);
+      const taken = (await pool.query('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) AND id <> $2', [u, local.id])).rows.length > 0;
+      if (!taken) want.username = u;
+    }
+    if (centralUser.email && centralUser.email !== local.email) {
+      const e = String(centralUser.email).slice(0, 255);
+      const taken = (await pool.query('SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2', [e, local.id])).rows.length > 0;
+      if (!taken) want.email = e;
+    }
+    const keys = Object.keys(want);
+    if (keys.length) {
+      try {
+        await pool.query(
+          `UPDATE users SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${keys.length + 1}`,
+          [...keys.map((k) => want[k]), local.id]);
+        return { ...local, ...want };
+      } catch (e) {
+        if (e.code === '23505' || e.code === '22001') { console.warn('profile sync skipped:', e.message); return local; }
+        throw e;
+      }
     }
     return local;
   }

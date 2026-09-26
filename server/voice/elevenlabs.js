@@ -35,7 +35,7 @@ async function speak(voiceId, text) {
     headers: { ...headers(), 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({
       text,
-      model_id: process.env.VOICE_TTS_MODEL || 'eleven_multilingual_v2',
+      model_id: process.env.VOICE_TTS_MODEL_ELEVENLABS || 'eleven_multilingual_v2',
       voice_settings: { stability: 0.45, similarity_boost: 0.8 },
     }),
     signal: AbortSignal.timeout(60000),

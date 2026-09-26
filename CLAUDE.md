@@ -62,6 +62,11 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path
+- **The server stays up**: `database.js` never exits on a pool error; transactions use
+  `pool.connectTx()` (an error listener + a release that discards a broken client). First-run
+  setup holds an advisory lock. SSO profile sync skips a username/email another row holds
+  (never a 500). Share map ids are parsed once (`intId`) and a player marker lands in one
+  statement. Image list/metadata queries never select `base64_data`.
 - **Autosave contract** (`AtlasWorkspace.jsx`): every write goes through `track()` so the
   header chip is honest. Node fields, lifespans and map notes each have their OWN debounce
   clock and pending payload (`flushSave`/`flushLife`/`flushNote`, `flushAll` on unmount and
@@ -221,6 +226,15 @@ below is a wish-shelf, not a gap list.
   for new things. Batch cards thread under the reply that made them
   (`mind_messages.batch_id`). Messages up to 12k chars; caps 8 images / 60 nodes / 40 asks.
   The image picker's ✦ Paint button remains the precise one-click paint path.
+- Contract bookkeeping records WHAT the batch wrote (`wrote`) next to what it replaced
+  (`prev`); Unmake reverts a field only while it still holds exactly that (compare-and-set),
+  so the DM's later edits survive, and the mind's message for the batch gets an "↩ Unmade"
+  line. A failed apply is stored as "⚠ Nothing was changed: …" and writes no lore. The DM's
+  message is stored BEFORE the model call, so a failed turn keeps it. Messages over 12,000
+  characters are refused (400), never trimmed. The mind reads the whole bible (≤100k) and
+  the latest 20k of lore; the lore PATCH keeps the newest 20k. Edit asks show their proposed
+  words on the card. A `move` ask carries an outline along (or clears it across maps).
+  The rulebook speaks the world's own clock unit and knows the one `party` node.
 
 ## Voice (optional harness, three providers)
 - `server/voice/providers.js` chooses who speaks: `VOICE_PROVIDER` if pinned, else the
@@ -231,7 +245,10 @@ below is a wish-shelf, not a gap list.
   inert with no key (or `VOICE_ENABLED=0`); `/status` reports provider/steerable/ambience
   so the inspector adapts. Audio lands in R2 (`worlds/<id>/voice-*`, `ambience-*`).
 - Nodes: `voice_id`/`voice_name`/`voice_style` + one `voice_line`/`voice_url`. Maps:
-  `ambience_prompt`/`ambience_url` (≤22s loop). Player View: a visible node's line plays
+  `ambience_prompt`/`ambience_url` (≤22s loop). Clearing a line or an ambience deletes its
+  R2 object (`keyFromUrl`). `POST /nodes/:id/line` accepts `voice_style` so the style shown
+  in the box is the one used. Model overrides: `VOICE_TTS_MODEL_GEMINI`,
+  `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS` (one per provider). Player View: a visible node's line plays
   on its sheet; a map's ambience is a tap-to-play toggle in the top bar. All players use
   `components/AudioClip.jsx` (themed; the native controls ignore the palette). helmet's CSP
   carries `media-src 'self' blob: https:` — without it the browser renders the player but

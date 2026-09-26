@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './utils/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
@@ -112,13 +112,19 @@ function AppRoutes() {
   )
 }
 
+// the boundary is keyed on the path, so leaving a broken page really leaves it
+function RoutedBoundary({ children }) {
+  const location = useLocation()
+  return <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+}
+
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <ErrorBoundary>
+        <RoutedBoundary>
           <AppRoutes />
-        </ErrorBoundary>
+        </RoutedBoundary>
       </Router>
     </AuthProvider>
   )

@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { r2Enabled, putObject } = require('../storage');
+const { r2Enabled, putObject, deleteObject, keyFromUrl } = require('../storage');
 const voice = require('../voice/providers');
 const router = express.Router();
 
@@ -52,16 +52,24 @@ router.post('/nodes/:id/line', wrap(async (req, res) => {
   if (!r2Enabled) return needStorage(res);
   const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 400) : '';
   if (!text) return res.status(400).json({ message: 'Give them something to say' });
-  const out = await voice.speak({ voiceId: n.voice_id, style: n.voice_style, text });
+  // the style the DM sees in the box is the style used — even if its save is still in flight
+  let style = n.voice_style;
+  if (typeof req.body?.voice_style === 'string') {
+    style = req.body.voice_style.trim().slice(0, 400) || null;
+    if (style !== n.voice_style) await pool.query('UPDATE nodes SET voice_style=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [style, n.id]);
+  }
+  const out = await voice.speak({ voiceId: n.voice_id, style, text });
   const key = `worlds/${n.world_id}/voice-${n.id}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${out.ext}`;
   const url = await putObject(key, out.bytes, out.mimeType);
   await pool.query('UPDATE nodes SET voice_line=$1, voice_url=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3', [text, url, n.id]);
   res.json({ line: text, url });
 }));
 router.delete('/nodes/:id/line', wrap(async (req, res) => {
-  const n = (await pool.query('SELECT id, world_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  const n = (await pool.query('SELECT id, world_id, voice_url FROM nodes WHERE id=$1', [req.params.id])).rows[0];
   if (!n || !(await ownsWorld(n.world_id, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   await pool.query('UPDATE nodes SET voice_line=NULL, voice_url=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [n.id]);
+  const key = keyFromUrl(n.voice_url); // the audio leaves storage with the line
+  if (key) { try { await deleteObject(key); } catch (e) { /* best-effort */ } }
   res.json({ ok: true });
 }));
 
@@ -79,9 +87,11 @@ router.post('/maps/:id/ambience', wrap(async (req, res) => {
   res.json({ prompt, url });
 }));
 router.delete('/maps/:id/ambience', wrap(async (req, res) => {
-  const m = (await pool.query('SELECT id, world_id FROM maps WHERE id=$1', [req.params.id])).rows[0];
+  const m = (await pool.query('SELECT id, world_id, ambience_url FROM maps WHERE id=$1', [req.params.id])).rows[0];
   if (!m || !(await ownsWorld(m.world_id, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   await pool.query('UPDATE maps SET ambience_prompt=NULL, ambience_url=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [m.id]);
+  const key = keyFromUrl(m.ambience_url);
+  if (key) { try { await deleteObject(key); } catch (e) { /* best-effort */ } }
   res.json({ ok: true });
 }));
 

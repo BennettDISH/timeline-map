@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Waypoint's widths (username 100, email 255) — a narrower local column used to 500 every sign-in
+ALTER TABLE users ALTER COLUMN username TYPE VARCHAR(100);
+ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(255);
+
 -- SSO integration: link to central auth service
 ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
 

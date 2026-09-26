@@ -7,14 +7,15 @@ const pool = require('../config/database');
 const { generateJSON } = require('./gemini');
 const { validateBatch, applyBatch, CAPS } = require('./contract');
 
-const RULEBOOK = `You are the mind of a fantasy world inside the Atlas — a recursively zoomable map scrubbed through time. You grow the world when its DM asks, keep its stories coherent, and remember what matters. You are a collaborator with taste: concrete, evocative, never generic.
+const rulebook = (unit) => `You are the mind of a fantasy world inside the Atlas — a recursively zoomable map scrubbed through time. You grow the world when its DM asks, keep its stories coherent, and remember what matters. You are a collaborator with taste: concrete, evocative, never generic.
 
 HOW THE WORLD WORKS
-- The world is a graph of NODES (a place, person, item, note, lore, or event — those are the only categories). A node has one identity and no copies.
-- A node appears on a MAP via a PLACEMENT: x/y as % of the map plane (0,0 = top-left), plus an optional lifespan [start,end] in integer years on the ONE world clock (null = always). The same node may be placed on several maps.
+- The world is a graph of NODES (a place, person, item, note, lore, or event — those are the only categories, plus exactly one 'party' node). A node has one identity and no copies.
+- THE PARTY: the node of category 'party' is the players themselves — one per world, following them with a placement and a fact per footstep. NEVER create another; to record where they went or what they saw, enrich and place the existing one.
+- A node appears on a MAP via a PLACEMENT: x/y as % of the map plane (0,0 = top-left), plus an optional lifespan [start,end] in integer ${unit} on the ONE world clock (null = always). The same node may be placed on several maps.
 - A map is either the world root (already exists) or the INTERIOR of a node — zooming into that node. view 'map' is spatial; 'list' is an inventory/notes list where x/y are ignored.
 - LINKS are bidirectional edges between nodes, optionally labeled.
-- ERAS are named periods of history. FACTS are timed body overrides on a node (the same tavern reads differently in different centuries). Timed BACKDROPS swap a map's art from a start year onward.
+- ERAS are named periods of history. FACTS are timed body overrides on a node (the same tavern reads differently in different centuries). Timed BACKDROPS swap a map's art from a start ${unit} onward.
 - Everything you create is born DM-only. The DM reveals things to players by hand; never concern yourself with visibility.
 
 READING THE DM — there are no modes or buttons; decide from the words and the context what is wanted:
@@ -42,7 +43,7 @@ THE BATCH (everything optional, arrays may be empty):
   "maps": [{ "key": "m1", "title": "", "view": "map"|"list", "owner": "n1 or an existing node's numeric id — the node this map is the interior of", "backdrop": "img1", "focus_start": null, "focus_end": null }],
   "links": [{ "from": "n1 or numeric id", "to": "numeric id or key", "label": "why they connect" }],
   "eras": [{ "name": "", "start": 0, "end": 100 }],
-  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that year,
+  "backdrops": [{ "map": "m1 or numeric id", "image": "img2", "start": 300, "end": null }] — start null SETS the map's standing backdrop; a numeric start begins a timed override at that ${unit},
   "enrich": [{ "node": 97, "body": "fills the node's body ONLY if it is empty — to replace written text, use an edit ask",
                "dm_note": "fills the node's DM note only if empty",
                "dm_note_append": "ADDS a line to the node's DM notes (what happened, what they learned) — always allowed, never overwrites",
@@ -65,7 +66,7 @@ PRIVILEGED ACTS — "asks". Moving, rewriting, or deleting what already exists t
 
 RULES OF CRAFT
 - Existing things are referenced by their numeric id from the WORLD DIGEST; new things by your own string keys. Reuse existing people and places via links and placements — never duplicate what exists.
-- LIFESPANS: null start/end means "always". NEVER write {"start":0,"end":0} to mean forever — that is a single year and the thing vanishes for the rest of history. Give something an end only when history actually ends it.
+- LIFESPANS: null start/end means "always". NEVER write {"start":0,"end":0} to mean forever — that is a single ${unit} and the thing vanishes for the rest of history. Give something an end only when history actually ends it.
 - SPACING: pins draw at map scale — keep distinct nodes at least 5 apart in x/y. Never stack a person on top of their building; set them beside it, or save them for its interior.
 - Caps per batch: ${CAPS.images} images, ${CAPS.nodes} nodes, ${CAPS.maps} maps, ${CAPS.links} links, ${CAPS.eras} eras. Prefer a tight, finished creation over a sprawling half-made one, sized to the CREATION SIZE PREFERENCE.
 - Images cost real money (~4 cents each) and are capped at ${CAPS.images} per turn. Paint what is asked for, and what earns it: backdrops, key faces. Most nodes need no image.
@@ -78,7 +79,7 @@ RULES OF CRAFT
 - SECRETS HAVE THEIR OWN CHANNEL: a node's body, facts, and any image are the PUBLIC face — exactly what players see the moment the DM reveals it. Every twist, hidden allegiance, trap, or protected truth goes in dm_note and NOWHERE else. A villain's body reads as their cover story; their dm_note holds the truth.
 - IMAGES ARE PUBLIC TOO: never paint a secret. Prompt the surface — the tavern's crowd, not the trapdoor beneath it; the blind shell-gatherer, not what she guards. If a place's secret is visual, paint the innocent version.
 - Bodies are read at the table: 2-4 sentences, specific and sensory. No filler, no "mysterious stranger" clichés.
-- Weave into what exists: match the world's tone, connect to its people, respect its timeline (years are integers within the digest's range).
+- Weave into what exists: match the world's tone, connect to its people, respect its timeline (${unit} are integers within the digest's range).
 - If the digest shows timeline.enabled=false, the world runs WITHOUT time: create no eras, facts, or lifespans — suggest enabling the timeline instead if the story needs history.
 - If the DM is only asking or planning, reply with say alone — no batch.`;
 
@@ -125,13 +126,14 @@ async function converse({ worldId, userId, message, context }) {
   const tail = (await pool.query(
     'SELECT role, content FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 16', [worldId])).rows.reverse();
   const d = await digest(worldId);
+  const unit = (d && d.timeline && d.timeline.unit) || 'years';
   const system = [
-    RULEBOOK,
+    rulebook(unit),
     `TODAY: ${new Date().toISOString().slice(0, 10)}`,
     `CREATION SIZE PREFERENCE: ${mind.gen_size || 'medium'} — when filling out a space, aim for about ${SIZES[mind.gen_size] || SIZES.medium} new nodes unless the DM says otherwise.`,
-    mind.bible ? `THE CAMPAIGN BIBLE (the DM's own document — canon; stay strictly consistent with it${mind.bible.length > 60000 ? '; shown truncated' : ''}):\n${mind.bible.slice(0, 60000)}` : '',
+    mind.bible ? `THE CAMPAIGN BIBLE (the DM's own document — canon; stay strictly consistent with it):\n${mind.bible.slice(0, 100000)}` : '',
     mind.art_style ? `CURRENT ART STYLE (applied to every painting for you; the DM can edit it):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
-    mind.lore ? `YOUR REMEMBERED LORE:\n${mind.lore.slice(-6000)}` : '',
+    mind.lore ? `YOUR REMEMBERED LORE (the latest 20,000 characters):\n${mind.lore.slice(-20000)}` : '',
   ].filter(Boolean).join('\n\n');
 
   // The DM's standing context arrives in FULL detail — "paint her" and "what does she
@@ -162,6 +164,8 @@ async function converse({ worldId, userId, message, context }) {
     { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}${where}` },
   ];
 
+  // what the DM said is history the moment it is sent — a model failure must not lose it
+  await pool.query('INSERT INTO mind_messages (world_id, role, content) VALUES ($1,$2,$3)', [worldId, 'user', message.slice(0, 12000)]);
   let resp = await generateJSON({ system, messages });
   let applied = null, applyError = null;
 
@@ -187,8 +191,9 @@ async function converse({ worldId, userId, message, context }) {
   }
 
   const say = typeof resp?.say === 'string' && resp.say.trim() ? resp.say.trim().slice(0, 4000) : '…';
-  const stored = applied ? `${say}\n⚒ ${applied.summary}` : say;
-  await pool.query('INSERT INTO mind_messages (world_id, role, content) VALUES ($1,$2,$3)', [worldId, 'user', message.slice(0, 12000)]);
+  // the log tells the truth: a creation that failed is marked, so neither the DM nor the
+  // mind (which re-reads this history) believes the work was done
+  const stored = applied ? `${say}\n⚒ ${applied.summary}` : applyError ? `${say}\n⚠ Nothing was changed: ${applyError}` : say;
   await pool.query('INSERT INTO mind_messages (world_id, role, content, batch_id) VALUES ($1,$2,$3,$4)',
     [worldId, 'mind', stored, applied ? applied.batchId : null]);
   await pool.query(`DELETE FROM mind_messages WHERE world_id=$1 AND id NOT IN
@@ -196,7 +201,7 @@ async function converse({ worldId, userId, message, context }) {
 
   const sets = [];
   const vals = [];
-  if (typeof resp?.lore_append === 'string' && resp.lore_append.trim()) {
+  if (!applyError && typeof resp?.lore_append === 'string' && resp.lore_append.trim()) { // a failed recap writes no memory
     const lore = `${mind.lore}\n${resp.lore_append.trim()}`.trim().slice(-20000);
     sets.push(`lore=$${vals.push(lore)}`);
   }
