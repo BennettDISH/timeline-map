@@ -37,7 +37,7 @@ export default function EraScrub({ tl, eras, value, onChange, win = null }) {
       <div className="erabar">
         <div className="ezone">
           <span className="einfo">that stretch of the past isn't open any more</span>
-          <button className="tool enow" title="Back to the present" onClick={() => onChange(null)}>⦿ Now</button>
+          <button className="tool enow" title="Back to now" onClick={() => onChange(null)}>⦿ Now</button>
         </div>
       </div>
     )
@@ -103,13 +103,13 @@ export default function EraScrub({ tl, eras, value, onChange, win = null }) {
               if (raw !== '' && Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
             }} />
         ) : (
-          <button className="einfo einfobtn" title={`Click to type a ${unitOne} number — it snaps into the revealed past`}
+          <button className="einfo einfobtn" title={`Type a ${unitOne} number — it snaps into the revealed past`}
             onClick={() => setTyped(String(dv >= canon ? canon : dv))}>
             {dv >= canon ? `now · ${momentLabel(canon, eras, tl.unit)}` : momentLabel(dv, eras, tl.unit)}
           </button>
         )}
         <button className="tool enow" style={value == null ? { visibility: 'hidden' } : undefined}
-          title="Back to the present" onClick={() => { setDv(canon); onChange(null) }}>⦿ Now</button>
+          title="Back to now" onClick={() => { setDv(canon); onChange(null) }}>⦿ Now</button>
       </div>
     </div>
   )

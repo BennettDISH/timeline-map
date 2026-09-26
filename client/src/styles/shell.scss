@@ -326,3 +326,5 @@
 .shell .worldsel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .shell .fmenu .fdots:focus-visible{opacity:1}
 @media (prefers-reduced-motion: reduce){ .shell .skel{animation:none} }
+
+.shell .voidstate h1.vh { font: inherit; font-family: var(--serif); font-weight: 600; font-size: 28px; margin: 12px 0 8px; }

@@ -418,6 +418,24 @@ in its file with the commit hash.
 - SVG filters on regions are in user units of the 0–100 viewBox (a 5px blur is 5% of the
   plane): glow is ~0.35 units; the pop's shadow sits on a wrapper OUTSIDE the clipped group.
 
+## Vocabulary (one word for one thing, in every string players or the DM read)
+- **map** — every map: the root, an interior, a list-view map. Never "space", "place" (for a
+  map), "plane". "interior map" is the adjective form ("＋ Interior map"); entering one is "◎ Go inside".
+- **entry** — a node, in UI text ("＋ Add entry", "Find an entry…", "Who can see this entry").
+  The code keeps `node`. A player's own entry is a **marker**. **pin** is the drawn thing on
+  the map; an outlined entry is an **outline** (the code's `shape`/`region`), whose drawn
+  edge is the **Edge** toggle.
+- **thread** — a link, everywhere (editor, reader, sheet, Forge cards). **description** — the
+  body; **period text** — a timed description. **image** — never "art" or "pieces" in the
+  Archive (the page's own name stays "the Archive"). **backdrop** — a map's image.
+- **canon** — the players' moment, in DM copy; **now** — the same moment, in player copy.
+- **lantern** — the DM's pointer to one entry ("🔦 Light the lantern here" / "Put the lantern
+  out"; the code's `spotlight`). **trail** and **footprints** are the party's only.
+- **editor** — the right-hand panel (the code's `Inspector`). **share link** — the one link.
+- Copy rule: short and factual, no scene-setting; a control's label says what it does;
+  names in curly quotes (“X”); a one-sentence flash has no trailing period; "…" not "...";
+  sentence case; ＋ in buttons.
+
 ## Inspector rules
 - Links are THREADS and they are public: players see a thread (label included) between two
   things they can both see. The editor says so; one thread per pair (a second is a 409),

@@ -8,12 +8,11 @@ function NotFound() {
   React.useEffect(() => { document.title = 'Page not found · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
   return (
     <div className="shell">
-      <TopBar crumb="Uncharted" />
+      <TopBar crumb="Not found" />
       <div className="voidstate">
         <Compass size={92} className="void-rose" />
-        <h1 className="sr-only">Page not found</h1>
-        <h2>This page is on no map</h2>
-        <p>The path you followed leads nowhere. Check the address, or head back to your worlds.</p>
+        <h1 className="vh">Page not found</h1>
+        <p>Check the address, or go back to your worlds.</p>
         <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
       </div>
     </div>

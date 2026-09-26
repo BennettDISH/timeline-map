@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 
 // The one dialog primitive for every page. Escape closes it (and nothing behind it hears
 // the key); focus moves in — the first field, else the first button that is not the ✕ —
@@ -9,9 +9,10 @@ import React, { useEffect, useId, useRef } from 'react'
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function useDialog(box, onClose, { autoFocus = true } = {}) {
-  const opener = useRef(null)
+  // read at the first render, before the commit: an autoFocus field inside the dialog would
+  // otherwise already be the active element when the effect runs
+  const [opener] = useState(() => document.activeElement)
   useEffect(() => {
-    opener.current = document.activeElement
     const el = box.current
     const focusables = () => [...(el?.querySelectorAll(FOCUSABLE) || [])]
     if (autoFocus) {
@@ -31,7 +32,7 @@ export function useDialog(box, onClose, { autoFocus = true } = {}) {
     document.addEventListener('keydown', key, true)
     return () => {
       document.removeEventListener('keydown', key, true)
-      const o = opener.current
+      const o = opener
       if (o && o !== document.body && document.contains(o) && typeof o.focus === 'function') o.focus()
     }
   }, []) // eslint-disable-line

@@ -154,7 +154,7 @@ function ImageManager() {
     setUploads(null)
     const added = files.length - failed.length
     const problems = [...failed, ...skipped]
-    if (!problems.length) setFlash({ kind: 'ok', text: `${plural(added, 'new piece')} in the archive` })
+    if (!problems.length) setFlash({ kind: 'ok', text: `${plural(added, 'image')} uploaded` })
     else setFlash({ kind: added ? 'err' : 'err', sticky: true, text: `${added ? `${plural(added, 'image')} added · ` : ''}${problems.slice(0, 3).join(' · ')}${problems.length > 3 ? ` · and ${problems.length - 3} more` : ''}` })
     if (added) refresh()
   }
@@ -213,7 +213,7 @@ function ImageManager() {
   const deleteImages = (ids) => guarded(async () => {
     try {
       await imageServiceBase64.deleteImages(ids)
-      setFlash({ kind: 'ok', text: `${plural(ids.length, 'image')} removed from the archive` })
+      setFlash({ kind: 'ok', text: `${plural(ids.length, 'image')} deleted` })
     } catch (e) {
       setFlash({ kind: 'err', text: errText(e, "Couldn't delete them") })
     }
@@ -245,7 +245,7 @@ function ImageManager() {
       if (folderSel === folder.id) setFolderSel('all')
       loadFolders(world.id)
       loadImages(true)
-      setFlash({ kind: 'ok', text: `Folder "${folder.name}" removed${folder.children?.length ? ' with its subfolders' : ''} — its images went back to Unsorted` })
+      setFlash({ kind: 'ok', text: `Folder “${folder.name}” removed${folder.children?.length ? ' with its subfolders' : ''} — its images went back to Unsorted` })
     } catch (e) {
       setConfirmFolderDel(null)
       setFlash({ kind: 'err', text: errText(e, "Couldn't delete the folder") })
@@ -285,7 +285,7 @@ function ImageManager() {
         <TopBar crumb="The Archive" />
         <div className="voidstate">
           <Compass size={92} className="void-rose" />
-          <h2>The archive is out of reach</h2>
+          <h2>Couldn't load your worlds</h2>
           <p>{worldsErr}</p>
           <div className="mrow"><button className="sbtn primary" onClick={() => setTick((t) => t + 1)}>⟳ Try again</button><Link to="/dashboard" className="sbtn ghost">To your worlds</Link></div>
         </div>
@@ -312,8 +312,8 @@ function ImageManager() {
         <TopBar crumb="The Archive" />
         <div className="voidstate">
           <Compass size={92} className="void-rose" />
-          <h2>The archive awaits a world</h2>
-          <p>Art lives inside a world. Found one first, then fill its archive with maps and portraits.</p>
+          <h2>No worlds yet</h2>
+          <p>Create a world on the dashboard, then upload its images here.</p>
           <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
         </div>
         {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'}>{flash.text}</div>}
@@ -358,14 +358,14 @@ function ImageManager() {
           onClick={() => { setSelectMode((v) => !v); setSelected(new Set()) }}
           disabled={!images.length}
         >{selectMode ? 'Done' : 'Select'}</button>
-        <button type="button" className="sbtn primary" onClick={() => fileRef.current?.click()}>⬆ Add art</button>
+        <button type="button" className="sbtn primary" onClick={() => fileRef.current?.click()}>⬆ Upload images</button>
         <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { doUpload(e.target.files); e.target.value = '' }} />
       </div>
 
       <div className="archmain">
         <aside className="frail">
           <button className={`frow ${folderSel === 'all' ? 'on' : ''}`} onClick={() => pickFolder('all')}>
-            <span className="fico">❖</span> All art <span className="fcount">{counts.total}</span>
+            <span className="fico">❖</span> All images <span className="fcount">{counts.total}</span>
           </button>
           <button className={`frow ${folderSel === 'unsorted' ? 'on' : ''}`} onClick={() => pickFolder('unsorted')}>
             <span className="fico">◌</span> Unsorted <span className="fcount">{counts.unsorted}</span>
@@ -394,7 +394,7 @@ function ImageManager() {
           ) : imagesErr && images.length === 0 ? (
             <div className="voidstate">
               <Compass size={72} className="void-rose" />
-              <h2>The archive didn't answer</h2>
+              <h2>Couldn't load the images</h2>
               <p>{imagesErr}</p>
               <button className="sbtn primary" onClick={() => loadImages(true)}>⟳ Try again</button>
             </div>
@@ -409,7 +409,7 @@ function ImageManager() {
               ) : (
                 <>
                   <h2>{folderSel === 'all' ? 'The archive is empty' : 'This folder is empty'}</h2>
-                  <p>Drop images anywhere on this page, paste one from your clipboard, or use “Add art”. Maps, portraits, handouts — it all lives here.</p>
+                  <p>Drop images anywhere on this page, paste one from your clipboard, or use “Upload images”.</p>
                 </>
               )}
             </div>
@@ -437,7 +437,7 @@ function ImageManager() {
                 <div className="loadmore">
                   {imagesErr && <div className="muted" style={{ marginBottom: 6 }}>{imagesErr}</div>}
                   <button className="sbtn" disabled={loadingMore} onClick={() => loadImages(false)}>
-                    {loadingMore ? 'Unrolling…' : imagesErr ? '⟳ Try again' : `Show more (${total - images.length} remain)`}
+                    {loadingMore ? 'Loading…' : imagesErr ? '⟳ Try again' : `Show more (${total - images.length} remain)`}
                   </button>
                 </div>
               )}
@@ -605,7 +605,7 @@ function ConfirmDelete({ ids, images, busy, onClose, onConfirm }) {
       {used.length > 0 && (
         <p className="mwarn">
           {ids.length === 1 ? `This image is ${describeUse(targets[0]).replace(/^In use — /, '')}.` : `${used.length === 1 ? 'One of them is' : `${used.length} of them are`} placed in your world.`}
-          {' '}Maps and nodes using {ids.length === 1 ? 'it' : 'them'} lose their art
+          {' '}Maps and entries using {ids.length === 1 ? 'it' : 'them'} lose their image
           {periods > 0 ? `, and ${plural(periods, 'timed backdrop period')} ${periods === 1 ? 'is' : 'are'} removed with it` : ''}
           {anchors > 0 ? `; the Forge loses its style anchor` : ''}.
         </p>

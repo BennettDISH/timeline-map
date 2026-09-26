@@ -9,6 +9,7 @@ import '../styles/shell.scss'
 import '../styles/dashboard.scss'
 
 const plural = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`
+const entries = (c) => `${c} ${c === 1 ? 'entry' : 'entries'}`
 // golden-angle hue spread: every world without art gets its own stable tint
 const hue = (id) => Math.floor((id * 137.508) % 360)
 
@@ -30,7 +31,7 @@ function Cover({ world, big = false }) {
 function WorldMeta({ w }) {
   return (
     <div className="wmeta">
-      {plural(w.mapCount ?? 0, 'map')} · {plural(w.nodeCount ?? 0, 'node')} · {plural(w.imageCount ?? 0, 'image')}
+      {plural(w.mapCount ?? 0, 'map')} · {entries(w.nodeCount ?? 0)} · {plural(w.imageCount ?? 0, 'image')}
     </div>
   )
 }
@@ -40,8 +41,8 @@ function WorldBadges({ w }) {
   if (!w.shared && !w.timelineEnabled) return null
   return (
     <div className="wbadges">
-      {w.timelineEnabled && tl && <span className="badge" title="The world's current moment">🕓 {tl.currentTime} {tl.timeUnit}</span>}
-      {w.shared && <span className="badge" title="Players can see this world through its share link">🔗 party link live</span>}
+      {w.timelineEnabled && tl && <span className="badge" title="Canon — the moment players see">🕓 {tl.currentTime} {tl.timeUnit}</span>}
+      {w.shared && <span className="badge" title="Players can see this world through its share link">🔗 Share link on</span>}
     </div>
   )
 }
@@ -138,7 +139,7 @@ function Dashboard() {
       worldService.clearLastLocation(world.id)
       setWorlds((ws) => ws.filter((w) => w.id !== world.id))
       setModal(null)
-      setFlash({ kind: 'ok', text: `"${world.name}" has passed out of all knowledge.` })
+      setFlash({ kind: 'ok', text: `“${world.name}” deleted` })
     } catch (e) {
       setFlash({ kind: 'err', text: errText(e, "Couldn't delete the world") })
     } finally { setBusy(false) }
@@ -188,8 +189,8 @@ function Dashboard() {
           <div className="voidstate">
             <Compass size={92} className="void-rose" />
             <h2>No worlds yet</h2>
-            <p>{templates.length ? 'Start from the sample keep — a tiny world that shows every trick — or found a blank one, then drop in the places, people and secrets your party will find.' : 'Found your first world, give it a face, and start dropping the places, people, and secrets your party will find.'}</p>
-            <button className="sbtn primary" onClick={() => setModal({ kind: 'create' })}>Found your first world</button>
+            <p>{templates.length ? 'Start from the sample world or create a blank one, then add the places, people and secrets your party will find.' : 'Create a world, then add the places, people and secrets your party will find.'}</p>
+            <button className="sbtn primary" onClick={() => setModal({ kind: 'create' })}>Create a world</button>
           </div>
         )}
 
@@ -204,7 +205,7 @@ function Dashboard() {
             <Cover world={featured} big />
             <div className="fscrim" />
             <div className="fbody">
-              <span className="kicker">{stored?.id === featured.id ? 'Pick up where you left off' : 'Most recently charted'}</span>
+              <span className="kicker">{stored?.id === featured.id ? 'Last opened' : 'Last edited'}</span>
               <h2 className="fname">{featured.name}</h2>
               {featured.description && <p className="fdesc">{featured.description}</p>}
               <WorldMeta w={featured} />
@@ -220,7 +221,7 @@ function Dashboard() {
 
         {worlds !== null && worlds.length > 0 && (
           <section className="shelf">
-            <h3 className="kicker rule">{rest.length ? 'All your worlds' : 'Chart another'}</h3>
+            <h3 className="kicker rule">{rest.length ? 'All your worlds' : 'New world'}</h3>
             <div className="wgrid">
               {rest.map((w) => (
                 <article
@@ -234,7 +235,7 @@ function Dashboard() {
                   <Cover world={w} />
                   <div className="wbody">
                     <h4 className="wname">{w.name}</h4>
-                    <p className={`wdesc ${w.description ? '' : 'muted'}`}>{w.description || 'No chronicle written yet.'}</p>
+                    <p className={`wdesc ${w.description ? '' : 'muted'}`}>{w.description || 'No description yet'}</p>
                     <WorldMeta w={w} />
                     <WorldBadges w={w} />
                   </div>
@@ -243,8 +244,8 @@ function Dashboard() {
               ))}
               <button className="wcard ghostcard" onClick={() => setModal({ kind: 'create' })}>
                 <Compass size={46} className="g-rose" />
-                <span className="gtitle">Found a new world</span>
-                <span className="gsub">A blank map, a fresh age</span>
+                <span className="gtitle">New world</span>
+                <span className="gsub">Start with a blank map</span>
               </button>
             </div>
           </section>
@@ -278,7 +279,7 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
     if (name.trim()) onSubmit(name.trim(), desc.trim(), useSample && templates[0] ? templates[0].id : null)
   }
   return (
-    <Modal frame="smodal" title="Found a new world" onClose={onClose}>
+    <Modal frame="smodal" title="New world" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
           <label>Name</label>
@@ -286,9 +287,9 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
             placeholder="The Sunless Reach, Osterra, Vel'Naar…" maxLength={255} />
         </div>
         <div className="fld">
-          <label>Chronicle — what is this place?</label>
+          <label>Description (optional)</label>
           <textarea className="stext" value={desc} onChange={(e) => setDesc(e.target.value)}
-            placeholder="A drowned empire lit by whale-oil lanterns… (optional)" />
+            placeholder="What this world is about" />
         </div>
         {templates.length > 0 && (
           <label className="samplerow">
@@ -299,7 +300,7 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
         <div className="mrow">
           <button type="button" className="sbtn ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="sbtn primary" disabled={busy || !name.trim()}>
-            {busy ? 'Founding…' : useSample ? 'Clone it & open the Atlas' : 'Found it & open the Atlas'}
+            {busy ? 'Creating…' : useSample ? 'Create from the sample and open' : 'Create and open'}
           </button>
         </div>
       </form>
@@ -319,7 +320,7 @@ function EditModal({ busy, world, onClose, onSubmit }) {
           <input className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={255} />
         </div>
         <div className="fld">
-          <label>Chronicle</label>
+          <label>Description</label>
           <textarea className="stext" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="(optional)" />
         </div>
         <div className="mrow">
@@ -335,14 +336,14 @@ function DeleteModal({ busy, world, onClose, onConfirm }) {
   return (
     <Modal frame="smodal" title={`Delete “${world.name}”?`} onClose={onClose}>
       <p className="mnote">
-        This erases the world entirely — {plural(world.mapCount ?? 0, 'map')}, {plural(world.nodeCount ?? 0, 'node')} and{' '}
+        This erases the world entirely — {plural(world.mapCount ?? 0, 'map')}, {entries(world.nodeCount ?? 0)} and{' '}
         {plural(world.imageCount ?? 0, 'image')} go with it, and its share link stops working.
       </p>
       <p className="mwarn">There is no way back from this.</p>
       <div className="mrow">
         <button className="sbtn ghost" onClick={onClose}>Keep it</button>
         <button className="sbtn danger" disabled={busy} onClick={() => onConfirm(world)}>
-          {busy ? 'Erasing…' : 'Delete the world'}
+          {busy ? 'Deleting…' : 'Delete the world'}
         </button>
       </div>
     </Modal>

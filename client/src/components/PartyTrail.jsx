@@ -59,7 +59,7 @@ export default function PartyTrail({ placements, t, eras, unit, onStep }) {
         return (
           <button key={p.id} type="button" className="fstep" onDoubleClick={(e) => e.stopPropagation()}
             style={{ left: `${p.x}%`, top: `${p.y}%`, '--ox': `${ox}px`, '--oy': `${oy}px`, '--sc': sessionColor(s ? s.idx : 0, latest), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
-            title={onStep ? `${label} — click to look at this moment` : label}
+            title={onStep ? `The party was here — ${label} · click to view this moment` : `The party was here — ${label}`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); if (onStep && p.start != null) onStep(p.start) }} />
         )

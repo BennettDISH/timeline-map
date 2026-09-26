@@ -49,7 +49,7 @@ function AuthCallback() {
   return (
     <div className="login-page">
       <div className="login-container">
-        <h1>Signing you in...</h1>
+        <h1>Signing you in…</h1>
       </div>
     </div>
   )

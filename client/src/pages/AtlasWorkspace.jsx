@@ -235,7 +235,7 @@ function AtlasWorkspace() {
     if (!r) return
     refreshMap(); refreshTree(); refreshWorldMeta() // the lantern may have come back with its node
     if (focusIdRef.current) reloadLinks(focusIdRef.current) // a restored fact or link shows at once
-    setFlash({ kind: 'ok', text: 'Put back the way it was.' })
+    setFlash({ kind: 'ok', text: 'Put back the way it was' })
   }
 
   // ---- loading the world + map --------------------------------------------------
@@ -291,8 +291,8 @@ function AtlasWorkspace() {
       .then(() => localPatchNode(nodeId, { voiceId, voiceName, ...(voiceStyle !== undefined ? { voiceStyle } : {}) }))
       .catch(() => {})
   const sayLine = (nodeId, text, style) =>
-    track(voiceService.sayLine(nodeId, text, style), 'No voice came back')
-      .then((r) => { localPatchNode(nodeId, { voiceLine: r.line, voiceUrl: r.url }); setFlash({ kind: 'ok', text: 'They spoke — players hear it on their sheet' }) })
+    track(voiceService.sayLine(nodeId, text, style), "Couldn't record the line")
+      .then((r) => { localPatchNode(nodeId, { voiceLine: r.line, voiceUrl: r.url }); setFlash({ kind: 'ok', text: 'Line recorded — players hear it on the sheet' }) })
       .catch(() => {})
   const clearLine = (nodeId) =>
     track(voiceService.clearLine(nodeId), "Couldn't remove the line")
@@ -304,7 +304,7 @@ function AtlasWorkspace() {
     const id = map.id // the reply lands on the map it was sent for, not whichever is open by then
     setAmbBusy(true)
     return track(voiceService.setAmbience(id, prompt), 'No sound came back')
-      .then((r) => { setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
+      .then((r) => { setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'Ambience ready' }) })
       .catch(() => {})
       .finally(() => setAmbBusy(false))
   }
@@ -334,7 +334,7 @@ function AtlasWorkspace() {
   // trail (pruned at the first hidden step); here we just flip the pointer.
   const toggleSpotlight = (node) => {
     const on = world?.spotlightNodeId === node.id
-    const call = track(on ? atlasService.clearSpotlight(worldId) : atlasService.setSpotlight(worldId, node.id), "Couldn't light the trail")
+    const call = track(on ? atlasService.clearSpotlight(worldId) : atlasService.setSpotlight(worldId, node.id), "Couldn't light the lantern")
     call.then((r) => {
       setWorld((w) => ({ ...w, spotlightNodeId: on ? null : node.id }))
       if (on) { setFlash({ kind: 'info', text: 'The trail is out.' }); return }
@@ -342,7 +342,7 @@ function AtlasWorkspace() {
       const tr = r?.trail || []
       if (!tr.length) setFlash({ kind: 'info', text: `Players can't see any of the way to “${node.title}” yet — it is hidden, or not here at the canon moment.` })
       else if (tr[tr.length - 1].nodeId !== node.id) setFlash({ kind: 'info', text: `Players see the way as far as “${tr[tr.length - 1].title}” — the rest is hidden or not here yet.` })
-      else setFlash({ kind: 'ok', text: `Players now see the golden trail: ${tr.map((x) => x.title).join(' ▸ ')}.` })
+      else setFlash({ kind: 'ok', text: `The lantern lights the way for players: ${tr.map((x) => x.title).join(' ▸ ')}` })
     }).catch(() => {})
   }
 
@@ -487,7 +487,7 @@ function AtlasWorkspace() {
   const removeLink = async (id) => {
     const r = await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => null)
     if (focusIdRef.current) reloadLinks(focusIdRef.current)
-    if (r) setFlash({ kind: 'ok', text: 'Thread removed.', undoId: r.undoId })
+    if (r) setFlash({ kind: 'ok', text: 'Thread removed', undoId: r.undoId })
   }
   const labelLink = async (id, label) => {
     await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
@@ -505,7 +505,7 @@ function AtlasWorkspace() {
     let loc
     try { loc = await atlasService.locateNode(nodeId, mapId) } catch (e) {
       // a failed lookup is a failure, not "unplaced" — never invite a second placement
-      setFlash({ kind: 'err', text: e?.response?.status === 404 ? 'That node no longer exists.' : "Couldn't find where that is — try again." })
+      setFlash({ kind: 'err', text: e?.response?.status === 404 ? 'That entry no longer exists' : "Couldn't find where that is — try again." })
       return
     }
     if (!loc || !loc.mapId) { openStray(nodeId); return }
@@ -517,7 +517,7 @@ function AtlasWorkspace() {
   const placeStrayHere = (node) => placeExisting(node, 50, 50)
   const removeOrphanSpace = async (ownerId) => {
     const d = await atlasService.getNode(ownerId).catch(() => null)
-    if (!d?.node) { setFlash({ kind: 'err', text: "Couldn't find this space's owner." }); return }
+    if (!d?.node) { setFlash({ kind: 'err', text: "Couldn't find this map's entry" }); return }
     askRemoveInterior(d.node)
   }
 
@@ -536,7 +536,7 @@ function AtlasWorkspace() {
     const r = await track(atlasService.placeNode(mapId, { node_id: node.id, x, y }), "Couldn't place it").catch(() => null)
     if (!r) return
     await refreshMap(); setSelId(r.placementId)
-    setFlash({ kind: 'ok', text: `"${node.title}" placed here — same node, new spot.` })
+    setFlash({ kind: 'ok', text: `“${node.title}” placed here — the same entry, another spot` })
   })
   // ---- the Party's next footstep --------------------------------------------------
   // One click moves the table: the live footstep ends at the lens moment, a new one starts
@@ -549,7 +549,7 @@ function AtlasWorkspace() {
       const all = await atlasService.getNodes(worldId).catch(() => [])
       partyId = (all || []).find((n) => n.category === 'party')?.id
     }
-    if (!partyId) { setFlash({ kind: 'info', text: 'There is no Party node yet — make one with the ⚑ The party category, then place it' }); return }
+    if (!partyId) { setFlash({ kind: 'info', text: 'There is no Party entry yet — make one with the ⚑ The party category, then place it' }); return }
     const t = Math.round(now)
     const at = (v) => (v == null ? -Infinity : v)
     const live = trail.filter((st) => st.nodeId === partyId && at(st.start) <= t && (st.end == null || st.end >= t)).sort((a, b) => at(b.start) - at(a.start))[0]
@@ -606,7 +606,7 @@ function AtlasWorkspace() {
       const ok = await track(atlasService.patchPlacement(d.placementId, patch), "Couldn't save the outline").then(() => true).catch(() => false)
       if (!ok) return
       await refreshMap(); setSelId(d.placementId)
-      if (old) setFlash({ kind: 'ok', text: 'Outline redrawn.', undo: () => restoreOutline(d.placementId, old) })
+      if (old) setFlash({ kind: 'ok', text: 'Outline redrawn', undo: () => restoreOutline(d.placementId, old) })
     } else {
       const [cx, cy] = centroid(pts)
       await dropNode(cx, cy, pts, d.kind)
@@ -621,7 +621,7 @@ function AtlasWorkspace() {
     const ok = await track(atlasService.patchPlacement(placementId, { shape: null, shape_kind: null, shape_style: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
     if (!ok) return
     await refreshMap()
-    if (old) setFlash({ kind: 'ok', text: 'Outline removed — back to a plain pin.', undo: () => restoreOutline(placementId, old) })
+    if (old) setFlash({ kind: 'ok', text: 'Outline removed — back to a plain pin', undo: () => restoreOutline(placementId, old) })
   }
   // the API speaks snake_case, the map payload camelCase: translate so a saved DM note
   // (dm_note) lands on p.node.dmNote — the key every reader and the reseeded inspector use
@@ -778,7 +778,7 @@ function AtlasWorkspace() {
     flushAll()
     if (node.interiorMapId) return navigate(`/w/${worldId}/m/${node.interiorMapId}`)
     // no interior: never invent one on a double-click — that is an explicit act in the inspector
-    setFlash({ kind: 'info', text: `“${node.title}” has no interior — give it one from the inspector (＋ Interior map)` })
+    setFlash({ kind: 'info', text: `“${node.title}” has no interior — give it one from the editor (＋ Interior map)` })
   }
   const createInteriorAs = (node, view) => once(`interior:${node.id}`, async () => {
     const r = await track(atlasService.createInterior(node.id, view), "Couldn't create the interior").catch(() => null)
@@ -796,7 +796,7 @@ function AtlasWorkspace() {
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => { reloadLinks(nodeId); return true }).catch(() => false)
   const factDelete = (nodeId, id) =>
     track(atlasService.deleteFact(id), "Couldn't remove the entry")
-      .then((r) => { reloadLinks(nodeId); setFlash({ kind: 'ok', text: "That period's text is gone.", undoId: r?.undoId }) }).catch(() => {})
+      .then((r) => { reloadLinks(nodeId); setFlash({ kind: 'ok', text: 'Period text removed', undoId: r?.undoId }) }).catch(() => {})
 
   const askRemoveInterior = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -810,7 +810,7 @@ function AtlasWorkspace() {
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
     if (data?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
-    setFlash({ kind: 'ok', text: `"${node.title}" no longer has an interior — the node itself is untouched.`, undoId: r.undoId })
+    setFlash({ kind: 'ok', text: `“${node.title}” no longer has an interior map — the entry itself is untouched`, undoId: r.undoId })
   }
 
   const askDeleteNode = async (node) => {
@@ -824,13 +824,13 @@ function AtlasWorkspace() {
     if (!r) return
     setSelId(null); setStray((s) => (s && s.id === node.id ? null : s)); refreshMap(); refreshTree()
     if (world?.spotlightNodeId === node.id) setWorld((w) => ({ ...w, spotlightNodeId: null })) // the lantern went out with it
-    setFlash({ kind: 'ok', text: `"${node.title}" is gone.`, undoId: r.undoId })
+    setFlash({ kind: 'ok', text: `“${node.title}” deleted`, undoId: r.undoId })
   }
   const removeFromMap = async (p) => {
     const r = await track(atlasService.deletePlacement(p.id), "Couldn't remove it").catch(() => null)
     if (!r) return
     setSelId(null); refreshMap()
-    setFlash({ kind: 'ok', text: `"${p.node.title}" removed from this map — the node itself still exists.`, undoId: r.undoId })
+    setFlash({ kind: 'ok', text: `“${p.node.title}” removed from this map — the entry still exists`, undoId: r.undoId })
   }
 
   // ---- images -----------------------------------------------------------------------
@@ -844,7 +844,7 @@ function AtlasWorkspace() {
   const setBackdrop = (imageId) => {
     const prev = map?.imageId ?? null // removing the base art can be undone from the toast
     return track(atlasService.patchMap(mapId, { image_id: imageId }), "Couldn't set the backdrop")
-      .then(() => { refreshMap(); refreshTree(); if (imageId == null && prev != null) setFlash({ kind: 'ok', text: 'Backdrop removed.', undo: () => setBackdrop(prev) }) })
+      .then(() => { refreshMap(); refreshTree(); if (imageId == null && prev != null) setFlash({ kind: 'ok', text: 'Backdrop removed', undo: () => setBackdrop(prev) }) })
       .catch(() => {})
   }
   const handlePick = (imageId, imageUrl) => {
@@ -875,7 +875,7 @@ function AtlasWorkspace() {
     track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(() => { refreshMap(); return true }).catch(() => false)
   const deleteBackdrop = (id) =>
     track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop")
-      .then((r) => { refreshMap(); setFlash({ kind: 'ok', text: "That period's art is gone.", undoId: r?.undoId }) }).catch(() => {})
+      .then((r) => { refreshMap(); setFlash({ kind: 'ok', text: 'Period art removed', undoId: r?.undoId }) }).catch(() => {})
 
   const setMapView = (view) => {
     if (!map || map.view === view) return
@@ -1006,11 +1006,11 @@ function AtlasWorkspace() {
       }).catch(() => {})
   }
   const refreshWorldMeta = () => atlasService.getWorld(worldId).then(setWorld).catch(() => {})
-  const eraAdd = () => once('era', () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era"))
+  const eraAdd = () => once('era', () => track(atlasService.addEra(worldId, { name: 'New era', start_time: tl.min, end_time: canon }), "Couldn't add the era"))
     .then(refreshWorldMeta).catch(() => {})
   const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(() => { refreshWorldMeta(); return true }).catch(() => false)
   const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era")
-    .then((r) => { refreshWorldMeta(); setFlash({ kind: 'ok', text: 'Era deleted — players lose that stretch of the past.', undoId: r?.undoId }) }).catch(() => {})
+    .then((r) => { refreshWorldMeta(); setFlash({ kind: 'ok', text: 'Era deleted — players lose that stretch of the past', undoId: r?.undoId }) }).catch(() => {})
   // Sessions are eras of ten footsteps; the next one starts where the last ended and the
   // timeline grows to hold it — so the latest session is always the end of the clock.
   const nextSession = () => once('session', async () => {
@@ -1209,7 +1209,7 @@ function AtlasWorkspace() {
         e.preventDefault(); doUndo(flash.undoId) // the toast's ↩ Undo, from the keyboard
       }
       else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit' && !drawing) {
-        // keyboard twin of "+ Add node"
+        // keyboard twin of "＋ Add entry"
         if (isList) dropNode(50, 50)
         else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
       } else if (e.key === 'Enter' && !typing && !e.repeat && placing && mode === 'edit') {
@@ -1376,7 +1376,7 @@ function AtlasWorkspace() {
 
   // ============================================================================= render ==
   if (loading && !world) {
-    return <div className="atlas"><div className="loading" style={{ gridRow: '1 / 3' }}>Loading world…</div></div>
+    return <div className="atlas"><div className="loading" style={{ gridRow: '1 / 3' }}>Loading…</div></div>
   }
   if (!world) {
     // the world did not load (a server blip, no network): a way to try again and a way out,
@@ -1443,7 +1443,7 @@ function AtlasWorkspace() {
         {mode !== 'player' && (
         <div className="gsearch" ref={searchRef}>
           <input
-            placeholder="Find a node…  ( / )"
+            placeholder="Find an entry… ( / )"
             value={q}
             onFocus={openSearch}
             onChange={(e) => { setQ(e.target.value); if (!searchOpen) openSearch() }}
@@ -1461,13 +1461,13 @@ function AtlasWorkspace() {
                     <button key={n.id} onClick={() => { closeSearch(); jump(n.id) }}>
                       <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
                       <span className="gtitle">{n.title}</span>
-                      {n.placed === false && <span className="gorphan">○ unplaced</span>}
+                      {n.placed === false && <span className="gorphan">○ Unplaced</span>}
                       {n.visibility === 'dm' && <span className="glock">🔒</span>}
                       {n.hasInterior && <span className="gopen">◎</span>}
                     </button>
                   ))}
                   {matches.length === 0 && (
-                    <div className="gnone">{sfilter === 'unplaced' && !q.trim() ? 'No unplaced nodes — everything has a home.' : 'No nodes named that.'}</div>
+                    <div className="gnone">{sfilter === 'unplaced' && !q.trim() ? 'No unplaced entries' : 'No entries named that'}</div>
                   )}
                 </>
               )}
@@ -1476,7 +1476,7 @@ function AtlasWorkspace() {
         </div>
         )}
         {mode === 'edit' && saveChip && <span className={`savechip ${saveChip.c}`}>{saveChip.t}</span>}
-        <div className="mode" title="Edit builds the world · View reads it with DM eyes · Player shows exactly what the share link shows">
+        <div className="mode" title="Edit builds · View reads with DM eyes · Player shows what the share link shows">
           <button className={mode === 'edit' ? 'on' : ''} aria-pressed={mode === 'edit'} onClick={() => switchMode('edit')}>✏ Edit</button>
           <button className={mode === 'view' ? 'on' : ''} aria-pressed={mode === 'view'} onClick={() => switchMode('view')}>👁 View</button>
           <button className={mode === 'player' ? 'on' : ''} aria-pressed={mode === 'player'} onClick={() => switchMode('player')}>🎭 Player</button>
@@ -1497,7 +1497,7 @@ function AtlasWorkspace() {
                       {shareAsk === 'regen' ? "Really? Players' current link stops working" : 'Regenerate'}</button>
                     <button className="tool danger" onClick={() => askShare('off')}>{shareAsk === 'off' ? "Really? Every player's link dies" : 'Turn off'}</button>
                   </div>
-                  <div className="muted">Players see shared nodes only, at the canon moment{tl?.enabled ? ` (${momentLabel(canon, world?.eras, tl.unit)})` : ''}. Scrubbing your timeline doesn't move them — “Set canon” does.</div>
+                  <div className="muted">{tl?.enabled ? `Players see shared entries at the canon moment (${momentLabel(canon, world?.eras, tl.unit)}). Scrubbing your timeline doesn't move them — “Set canon” does.` : 'Players see every shared entry — with no clock, nothing is hidden by time.'}</div>
                 </>
               ) : (
                 <>
@@ -1517,7 +1517,7 @@ function AtlasWorkspace() {
           <Link to={`/worlds/${worldId}/images`} className="exit" title="This world's images — everything painted or uploaded">🗃 Archive</Link>
         )}
         {mode === 'player' && tl?.enabled && (
-          <span className="nowchip" title="The canon moment — the present your players see">🕓 {momentLabel(canon, world?.eras, tl.unit)}</span>
+          <span className="nowchip" title="Canon — the moment your players see">🕓 {momentLabel(canon, world?.eras, tl.unit)}</span>
         )}
         <Link to="/dashboard" className="exit">Exit</Link>
       </div>
@@ -1555,7 +1555,7 @@ function AtlasWorkspace() {
           {loadState === 'missing' && (
             <div className="empty-map gone">
               <div style={{ fontSize: '2rem' }}>🌫️</div>
-              <div>This space no longer exists.</div>
+              <div>This map no longer exists</div>
               {world?.rootMapId && String(world.rootMapId) !== String(mapId) && (
                 <button className="tool on" onClick={() => navigate(`/w/${worldId}/m/${world.rootMapId}`)}>🗺 To the world map</button>
               )}
@@ -1627,7 +1627,7 @@ function AtlasWorkspace() {
 
           {loadState === 'ok' && isList && (
             <div className="listview">
-              {mode === 'edit' && <div className="listhead muted">An interior list — inventory, notes, what's inside. Same nodes, no map.</div>}
+              {mode === 'edit' && <div className="listhead muted">A list map: rows instead of pins.</div>}
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
                   className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''}`}
@@ -1648,7 +1648,7 @@ function AtlasWorkspace() {
                 <div className="empty-map static">
                   <div style={{ fontSize: '2rem' }}>📜</div>
                   {mode === 'edit'
-                    ? <div>Empty list. <b>＋ Add node</b> puts the first thing in it.</div>
+                    ? <div>Empty list. <b>＋ Add entry</b> adds the first row.</div>
                     : <div>Nothing {mode === 'player' ? 'known ' : ''}here yet.</div>}
                 </div>
               )}
@@ -1658,13 +1658,13 @@ function AtlasWorkspace() {
           {mode === 'edit' && loadState === 'ok' && (
             <div className="toolbar">
               <button className={`tool ${placing?.kind === 'new' ? 'on' : ''}`}
-                title={isList ? 'Add a row to this list — born DM-only; reveal it when the table should see it' : 'Create a brand-new node on this map — born DM-only; reveal it when the table should see it'}
+                title={isList ? 'Add a row to this list — DM-only until you reveal it' : 'Add an entry to this map — DM-only until you reveal it'}
                 onClick={() => {
                   if (isList) dropNode(50, 50)
                   else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
-                }}>＋ Add node</button>
+                }}>＋ Add entry</button>
               <button className={`tool ${placing?.kind === 'existing' ? 'on' : ''}`}
-                title="Put a node that already exists somewhere onto this map too (one node can live in many places)"
+                title="Place an entry that already exists on this map too (one entry can stand on many maps)"
                 onClick={() => setNodePicker('place')}>⤓ Place existing</button>
               {!isList && (
                 <button className={`tool ${drawing ? 'on' : ''}`}
@@ -1672,7 +1672,7 @@ function AtlasWorkspace() {
                   onClick={() => (drawing ? setDrawing(null) : startOutline(null))}>◌ Outline</button>
               )}
               <div className="mapmenu" ref={mapMenuRef}>
-                <button className={`tool ${mapMenu ? 'on' : ''}`} title="This space: backdrop art, name, map or list" aria-haspopup="menu" aria-expanded={mapMenu}
+                <button className={`tool ${mapMenu ? 'on' : ''}`} title="This map: backdrop, name, map or list view" aria-haspopup="menu" aria-expanded={mapMenu}
                   onClick={() => setMapMenu((v) => !v)}>Map ▾</button>
                 {mapMenu && (
                   <div className="apop">
@@ -1693,7 +1693,7 @@ function AtlasWorkspace() {
                         onClick={() => { setMapMenu(false); setBackdrop(null) }}>{activeBackdropRow ? 'Remove the base art' : 'Remove the backdrop'}</button>
                     )}
                     {!isList && tl?.enabled && (
-                      <button title="Different map art for different periods — the asteroid falls, the chart changes"
+                      <button title="Use different backdrop art for a range of time"
                         onClick={() => { setMapMenu(false); setBdsOpen(true) }}>🕓 Backdrops over time…</button>
                     )}
                     {!isList && <div className="apop-sep" title="These are how YOU view every map, kept in this browser">View — every map</div>}
@@ -1701,7 +1701,7 @@ function AtlasWorkspace() {
                       <button role="menuitemcheckbox" aria-checked={gridOn} onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
                     )}
                     {!isList && (
-                      <button title="Keep every pin's name out instead of showing it on hover"
+                      <button title="Show every pin's name all the time, not just on hover"
                         role="menuitemcheckbox" aria-checked={labelsOn} onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
                     )}
                     {!isList && tl?.enabled && trail.length > 0 && (
@@ -1709,12 +1709,12 @@ function AtlasWorkspace() {
                         role="menuitemcheckbox" aria-checked={printsOn} onClick={() => { setMapMenu(false); togglePrints() }}>👣 Footprints {printsOn ? '✓' : ''}</button>
                     )}
                     {tl?.enabled && (
-                      <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
+                      <button title="Zoom the scrubber to the range of time this map's story spans"
                         onClick={() => { setMapMenu(false); setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' }) }}>
                         🎯 Focus period…{focusOk ? ' ✓' : ''}
                       </button>
                     )}
-                    <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this space…</button>
+                    <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this map…</button>
                     <div className="apop-row">
                       <span>Show as</span>
                       <button className={!isList ? 'on' : ''} onClick={() => { setMapMenu(false); setMapView('map') }}>🗺 Map</button>
@@ -1724,7 +1724,7 @@ function AtlasWorkspace() {
                 )}
               </div>
               {!tl?.enabled && (
-                <button className="tool" title="Give the world a clock: lifespans, a scrubber, a canon moment"
+                <button className="tool" title="Turn on the timeline"
                   onClick={enableTimeline}>🕓 Timeline</button>
               )}
             </div>
@@ -1734,7 +1734,7 @@ function AtlasWorkspace() {
             <div className="legend">
               {legend.map(([k, n]) => (
                 <button key={k} className={`lchip ${hiddenCats.has(k) ? 'off' : ''}`} onClick={() => toggleCat(k)}
-                  title={hiddenCats.has(k) ? `Show ${cat(k).label.toLowerCase()}s` : `Hide ${cat(k).label.toLowerCase()}s`}>
+                  title={hiddenCats.has(k) ? `Show ${cat(k).plural}` : `Hide ${cat(k).plural}`}>
                   <span className="ic" style={{ background: cat(k).c }}>{cat(k).i}</span>
                   {cat(k).label} <em>{n}</em>
                 </button>
@@ -1748,7 +1748,7 @@ function AtlasWorkspace() {
               <div style={{ fontSize: '2rem' }}>🗺️</div>
               {mode === 'edit' ? (
                 <>
-                  <div>Empty map. Click <b>+ Add node</b>, then click the map to drop your first node.</div>
+                  <div>Empty map. Click <b>＋ Add entry</b>, then click the map to drop the first one.</div>
                   <div className="muted">Tip: the <b>Map ▾</b> menu sets a backdrop image.</div>
                 </>
               ) : (
@@ -1772,8 +1772,8 @@ function AtlasWorkspace() {
           {mode === 'edit' && placing && (
             <div className="hint">
               {placing.kind === 'new'
-                ? 'Click the map to drop the new node — Enter drops it at the cursor, Esc cancels.'
-                : `Click the map to place "${placing.node.title}" — Enter drops it at the cursor, Esc cancels.`}
+                ? 'Click the map to drop the new entry — Enter drops it at the cursor, Esc cancels.'
+                : `Click the map to place “${placing.node.title}” — Enter drops it at the cursor, Esc cancels.`}
             </div>
           )}
 
@@ -1781,13 +1781,13 @@ function AtlasWorkspace() {
             <button className="tool round" title="How to drive the map" aria-label="How to drive the map" aria-expanded={help} onClick={() => setHelp((v) => !v)}>?</button>
             {help && (
               <div className="apop helppop">
-                <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
+                <div><b>Scroll / pinch</b> zoom · <b>drag the map</b> pan · <b>double-click</b> zoom in</div>
                 <div><b>Click a pin or an outlined place</b> to read it{mode === 'edit' ? ' · drag a pin to move it · drag a selected outline to move it' : ''}</div>
-                <div><b>Double-click one with ◎</b> to step inside that place</div>
+                <div><b>Double-click a pin with ◎</b> to go inside its interior map</div>
                 {mode === 'edit' && !isList && <div><b>◌ Outline</b> traces a place: click corners or drag · <b>Enter</b> closes · <b>Backspace</b> undoes · <b>Esc</b> cancels</div>}
                 {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
-                {mode === 'edit' && <div><b>N</b> {isList ? 'adds a row to this list' : 'starts a new node · '}{isList ? '' : <><b>Enter</b> drops it at the cursor</>}</div>}
-                {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
+                {mode === 'edit' && <div><b>N</b> {isList ? 'adds a row to this list' : 'starts a new entry · '}{isList ? '' : <><b>Enter</b> drops it at the cursor</>}</div>}
+                {mode !== 'player' && <div><b>/</b> finds an entry · <b>Esc</b> cancels</div>}
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
                 <div className="helpkey"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
@@ -1873,7 +1873,7 @@ function AtlasWorkspace() {
               </div>
               <span className="tlabel" title={momentLabel(dispMax, world?.eras, tl.unit)}>{dispMax}</span>
               {focusOk && (
-                <button className="tgear fexp" title={focusExpand ? `Back to this place's period (${fMin}–${fMax})` : 'Show the whole timeline'}
+                <button className="tgear fexp" title={focusExpand ? `Back to this map's focus period (${fMin}–${fMax})` : 'Show the whole timeline'}
                   onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
               )}
               {momentEdit != null ? (
@@ -1896,7 +1896,7 @@ function AtlasWorkspace() {
                 )}
               </div>
               <button className={`tgear${ghostsOn ? '' : ' off'}`}
-                title={ghostsOn ? 'Things not present at this moment are shown with a dashed purple edge — click to hide them' : 'Things not present at this moment are hidden — click to show them'}
+                title={ghostsOn ? 'Hide things not present at this moment' : 'Show things not present at this moment (dashed purple)'}
                 aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
                 onClick={() => setGhostsOn((v) => { localStorage.setItem('atlas_ghosts', v ? 'off' : 'on'); return !v })}>⏳</button>
               <button className="tgear" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
@@ -1914,7 +1914,7 @@ function AtlasWorkspace() {
         </div>
 
           {mode === 'view' && !wide && !sel && !spaceOpen && (
-            <button className="tool spaceinfo" title="About this space" aria-label="About this space" onClick={() => setSpaceOpen(true)}>ℹ</button>
+            <button className="tool spaceinfo" title="About this map" aria-label="About this map" onClick={() => setSpaceOpen(true)}>ℹ</button>
           )}
           {readerOpen && !sel && (
             <div className="reader">
@@ -1925,7 +1925,7 @@ function AtlasWorkspace() {
                   <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
                   <h3>{map?.title}</h3>
                 </div>
-                <span className="rcat">This space{(data?.breadcrumb?.length || 0) > 1 ? ` · inside “${data.breadcrumb[data.breadcrumb.length - 2].title}”` : ''}</span>
+                <span className="rcat">This map{(data?.breadcrumb?.length || 0) > 1 ? ` · inside “${data.breadcrumb[data.breadcrumb.length - 2].title}”` : ''}</span>
                 {map?.dmNote
                   ? <div className="dmnote"><div className="dmnl">🔒 Map notes</div>{map.dmNote}</div>
                   : <p className="rbody muted">No map notes yet — write them in ✏ Edit with nothing selected.</p>}
@@ -1986,7 +1986,7 @@ function AtlasWorkspace() {
                   )
                 })()}
                 {sel.node.hasInterior && (
-                  <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Look inside</button>
+                  <button className="btn primary block rgo" onClick={() => openInterior(sel.node)}>◎ Go inside</button>
                 )}
                 {readerLinks.length > 0 && (
                   <>
@@ -2008,24 +2008,24 @@ function AtlasWorkspace() {
         <div className="insp" ref={inspEl} role="complementary" aria-label="Editor">
           {!sel && !stray ? (loadState !== 'ok' ? (
             <div className="spacepanel">
-              <div className="isect">This space</div>
-              <div className="muted esmall">{loadState === 'missing' ? 'This space no longer exists.' : loadState === 'err' ? "Couldn't load this space." : 'Opening…'}</div>
+              <div className="isect">This map</div>
+              <div className="muted esmall">{loadState === 'missing' ? 'This map no longer exists' : loadState === 'err' ? "Couldn't load this map" : 'Opening…'}</div>
             </div>
           ) : (
             <div className="spacepanel">
-              <div className="isect">This space</div>
+              <div className="isect">This map</div>
               <h3 className="sptitle">{map?.title}
-                <button className="lx" title="Rename this space" aria-label="Rename this space" onClick={() => setRenaming(map?.title || '')}>✎</button>
+                <button className="lx" title="Rename this map" aria-label="Rename this map" onClick={() => setRenaming(map?.title || '')}>✎</button>
               </h3>
               {(data?.breadcrumb?.length || 0) > 1 && (
                 <div className="muted spup">Inside “{data.breadcrumb[data.breadcrumb.length - 2].title}”</div>
               )}
               {(data?.breadcrumb?.length || 0) <= 1 && map?.ownerNodeId && (
                 <div className="orphan">
-                  <div className="muted spup">This space belongs to a node that isn't placed on any map — it lives under “Unplaced” in the tree.</div>
+                  <div className="muted spup">This map belongs to an entry that isn't placed on any map — it lives under “Unplaced” in the tree.</div>
                   <div className="onmaprow">
-                    <button className="btn" title="Open the node this space is the interior of" onClick={() => openStray(map.ownerNodeId)}>Open its owner</button>
-                    <button className="btn danger" title="Delete this space — its owner node stays" onClick={() => removeOrphanSpace(map.ownerNodeId)}>✕ Remove this space</button>
+                    <button className="btn" title="Open the entry this map belongs to" onClick={() => openStray(map.ownerNodeId)}>Open its owner</button>
+                    <button className="btn danger" title="Delete this map — its entry stays" onClick={() => removeOrphanSpace(map.ownerNodeId)}>✕ Remove this map</button>
                   </div>
                 </div>
               )}
@@ -2034,7 +2034,7 @@ function AtlasWorkspace() {
                   <div className="isect">Backdrop</div>
                   {activeBackdropUrl
                     ? <img className="spbd" src={activeBackdropUrl} alt="" />
-                    : <div className="muted spnone">No art yet — this space is a blank plane.</div>}
+                    : <div className="muted spnone">No backdrop set</div>}
                   {activeBackdropRow && (
                     <div className="muted esmall">Showing the period art from {momentLabel(activeBackdropRow.start ?? 0, world?.eras, tl?.unit)} — the base art shows outside every period.</div>
                   )}
@@ -2054,7 +2054,7 @@ function AtlasWorkspace() {
                 </>
               )}
               {tl?.enabled && (
-                <button className="btn block" title="The stretch of history this place's story spans"
+                <button className="btn block" title="Zoom the scrubber to the range of time this map's story spans"
                   onClick={() => setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' })}>
                   🎯 Focus period…{focusOk ? ' ✓' : ''}
                 </button>
@@ -2062,7 +2062,7 @@ function AtlasWorkspace() {
               <div className="isect">🔒 Map notes — players never see this</div>
               {map ? (
                 <textarea key={`${map.id}:${noteVer}`} ref={noteRef} className="mapnotes" rows={7} defaultValue={map.dmNote || ''}
-                  placeholder="What's going on in this space — beats, schedules, who's where, the plan."
+                  placeholder="Notes for this map — beats, schedules, who's where, the plan."
                   onChange={(e) => saveMapNote(map.id, e.target.value)}
                   onBlur={flushNote} />
               ) : <div className="muted esmall">Opening…</div>}
@@ -2081,7 +2081,7 @@ function AtlasWorkspace() {
                 </>
               )}
               <hr />
-              <div className="empty sphint">{isList ? <>Click a row to edit it — or use <b>+ Add node</b> to add one.</> : <>Click a node to edit it — or use <b>+ Add node</b>, then click the map.</>}</div>
+              <div className="empty sphint">{isList ? <>Click a row to edit it — or use <b>＋ Add entry</b> to add one.</> : <>Click an entry to edit it — or use <b>＋ Add entry</b>, then click the map.</>}</div>
             </div>
           )) : (
             <Inspector key={`${sel ? `p${sel.id}` : `n${stray.id}`}:${refreshVer}`}
@@ -2153,19 +2153,19 @@ function AtlasWorkspace() {
       {picker && (() => {
         const pkNode = picker.kind === 'node' ? ((data?.placements || []).find((pp) => pp.node.id === picker.nodeId)?.node || (stray?.id === picker.nodeId ? stray : null)) : null
         const periodAt = momentLabel(Math.round(now), world?.eras, tl?.unit)
-        const title = picker.kind === 'node' ? `Art for “${trunc(pkNode?.title || 'this node')}”`
-          : picker.kind === 'backdrop-timed' ? `Art for “${trunc(map?.title || 'this space')}” from ${periodAt}`
-          : picker.kind === 'backdrop-row' ? `Art for the period from ${momentLabel(picker.start ?? 0, world?.eras, tl?.unit)} on “${trunc(map?.title || 'this space')}”`
-          : `${activeBackdropRow ? 'Base art' : 'Backdrop'} for “${trunc(map?.title || 'this space')}”`
+        const title = picker.kind === 'node' ? `Art for “${trunc(pkNode?.title || 'this entry')}”`
+          : picker.kind === 'backdrop-timed' ? `Art for “${trunc(map?.title || 'this map')}” from ${periodAt}`
+          : picker.kind === 'backdrop-row' ? `Art for the period from ${momentLabel(picker.start ?? 0, world?.eras, tl?.unit)} on “${trunc(map?.title || 'this map')}”`
+          : `${activeBackdropRow ? 'Base art' : 'Backdrop'} for “${trunc(map?.title || 'this map')}”`
         const currentId = picker.kind === 'node' ? (pkNode?.imageId ?? null) : picker.kind === 'backdrop' ? (map?.imageId ?? null) : picker.kind === 'backdrop-row' ? (picker.imageId ?? null) : null
         const generate = !forgeOn ? null
-          : picker.kind === 'node' ? { label: `Paint art for “${trunc(pkNode?.title || 'this node')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
+          : picker.kind === 'node' ? { label: `Paint art for “${trunc(pkNode?.title || 'this entry')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
           : picker.kind === 'backdrop-timed' ? { label: `Paint art for the period from ${periodAt}`, run: (g) => forgeService.mapBackdrop(map.id, g, Math.round(now)) }
           : picker.kind === 'backdrop' ? { label: activeBackdropRow ? 'Paint this map new base art' : 'Paint this map a backdrop', run: (g) => forgeService.mapBackdrop(map.id, g) }
           : null
         return (
           <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent} title={title} currentId={currentId}
-            removeLabel={picker.kind === 'node' ? 'Remove the art from this node' : 'Remove the base art'}
+            removeLabel={picker.kind === 'node' ? 'Remove the art from this entry' : 'Remove the base art'}
             onPick={handlePick} onClose={() => setPicker(null)}
             generate={generate}
             onGenerated={() => { const k = picker.kind; setPicker(null); setFlash({ kind: 'ok', text: k === 'backdrop-timed' ? `Painted — a new period from ${periodAt} on this map` : 'Painted and attached' }); forgeRefresh() }} />
@@ -2200,17 +2200,17 @@ function AtlasWorkspace() {
         <Modal title={`Remove the interior of “${confirmInterior.node.title}”?`} onClose={() => setConfirmInterior(null)}>
             {confirmInterior.impact ? (
               <div className="impact">
-                <p>The space inside is deleted — its map notes, backdrops and ambience go with it.</p>
+                <p>The interior map is deleted — its notes, backdrops and ambience go with it.</p>
                 {confirmInterior.impact.nodesInside > 0 ? (
-                  <p>{confirmInterior.impact.nodesInside} {confirmInterior.impact.nodesInside === 1 ? 'node' : 'nodes'} inside will be left unplaced — they still exist (findable with search).</p>
+                  <p>{confirmInterior.impact.nodesInside} {confirmInterior.impact.nodesInside === 1 ? 'entry' : 'entries'} inside will be left unplaced — they still exist (findable with search).</p>
                 ) : <p>Nothing is placed inside.</p>}
                 {confirmInterior.impact.nestedMaps > 0 && (
-                  <p>{confirmInterior.impact.nestedMaps} {confirmInterior.impact.nestedMaps === 1 ? 'space' : 'spaces'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.</p>
+                  <p>{confirmInterior.impact.nestedMaps} {confirmInterior.impact.nestedMaps === 1 ? 'map' : 'maps'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.</p>
                 )}
-                <p className="muted">The node itself stays exactly where it is. Undo is offered afterwards.</p>
+                <p className="muted">The entry itself stays where it is. Undo is offered afterwards.</p>
               </div>
             ) : (
-              <p className="mnote muted">Couldn't check what's inside — the space, and anything placed only there, goes with it. Undo will still be offered.</p>
+              <p className="mnote muted">Couldn't check what's inside — the interior map, and anything placed only there, goes with it. Undo will still be offered.</p>
             )}
             <div className="mrow">
               <button className="tool" onClick={() => setConfirmInterior(null)}>Keep it</button>
@@ -2240,7 +2240,7 @@ function AtlasWorkspace() {
         return (
           <div ref={ctxRef} className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
             <div className="apop-sep">{p.node.title}</div>
-            {p.node.hasInterior && <button onClick={() => { setCtx(null); openInterior(p.node) }}>◎ Open interior</button>}
+            {p.node.hasInterior && <button onClick={() => { setCtx(null); openInterior(p.node) }}>◎ Go inside</button>}
             {!isList && p.node.category !== 'party' && <button onClick={() => { setCtx(null); startOutline(p.id) }}>◌ {p.shape ? 'Redraw the outline' : 'Outline on the map'}</button>}
             <button onClick={() => { setCtx(null); removeFromMap(p) }}>⤒ Remove from this map</button>
             <button style={{ color: '#ff9b9b' }} onClick={() => { setCtx(null); askDeleteNode(p.node) }}>🗑 Delete…</button>
@@ -2249,7 +2249,7 @@ function AtlasWorkspace() {
       })()}
       {ctx && !ctx.placementId && (
         <div ref={ctxRef} className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
-          <button onClick={() => { const c = ctx; setCtx(null); dropNode(c.px, c.py) }}>＋ New node here</button>
+          <button onClick={() => { const c = ctx; setCtx(null); dropNode(c.px, c.py) }}>＋ New entry here</button>
           {tl?.enabled && <button title="Record the party's next footstep at this spot: the current one ends at the lens moment" onClick={() => { const c = ctx; setCtx(null); partyMoveHere(c.px, c.py) }}>👣 The party moves here</button>}
           <button onClick={() => { const c = ctx; startOutline(null, [c.px, c.py]) }}>◌ Outline a place from here</button>
           {sel && <button onClick={() => { const c = ctx; startOutline(sel.id, [c.px, c.py]) }}>◌ Outline “{sel.node.title}” from here</button>}
@@ -2261,10 +2261,10 @@ function AtlasWorkspace() {
 
       {bdsOpen && map && (
         <Modal title="Backdrops over time" onClose={() => setBdsOpen(false)}>
-            <p className="muted esmall">History can redraw this map. The newest period covering the viewed moment wins; outside every period, the base art shows.</p>
+            <p className="muted esmall">The newest period covering the viewed moment shows; outside every period, the base image shows.</p>
             <div className="bdrow base">
               {map.backdropUrl ? <img className="bdthumb" src={map.backdropUrl} alt="" /> : <span className="bdthumb none">—</span>}
-              <span className="bdlabel">Base — always</span>
+              <span className="bdlabel">Base — outside every period</span>
               <button className="tool" onClick={() => setPicker({ kind: 'backdrop', hasCurrent: !!map.backdropUrl })}>
                 {map.backdropUrl ? 'Change…' : 'Set…'}
               </button>
@@ -2292,7 +2292,7 @@ function AtlasWorkspace() {
 
       {focusEdit != null && (
         <Modal title="Focus period" onClose={() => setFocusEdit(null)}>
-            <p className="muted esmall">Still the one world clock — but inside this space, the scrubber's track zooms to the {tl?.unit || 'moments'} its story spans. ⤢ on the bar shows the full timeline again. Blank = the world's full range.</p>
+            <p className="muted esmall">Still the one world clock — but inside this map, the scrubber's track zooms to the {tl?.unit || 'moments'} its story spans. ⤢ on the bar shows the full timeline again. Blank = the world's full range.</p>
             <div className="span" style={{ marginBottom: 12 }}>
               <input type="number" step={1} aria-label="Focus period from" placeholder={String(tl?.min ?? '')} value={focusEdit.start}
                 onChange={(e) => setFocusEdit((f) => ({ ...f, start: e.target.value }))} />
@@ -2309,7 +2309,7 @@ function AtlasWorkspace() {
       )}
 
       {renaming != null && (
-        <Modal title="Rename this space" onClose={() => setRenaming(null)}>
+        <Modal title="Rename this map" onClose={() => setRenaming(null)}>
             <input className="nsearch" autoFocus maxLength={255} value={renaming} onChange={(e) => setRenaming(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') renameMap() }} />
             <div className="mrow">
@@ -2397,8 +2397,8 @@ function MapTree({ tree, rootId, mapId, onGo, worldId }) {
   return (
     <>
       <div className="ttools">
-        <button type="button" onClick={unfoldAll} title="Open every branch">expand all</button>
-        <button type="button" onClick={foldAll} title="Close every branch">collapse all</button>
+        <button type="button" onClick={unfoldAll} title="Open every branch">Expand all</button>
+        <button type="button" onClick={foldAll} title="Close every branch">Collapse all</button>
       </div>
       {root && row(root, 0, true)}
       {orphans.length > 0 && (
@@ -2412,19 +2412,19 @@ function MapTree({ tree, rootId, mapId, onGo, worldId }) {
 }
 
 function DeleteImpact({ impact, spotlit, party }) {
-  if (!impact) return <p className="muted">This removes the node from every map, along with its links.{spotlit ? ' The lantern pointing at it goes out.' : ''}</p>
+  if (!impact) return <p className="muted">This removes the entry from every map, along with its threads.{spotlit ? ' The lantern pointing at it goes out.' : ''}</p>
   const bits = []
   if (party) bits.push(`This erases the party's trail: ${party.steps} ${party.steps === 1 ? 'footstep' : 'footsteps'} across ${party.maps} ${party.maps === 1 ? 'map' : 'maps'}${party.first != null ? (party.first === party.last ? `, session ${party.first}` : `, sessions ${party.first}–${party.last}`) : ''} — the timebar ticks and the players' From / Then on to links with it.`)
-  if (spotlit) bits.push('The lantern points at it — the trail goes out (Undo relights it).')
+  if (spotlit) bits.push('The lantern points at it — it goes out (Undo relights it).')
   const maps = impact.maps ?? impact.placements
   if (!party && maps > 1) bits.push(`It sits on ${maps} maps — it disappears from all of them.`)
   if (impact.interiorMaps > 0) {
     bits.push('Its interior is deleted too.')
     if (impact.nodesInside > 0) {
-      bits.push(`${impact.nodesInside} ${impact.nodesInside === 1 ? 'node' : 'nodes'} inside will be left unplaced — they still exist (findable with search), but lose their spot.`)
+      bits.push(`${impact.nodesInside} ${impact.nodesInside === 1 ? 'entry' : 'entries'} inside will be left unplaced — they still exist (findable with search), but lose their spot.`)
     }
     if (impact.nestedMaps > 0) {
-      bits.push(`${impact.nestedMaps} ${impact.nestedMaps === 1 ? 'space' : 'spaces'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.`)
+      bits.push(`${impact.nestedMaps} ${impact.nestedMaps === 1 ? 'map' : 'maps'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.`)
     }
   }
   if (bits.length === 0) bits.push('It has no interior and sits only on this map.')
@@ -2456,7 +2456,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
         <button className="tool" onClick={onClose}>Close</button>
       </div>
       <div className="isect">Eras</div>
-      <div className="muted esmall">Name the ages of your world. 🎭 opens that era to players — they can scrub the revealed past, never beyond canon.</div>
+      <div className="muted esmall">Eras are named stretches of the clock. 🎭 lets players scrub that stretch of the past, never beyond canon.</div>
       {(tl.unit === 'footsteps' || (eras || []).some((e) => sessionNum(e) != null)) && (eras || []).length > 3 && (
         <div className="tlrow">
           <button className="tool" onClick={onNextSession} title={`Adds the next session as an era of ten ${tl.unit} after the last session, and grows the timeline to hold it`}>＋ Next session</button>
@@ -2585,8 +2585,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
         {n.hasInterior
           ? (
             <>
-              <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
-              <button className="btn xint" title="Remove the interior — the space inside is deleted; this node stays"
+              <button className="btn primary grow" onClick={onOpen}>◎ Go inside ▸</button>
+              <button className="btn xint" title="Remove the interior map — it is deleted; this entry stays"
                 onClick={onRemoveInterior} aria-label="Remove the interior">✕</button>
             </>
           )
@@ -2600,16 +2600,16 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
               <button className="btn grow" title="Give it a list inside — inventory, notes" onClick={() => onCreate('list')}>＋ List</button>
             </>
           )}
-        <div className="visseg" title="Who can see this node">
+        <div className="visseg" title="Who can see this entry">
           <button className={n.visibility === 'shared' ? 'on' : ''} aria-pressed={n.visibility === 'shared'} title="Everyone can see it" onClick={() => onVis('shared')}>👁 Players</button>
           <button className={n.visibility === 'dm' ? 'on' : ''} aria-pressed={n.visibility === 'dm'} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒 DM</button>
         </div>
       </div>
       {onSpotlight && n.category !== 'party' && <button className={`btn block ${spotlit ? 'lit' : ''}`}
-        title={spotlit ? 'Players see a golden trail leading here — click to put it out'
-          : 'Light a golden trail for players: on each map along the way, the next step glows'}
+        title={spotlit ? 'Players see the lantern\'s path leading here — click to put it out'
+          : 'Light the lantern here: players see the path to it, one map at a time'}
         onClick={onSpotlight}>
-        {spotlit ? '🔦 Stop showing the way' : '🔦 Show players the way here'}
+        {spotlit ? '🔦 Put the lantern out' : '🔦 Light the lantern here'}
       </button>}
       {n.category !== 'party' && (
       <div className="strow" title="How they stand toward the party — your eyes only, never shown to players">
@@ -2620,12 +2620,12 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       </div>
       )}
       {n.category === 'party' && timeBlock}
-      <div className="isect">Story</div>
+      <div className="isect">Description</div>
       <div className="fld"><label htmlFor={`${fid}-body`}>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
       <div className="fld dmnotes"><label htmlFor={`${fid}-note`}>🔒 DM notes — players never see this</label>
-        <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
+        <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Only you see this — not players, not the Forge's painter."
           onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
         {note.trim() && (() => {
           // players read the period text covering CANON when there is one: the secret goes there
@@ -2633,7 +2633,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
           return (
             <button className="btn block" style={{ marginTop: 5 }}
               title={covering ? 'Moves the note into the period text players read at the canon moment — this is how a secret becomes known'
-                : 'Moves the note into the public description — this is how a secret becomes known'}
+                : 'Moves the note into the description players read'}
               onClick={async () => {
                 const r = await onReveal() // merged on the server against the current text
                 if (r) { if (!r.factId && r.body != null) setBody(r.body); setNote('') }
@@ -2770,7 +2770,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
               ) : (
                 <>
                   <button type="button" className="lgo" title={`Open “${l.otherTitle}”`} onClick={() => onJump(l.otherId)}>{dir === 'out' ? '→' : '←'} {l.otherTitle}{l.label ? <span className="llabel"> — {l.label}</span> : null}</button>
-                  {dir === 'in' && <span className="lref">refers here</span>}
+                  {dir === 'in' && <span className="lref">Refers here</span>}
                   <button className="lx" title="Label this thread — players read the label" aria-label="Label this thread" onClick={() => setLabelEdit(l.id)}>✎</button>
                   <button className="lx" title="Remove this thread" aria-label="Remove this thread" onClick={() => onUnlink(l.id)}>✕</button>
                 </>
@@ -2779,7 +2779,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
           ))}
           {(!links?.out?.length && !links?.in?.length) && <div className="muted">No threads yet.</div>}
         </div>
-        <button className="btn block" onClick={onLink}>＋ Thread to another node</button>
+        <button className="btn block" onClick={onLink}>＋ Thread to another entry</button>
       </div>
       <div className="isect">{stray ? 'Not on any map' : 'On this map'}</div>
       {onOutline && (
@@ -2798,7 +2798,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
               <button type="button" className={outlineKind === 'area' ? 'on' : ''} title="A district: a faint tint that fades with size" onClick={() => onOutlineKind('area')}>Area</button>
             </span>
             <span className="stoggles">
-              {[['fill', 'Fill', 'A tint inside the outline (fades with size)'], ['stroke', 'Outline', 'The drawn edge'], ['grow', 'Grow', 'Scales up 5% under the pointer'], ['glow', 'Glow', 'A halo under the pointer'], ['pop', 'Pop', 'The art inside lifts out of the map under the pointer']].map(([k, label, tip]) => (
+              {[['fill', 'Fill', 'A tint inside the outline (fades with size)'], ['stroke', 'Edge', 'The drawn edge'], ['grow', 'Grow', 'Scales up 5% under the pointer'], ['glow', 'Glow', 'A halo under the pointer'], ['pop', 'Pop', 'The art inside lifts out of the map under the pointer']].map(([k, label, tip]) => (
                 <button key={k} type="button" className={outlineStyle?.[k] ? 'on' : ''} aria-pressed={!!outlineStyle?.[k]} title={tip} onClick={() => onOutlineStyle(k, !outlineStyle?.[k])}>{label}</button>
               ))}
             </span>
@@ -2807,13 +2807,13 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       )}
       {!stray && onHideHere && n.visibility !== 'dm' && (
         <button className={`btn block ${hiddenHere ? 'lit' : ''}`}
-          title={hiddenHere ? 'Players cannot see it on THIS map — click to show it here' : 'Hide it on this map only — the node stays visible wherever else it is placed'}
+          title={hiddenHere ? 'Players cannot see it on THIS map — click to show it here' : 'Hide it on this map only — the entry stays visible wherever else it is placed'}
           onClick={() => onHideHere(!hiddenHere)}>{hiddenHere ? '🔒 Hidden on this map — show it here' : '👁 Shown on this map — hide it here'}</button>
       )}
       <div className="onmaprow">
         {stray
           ? <button className="btn" title="Give it a spot on the map you are looking at" onClick={onPlaceHere}>⤓ Place on this map</button>
-          : <button className="btn" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>}
+          : <button className="btn" title="Take it off this map only — the entry itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>}
         <button className="btn danger" onClick={onDelete}>🗑 Delete…</button>
       </div>
     </>
@@ -2928,7 +2928,7 @@ function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unpla
   if (unplacedFirst) list.sort((a, b) => (a.placed === false ? 0 : 1) - (b.placed === false ? 0 : 1))
   return (
     <Modal title={title} onClose={onClose}>
-        <input className="nsearch" autoFocus placeholder="Search nodes…" value={q} onChange={(e) => setQ(e.target.value)}
+        <input className="nsearch" autoFocus placeholder="Search entries…" value={q} onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); pick(list[0]) } }} />
         <div className="nlist">
           {nodes === null && <div className="muted">Loading…</div>}
@@ -2937,7 +2937,7 @@ function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unpla
             <button key={n.id} className="nrow" onClick={() => pick(n)}>
               <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
               <span className="lbl">{n.title}</span>
-              {n.placed === false && <span className="gorphan">○ unplaced</span>}
+              {n.placed === false && <span className="gorphan">○ Unplaced</span>}
               {n.hasInterior && <span className="open" aria-hidden="true">◎</span>}
             </button>
           ))}
@@ -2955,7 +2955,7 @@ function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unpla
 // made it, keep/unmake-able; privileged acts wait behind Allow.
 // plain words for what a creation made, singular and plural
 const COUNT_WORDS = {
-  images: ['painting', 'paintings'], nodes: ['new thing', 'new things'], maps: ['new space', 'new spaces'],
+  images: ['painting', 'paintings'], nodes: ['new entry', 'new entries'], maps: ['new map', 'new maps'],
   placements: ['spot on a map', 'spots on maps'], links: ['thread', 'threads'], eras: ['era', 'eras'],
   backdrops: ['timed backdrop', 'timed backdrops'], facts: ['period text', 'period texts'],
   enrichedBodies: ['description filled', 'descriptions filled'], enrichedNotes: ['note filled', 'notes filled'],
@@ -3016,7 +3016,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     if (dirty.includes('genSize')) body.gen_size = mind.genSize
     setSavingMind(true)
     forgeService.patchMind(worldId, body) // only what changed: memory the mind wrote meanwhile is never overwritten
-      .then(() => { base.current = { ...base.current, ...Object.fromEntries(dirty.map((k) => [k, mind[k]])) }; onFlash({ kind: 'ok', text: 'The mind took it in' }) })
+      .then(() => { base.current = { ...base.current, ...Object.fromEntries(dirty.map((k) => [k, mind[k]])) }; onFlash({ kind: 'ok', text: 'Settings saved' }) })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't save") }))
       .finally(() => setSavingMind(false))
   }
@@ -3034,7 +3034,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     r.onload = () => {
       const full = String(r.result || '')
       setMind((m) => ({ ...m, bible: full.slice(0, 100000) }))
-      onFlash({ kind: 'info', text: full.length > 100000 ? 'Loaded and trimmed to 100,000 characters — Save the mind to keep it' : 'Loaded — Save the mind to keep it' })
+      onFlash({ kind: 'info', text: full.length > 100000 ? 'Loaded and trimmed to 100,000 characters — Save settings to keep it' : 'Loaded — Save settings to keep it' })
     }
     r.readAsText(f)
   }
@@ -3068,7 +3068,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
         // the words come back to the box and the bubble says they never arrived
         setText((t) => t || message)
         setMsgs((m) => m.map((x, i) => (i === m.length - 1 && x.role === 'user' && x.content === message ? { ...x, failed: true } : x)))
-        onFlash({ kind: 'err', text: e?.response ? errText(e, 'The mind did not answer') : 'No connection to the mind — your message is back in the box' })
+        onFlash({ kind: 'err', text: e?.response ? errText(e, 'The Forge did not answer') : 'No connection — your message is back in the box' })
       })
       .finally(() => setBusy(null))
   }
@@ -3114,7 +3114,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
         const bl = e?.response?.status === 409 && e.response.data?.blocked
         if (bl) {
           // the DM built on this creation: nothing was touched — name what stands in the way
-          const names = [...(bl.placements || []).map((p) => `${p.title} (in ${p.map})`), ...(bl.maps || []).map((t) => `the space “${t}”`)]
+          const names = [...(bl.placements || []).map((p) => `${p.title} (in ${p.map})`), ...(bl.maps || []).map((t) => `the map “${t}”`)]
           onFlash({ kind: 'err', text: `Unmake stopped — you built on this creation. Move these out or remove them first: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ` and ${names.length - 6} more` : ''}` })
         } else if (e?.response?.status === 404) {
           setBatches((list) => list.filter((x) => x.id !== b.id))
@@ -3198,9 +3198,9 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           <div className="fsect">Creation size</div>
           <div className="fhint">How many new things a build request (“fill out this map”) aims for at once.</div>
           <select value={mind.genSize} onChange={(e) => setMind((m) => ({ ...m, genSize: e.target.value }))}>
-            <option value="small">Small — a handful (3–6 nodes)</option>
-            <option value="medium">Medium — a lived-in space (8–14)</option>
-            <option value="large">Large — a whole quarter (18–35)</option>
+            <option value="small">Small (3–6 entries)</option>
+            <option value="medium">Medium (8–14 entries)</option>
+            <option value="large">Large (18–35 entries)</option>
           </select>
           <div className="fsect">The mind's memory</div>
           <div className="fhint">Threads, secrets, and session summaries it keeps between sessions. It reads the latest 20,000 characters every turn — edit freely.</div>
@@ -3208,21 +3208,20 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
             onChange={(e) => setMind((m) => ({ ...m, lore: e.target.value }))} />
           <button className="tool on" disabled={savingMind || !base.current || !dirty.length} onClick={saveMind}
             title={!base.current ? 'The mind has not loaded yet' : dirty.length ? `Saves ${dirty.length} changed ${dirty.length === 1 ? 'field' : 'fields'}` : 'Nothing changed'}>
-            {savingMind ? 'Saving…' : dirty.length ? 'Save the mind' : 'Saved'}</button>
+            {savingMind ? 'Saving…' : dirty.length ? 'Save settings' : 'Saved'}</button>
         </div>
       )}
       {view === 'chat' && (<>
       <div className="flog" ref={logRef}>
-        {msgs === null && <div className="fintro">Waking the mind…</div>}
+        {msgs === null && <div className="fintro">Loading…</div>}
         {loadErr && (
-          <div className="fintro">Couldn't wake the mind — the conversation and settings did not load.
+          <div className="fintro">Couldn't load the Forge's conversation and settings.
             <div className="fbrow"><button className="tool" onClick={() => refreshMind(true).catch(() => setLoadErr(true))}>Retry</button></div></div>
         )}
         {msgs !== null && msgs.length === 0 && !loadErr && (
           <div className="fintro">
-            Talk to the world. Ask what anyone knows, tell it what happened last session, or say
-            what to build or paint — it reads the words and does the rest. It knows what you
-            have selected and where you're standing.
+            Ask what anyone knows, tell it what happened last session, or say what to build
+            or paint. It knows what you have selected and which map you are on.
           </div>
         )}
         {(msgs || []).map((m, i) => {
@@ -3241,9 +3240,9 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       <div className="fcompose">
         <div className="fctx">
           {sel && !omitSel && (
-            <span className="fchip" title="The mind sees this node in full — its story, notes, threads">
+            <span className="fchip" title="The mind sees this entry in full — its description, notes, threads">
               ↳ {trunc(sel.node.title)}
-              <button onClick={() => setOmitSel(true)} title="Leave this node out of the message" aria-label="Leave this node out of the message">✕</button>
+              <button onClick={() => setOmitSel(true)} title="Leave this entry out of the message" aria-label="Leave this entry out of the message">✕</button>
             </span>
           )}
           {map && <span className="fchip dim">in {trunc(map.title)}</span>}

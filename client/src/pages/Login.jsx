@@ -135,7 +135,7 @@ function Login() {
               />
             </div>
             <button type="submit" className="login-button" disabled={submitting}>
-              {submitting ? 'Signing in...' : 'Sign In'}
+              {submitting ? 'Signing in…' : 'Sign in'}
             </button>
             {config.accountUrl && (
               <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem' }}>
@@ -181,7 +181,7 @@ function Login() {
               <small className="password-hint">At least 6 characters</small>
             </div>
             <button type="submit" className="login-button" disabled={submitting}>
-              {submitting ? 'Creating account...' : 'Create Account'}
+              {submitting ? 'Creating account…' : 'Create account'}
             </button>
             {config.ssoEnabled && (
               <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', opacity: 0.8 }}>

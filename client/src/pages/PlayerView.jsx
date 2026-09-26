@@ -245,7 +245,7 @@ function PlayerView() {
             <p>Check your connection, then try again.</p>
             <button className="tool on" onClick={() => load()}>Try again</button>
           </div>
-        ) : <div className="loading" style={{ gridRow: '1 / 3' }}>Opening the world…</div>}
+        ) : <div className="loading" style={{ gridRow: '1 / 3' }}>Loading…</div>}
       </div>
     )
   }
@@ -307,12 +307,12 @@ function PlayerView() {
         </div>
         {stale && <span className="stalechip" role="status" title="Couldn't refresh — showing the last thing we saw">offline · last update shown</span>}
         {tl?.enabled && (
-          <span className="nowchip" title={viewT != null ? 'A remembered moment — the era bar goes back to now' : 'The current moment, set by your DM'}>
+          <span className="nowchip" title={viewT != null ? 'Viewing the past — ⦿ Now returns to the present' : 'Now — the current moment, set by your DM'}>
             🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
           </span>
         )}
         {ambienceUrl && (
-          <button className={`ambbtn ${ambOn ? 'on' : ''}${ambErr ? ' err' : ''}`} onClick={toggleAmb} title={ambErr ? "The ambience wouldn't play — tap again, or check the sound" : ambOn ? 'Quiet the ambience' : 'Hear this place'}>
+          <button className={`ambbtn ${ambOn ? 'on' : ''}${ambErr ? ' err' : ''}`} onClick={toggleAmb} title={ambErr ? "The ambience wouldn't play — tap again, or check the sound" : ambOn ? 'Stop the ambience' : 'Play the ambience'}>
             {ambOn ? '🔊 Playing' : '🔈 Ambience'}
           </button>
         )}
@@ -322,8 +322,8 @@ function PlayerView() {
       <div className="main">
         <div className="pcol" role="main">
         {trail.length > 0 && (
-          <div className="dmtrail" title="Your DM is showing the way — follow the glow">
-            <span className="deye">🔦</span>
+          <div className="dmtrail" title="Follow the lit path — your DM points the way">
+            <span className="deye">🔦</span><span className="dlabel">Your DM points to:</span>
             {trail.map((s, i) => (
               <React.Fragment key={s.nodeId}>
                 {i > 0 && <span className="sep">▸</span>}
@@ -425,7 +425,7 @@ function PlayerView() {
             <button className={`tool markbtn ${marking ? 'on' : ''}`}
               title={marking ? 'Tap the map to drop your marker — tap here to cancel' : 'Add your own marker to the map'}
               onClick={() => { setMarking((v) => !v); setDetail(null) }}>
-              {marking ? '✕ cancel' : '✍ Mark the map'}
+              {marking ? '✕ Cancel' : '✍ Mark the map'}
             </button>
           )}
           {marking && <div className="markhint">Tap the map where you want your marker.</div>}
@@ -468,7 +468,7 @@ function PlayerView() {
               {detail.node.body && <p className="sbody">{detail.node.body}</p>}
               {detail.node.voiceUrl && (
                 <div className="svoice">
-                  <div className="rk">In their own voice</div>
+                  <div className="rk">Voice line</div>
                   <AudioClip src={detail.node.voiceUrl} />
                   {detail.node.voiceLine && <span className="sline">“{detail.node.voiceLine}”</span>}
                 </div>
@@ -485,7 +485,7 @@ function PlayerView() {
                 )
               })()}
               {detail.node.hasInterior && (
-                <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
+                <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Go inside</button>
               )}
               {detail.links.length > 0 && (
                 <>
@@ -571,7 +571,7 @@ function MarkerForm({ busy, err, onClose, onSubmit }) {
         <div className="mrow">
           <button type="button" className="tool" onClick={onClose}>Cancel</button>
           <button type="submit" className="tool on placebtn" disabled={busy || !title.trim()}>
-            {busy ? 'Placing it…' : 'Place it — everyone sees it'}
+            {busy ? 'Placing…' : 'Place marker (everyone sees it)'}
           </button>
         </div>
       </form>
