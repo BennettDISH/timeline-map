@@ -10,19 +10,19 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B018** · medium · s · Decimal or over-long time input returns 500 with a bare 'Server error' toast, and the UI keeps showing the unsaved value
-- [ ] **B044** · medium · s · Title over 255 characters or a decimal time gives a raw 500 'Server error'; an empty title is saved as a blank pin
-- [ ] **B050** · medium · s · A missing map (back into a removed interior, /m/999999) is a retry-only dead end, and typing in Map notes there throws
-- [ ] **P005** · medium · s · A world that can't load (deleted, wrong id, stale '/' resume, or a 5xx) leaves a fully armed editor stuck on 'Opening…' or with no world
-- [ ] **P006** · medium · s · Time ranges are never validated: reversed eras, focus periods and lifespans save silently and break quietly
-- [ ] **P014** · medium · xs · Error toasts show raw axios or server strings ('Network Error', 'Server error', 'Request failed with status code 502'); the friendly messages never appear
-- [ ] **P022** · medium · s · The map and backdrop routes don't validate input: bad values cause 500s, and the rejected value stays on screen
-- [ ] **P023** · medium · m · Atlas writes have almost no input validation: UI-reachable over-length text and decimals return 500 and drop batched edits
-- [ ] **C036** · low · s · Client services use two error conventions, so some flashes show 'Request failed with status code 500'; AdminPanel bypasses the shared http client
-- [ ] **C046** · low · xs · World name rules differ between create, rename and clone: empty names accepted, over-length names return 500
-- [ ] **C049** · low · xs · /w/A/m/<map of world B> shows B's map with A's name, tree, clock and eras, and saves that pair as the '/' resume location
-- [ ] **P035** · low · s · Server error text reaches the DM raw: provider JSON, SQL errors, and words like ‘tombstone’, ‘batch’, ‘placement’, ‘fact’
-- [ ] **P061** · low · xs · A non-numeric world id returns 500 'Server error' instead of 404
+- [x] **B018** · medium · s · Decimal or over-long time input returns 500 with a bare 'Server error' toast, and the UI keeps showing the unsaved value — done 56fdd1b (whole-number moments and a 50-character unit are enforced server-side with a sentence; the inputs step by 1 and cap their length; a refused save puts the stored value back)
+- [x] **B044** · medium · s · Title over 255 characters or a decimal time gives a raw 500 'Server error'; an empty title is saved as a blank pin — done 56fdd1b (title input capped at 255 and clamped server-side; a blank title stores as Untitled; decimals are 400s)
+- [x] **B050** · medium · s · A missing map (back into a removed interior, /m/999999) is a retry-only dead end, and typing in Map notes there throws — done 56fdd1b (a 404 map shows "This space no longer exists" with a way to the world map, no editor chrome until a map is loaded, and the last location is cleared)
+- [x] **P005** · medium · s · A world that can't load (deleted, wrong id, stale '/' resume, or a 5xx) leaves a fully armed editor stuck on 'Opening…' or with no world — done 56fdd1b (a world that fails to load shows Try again + To your worlds; a 404 lands on the dashboard with a notice; non-numeric ids are 404s)
+- [x] **P006** · medium · s · Time ranges are never validated: reversed eras, focus periods and lifespans save silently and break quietly — done 56fdd1b (reversed lifespans, focus periods, eras, period texts and backdrops are refused, judged against the stored bound on a PATCH; the client holds a reversed pair with a hint; the ✓ keys on focusOk)
+- [x] **P014** · medium · xs · Error toasts show raw axios or server strings ('Network Error', 'Server error', 'Request failed with status code 502'); the friendly messages never appear — done 56fdd1b (errText in services/http.js: the server's 4xx sentence, the caller's fallback for a 5xx, a connection hint when nothing answered)
+- [x] **P022** · medium · s · The map and backdrop routes don't validate input: bad values cause 500s, and the rejected value stays on screen — done 56fdd1b (map PATCH validates title/view/focus/image; backdrops validate and order their bounds; rename and focus roll back when refused)
+- [x] **P023** · medium · m · Atlas writes have almost no input validation: UI-reachable over-length text and decimals return 500 and drop batched edits — done 56fdd1b (server/lib/validate.js cleans every Atlas write; router.param 404s odd ids; self-links and off-plane positions handled; maxLength on the inputs)
+- [x] **C036** · low · s · Client services use two error conventions, so some flashes show 'Request failed with status code 500'; AdminPanel bypasses the shared http client — done 56fdd1b (every service rejects with the axios error; callers use errText; AdminPanel already used http.js)
+- [x] **C046** · low · xs · World name rules differ between create, rename and clone: empty names accepted, over-length names return 500 — done 56fdd1b (worldName() on create, rename and clone: 1–255 characters, 409 on a duplicate)
+- [x] **C049** · low · xs · /w/A/m/<map of world B> shows B's map with A's name, tree, clock and eras, and saves that pair as the '/' resume location — done 56fdd1b (the map payload carries worldId; the workspace redirects to the map's own world)
+- [x] **P035** · low · s · Server error text reaches the DM raw: provider JSON, SQL errors, and words like ‘tombstone’, ‘batch’, ‘placement’, ‘fact’ — done 56fdd1b (forge/voice wrap() answer with err.userMessage or a generic line; provider errors carry a plain sentence; tombstone/batch/placement/fact wording replaced)
+- [x] **P061** · low · xs · A non-numeric world id returns 500 'Server error' instead of 404 — done 56fdd1b (router.param guards in atlas, worlds, images, folders, forge and voice)
 
 ## Items
 

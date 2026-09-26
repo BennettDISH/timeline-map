@@ -10,7 +10,7 @@ history for intent and asked whether it deserves a line at all.
 
 ## Progress
 
-- Done: WP-01, WP-03, WP-04, WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048), WP-25, WP-22, WP-05, WP-23, WP-10, WP-16 (all but P081, a guest-cleanup policy for Bennett to set), WP-12, WP-26 (all but P109 wire format and P112 memo), WP-28, WP-24 (all but P103, which is Spellforge-side), WP-09, WP-27.
+- Done: WP-01, WP-03, WP-04, WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048), WP-25, WP-22, WP-05, WP-23, WP-10, WP-16 (all but P081, a guest-cleanup policy for Bennett to set), WP-12, WP-26 (all but P109 wire format and P112 memo), WP-28, WP-24 (all but P103, which is Spellforge-side), WP-09, WP-27, WP-15.
 - Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js`.
 
 ## How to work this list

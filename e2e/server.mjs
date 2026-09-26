@@ -44,7 +44,10 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       const r = await dm(method, path, body); const b = await json(r);
       step(name, r.status === want && (!test || test(b)), `${r.status} ${b?.message || ''}`.trim());
     };
-    await t('a 300-character title is refused with a sentence', 'PATCH', `/nodes/${probe.nodeId}`, { title: 'L'.repeat(300) }, 400, (b) => /255/.test(b?.message || ''));
+    await t('a 300-character title is accepted and clamped to its column', 'PATCH', `/nodes/${probe.nodeId}`, { title: 'L'.repeat(300) }, 200);
+    const n2 = await json(await dm('GET', `/nodes/${probe.nodeId}`));
+    step('…the stored title is 255 characters', n2?.node?.title?.length === 255, `length ${n2?.node?.title?.length}`);
+    await t('a title that is not text is refused with a sentence', 'PATCH', `/nodes/${probe.nodeId}`, { title: 12345 }, 400, (b) => /255/.test(b?.message || ''));
     await t('a decimal lifespan is refused with a sentence', 'PATCH', `/placements/${probe.placementId}`, { start_time: 2.5 }, 400, (b) => /whole/.test(b?.message || ''));
     await t('a reversed lifespan is refused', 'PATCH', `/placements/${probe.placementId}`, { start_time: 15, end_time: 5 }, 400, (b) => /after/.test(b?.message || ''));
     await t('a lifespan bound is judged against the stored other bound', 'PATCH', `/placements/${probe.placementId}`, { start_time: 3, end_time: 7 }, 200);
