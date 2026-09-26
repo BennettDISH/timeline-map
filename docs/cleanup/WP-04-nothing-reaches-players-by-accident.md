@@ -13,7 +13,7 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 - [x] **B015** · high · xs · Re-enabling the clock ('🕓 Timeline') overwrites the saved range, unit and canon with 0–100 days, canon 0 — done 2a657dc (keeps the stored clock unless it is the untouched 0/100/50-years default with no eras; O027 can drop the defaults later)
 - [x] **B043** · medium · xs · '＋ Story for a period' creates an empty period that blanks the node's description for players at once — done 2a657dc
 - [x] **B059** · medium · xs · '＋ Next session' leaves the open panel showing the old range; pressing Save then shrinks the clock and strands the new session — done 2a657dc
-- [ ] **C009** · medium · s · New places are born public and present at all times, so session prep appears on players' phones immediately
+- [x] **C009** · medium · s · New places are born public and present at all times, so session prep appears on players' phones immediately — done 7ae8390 (every manual node is born DM-only)
 - [ ] **C023** · medium · s · The timeline panel mixes three save models, has no title, and 'Close' silently throws away range edits
 - [x] **P026** · medium · s · 'Disable timeline' instantly shows players every out-of-time thing (future and ended), with no confirmation — done 2a657dc (inline confirm in the panel)
 - [ ] **C081** · low · xs · On a map with a focus period, a lens outside the window pins the thumb to the edge, and the first nudge jumps the lens

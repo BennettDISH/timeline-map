@@ -15,7 +15,7 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 - [x] **B071** · low · s · Windowed share payload gives players exact times inside hidden stretches and the map's full focus window — done 2a657dc
 - [x] **B076** · low · s · World PATCH lets a null or non-integer timeline through, and a null canon turns off all player time secrecy — done 2a657dc
 - [x] **B081** · low · xs · Malformed node ids on the public share API return 500 instead of 404 — done 2a657dc
-- [x] **C037** · low · xs · main.jsx says players never get the bug-tracker API key, but the key ships in the bundle /p/ loads — done 2a657dc (the comment now tells the truth; keeping the key out of the /p/ bundle is Bennett's call)
+- [x] **C037** · low · xs · main.jsx says players never get the bug-tracker API key, but the key ships in the bundle /p/ loads — done 7ae8390 (the widget is injected server-side on DM pages only; the key never ships in the bundle)
 - [x] **P083** · low · xs · Player View image loads count against the same rate-limit bucket as the DM's world, image and auth calls — done 2a657dc
 
 ## Items

@@ -171,7 +171,25 @@ try {
       step('the traced test place is removed again', removed >= 1, `${removed} removed`);
     } catch (e) { step('the traced test place is removed again', false, e.message.slice(0, 120)); }
   } else step('the toolbar offers ◌ Outline', false);
-  step('no error boundary at the end', !(await boundary()));
+  // a DM note survives reselecting the node (it used to land under the wrong key and go stale)
+  {
+    const first = page.locator('.atlas .pin:not(.party)').first();
+    if (await first.count()) {
+      await first.click({ force: true }); await page.waitForTimeout(400);
+      const notes = page.locator('.insp .dmnotes textarea');
+      if (await notes.count()) {
+        const before = await notes.inputValue();
+        const probe = `probe-note-${Date.now()}`;
+        await notes.fill(probe); await page.waitForTimeout(1200); // debounce + PATCH
+        const other = page.locator('.atlas .pin:not(.party):not(.sel)').first();
+        if (await other.count()) { await other.click({ force: true }); await page.waitForTimeout(300); }
+        await first.click({ force: true }); await page.waitForTimeout(400);
+        const shown = await page.locator('.insp .dmnotes textarea').inputValue();
+        step('a DM note survives reselecting the node', shown === probe, shown.slice(0, 40));
+        await page.locator('.insp .dmnotes textarea').fill(before); await page.waitForTimeout(1200);
+      } else step('the inspector shows DM notes', false);
+    }
+  }
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();

@@ -16,7 +16,7 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 - [ ] **P025** · medium · s · e2e suites exit 0 even when steps FAIL, the DM config example is incomplete, and cleanup deletes every outlined place
 - [ ] **C051** · low · xs · Undo is described as a 24-hour restore, but the UI offers it for 9 seconds and the server never enforces the age
 - [ ] **C064** · low · s · Template clones write base64 art back into Postgres even with R2 on, and .env.example omits the R2 settings
-- [ ] **C065** · low · xs · Production has an undocumented hand-made table 'world_backups' holding a full snapshot of Bennett's campaign
+- [x] **C065** · low · xs · Production has an undocumented hand-made table 'world_backups' holding a full snapshot of Bennett's campaign — done (exported to ~/atlas-backups/world-29-…-2026-09-26.json and dropped, with Bennett's ok)
 - [ ] **C078** · low · xs · A cloned sample world keeps the template's 'Clone it, break it, learn it.' description when the user leaves the description blank
 - [ ] **P048** · low · m · Undo is a single 9-second toast: a second delete replaces it, a reload loses it, and Ctrl+Z / Delete do nothing, though tombstones live 24 h
 

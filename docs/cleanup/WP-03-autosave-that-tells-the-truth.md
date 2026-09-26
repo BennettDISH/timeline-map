@@ -8,21 +8,21 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B004** · high · m · A failed save is dropped with no retry, the edit stays on screen, and the next good save flips the chip to '✓ Saved'
-- [ ] **B006** · high · s · Node DM notes go stale in the workspace: saveNode merges snake_case `dm_note` into camelCase node state, so reselecting shows the old note and typing overwrites it
-- [ ] **B024** · medium · m · When the session expires mid-edit, http.js hard-navigates to /login and throws away the edit that triggered it, with no message
-- [ ] **B027** · medium · m · Two tabs on the same node overwrite each other silently: the inspector never refreshes, and Reveal in a stale tab wipes the other tab's description
-- [ ] **B028** · medium · s · Node autosave and lifespan autosave share one timer; the unmount flush also cancels a pending lifespan save (live proof)
-- [ ] **B029** · medium · s · Map loads can arrive out of order: the URL and tree show one map, the canvas shows another, and '+ Add node' writes to the hidden one
-- [ ] **B030** · medium · m · Map notes and other save-on-blur fields are lost on reload, browser Back or tab close; there is no beforeunload guard
-- [ ] **B032** · medium · s · Double clicks and slow networks create duplicates: '＋ Next session' makes two 'Session 1' eras, Add node makes two nodes, 'Story for a period' makes two facts
-- [ ] **B035** · medium · s · Every local edit refetches GET /worlds/:id/trail: one request per animation frame while dragging a pin, and one per keystroke
-- [ ] **B058** · medium · s · Double-clicking '＋ Interior map' creates two interiors; the extra one is a phantom map that can't be removed
-- [ ] **B067** · low · xs · Typing map notes while a map is loading throws 'Cannot read properties of undefined (reading id)' and the text is discarded
-- [ ] **B069** · low · xs · Timebar footstep ticks lag one edit behind after a lifespan change
-- [ ] **C034** · low · s · The comment says every write goes through track() so the save chip is honest, but map notes, lantern, voice, ambience and '＋ Next session' bypass it
-- [ ] **P063** · low · xs · A save that never answers leaves the chip on 'Saving…' forever: http.js has no timeout
-- [ ] **P080** · low · xs · Map notes save outside the save indicator, so the DM never sees 'Saving…' or '⚠ Not saved' for them
+- [x] **B004** · high · m · A failed save is dropped with no retry, the edit stays on screen, and the next good save flips the chip to '✓ Saved' — done e593ac0 (refused saves retry every 5 s under newer edits; the chip stays on Not saved until they land; optimistic rollbacks for map view / outline style / drag not added)
+- [x] **B006** · high · s · Node DM notes go stale in the workspace: saveNode merges snake_case `dm_note` into camelCase node state, so reselecting shows the old note and typing overwrites it — done e593ac0
+- [x] **B024** · medium · m · When the session expires mid-edit, http.js hard-navigates to /login and throws away the edit that triggered it, with no message — done e593ac0 (edits stashed on the dead-session bounce and restored on the next visit; sliding token on every authed request; the login page says why)
+- [x] **B027** · medium · m · Two tabs on the same node overwrite each other silently: the inspector never refreshes, and Reveal in a stale tab wipes the other tab's description — done e593ac0 (Reveal merges on the server against the current text; refresh-on-focus is WP-22 P101)
+- [x] **B028** · medium · s · Node autosave and lifespan autosave share one timer; the unmount flush also cancels a pending lifespan save (live proof) — done e593ac0
+- [x] **B029** · medium · s · Map loads can arrive out of order: the URL and tree show one map, the canvas shows another, and '+ Add node' writes to the hidden one — done e593ac0
+- [x] **B030** · medium · m · Map notes and other save-on-blur fields are lost on reload, browser Back or tab close; there is no beforeunload guard — done e593ac0 (map notes debounced + tracked; pending node/lifespan/note flushed on pagehide with keepalive; era/period/backdrop/link/voice-style boxes still save on blur)
+- [x] **B032** · medium · s · Double clicks and slow networks create duplicates: '＋ Next session' makes two 'Session 1' eras, Add node makes two nodes, 'Story for a period' makes two facts — done e593ac0
+- [x] **B035** · medium · s · Every local edit refetches GET /worlds/:id/trail: one request per animation frame while dragging a pin, and one per keystroke — done e593ac0
+- [x] **B058** · medium · s · Double-clicking '＋ Interior map' creates two interiors; the extra one is a phantom map that can't be removed — done e593ac0
+- [x] **B067** · low · xs · Typing map notes while a map is loading throws 'Cannot read properties of undefined (reading id)' and the text is discarded — done e593ac0 (the notes box waits for the map; the rest of the space panel still renders while loading)
+- [x] **B069** · low · xs · Timebar footstep ticks lag one edit behind after a lifespan change — done e593ac0
+- [x] **C034** · low · s · The comment says every write goes through track() so the save chip is honest, but map notes, lantern, voice, ambience and '＋ Next session' bypass it — done e593ac0
+- [x] **P063** · low · xs · A save that never answers leaves the chip on 'Saving…' forever: http.js has no timeout — done e593ac0
+- [x] **P080** · low · xs · Map notes save outside the save indicator, so the DM never sees 'Saving…' or '⚠ Not saved' for them — done e593ac0
 
 ## Items
 
