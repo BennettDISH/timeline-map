@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
 // The public Player View API (UX-REDESIGN Phase 4's "shareable link"). No auth — the token in
@@ -138,26 +139,29 @@ const intId = (v) => { const n = /^[1-9]\d{0,9}$/.test(String(v)) ? Number(v) : 
 // Walk a map up its owner chain to the world root. Returns the breadcrumb (root → here) when
 // every step is player-visible RIGHT NOW, else null. This is what makes deep links safe: a map
 // inside a hidden or not-yet-existing branch is unreachable no matter how you got its id.
-async function walkUp(mapId, w, t) {
-  const chain = []; let mid = mapId; const seen = new Set();
-  while (true) {
-    if (!mid || seen.has(mid)) return null;
-    seen.add(mid);
-    const m = (await pool.query(
-      'SELECT id, title, world_id, owner_node_id FROM maps WHERE id = $1 AND is_active = true', [mid])).rows[0];
-    if (!m || m.world_id !== w.id) return null;
-    if (w.pending && w.pending.maps.has(m.id)) return null; // built by a pending Forge batch: not yet
-    chain.unshift({ mapId: m.id, title: m.title });
-    if (!m.owner_node_id) return m.id === w.root_map_id ? chain : null;
-    const owner = (await pool.query('SELECT visibility FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
-    if (!owner || owner.visibility === 'dm') return null;
-    const up = (await pool.query(
-      `SELECT p.map_id FROM placements p
-       WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
-       ORDER BY p.id LIMIT 1`, [m.owner_node_id, t])).rows[0];
-    if (!up) return null;
-    mid = up.map_id;
+// An owner placed in several spots is reachable through ANY of them the player can stand on:
+// each visible present placement is tried in turn (oldest first), so a pin the player can see
+// never offers an interior the API then refuses.
+async function walkUp(mapId, w, t, seen = new Set()) {
+  if (!mapId || seen.has(mapId)) return null;
+  seen.add(mapId);
+  const m = (await pool.query(
+    'SELECT id, title, world_id, owner_node_id FROM maps WHERE id = $1 AND is_active = true', [mapId])).rows[0];
+  if (!m || m.world_id !== w.id) return null;
+  if (w.pending && w.pending.maps.has(m.id)) return null; // built by a pending Forge batch: not yet
+  const here = { mapId: m.id, title: m.title };
+  if (!m.owner_node_id) return m.id === w.root_map_id ? [here] : null;
+  const owner = (await pool.query('SELECT visibility FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
+  if (!owner || owner.visibility === 'dm') return null;
+  const ups = (await pool.query(
+    `SELECT p.map_id FROM placements p
+     WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
+     ORDER BY p.id`, [m.owner_node_id, t])).rows;
+  for (const up of ups) {
+    const chain = await walkUp(up.map_id, w, t, new Set(seen));
+    if (chain) return [...chain, here];
   }
+  return null;
 }
 
 // The DM's lantern: the chain of steps from the world root down to the spotlit node —
@@ -281,9 +285,15 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   }
 
   const canonT = w.timeline_current_time ?? NEVER;
+  // ◎ is offered only where it leads somewhere: each interior on this map is walked once
+  const enterable = new Map();
+  for (const r of rows) {
+    if (r.interior_map_id == null || enterable.has(r.interior_map_id)) continue;
+    enterable.set(r.interior_map_id, !pend.maps.has(r.interior_map_id) && !!(await walkUp(r.interior_map_id, w, t)));
+  }
   const placements = rows.map((r) => {
     const art = pend.nodeArt.get(r.node_id); // art a pending batch attached: players see what was there
-    const interiorHidden = r.interior_map_id != null && pend.maps.has(r.interior_map_id);
+    const interiorHidden = r.interior_map_id != null && !enterable.get(r.interior_map_id);
     return {
       id: r.placement_id, x: Number(r.x), y: Number(r.y), shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
       // snapped onto the revealed envelope: no moment inside a hidden stretch or past canon leaks
@@ -302,13 +312,17 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     const args = [mapId];
     for (const [a, b] of ivs) { args.push(b, a); }
     args.push([...pend.backdrops]);
+    // `rank` is the DM's tie-break (latest start wins, then the newest row) computed on the
+    // UNCLAMPED starts — snapping several early starts onto the same moment must not let
+    // the client pick a different painting than the DM sees
     backdrops = (await pool.query(
-      `SELECT b.id, b.start_time, b.end_time, i.file_path
+      `SELECT b.id, b.start_time, b.end_time, i.file_path,
+              ROW_NUMBER() OVER (ORDER BY b.start_time DESC NULLS LAST, b.id DESC) AS rank
        FROM map_backdrops b JOIN images i ON i.id = b.image_id
        WHERE b.map_id = $1 AND (${conds}) AND NOT (b.id = ANY($${args.length}::int[]))
        ORDER BY b.start_time NULLS FIRST, b.id`, args)).rows
       .map((b) => ({
-        id: b.id,
+        id: b.id, rank: Number(b.rank),
         start: snapStart(b.start_time, ivs), end: snapEnd(b.end_time, ivs),
         url: resolveImageUrl(req, b.file_path),
       }));
@@ -369,7 +383,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 // canon), and both an IP rate limit and a per-world marker cap bound the blast radius.
 const markLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40 });
 const markBody = express.json({ limit: '16kb' }); // a marker is tiny; don't parse 10mb of junk
-const MARK_CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
+const MARK_CATS = CATEGORIES;
 router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
@@ -418,7 +432,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   if (pend.nodeBody.has(n.id)) n.body = null;
   const art = pend.nodeArt.get(n.id);
   if (art) n.img = priorArt(pend, art.image);
-  const interiorHidden = n.interior_map_id != null && pend.maps.has(n.interior_map_id);
+  const interiorHidden = n.interior_map_id != null && (pend.maps.has(n.interior_map_id) || !(await walkUp(n.interior_map_id, w, t)));
   if (w.timeline_enabled) {
     // the story as it reads AT the allowed moment; other eras' text stays home (a blank
     // period is no story yet — the base text stands until the DM writes it)
@@ -465,11 +479,25 @@ router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
     [id, w.id])).rows[0];
   if (!n) return notFound(res);
   if (n.interior_map_id && (await walkUp(n.interior_map_id, w, t))) return res.json({ mapId: n.interior_map_id });
-  const p = (await pool.query(
+  const ps = (await pool.query(
     `SELECT p.map_id FROM placements p
      WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
-     ORDER BY p.id LIMIT 1`, [id, t])).rows[0];
-  if (p && (await walkUp(p.map_id, w, t))) return res.json({ mapId: p.map_id });
+     ORDER BY p.id`, [id, t])).rows;
+  for (const p of ps) if (await walkUp(p.map_id, w, t)) return res.json({ mapId: p.map_id });
+  // not here at this moment: the latest revealed moment when it stood somewhere reachable —
+  // "go there" then means "look back to when it was there" (the reply carries that moment)
+  const ivs = await allowedIntervals(w);
+  if (ivs) {
+    const rows = (await pool.query(
+      `SELECT p.map_id, p.end_time FROM placements p
+       WHERE p.node_id = $1 AND p.visibility != 'dm' AND (${MEETS(ivs, 2)})
+       ORDER BY p.end_time DESC NULLS FIRST, p.id DESC`, [id, ...meetsArgs(ivs)])).rows;
+    for (const r of rows) {
+      const at = snapEnd(r.end_time, ivs);
+      if (at == null || at === t) continue;
+      if (await walkUp(r.map_id, w, at)) return res.json({ mapId: r.map_id, t: at });
+    }
+  }
   return notFound(res);
 }));
 

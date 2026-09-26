@@ -9,8 +9,8 @@ const crypto = require('crypto');
 const pool = require('../config/database');
 const { r2Enabled, putObject, deleteObject } = require('./../storage');
 const { generateImage } = require('./gemini');
+const { CATEGORIES: CATS } = require('../lib/vocab');
 
-const CATS = ['note', 'place', 'person', 'item', 'lore', 'event'];
 const CAPS = { images: 8, maps: 8, nodes: 60, links: 100, eras: 8, backdrops: 10, enrich: 40, enrichMaps: 20, placements: 120, factsPerNode: 12, placementsPerNode: 6, asks: 40 };
 const STANCES = ['friend', 'neutral', 'foe'];
 

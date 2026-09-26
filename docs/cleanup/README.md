@@ -10,7 +10,7 @@ history for intent and asked whether it deserves a line at all.
 
 ## Progress
 
-- Done: WP-01, WP-03, WP-04, WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048), WP-25.
+- Done: WP-01, WP-03, WP-04, WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048), WP-25, WP-22.
 - Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js`.
 
 ## How to work this list

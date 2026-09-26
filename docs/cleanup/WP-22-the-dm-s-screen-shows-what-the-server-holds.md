@@ -10,14 +10,14 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B095** · high · s · After a Forge turn changes the selected node, the open inspector keeps showing the old DM notes, title and body, and the DM's next keystroke (or Reveal) writes them back over the Forge's change
-- [ ] **B096** · medium · s · Save-on-blur fields compare the box with the latest server copy, not with the text they were seeded with: once typed in, a refresh leaves old text in the box, and a plain click in and out writes it back
-- [ ] **B097** · medium · xs · A slow map-notes save lands on the map you moved to: its notes box shows the previous map's notes, and editing there saves them onto that map
-- [ ] **B098** · medium · s · Deleting the lantern's node silently puts the lantern out, and Undo brings the node back without the lantern, while the DM's screen still shows it lit
-- [ ] **P101** · medium · s · The DM's workspace never shows players' markers (or anything made elsewhere) during a session, and there is no in-app way to refresh the current map
-- [ ] **P102** · medium · m · Stranded things can't be cleaned up: an unplaced node can't be opened, edited or deleted, and an orphaned interior under 'Unplaced' has no remove control
-- [ ] **B099** · low · xs · Editing one end of a lifespan re-sends the other end from the inspector's copy, so in a second tab setting 'to' silently resets 'from'
-- [ ] **C093** · low · xs · A failed node lookup is reported as 'That node isn't placed on any map — use ⤓ Place existing…' (search, link rows, reader threads)
+- [ ] **B095** · high · s · After a Forge turn changes the selected node, the open inspector keeps showing the old DM notes, title and body, and the DM's next keystroke (or Reveal) writes them back over the Forge's change — done 9cad0e3 (forgeRefresh flushes, refetches and re-keys the inspector; links reload; every field reseeds from the server when not focused)
+- [ ] **B096** · medium · s · Save-on-blur fields compare the box with the latest server copy, not with the text they were seeded with: once typed in, a refresh leaves old text in the box, and a plain click in and out writes it back — done 9cad0e3 (inspector fields reseed when idle; the map-notes box remounts on a server change when idle; era, period and backdrop inputs are keyed on their server value)
+- [ ] **B097** · medium · xs · A slow map-notes save lands on the map you moved to: its notes box shows the previous map's notes, and editing there saves them onto that map — done 9cad0e3 (ambience replies land on the map they were sent for; map notes already checked)
+- [ ] **B098** · medium · s · Deleting the lantern's node silently puts the lantern out, and Undo brings the node back without the lantern, while the DM's screen still shows it lit — done 9cad0e3 (the snapshot records the lantern, undo relights it, the screen clears it on delete; e2e/undo.mjs checks it)
+- [ ] **P101** · medium · s · The DM's workspace never shows players' markers (or anything made elsewhere) during a session, and there is no in-app way to refresh the current map — done 9cad0e3 (a visible, quiet tab refreshes map + world every 45 s, flashes new player markers; the current crumb and tree row refresh)
+- [ ] **P102** · medium · m · Stranded things can't be cleaned up: an unplaced node can't be opened, edited or deleted, and an orphaned interior under 'Unplaced' has no remove control — done 9cad0e3 (a stray opens in the inspector — edit, place here, delete; an orphaned space offers Open its owner / Remove this space; only placed markers count toward the cap)
+- [ ] **B099** · low · xs · Editing one end of a lifespan re-sends the other end from the inspector's copy, so in a second tab setting 'to' silently resets 'from' — done 9cad0e3 (per-placement pending patch carries only the bound that changed)
+- [ ] **C093** · low · xs · A failed node lookup is reported as 'That node isn't placed on any map — use ⤓ Place existing…' (search, link rows, reader threads) — done 9cad0e3
 
 ## Items
 
