@@ -29,7 +29,7 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   const title = `server-probe-${Date.now()}`;
   const made = await mark(cfg.root, title);
   const body = await json(made);
-  step('a marker on the canonical id lands whole (node + placement in one statement)', made.status === 201 && body?.id, `${made.status} ${JSON.stringify(body)}`);
+  step('a marker on the canonical id lands whole (node + placement in one statement)', made.status === 201 && body?.nodeId, `${made.status} ${JSON.stringify(body)}`);
   // cleanup: every probe marker on the throwaway root, this run's and any stray from a failed run
   const map = await json(await dm('GET', `/maps/${cfg.root}`));
   const strays = (map?.placements || []).filter((p) => /^server-probe/.test(p.node?.title || ''));

@@ -190,21 +190,32 @@ below is a wish-shelf, not a gap list.
   `GEMINI_API_KEY`** (or with `FORGE_ENABLED=0`): every `/api/forge` route except `/status`
   404s and nothing calls out. Model IDs override via `FORGE_TEXT_MODEL`/`FORGE_IMAGE_MODEL`.
 - Server: `server/forge/` — `gemini.js` (fetch-only REST client), `contract.js` (the ONLY
-  write path: validator clamps/rejects, then one transaction; images painted + R2-uploaded
-  first with rollback cleanup), `mind.js` (rulebook + per-turn world digest from the DB +
-  `world_minds` lore/style + `mind_messages` tail). Routes in `server/routes/forge.js`
-  (auth + ownsWorld + 120/hr limiter).
-- Everything generated is **born DM-only** and grouped into a `forge_batches` row —
-  "Keep" retires the card, "Unmake" deletes the whole creation (and its R2 objects).
-  The mind never sets visibility; revealing stays a per-node DM act. **Revealing a node
+  batch write path: validator clamps/rejects, then one transaction; images painted +
+  R2-uploaded first with rollback cleanup; the image picker's ✦ Paint routes in `forge.js`
+  are direct DM acts outside any batch), `mind.js` (rulebook + per-turn world digest from
+  the DB + `world_minds` lore/style + `mind_messages` tail). Routes in
+  `server/routes/forge.js` (auth + ownsWorld + 120/hr limiter; one chat turn per world at
+  a time — a second gets 409).
+- New nodes and placements are **born DM-only**, and **nothing a PENDING batch wrote reaches
+  players before Keep**: `share.js` loads the world's pending batches once per request
+  (`pendingForge`, on `w.pending`) and hides their maps (even an interior hung on a shared
+  node), links, timed backdrops and facts, and serves the previous art / body / standing
+  backdrop of existing things they touched. The DM-side Player toggle does not preview
+  this. Batches are grouped in a `forge_batches` row — "Keep" retires the card, "Unmake"
+  removes what the batch made, and ONLY that: it refuses (409 `blocked`) while hand-made
+  placements, footsteps or markers stand inside the batch's maps or the DM hung spaces on
+  its nodes; keeps paintings used elsewhere (the style anchor counts unless the batch set
+  it — `created.anchorSet`); reverts a granted move only if its map still exists.
+  The mind never sets visibility itself (it may only ASK to `reveal`); **revealing a node
   (atlas PATCH visibility ≠ dm) also lifts its DM-only placements to shared** — forge-born
   placements would otherwise keep a "revealed" node invisible to players.
 - **Asks (permission-gated skills)**: the mind may request privileged acts on EXISTING
   things — `move` (reposition/carry a placement, incl. onto a new interior), `edit`
-  (overwrite title/body/category), `drop_era`. They're stored on the batch
-  (`asks`/`asks_state`/`asks_undo`) and execute ONLY via the card's Allow button
+  (overwrite title/body/category/dm_note), `drop_era`, `reveal`. They're stored on the
+  batch (`asks`/`asks_state`/`asks_undo`) and execute ONLY via the card's Allow button
   (`POST /batches/:id/allow`; Refuse/Keep lapse them). Allowed asks record undo state,
-  so Unmake reverts them along with the creations.
+  so Unmake reverts them along with the creations. An ask whose target is gone reads
+  "✕ … no longer possible" on the card (`asksLive`), and Allow reports what it skipped.
 - Art style lock: `world_minds.art_style` (written spec — the mind drafts it when empty)
   + the style ANCHOR (`style_image_id`, the first painting by default) passed as a Nano
   Banana reference image into every later generation. Image prompts describe content only,
@@ -236,7 +247,15 @@ below is a wish-shelf, not a gap list.
   characters are refused (400), never trimmed. The mind reads the whole bible (≤100k) and
   the latest 20k of lore; the lore PATCH keeps the newest 20k. Edit asks show their proposed
   words on the card. A `move` ask carries an outline along (or clears it across maps).
-  The rulebook speaks the world's own clock unit and knows the one `party` node.
+  The rulebook speaks the world's own clock unit and knows the one `party` node. The
+  digest sends each node's `vis` ('dm' | 'player'; revealed nodes unmarked, player markers
+  with `author` and ruled non-canon), the Party as ONE entry (live footstep + count),
+  placements with x/y and DM-only marks, and orders everything newest-first with the
+  current map's things first; truncation is counted in `note`/`linksNote`/`placementsNote`
+  and surfaced to the DM (`digestNote`). A turn appends lore IN SQL (`RIGHT(... || $1,
+  20000)`) and fills `art_style` only when still empty at write time, so a "Save the
+  mind" during the turn survives. The validator turns null/bare-string entries into
+  errors, never a throw.
 
 ## Voice (optional harness, three providers)
 - `server/voice/providers.js` chooses who speaks: `VOICE_PROVIDER` if pinned, else the

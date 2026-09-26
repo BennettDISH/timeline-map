@@ -20,8 +20,37 @@ async function worldOf(token) {
   const r = await pool.query(
     `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit, spotlight_node_id
      FROM worlds WHERE share_token = $1 AND is_active = true`, [token]);
-  return r.rows[0] || null;
+  const w = r.rows[0] || null;
+  if (w) w.pending = await pendingForge(w.id);
+  return w;
 }
+
+// A PENDING Forge batch is the DM's preview, not the players' to see. Until Keep, everything
+// a batch wrote is held back here: the maps it built (even interiors hung on shared nodes),
+// the links, timed backdrops and facts it added, and — on existing things — the art, body
+// and standing backdrop it changed are served as they were before. Unmake then removes it
+// without players ever having seen it.
+async function pendingForge(worldId) {
+  const rows = (await pool.query(`SELECT created FROM forge_batches WHERE world_id = $1 AND status = 'pending'`, [worldId])).rows;
+  const p = { maps: new Set(), links: new Set(), backdrops: new Set(), facts: new Set(), nodeArt: new Map(), nodeBody: new Set(), mapArt: new Map(), imagePath: new Map() };
+  const imgIds = new Set();
+  for (const { created: c } of rows) {
+    if (!c) continue;
+    for (const id of c.maps || []) p.maps.add(id);
+    for (const id of c.links || []) p.links.add(id);
+    for (const id of c.backdrops || []) p.backdrops.add(id);
+    for (const id of c.facts || []) p.facts.add(id);
+    for (const e of c.enrichedImages || []) { p.nodeArt.set(e.node, { image: e.prevImage ?? null, pin: e.prevPin || 'chip' }); if (e.prevImage != null) imgIds.add(e.prevImage); }
+    for (const e of c.enrichedBodies || []) p.nodeBody.add(typeof e === 'number' ? e : e.node);
+    for (const m of c.mapBases || []) { p.mapArt.set(m.map, m.prev ?? null); if (m.prev != null) imgIds.add(m.prev); }
+  }
+  if (imgIds.size) {
+    for (const r of (await pool.query('SELECT id, file_path FROM images WHERE id = ANY($1::int[])', [[...imgIds]])).rows) p.imagePath.set(r.id, r.file_path);
+  }
+  return p;
+}
+// the art an existing thing showed before a pending batch touched it (null = none)
+const priorArt = (p, prevId) => (prevId != null ? p.imagePath.get(prevId) || null : null);
 
 // The moment players see. Default: the canon moment (the world clock). A ?t= request is
 // honored ONLY when it is ≤ canon AND falls inside a player_visible era — the DM decides
@@ -117,6 +146,7 @@ async function walkUp(mapId, w, t) {
     const m = (await pool.query(
       'SELECT id, title, world_id, owner_node_id FROM maps WHERE id = $1 AND is_active = true', [mid])).rows[0];
     if (!m || m.world_id !== w.id) return null;
+    if (w.pending && w.pending.maps.has(m.id)) return null; // built by a pending Forge batch: not yet
     chain.unshift({ mapId: m.id, title: m.title });
     if (!m.owner_node_id) return m.id === w.root_map_id ? chain : null;
     const owner = (await pool.query('SELECT visibility FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
@@ -153,6 +183,7 @@ async function spotlightTrail(w) {
     const m = (await pool.query(
       'SELECT id, owner_node_id, world_id, is_active FROM maps WHERE id = $1', [p.map_id])).rows[0];
     if (!m || m.world_id !== w.id || !m.is_active) return [];
+    if (w.pending && w.pending.maps.has(m.id)) return [];
     if (!m.owner_node_id) { complete = m.id === w.root_map_id; break; }
     nid = m.owner_node_id;
   }
@@ -207,14 +238,17 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const map = (await pool.query(
     'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [mapId])).rows[0];
+  const pend = w.pending;
+  // a standing backdrop set by a pending batch is the DM's preview: players get what it replaced
+  if (pend.mapArt.has(mapId)) map.backdrop_path = priorArt(pend, pend.mapArt.get(mapId));
   if (w.timeline_enabled && req.query.window !== '1') {
     // history may have redrawn this map: the latest-starting timed backdrop covering the
     // allowed moment wins; none covering it keeps the base art
     const bd = (await pool.query(
       `SELECT i.file_path FROM map_backdrops b JOIN images i ON i.id = b.image_id
        WHERE b.map_id = $1 AND (b.start_time IS NULL OR b.start_time <= $2)
-         AND (b.end_time IS NULL OR b.end_time >= $2)
-       ORDER BY b.start_time DESC NULLS LAST, b.id DESC LIMIT 1`, [mapId, t])).rows[0];
+         AND (b.end_time IS NULL OR b.end_time >= $2) AND NOT (b.id = ANY($3::int[]))
+       ORDER BY b.start_time DESC NULLS LAST, b.id DESC LIMIT 1`, [mapId, t, [...pend.backdrops]])).rows[0];
     if (bd) map.backdrop_path = bd.file_path;
   }
 
@@ -247,15 +281,19 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   }
 
   const canonT = w.timeline_current_time ?? NEVER;
-  const placements = rows.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y), shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
-    // snapped onto the revealed envelope: no moment inside a hidden stretch or past canon leaks
-    ...(windowed ? { start: snapStart(r.start_time, ivs), end: snapEnd(r.end_time, ivs) } : {}),
-    node: { id: r.node_id, title: r.title, category: r.category, pin: r.pin, pinSize: r.pin_size,
-            player: r.nvis === 'player', author: r.author,
-            hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
-            imageUrl: resolveImageUrl(req, r.node_image_path) },
-  }));
+  const placements = rows.map((r) => {
+    const art = pend.nodeArt.get(r.node_id); // art a pending batch attached: players see what was there
+    const interiorHidden = r.interior_map_id != null && pend.maps.has(r.interior_map_id);
+    return {
+      id: r.placement_id, x: Number(r.x), y: Number(r.y), shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
+      // snapped onto the revealed envelope: no moment inside a hidden stretch or past canon leaks
+      ...(windowed ? { start: snapStart(r.start_time, ivs), end: snapEnd(r.end_time, ivs) } : {}),
+      node: { id: r.node_id, title: r.title, category: r.category, pin: art ? art.pin : r.pin, pinSize: r.pin_size,
+              player: r.nvis === 'player', author: r.author,
+              hasInterior: !!r.interior_map_id && !interiorHidden, interiorMapId: interiorHidden ? null : r.interior_map_id,
+              imageUrl: resolveImageUrl(req, art ? priorArt(pend, art.image) : r.node_image_path) },
+    };
+  });
 
   let backdrops;
   if (windowed) {
@@ -263,10 +301,12 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       `((b.start_time IS NULL OR b.start_time <= $${i * 2 + 2}) AND (b.end_time IS NULL OR b.end_time >= $${i * 2 + 3}))`).join(' OR ');
     const args = [mapId];
     for (const [a, b] of ivs) { args.push(b, a); }
+    args.push([...pend.backdrops]);
     backdrops = (await pool.query(
       `SELECT b.id, b.start_time, b.end_time, i.file_path
        FROM map_backdrops b JOIN images i ON i.id = b.image_id
-       WHERE b.map_id = $1 AND (${conds}) ORDER BY b.start_time NULLS FIRST, b.id`, args)).rows
+       WHERE b.map_id = $1 AND (${conds}) AND NOT (b.id = ANY($${args.length}::int[]))
+       ORDER BY b.start_time NULLS FIRST, b.id`, args)).rows
       .map((b) => ({
         id: b.id,
         start: snapStart(b.start_time, ivs), end: snapEnd(b.end_time, ivs),
@@ -279,7 +319,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   if (nodeIds.length) {
     links = (await pool.query(
       `SELECT id, from_node_id, to_node_id, kind, label
-       FROM links WHERE from_node_id = ANY($1::int[]) AND to_node_id = ANY($1::int[])`, [nodeIds])).rows
+       FROM links WHERE from_node_id = ANY($1::int[]) AND to_node_id = ANY($1::int[]) AND NOT (id = ANY($2::int[]))`,
+      [nodeIds, [...pend.links]])).rows
       .map((l) => ({ id: l.id, from: l.from_node_id, to: l.to_node_id, kind: l.kind, label: l.label }));
   }
 
@@ -370,23 +411,29 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   // being 'shared' is not enough: the node must stand somewhere the player can reach at an
   // allowed moment (or own such a place) — the future, DM-placed things and hidden branches 404
   if (!(await reachableIds([n.id], w, t)).has(n.id)) return notFound(res);
+  // what a pending Forge batch wrote onto this node is not here yet
+  const pend = w.pending;
+  if (pend.nodeBody.has(n.id)) n.body = null;
+  const art = pend.nodeArt.get(n.id);
+  if (art) n.img = priorArt(pend, art.image);
+  const interiorHidden = n.interior_map_id != null && pend.maps.has(n.interior_map_id);
   if (w.timeline_enabled) {
     // the story as it reads AT the allowed moment; other eras' text stays home (a blank
     // period is no story yet — the base text stands until the DM writes it)
     const fact = (await pool.query(
       `SELECT body FROM node_facts
        WHERE node_id = $1 AND body <> '' AND (start_time IS NULL OR start_time <= $2)
-         AND (end_time IS NULL OR end_time >= $2)
-       ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [n.id, t])).rows[0];
+         AND (end_time IS NULL OR end_time >= $2) AND NOT (id = ANY($3::int[]))
+       ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [n.id, t, [...pend.facts]])).rows[0];
     if (fact) n.body = fact.body;
   }
 
   const linkSql = (dir) => `
     SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
     FROM links l JOIN nodes n2 ON l.${dir === 'out' ? 'to' : 'from'}_node_id = n2.id
-    WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm'`;
-  let out = (await pool.query(linkSql('out'), [n.id])).rows;
-  let back = (await pool.query(linkSql('in'), [n.id])).rows;
+    WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm' AND NOT (l.id = ANY($2::int[]))`;
+  let out = (await pool.query(linkSql('out'), [n.id, [...pend.links]])).rows;
+  let back = (await pool.query(linkSql('in'), [n.id, [...pend.links]])).rows;
   // Threads name only what the player may know exists — same rule as the node itself
   const known = await reachableIds([...new Set([...out, ...back].map((l) => l.other))], w, t);
   out = out.filter((l) => known.has(l.other));
@@ -396,7 +443,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category,
             player: n.nvis === 'player', author: n.author,
-            hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id,
+            hasInterior: !!n.interior_map_id && !interiorHidden, interiorMapId: interiorHidden ? null : n.interior_map_id,
             voiceLine: n.voice_line || null, voiceUrl: n.voice_url || null,
             imageUrl: resolveImageUrl(req, n.img) },
     links: out.map((l) => shape(l, 'out')), backlinks: back.map((l) => shape(l, 'in')),

@@ -18,3 +18,16 @@
 -- root (the write-path test). Sweep occasionally:
 --   DELETE FROM nodes WHERE world_id=(SELECT id FROM worlds WHERE name='Secrecy Fixture')
 --     AND visibility='player';
+--
+-- Added 2026-09-26 (WP-25 B109): a PENDING Forge batch that must stay invisible to players.
+--   forge_batches row status 'pending' for the world, created = {
+--     maps:[<'Pending Forge Interior', owner Open Landmark>], nodes:[<'Pending Inner', shared, placed on it>],
+--     placements:[<that placement>], links:[<Open Landmark -> Brief Fair, label 'pending thread'>],
+--     facts:[<'PENDING FACT' 10-30 on Open Landmark>], backdrops:[<map_backdrops on root from 45, image 'fixture-pending.svg'>],
+--     images:[<fixture-pending.svg>],
+--     enrichedImages:[{node: Open Landmark, prevImage:null, prevPin:'chip', wrote:<image>}]  (its image_id/pin ARE set in the row),
+--     mapBases:[{map: root, prev:null, wrote:<image>}]                                      (root.image_id IS set),
+--     enrichedBodies:[{node: Brief Fair, wrote:'only 20-40'}]                                (Brief Fair's stored body is that text) }
+--   Players must see: no ◎ on Open Landmark, 404 on the pending map and its node, no art or
+--   base backdrop on the root, 'era text' (not 'PENDING FACT') at t=20, fixture-a.svg (not the
+--   pending art) at canon, no 'pending thread' link, an empty body on Brief Fair.

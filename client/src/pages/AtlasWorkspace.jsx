@@ -2425,6 +2425,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
         }
         refreshMind(false).catch(() => {}) // memory and cards as the server now holds them
         if (r.applyError) onFlash({ kind: 'err', text: `The mind spoke, but the creation failed: ${r.applyError}` })
+        else if (r.digestNote) onFlash({ kind: 'info', text: `The world outgrew the mind's view: ${r.digestNote}` })
       })
       .catch((e) => {
         // the words come back to the box and the bubble says they never arrived
@@ -2442,7 +2443,12 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     ;(allow ? forgeService.allowAsks(worldId, b.id) : forgeService.refuseAsks(worldId, b.id))
       .then((r) => {
         setBatches((list) => list.map((x) => x.id === b.id ? { ...x, asksState: allow ? 'allowed' : 'refused' } : x))
-        if (allow) { onFlash({ kind: 'ok', text: `Granted — ${r.granted ?? 'the'} act${r.granted === 1 ? '' : 's'} done` }); onRefresh() }
+        if (allow) {
+          const n = r.granted ?? 0, m = r.requested ?? n
+          const text = n === m ? `Granted — ${n} act${n === 1 ? '' : 's'} done`
+            : `Granted — ${n} of ${m} done; ${m - n} no longer possible (the target is gone)`
+          onFlash({ kind: n ? 'ok' : 'info', text }); onRefresh()
+        }
       })
       .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't do that") }))
       .finally(() => setBusy(null))
@@ -2455,12 +2461,29 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     }
     setBusy({ id: b.id, act: keep ? 'keep' : 'unmake' })
     ;(keep ? forgeService.keepBatch(worldId, b.id) : forgeService.discardBatch(worldId, b.id))
-      .then(() => {
+      .then((r) => {
         setBatches((list) => list.filter((x) => x.id !== b.id))
         if (keep && b.asksState === 'pending') onFlash({ kind: 'info', text: 'Kept — its request for permission was declined' })
-        if (!keep) { onFlash({ kind: 'info', text: 'Unmade — what that creation added is gone; your later edits stay' }); refreshMind(true).catch(() => {}); onRefresh() }
+        if (!keep) {
+          const extra = [
+            r?.keptImages ? `${countLabel('images', r.keptImages)} you use elsewhere ${r.keptImages === 1 ? 'was' : 'were'} kept` : '',
+            ...(r?.skipped || []),
+          ].filter(Boolean)
+          onFlash({ kind: 'info', text: `Unmade — what that creation added is gone; your later edits stay${extra.length ? '. ' + extra.join('; ') : ''}` })
+          refreshMind(true).catch(() => {}); onRefresh()
+        }
       })
-      .catch((e) => onFlash({ kind: 'err', text: errText(e, "Couldn't do that") }))
+      .catch((e) => {
+        const bl = e?.response?.status === 409 && e.response.data?.blocked
+        if (bl) {
+          // the DM built on this creation: nothing was touched — name what stands in the way
+          const names = [...(bl.placements || []).map((p) => `${p.title} (in ${p.map})`), ...(bl.maps || []).map((t) => `the space “${t}”`)]
+          onFlash({ kind: 'err', text: `Unmake stopped — you built on this creation. Move these out or remove them first: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ` and ${names.length - 6} more` : ''}` })
+        } else if (e?.response?.status === 404) {
+          setBatches((list) => list.filter((x) => x.id !== b.id))
+          onFlash({ kind: 'info', text: 'That card was already settled (in another tab, perhaps)' })
+        } else onFlash({ kind: 'err', text: errText(e, "Couldn't do that") })
+      })
       .finally(() => setBusy(null))
   }
 
@@ -2471,14 +2494,14 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     return (
     <div key={`b${b.id}`} className="fbatch">
       <div className="fbsum">{b.summary && b.summary !== 'A generation' ? b.summary : (meta[0].toUpperCase() + meta.slice(1))}</div>
-      <div className="fbmeta">{meta}{madeThings ? ' — new things stay DM-only until you reveal them' : ''}</div>
+      <div className="fbmeta">{meta} — players see none of this until you keep it{madeThings ? '; new things then stay DM-only until you reveal them' : ''}</div>
       {b.asksState === 'pending' && (b.asksText || []).length > 0 && (
         <div className="fasks">
           <div className="faskhead">It asks permission to:</div>
-          {b.asksText.map((t, i) => <div key={i} className="fask">• {t}</div>)}
+          {b.asksText.map((t, i) => <div key={i} className={`fask${/^✕ /.test(t) ? ' gone' : ''}`}>• {t}</div>)}
           <div className="fbrow">
-            <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{isBusy(b, 'allow') ? '…' : 'Allow'}</button>
-            <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>{isBusy(b, 'refuse') ? '…' : 'Refuse'}</button>
+            {b.asksLive !== 0 && <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{isBusy(b, 'allow') ? '…' : (b.asksLive != null && b.asksLive < b.asksText.length ? `Allow what remains (${b.asksLive})` : 'Allow')}</button>}
+            <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>{isBusy(b, 'refuse') ? '…' : (b.asksLive === 0 ? 'Dismiss' : 'Refuse')}</button>
           </div>
         </div>
       )}

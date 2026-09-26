@@ -28,6 +28,8 @@ const IDS = {
   ghostSpot: Number(process.env.FX_GHOST || 99),      // shared node, DM-only placement
   futureThing: Number(process.env.FX_FUTURE || 101),  // placed from 80, canon is 50
   interludeGhost: Number(process.env.FX_INTERLUDE || 114), // alive 32–38: hidden history only
+  pendingMap: Number(process.env.FX_PENDING_MAP || 748),   // built by a PENDING Forge batch on Open Landmark
+  pendingInner: Number(process.env.FX_PENDING_INNER || 2728), // a shared node placed inside it
 };
 
 const get = async (path) => {
@@ -196,4 +198,41 @@ test('a marker needs a name; a bad token gets nothing', async () => {
     body: JSON.stringify({ title: 'x', x: 50, y: 50 }),
   });
   assert.equal(badToken.status, 404);
+});
+
+
+// ---- a pending Forge batch is the DM's preview: none of it reaches players before Keep ----
+
+test('pending Forge output: the interior it hung on a shared node is not there yet', async () => {
+  const { body } = await get(`/maps/${IDS.root}`);
+  const lm = body.placements.find((p) => p.node.title === 'Open Landmark');
+  assert.equal(lm.node.hasInterior, false, 'no ◎ for a pending interior');
+  assert.equal(lm.node.interiorMapId, null);
+  assert.equal((await get(`/maps/${IDS.pendingMap}`)).status, 404, 'the pending map 404s');
+  assert.equal((await get(`/nodes/${IDS.pendingInner}`)).status, 404, 'a node inside it is unreachable');
+  assert.deepEqual((await get(`/nodes/${IDS.openLandmark}/locate`)).body, { mapId: IDS.root }, 'locate goes to the pin, not the pending interior');
+});
+
+test('pending Forge output: art, standing backdrop and body it changed read as before', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  const lm = body.placements.find((p) => p.node.title === 'Open Landmark');
+  assert.equal(lm.node.imageUrl, null, 'the pending painting is not on the pin');
+  assert.equal(lm.node.pin, 'chip', 'the pin style the batch flipped reads as before');
+  assert.equal(body.map.backdropUrl, null, 'the standing backdrop the batch set is not served');
+  const n = await get(`/nodes/${IDS.openLandmark}`);
+  assert.equal(n.body.node.imageUrl, null);
+  assert.equal(n.body.node.hasInterior, false);
+  const fair = await get('/nodes/100');
+  assert.equal(fair.body.node.body, null, 'a body the pending batch filled is empty for players');
+});
+
+test('pending Forge output: its link, fact and timed backdrop are absent', async () => {
+  const n = await get(`/nodes/${IDS.openLandmark}?t=20`);
+  assert.equal(n.body.node.body, 'era text', 'the pending fact must not win over the real one');
+  assert.ok(!n.body.links.some((l) => l.label === 'pending thread'), 'the pending link is not a thread');
+  const map = await get(`/maps/${IDS.root}?window=1`);
+  assert.ok(!map.body.links.some((l) => l.label === 'pending thread'));
+  assert.equal(map.body.backdrops.length, 1, 'the pending timed backdrop is not listed');
+  const canon = await get(`/maps/${IDS.root}`);
+  assert.ok((canon.body.map.backdropUrl || '').endsWith('fixture-a.svg'), 'the pending timed backdrop (from 45) must not replace the real one');
 });

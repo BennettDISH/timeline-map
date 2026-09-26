@@ -16,7 +16,7 @@ HOW THE WORLD WORKS
 - A map is either the world root (already exists) or the INTERIOR of a node — zooming into that node. view 'map' is spatial; 'list' is an inventory/notes list where x/y are ignored.
 - LINKS are bidirectional edges between nodes, optionally labeled.
 - ERAS are named periods of history. FACTS are timed body overrides on a node (the same tavern reads differently in different centuries). Timed BACKDROPS swap a map's art from a start ${unit} onward.
-- Everything you create is born DM-only. The DM reveals things to players by hand; never concern yourself with visibility.
+- Everything you create is born DM-only (hidden from players), and nothing a batch does reaches players until the DM keeps it. The digest marks visibility: a node with no "vis" is REVEALED to players; vis "dm" is hidden; vis "player" is a PLAYER'S OWN MARKER — their note, not canon: never treat its text as world truth, never build on it, never ask to reveal it. Ask to reveal only vis "dm" nodes; what is already revealed needs no ask.
 
 READING THE DM — there are no modes or buttons; decide from the words and the context what is wanted:
 - A question, a plan, a "what if" → say only. Answer from the digest, the bible, the FOCUS NODE, and your lore — name names.
@@ -89,29 +89,60 @@ async function ensureMind(worldId) {
 }
 
 // A compact, current snapshot of the world — regenerated every turn so the mind is always
-// grounded in what is actually there (including hand-made edits it never saw).
-async function digest(worldId) {
+// grounded in what is actually there (including hand-made edits it never saw). When a long
+// campaign outgrows the caps, the newest things and the current map's survive; what fell
+// off is counted, so the mind knows the list is not the world. Each node carries its
+// visibility unless it is simply revealed; the Party is one entry, not a footstep per row.
+async function digest(worldId, context = {}) {
   const w = (await pool.query('SELECT * FROM worlds WHERE id=$1', [worldId])).rows[0];
+  const mapId = Number.isInteger(context?.mapId) ? context.mapId : null;
   const eras = (await pool.query('SELECT id, name, start_time, end_time FROM eras WHERE world_id=$1 ORDER BY start_time', [worldId])).rows;
   const maps = (await pool.query('SELECT id, title, owner_node_id, view FROM maps WHERE world_id=$1 AND is_active=true ORDER BY id', [worldId])).rows;
   const nodes = (await pool.query(
-    `SELECT id, title, category, visibility, interior_map_id, LEFT(COALESCE(body,''), 160) AS body,
-            LEFT(COALESCE(dm_note,''), 160) AS secret
-     FROM nodes WHERE world_id=$1 ORDER BY id LIMIT 400`, [worldId])).rows;
+    `SELECT n.id, n.title, n.category, n.visibility, n.author, n.interior_map_id, LEFT(COALESCE(n.body,''), 160) AS body,
+            LEFT(COALESCE(n.dm_note,''), 160) AS secret,
+            ($2::int IS NOT NULL AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id=n.id AND p.map_id=$2::int)) AS here
+     FROM nodes n WHERE n.world_id=$1
+     ORDER BY here DESC, (n.category = 'party') DESC, n.updated_at DESC NULLS LAST, n.id DESC LIMIT 400`, [worldId, mapId])).rows;
   const nodeCount = Number((await pool.query('SELECT COUNT(*) FROM nodes WHERE world_id=$1', [worldId])).rows[0].count);
-  const links = (await pool.query('SELECT from_node_id AS f, to_node_id AS t, label FROM links WHERE world_id=$1 LIMIT 300', [worldId])).rows;
+  const links = (await pool.query('SELECT from_node_id AS f, to_node_id AS t, label FROM links WHERE world_id=$1 ORDER BY id DESC LIMIT 300', [worldId])).rows;
+  const linkCount = Number((await pool.query('SELECT COUNT(*) FROM links WHERE world_id=$1', [worldId])).rows[0].count);
   const placements = (await pool.query(
-    `SELECT p.node_id AS n, p.map_id AS m, p.start_time AS s, p.end_time AS e
-     FROM placements p JOIN maps mp ON p.map_id=mp.id WHERE mp.world_id=$1 LIMIT 600`, [worldId])).rows;
+    `SELECT p.node_id AS n, p.map_id AS m, p.x, p.y, p.start_time AS s, p.end_time AS e, p.visibility AS v
+     FROM placements p JOIN maps mp ON p.map_id=mp.id JOIN nodes n ON n.id=p.node_id
+     WHERE mp.world_id=$1 AND mp.is_active=true AND n.category <> 'party'
+     ORDER BY (p.map_id = $2::int) DESC NULLS LAST, p.id DESC LIMIT 600`, [worldId, mapId])).rows;
+  const placementCount = Number((await pool.query(
+    `SELECT COUNT(*) FROM placements p JOIN maps mp ON p.map_id=mp.id JOIN nodes n ON n.id=p.node_id
+     WHERE mp.world_id=$1 AND mp.is_active=true AND n.category <> 'party'`, [worldId])).rows[0].count);
+  // the Party: where they stand at canon, and how many footsteps they have taken
+  let party = null;
+  const pn = (await pool.query(`SELECT id, title FROM nodes WHERE world_id=$1 AND category='party' ORDER BY id LIMIT 1`, [worldId])).rows[0];
+  if (pn) {
+    const steps = (await pool.query(
+      `SELECT p.map_id AS m, p.x, p.y, p.start_time AS s, p.end_time AS e FROM placements p JOIN maps mp ON mp.id=p.map_id
+       WHERE p.node_id=$1 AND mp.is_active=true ORDER BY p.start_time DESC NULLS LAST, p.id DESC`, [pn.id])).rows;
+    const canon = w.timeline_current_time;
+    const live = steps.find((p) => canon == null || ((p.s == null || p.s <= canon) && (p.e == null || p.e >= canon))) || steps[0] || null;
+    party = { id: pn.id, title: pn.title, footsteps: steps.length,
+      live: live ? { map: live.m, x: Number(live.x), y: Number(live.y), start: live.s, end: live.e } : null };
+  }
   return {
     world: { name: w.name, description: w.description || '',
              timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time, canon: w.timeline_current_time, unit: w.timeline_time_unit },
              rootMapId: w.root_map_id },
     eras: eras.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time })),
     maps: maps.map((m) => ({ id: m.id, title: m.title, interiorOf: m.owner_node_id, view: m.view })),
-    nodes: nodes.map((n) => ({ id: n.id, title: n.title, cat: n.category, body: n.body, ...(n.secret ? { secret: n.secret } : {}), interiorMap: n.interior_map_id })),
-    ...(nodeCount > 400 ? { note: `${nodeCount - 400} more nodes not shown` } : {}),
-    links, placements,
+    nodes: nodes.map((n) => ({ id: n.id, title: n.title, cat: n.category,
+      ...(n.visibility !== 'shared' ? { vis: n.visibility } : {}),
+      ...(n.visibility === 'player' && n.author ? { author: n.author } : {}),
+      body: n.body, ...(n.secret ? { secret: n.secret } : {}), interiorMap: n.interior_map_id })),
+    ...(nodeCount > nodes.length ? { note: `${nodeCount - nodes.length} older nodes not shown (the newest, and everything on the current map, are)` } : {}),
+    party,
+    links,
+    ...(linkCount > links.length ? { linksNote: `${linkCount - links.length} older links not shown` } : {}),
+    placements: placements.map((p) => ({ n: p.n, m: p.m, x: Number(p.x), y: Number(p.y), s: p.s, e: p.e, ...(p.v === 'dm' ? { v: 'dm' } : {}) })),
+    ...(placementCount > placements.length ? { placementsNote: `${placementCount - placements.length} placements not shown (the current map's are)` } : {}),
   };
 }
 
@@ -125,7 +156,7 @@ async function converse({ worldId, userId, message, context }) {
   const world = (await pool.query('SELECT timeline_min_time, timeline_max_time FROM worlds WHERE id=$1', [worldId])).rows[0];
   const tail = (await pool.query(
     'SELECT role, content FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 16', [worldId])).rows.reverse();
-  const d = await digest(worldId);
+  const d = await digest(worldId, context);
   const unit = (d && d.timeline && d.timeline.unit) || 'years';
   const system = [
     rulebook(unit),
@@ -202,18 +233,21 @@ async function converse({ worldId, userId, message, context }) {
   const sets = [];
   const vals = [];
   if (!applyError && typeof resp?.lore_append === 'string' && resp.lore_append.trim()) { // a failed recap writes no memory
-    const lore = `${mind.lore}\n${resp.lore_append.trim()}`.trim().slice(-20000);
-    sets.push(`lore=$${vals.push(lore)}`);
+    // appended in SQL to the memory as it is NOW, never from the start-of-turn copy: a
+    // "Save the mind" made while the turn ran, or another turn's recap, survives
+    sets.push(`lore = RIGHT(BTRIM(COALESCE(lore,'') || E'\\n' || $${vals.push(resp.lore_append.trim())}, E'\\n'), 20000)`);
   }
-  if (!mind.art_style && typeof resp?.art_style === 'string' && resp.art_style.trim()) {
-    sets.push(`art_style=$${vals.push(resp.art_style.trim().slice(0, 4000))}`);
+  if (typeof resp?.art_style === 'string' && resp.art_style.trim()) {
+    // only ever fills an EMPTY style, judged at write time
+    sets.push(`art_style = CASE WHEN COALESCE(art_style,'')='' THEN $${vals.push(resp.art_style.trim().slice(0, 4000))} ELSE art_style END`);
   }
   if (sets.length) {
     vals.push(worldId);
     await pool.query(`UPDATE world_minds SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE world_id=$${vals.length}`, vals);
   }
 
-  return { say, batch: applied, applyError };
+  const digestNote = [d.note, d.linksNote, d.placementsNote].filter(Boolean).join('; ') || null;
+  return { say, batch: applied, applyError, digestNote };
 }
 
 module.exports = { converse, ensureMind, digest };

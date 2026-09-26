@@ -29,6 +29,10 @@ function validateBatch(batch, world) {
     if (batch[k] == null) batch[k] = [];
     if (!Array.isArray(batch[k])) { errs.push(`${k} must be an array`); batch[k] = []; }
   }
+  // a null or bare-string entry is a validator error like any other, never a crash
+  const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
+  const objectsOnly = (list, name) => list.filter((v, i) => { if (isObj(v)) return true; errs.push(`${name}[${i}] must be an object`); return false; });
+  for (const k of ['images', 'maps', 'nodes', 'links', 'eras', 'backdrops', 'enrich', 'enrich_maps']) batch[k] = objectsOnly(batch[k], k);
   batch.summary = s(batch.summary, 300) || 'A generation';
 
   const min = world?.timeline_min_time ?? -1000000, max = world?.timeline_max_time ?? 1000000;
@@ -64,7 +68,7 @@ function validateBatch(batch, world) {
     n.pin_size = Math.max(24, Math.min(256, num(n.pin_size) ?? 64));
     if (n.image != null && !imgKeys.has(n.image)) { errs.push(`node "${n.key}" references unknown image "${n.image}"`); n.image = null; }
     if (n.pin === 'image' && n.image == null) n.pin = 'chip';
-    n.placements = Array.isArray(n.placements) ? n.placements.slice(0, CAPS.placementsPerNode) : [];
+    n.placements = Array.isArray(n.placements) ? objectsOnly(n.placements, `node "${n.key}" placements`).slice(0, CAPS.placementsPerNode) : [];
     for (const p of n.placements) {
       p.x = Math.max(0, Math.min(100, num(p.x) ?? 50));
       p.y = Math.max(0, Math.min(100, num(p.y) ?? 50));
@@ -72,7 +76,7 @@ function validateBatch(batch, world) {
       if (p.start != null && p.end != null && p.start > p.end) [p.start, p.end] = [p.end, p.start];
       openEnded(p);
     }
-    n.facts = Array.isArray(n.facts) ? n.facts.slice(0, CAPS.factsPerNode) : [];
+    n.facts = Array.isArray(n.facts) ? objectsOnly(n.facts, `node "${n.key}" facts`).slice(0, CAPS.factsPerNode) : [];
     for (const f of n.facts) {
       f.body = s(f.body, 2000);
       if (!f.body) errs.push(`a fact on "${n.key}" is empty`);
@@ -89,14 +93,14 @@ function validateBatch(batch, world) {
     en.dm_note_append = s(en.dm_note_append, 2000) || null;
     if (en.stance != null && !STANCES.includes(en.stance)) { errs.push(`an enrich of node ${en.node} has unknown stance "${en.stance}" (friend | neutral | foe)`); en.stance = null; }
     if (en.image != null && !imgKeys.has(en.image)) { errs.push(`an enrich of node ${en.node} references unknown image "${en.image}"`); en.image = null; }
-    en.facts = Array.isArray(en.facts) ? en.facts.slice(0, CAPS.factsPerNode) : [];
+    en.facts = Array.isArray(en.facts) ? objectsOnly(en.facts, `enrich of node ${en.node} facts`).slice(0, CAPS.factsPerNode) : [];
     for (const f of en.facts) {
       f.body = s(f.body, 2000);
       if (!f.body) errs.push(`a fact enriching node ${en.node} is empty`);
       f.start = clampT(f.start); f.end = clampT(f.end);
       if (f.start != null && f.end != null && f.start > f.end) [f.start, f.end] = [f.end, f.start];
     }
-    en.place = Array.isArray(en.place) ? en.place.slice(0, CAPS.placementsPerNode) : [];
+    en.place = Array.isArray(en.place) ? objectsOnly(en.place, `enrich of node ${en.node} place`).slice(0, CAPS.placementsPerNode) : [];
     for (const p of en.place) {
       p.x = Math.max(0, Math.min(100, num(p.x) ?? 50));
       p.y = Math.max(0, Math.min(100, num(p.y) ?? 50));
@@ -117,6 +121,7 @@ function validateBatch(batch, world) {
   // DM clicks Allow (ids are re-validated against the world at execution time).
   if (batch.asks == null) batch.asks = [];
   if (!Array.isArray(batch.asks)) { errs.push('asks must be an array'); batch.asks = []; }
+  batch.asks = objectsOnly(batch.asks, 'asks');
   if (batch.asks.length > CAPS.asks) errs.push(`too many asks (${batch.asks.length} > ${CAPS.asks})`);
   for (const a of batch.asks) {
     if (a.op === 'move') {
@@ -246,10 +251,10 @@ async function paintAndStore({ worldId, userId, kind, prompt, artStyle, name }) 
     `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, file_path`,
     [filename, name || filename, filePath, buffer.length, img.mimeType, worldId, userId, 'Painted by the Forge', base64ToStore, storageKey])).rows[0];
-  await pool.query(
-    `UPDATE world_minds SET style_image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE world_id=$2 AND style_image_id IS NULL`,
-    [row.id, worldId]);
-  return { id: row.id, url: row.file_path, storageKey };
+  const anchored = (await pool.query(
+    `UPDATE world_minds SET style_image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE world_id=$2 AND style_image_id IS NULL RETURNING world_id`,
+    [row.id, worldId])).rowCount > 0;
+  return { id: row.id, url: row.file_path, storageKey, anchored };
 }
 
 // ---- apply -----------------------------------------------------------------------
@@ -292,6 +297,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
       const stored = await paintAndStore({ worldId, userId, kind: im.kind, prompt: im.prompt, artStyle, name: im.name });
       images.set(im.key, stored);
       created.images.push(stored.id);
+      if (stored.anchored && created.anchorSet == null) created.anchorSet = stored.id; // unmake clears an anchor this batch set, never one the DM chose
     }
   } catch (e) {
     await cleanupImages(created.images, images);
@@ -359,7 +365,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
         await client.query(
           `UPDATE nodes SET image_id=$1, pin=CASE WHEN image_id IS NULL THEN 'image' ELSE pin END, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
           [images.get(en.image).id, en.node]);
-        created.enrichedImages.push({ node: en.node, prevImage: prev?.image_id ?? null, prevPin: prev?.pin || 'chip' });
+        created.enrichedImages.push({ node: en.node, prevImage: prev?.image_id ?? null, prevPin: prev?.pin || 'chip', wrote: images.get(en.image).id });
       }
       if (en.dm_note_append) {
         // additive: DM-only notes grow (a recap's "what changed"); unmake restores the prior text
@@ -419,7 +425,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
         // set the map's standing backdrop; remember what it replaced so unmake can restore it
         const prev = (await client.query('SELECT image_id FROM maps WHERE id=$1', [mid])).rows[0];
         await client.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [imgId, mid]);
-        created.mapBases.push({ map: mid, prev: prev?.image_id ?? null });
+        created.mapBases.push({ map: mid, prev: prev?.image_id ?? null, wrote: imgId });
       } else {
         const r = await client.query(
           `INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -432,7 +438,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
       [worldId, batch.summary, JSON.stringify(created), JSON.stringify(batch.asks || []),
        (batch.asks || []).length ? 'pending' : 'none']);
     await client.query('COMMIT');
-    const counts = Object.fromEntries(Object.entries(created).map(([k, v]) => [k, v.length]).filter(([, v]) => v > 0));
+    const counts = Object.fromEntries(Object.entries(created).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k, v]) => [k, v.length]));
     return { batchId: bres.rows[0].id, summary: batch.summary, counts, askCount: (batch.asks || []).length };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -462,10 +468,12 @@ async function allowAsks({ worldId, batchId }) {
     [batchId, worldId])).rows[0];
   if (!b) return null;
   const undo = [];
+  let skipped = 0; // targets that no longer exist — reported, never errors
   const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
     for (const a of b.asks || []) {
+      const before = undo.length;
       if (a.op === 'move') {
         const p = (await client.query(
           `SELECT p.id, p.map_id, p.x, p.y, p.shape FROM placements p JOIN maps m ON m.id=p.map_id
@@ -512,6 +520,7 @@ async function allowAsks({ worldId, batchId }) {
         undo.push({ op: 'drop_era', row: e });
         await client.query('DELETE FROM eras WHERE id=$1', [e.id]);
       }
+      if (undo.length === before) skipped++;
     }
     await client.query(`UPDATE forge_batches SET asks_state='allowed', asks_undo=$1 WHERE id=$2`,
       [JSON.stringify(undo), batchId]);
@@ -522,38 +531,76 @@ async function allowAsks({ worldId, batchId }) {
   } finally {
     client.release();
   }
-  return { granted: undo.length, requested: (b.asks || []).length };
+  return { granted: undo.length, requested: (b.asks || []).length, skipped };
 }
 
 // ---- discard ---------------------------------------------------------------------
 
-// Remove everything a pending batch created, as a unit. Deleting the nodes cascades their
-// placements/links/facts and any interior maps born with them; maps hung on pre-existing
-// nodes are deleted explicitly (nodes.interior_map_id is ON DELETE SET NULL, so the owner
-// simply reverts to having no interior). R2 objects are swept best-effort afterwards.
+// Remove what a pending batch created, as a unit — and ONLY that. Before anything is touched
+// it looks for what the DM built on top: things placed inside the batch's maps and spaces
+// hung on the batch's nodes would go with the cascade, so they BLOCK the unmake (the DM
+// moves them out first, and the card says which). Paintings the DM has since used elsewhere
+// are kept. Everything written INTO existing things is reverted only while it still holds
+// exactly what the batch wrote; a granted move goes home only if its map still exists.
+// R2 objects of the images actually deleted are swept best-effort afterwards.
 async function discardBatch({ worldId, batchId }) {
   const b = (await pool.query(
     `SELECT id, created, asks_state, asks_undo FROM forge_batches WHERE id=$1 AND world_id=$2 AND status='pending'`,
     [batchId, worldId])).rows[0];
   if (!b) return null;
   const c = b.created || {};
-  const keys = (await pool.query('SELECT storage_key FROM images WHERE id = ANY($1) AND storage_key IS NOT NULL', [c.images || []])).rows;
+  const ids = (k) => (Array.isArray(c[k]) ? c[k] : []);
+
+  // the maps the cascade would take: the batch's own, plus any the DM hung on batch nodes
+  const doomed = (await pool.query(
+    `SELECT id, title, (id = ANY($1::int[])) AS own FROM maps
+     WHERE world_id=$2 AND (id = ANY($1::int[]) OR owner_node_id = ANY($3::int[]))`,
+    [ids('maps'), worldId, ids('nodes')])).rows;
+  const blocked = { maps: doomed.filter((m) => !m.own).map((m) => m.title), placements: [] };
+  if (doomed.length) {
+    blocked.placements = (await pool.query(
+      `SELECT n.title, m.title AS map FROM placements p JOIN nodes n ON n.id=p.node_id JOIN maps m ON m.id=p.map_id
+       WHERE p.map_id = ANY($1::int[]) AND NOT (p.id = ANY($2::int[])) AND NOT (p.node_id = ANY($3::int[]))
+       ORDER BY p.id LIMIT 50`, [doomed.map((m) => m.id), ids('placements'), ids('nodes')])).rows;
+  }
+  if (blocked.maps.length || blocked.placements.length) return { blocked };
+
+  // paintings the DM has used outside the batch stay (the batch's own uses are reverted below);
+  // the style anchor counts as a use unless this very batch set it
+  const keep = new Set();
+  if (ids('images').length) {
+    const ownNodes = ids('nodes').concat((c.enrichedImages || []).map((e) => e.node));
+    const ownMaps = ids('maps').concat((c.mapBases || []).map((m) => m.map));
+    const used = (await pool.query(
+      `SELECT image_id FROM nodes WHERE image_id = ANY($1::int[]) AND NOT (id = ANY($2::int[]))
+       UNION SELECT image_id FROM maps WHERE image_id = ANY($1::int[]) AND NOT (id = ANY($3::int[]))
+       UNION SELECT image_id FROM map_backdrops WHERE image_id = ANY($1::int[]) AND NOT (id = ANY($4::int[]))
+       UNION SELECT style_image_id FROM world_minds WHERE world_id=$5 AND style_image_id = ANY($1::int[]) AND style_image_id IS DISTINCT FROM $6`,
+      [ids('images'), ownNodes, ownMaps, ids('backdrops'), worldId, c.anchorSet ?? null])).rows;
+    for (const r of used) keep.add(r.image_id);
+  }
+  const dropImages = ids('images').filter((id) => !keep.has(id));
+  const keys = (await pool.query('SELECT storage_key FROM images WHERE id = ANY($1::int[]) AND storage_key IS NOT NULL', [dropImages])).rows;
+  const skipped = [];
   const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
-    for (const [table, ids] of [
-      ['placements', c.placements], ['links', c.links], ['node_facts', c.facts], ['map_backdrops', c.backdrops],
-      ['nodes', c.nodes], ['maps', c.maps], ['eras', c.eras], ['images', c.images],
-    ]) {
-      if (ids && ids.length) await client.query(`DELETE FROM ${table} WHERE id = ANY($1)`, [ids]);
-    }
-    // standing backdrops the batch set go back to what they replaced (NULL if that image is gone)
-    for (const mb of (c.mapBases || []))
-      await client.query('UPDATE maps SET image_id=(SELECT id FROM images WHERE id=$1) WHERE id=$2', [mb.prev, mb.map]);
-    // Everything the batch wrote INTO existing things is reverted only while the field still
+    // What the batch wrote INTO existing things goes back first — while the field still
     // holds exactly what the batch wrote: a line the DM edited since is theirs and stays.
     // (Batches from before this rule carry plain ids and no `wrote`; those revert as before.)
     const appended = (prev, wrote) => (prev == null || prev === '' ? wrote : `${prev}\n${wrote}`);
+    for (const mb of (c.mapBases || [])) {
+      if (mb.wrote == null) await client.query('UPDATE maps SET image_id=(SELECT id FROM images WHERE id=$1) WHERE id=$2', [mb.prev, mb.map]);
+      else await client.query('UPDATE maps SET image_id=(SELECT id FROM images WHERE id=$1) WHERE id=$2 AND image_id IS NOT DISTINCT FROM $3', [mb.prev, mb.map, mb.wrote]);
+    }
+    for (const ei of (c.enrichedImages || [])) {
+      if (ei.wrote == null) await client.query(
+        `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3`,
+        [ei.prevImage, ei.prevPin, ei.node]);
+      else await client.query(
+        `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND image_id IS NOT DISTINCT FROM $4`,
+        [ei.prevImage, ei.prevPin, ei.node, ei.wrote]);
+    }
     for (const eb of (c.enrichedBodies || [])) {
       const id = typeof eb === 'number' ? eb : eb.node, wrote = typeof eb === 'number' ? null : eb.wrote;
       if (wrote == null) await client.query(`UPDATE nodes SET body=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, [id]);
@@ -564,10 +611,6 @@ async function discardBatch({ worldId, batchId }) {
       if (wrote == null) await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, [id]);
       else await client.query(`UPDATE nodes SET dm_note=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND dm_note=$2`, [id, wrote]);
     }
-    for (const ei of (c.enrichedImages || []))
-      await client.query(
-        `UPDATE nodes SET image_id=(SELECT id FROM images WHERE id=$1), pin=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3`,
-        [ei.prevImage, ei.prevPin, ei.node]);
     for (const na of (c.noteAppends || [])) {
       if (na.wrote == null) await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [na.prev, na.node]);
       else await client.query('UPDATE nodes SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND dm_note=$3', [na.prev, na.node, appended(na.prev, na.wrote)]);
@@ -580,12 +623,18 @@ async function discardBatch({ worldId, batchId }) {
       if (ma.wrote == null) await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [ma.prev, ma.map]);
       else await client.query('UPDATE maps SET dm_note=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND dm_note=$3', [ma.prev, ma.map, appended(ma.prev, ma.wrote)]);
     }
-    // granted asks revert too: moves go home, rewrites restore, dropped eras rise again
+    // granted asks revert too: moves go home (if home still exists), rewrites restore, dropped eras rise again
     if (b.asks_state === 'allowed') {
       for (const u of (b.asks_undo || [])) {
         if (u.op === 'move') {
-          if (u.shape === undefined) await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4', [u.map_id, u.x, u.y, u.placement]);
-          else await client.query('UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5', [u.map_id, u.x, u.y, u.shape ? JSON.stringify(u.shape) : null, u.placement]);
+          const r = u.shape === undefined
+            ? await client.query(
+              'UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4 AND EXISTS (SELECT 1 FROM maps WHERE id=$1 AND is_active=true)',
+              [u.map_id, u.x, u.y, u.placement])
+            : await client.query(
+              'UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5 AND EXISTS (SELECT 1 FROM maps WHERE id=$1 AND is_active=true)',
+              [u.map_id, u.x, u.y, u.shape ? JSON.stringify(u.shape) : null, u.placement]);
+          if (!r.rowCount) skipped.push('a moved pin stays where it is — the map it came from is gone');
         } else if (u.op === 'edit') {
           if (!u.wrote) {
             await client.query(
@@ -611,6 +660,14 @@ async function discardBatch({ worldId, batchId }) {
       }
       await client.query(`SELECT setval(pg_get_serial_sequence('eras','id'), GREATEST((SELECT COALESCE(MAX(id),1) FROM eras), 1))`);
     }
+    // then what the batch made goes, as a unit (nodes cascade their own placements, links,
+    // facts and interiors; a kept painting is left in the gallery)
+    for (const [table, list] of [
+      ['placements', ids('placements')], ['links', ids('links')], ['node_facts', ids('facts')], ['map_backdrops', ids('backdrops')],
+      ['nodes', ids('nodes')], ['maps', ids('maps')], ['eras', ids('eras')], ['images', dropImages],
+    ]) {
+      if (list.length) await client.query(`DELETE FROM ${table} WHERE id = ANY($1::int[])`, [list]);
+    }
     await client.query(`UPDATE forge_batches SET status='discarded' WHERE id=$1`, [batchId]);
     await client.query(`UPDATE mind_messages SET content = content || E'\n↩ Unmade — none of this stands.' WHERE batch_id=$1 AND world_id=$2`, [batchId, worldId]);
     await client.query('COMMIT');
@@ -621,7 +678,7 @@ async function discardBatch({ worldId, batchId }) {
     client.release();
   }
   for (const { storage_key } of keys) { try { await deleteObject(storage_key); } catch (e) { /* best-effort */ } }
-  return true;
+  return { ok: true, keptImages: keep.size, skipped };
 }
 
 module.exports = { validateBatch, applyBatch, discardBatch, allowAsks, paintAndStore, CAPS, CATS };

@@ -55,7 +55,11 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     return new Map(r.rows.map((x) => [x.id, x.t]));
   };
   const nT = await nameOf('nodes', nids, 'title'), eT = await nameOf('eras', eids, 'name'), mT = await nameOf('maps', mids, 'title');
-  const askLine = (a) => {
+  // an ask whose target has since been deleted (or was never this world's) cannot be done
+  const gone = (a) => (a.node != null && !nT.has(a.node)) || (a.era != null && !eT.has(a.era))
+    || (a.map != null && !mT.has(a.map)) || (a.to_map != null && !mT.has(a.to_map));
+  const askLine = (a) => { const line = askWords(a); return gone(a) ? `✕ ${line} — no longer possible, it is gone` : line; };
+  const askWords = (a) => {
     const nn = nT.get(a.node) || `#${a.node}`;
     if (a.op === 'move') return a.to_map != null
       ? `Move “${nn}” onto “${mT.get(a.to_map) || `#${a.to_map}`}”`
@@ -76,9 +80,10 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   };
   const batches = rows.map((b) => ({
     id: b.id, summary: b.summary,
-    counts: Object.fromEntries(Object.entries(b.created || {}).map(([k, v]) => [k, v.length]).filter(([, v]) => v > 0)),
+    counts: Object.fromEntries(Object.entries(b.created || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k, v]) => [k, v.length])),
     asksState: b.asks_state,
     asksText: b.asks_state === 'pending' ? (b.asks || []).map(askLine) : [],
+    asksLive: b.asks_state === 'pending' ? (b.asks || []).filter((a) => !gone(a)).length : 0,
   }));
   let styleImage = null;
   if (mind.style_image_id) {
@@ -134,37 +139,47 @@ router.patch('/worlds/:worldId/mind', wrap(async (req, res) => {
 }));
 
 // POST /worlds/:worldId/chat — one turn with the mind. May create (staged, DM-only).
+// One turn per world at a time: two turns would write memory over each other.
+const inFlight = new Set();
 router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ message: 'Say something to the mind' });
   if (message.length > 12000) return res.status(400).json({ message: 'Messages are limited to 12,000 characters — split it in two' });
+  if (inFlight.has(worldId)) return res.status(409).json({ message: 'The mind is still working on your last message — wait for its reply' });
   // where the DM is standing — verified against this world, never trusted from the client
+  // (ids only: the mind reads the full rows itself)
   const context = {};
   const mapId = Number(req.body?.context?.mapId);
   if (Number.isInteger(mapId)) {
-    const m = (await pool.query('SELECT id, title FROM maps WHERE id=$1 AND world_id=$2', [mapId, worldId])).rows[0];
-    if (m) { context.mapId = m.id; context.mapTitle = m.title; }
+    const m = (await pool.query('SELECT id FROM maps WHERE id=$1 AND world_id=$2', [mapId, worldId])).rows[0];
+    if (m) context.mapId = m.id;
   }
   const nodeId = Number(req.body?.context?.nodeId);
   if (Number.isInteger(nodeId)) {
-    const n = (await pool.query('SELECT id, title FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, worldId])).rows[0];
-    if (n) { context.nodeId = n.id; context.nodeTitle = n.title; }
+    const n = (await pool.query('SELECT id FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, worldId])).rows[0];
+    if (n) context.nodeId = n.id;
   }
-  const out = await converse({ worldId: Number(worldId), userId: req.user.id, message, context });
-  res.json(out);
+  inFlight.add(worldId);
+  try {
+    const out = await converse({ worldId: Number(worldId), userId: req.user.id, message, context });
+    res.json(out);
+  } finally {
+    inFlight.delete(worldId);
+  }
 }));
 
 // Batches: keep (it stays, card goes away) or discard (everything it made is removed).
 router.post('/worlds/:worldId/batches/:id/keep', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   // keeping a batch lapses any still-pending asks — permission is never granted by inaction
-  await pool.query(
+  const r = await pool.query(
     `UPDATE forge_batches SET status='kept',
        asks_state = CASE WHEN asks_state='pending' THEN 'refused' ELSE asks_state END
-     WHERE id=$1 AND world_id=$2 AND status='pending'`,
+     WHERE id=$1 AND world_id=$2 AND status='pending' RETURNING id`,
     [req.params.id, req.params.worldId]);
+  if (!r.rowCount) return res.status(404).json({ message: 'No such pending batch' });
   res.json({ ok: true });
 }));
 
@@ -178,16 +193,19 @@ router.post('/worlds/:worldId/batches/:id/allow', wrap(async (req, res) => {
 }));
 router.post('/worlds/:worldId/batches/:id/refuse', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  await pool.query(
-    `UPDATE forge_batches SET asks_state='refused' WHERE id=$1 AND world_id=$2 AND asks_state='pending'`,
+  const r = await pool.query(
+    `UPDATE forge_batches SET asks_state='refused' WHERE id=$1 AND world_id=$2 AND asks_state='pending' RETURNING id`,
     [req.params.id, req.params.worldId]);
+  if (!r.rowCount) return res.status(404).json({ message: 'No pending asks on that batch' });
   res.json({ ok: true });
 }));
 router.post('/worlds/:worldId/batches/:id/discard', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const done = await discardBatch({ worldId: Number(req.params.worldId), batchId: Number(req.params.id) });
-  if (!done) return res.status(404).json({ message: 'No such pending batch' });
-  res.json({ ok: true });
+  const out = await discardBatch({ worldId: Number(req.params.worldId), batchId: Number(req.params.id) });
+  if (!out) return res.status(404).json({ message: 'No such pending batch' });
+  // the DM built on this creation: nothing was touched — the card says what stands in the way
+  if (out.blocked) return res.status(409).json({ message: 'Unmake would take things you built on this creation — move them out first', blocked: out.blocked });
+  res.json(out);
 }));
 
 // POST /nodes/:id/art — paint this node's portrait/token in the world's style and attach it.
@@ -214,9 +232,11 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   const mind = await ensureMind(m.world_id);
   const guidance = typeof req.body?.guidance === 'string' ? req.body.guidance.slice(0, 500) : '';
   // the painting is seen by players whenever the map is — hidden things must not steer it
+  // (the Party's footsteps are not terrain, and a node placed twice is one feature)
   const feats = (await pool.query(
     `SELECT n.title FROM placements p JOIN nodes n ON n.id=p.node_id
-     WHERE p.map_id=$1 AND p.visibility != 'dm' AND n.visibility != 'dm' ORDER BY p.id LIMIT 12`, [m.id])).rows;
+     WHERE p.map_id=$1 AND p.visibility != 'dm' AND n.visibility != 'dm' AND n.category <> 'party'
+     GROUP BY n.id, n.title ORDER BY MIN(p.id) LIMIT 12`, [m.id])).rows;
   const prompt = [
     `the terrain of "${m.title}"`,
     feats.length ? `with ground for these features (do not label them): ${feats.map((f) => f.title).join(', ')}` : '',
