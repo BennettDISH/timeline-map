@@ -10,23 +10,23 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B005** · high · m · No way to record a new party footstep on a map the party has already visited
-- [ ] **B022** · medium · xs · The Party's '◂ From …' / 'Then on to … ▸' links lose the Party: a same-map link dead-ends in 'Nothing is known of this'
-- [ ] **B039** · medium · s · Lantern on the Party (or any node with an out-of-time first placement) shows players nothing, while the DM is told 'Players now see the golden trail'
-- [ ] **B057** · medium · s · Session numbers (S3·7 tag, tick/print titles, session colours) count every era, so DM-only and overlapping eras make them wrong
-- [ ] **C013** · medium · s · A shared node's DM-only placement is drawn as public in the DM workspace, and nothing can change it
-- [ ] **C020** · medium · s · The clock appears as raw numbers in most places while the timebar and players read 'Session 4 · footstep 1'
-- [ ] **C022** · medium · s · '＋ Next session' is the primary button in every world but assumes footsteps and counts the wrong eras
-- [ ] **B073** · low · xs · With the clock off, every Party footstep is drawn as a live pin plus the ghost trail, and the Footprints toggle disappears
-- [ ] **B077** · low · s · Era bar: arrow keys cannot cross a gap between revealed eras
-- [ ] **B084** · low · xs · A CSS override lifts the timebar slider above the era bands and over the bar's top border
-- [ ] **C033** · low · xs · Ghost reader prints an inverted range: 'Its story runs 10 – 8 footsteps'
-- [ ] **C062** · low · xs · Typed-moment box says 'year', expects raw clock numbers, and an empty entry jumps to the earliest moment
-- [ ] **C077** · low · s · Inside a map with a focus period, the player's era bar can't reach 'now' and players have no ⤢
-- [ ] **C087** · low · xs · Hiding 'The party' in the legend hides its pin but leaves its footprints and trail on the map
-- [ ] **C089** · low · xs · The Party's own inspector offers ‘How they stand toward the party’ (Friend/Neutral/Foe) and a voice for the party itself
-- [ ] **C092** · low · xs · Clock wording hard-codes 'footstep' and 'year' whatever the world's unit is
-- [ ] **P096** · low · s · Overlapping eras print their names on top of each other on the DM timebar (visible in every clone of the sample world)
+- [ ] **B005** · high · m · No way to record a new party footstep on a map the party has already visited — done 7785196 (right-click "👣 The party moves here", the Party inspector's "Next footstep here", and placing the Party all record a footstep: the live one ends at the lens, the new one starts at the click, the clock grows, the lens and selection follow)
+- [ ] **B022** · medium · xs · The Party's '◂ From …' / 'Then on to … ▸' links lose the Party: a same-map link dead-ends in 'Nothing is known of this' — done 7785196 (goToMoment carries the footstep's placement id; the reader stays on the Party)
+- [ ] **B039** · medium · s · Lantern on the Party (or any node with an out-of-time first placement) shows players nothing, while the DM is told 'Players now see the golden trail' — done 7785196 (the lantern picks a step alive at canon; POST spotlight returns the resolved trail and the toast says what players see)
+- [ ] **B057** · medium · s · Session numbers (S3·7 tag, tick/print titles, session colours) count every era, so DM-only and overlapping eras make them wrong — done 7785196 (sessionNum reads "Session N" from the era name; tags, ticks, colours and labels number from it; a session era wins over lore eras, else the narrowest)
+- [ ] **C013** · medium · s · A shared node's DM-only placement is drawn as public in the DM workspace, and nothing can change it — done 7785196 (secret = placement OR node DM-only for pins, regions and 🔒; the inspector's "Hidden on this map" toggle PATCHes placement visibility)
+- [ ] **C020** · medium · s · The clock appears as raw numbers in most places while the timebar and players read 'Session 4 · footstep 1' — done 7785196 — partial: canon flash, share popover, Player chip, canon mark, ↩, reader lines, period buttons, timebar ends (tooltips) and the lifespan hint read through momentLabel; the Dashboard badge still shows the raw number (its payload carries no eras)
+- [ ] **C022** · medium · s · '＋ Next session' is the primary button in every world but assumes footsteps and counts the wrong eras — done 7785196 (shown only in footstep worlds or where a Session era exists; secondary; follows the last SESSION; numbered past the highest; unit in the toast)
+- [ ] **B073** · low · xs · With the clock off, every Party footstep is drawn as a live pin plus the ghost trail, and the Footprints toggle disappears — done 7785196 (no prints without a clock; one party pin, the latest footstep)
+- [ ] **B077** · low · s · Era bar: arrow keys cannot cross a gap between revealed eras — done 7785196 (a one-step move that leaves a stretch crosses the gap in the direction pressed)
+- [ ] **B084** · low · xs · A CSS override lifts the timebar slider above the era bands and over the bar's top border — done 7785196
+- [ ] **C033** · low · xs · Ghost reader prints an inverted range: 'Its story runs 10 – 8 footsteps' — done 7785196 (spanLabel: "until …", "from …")
+- [ ] **C062** · low · xs · Typed-moment box says 'year', expects raw clock numbers, and an empty entry jumps to the earliest moment — done 7785196 (the title speaks the unit; an empty entry already cancelled)
+- [ ] **C077** · low · s · Inside a map with a focus period, the player's era bar can't reach 'now' and players have no ⤢ — done 7785196 (players get the whole revealed past on the bar — no focus window)
+- [ ] **C087** · low · xs · Hiding 'The party' in the legend hides its pin but leaves its footprints and trail on the map — done 7785196
+- [ ] **C089** · low · xs · The Party's own inspector offers ‘How they stand toward the party’ (Friend/Neutral/Foe) and a voice for the party itself — done 7785196 (stance, voice and lantern hidden for the Party; interior buttons replaced by the footstep)
+- [ ] **C092** · low · xs · Clock wording hard-codes 'footstep' and 'year' whatever the world's unit is — done 7785196 (unit-driven wording; yearEdit → momentEdit)
+- [ ] **P096** · low · s · Overlapping eras print their names on top of each other on the DM timebar (visible in every clone of the sample world) — done 7785196 (where eras overlap only the narrowest prints its name, the wider keeps band + tooltip; DM-only labels at full opacity)
 
 ## Items
 
