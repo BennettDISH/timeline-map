@@ -10,21 +10,21 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B009** · high · s · Scrubbing the past inside a later-built place turns the Player View into a permanent 'This link isn't active' screen
-- [ ] **B017** · medium · s · Share link bounces a player to the DM login page when the browser holds a stale auth token
-- [ ] **C002** · medium · s · A deep link to a hidden or missing map says the share link is dead and offers no way back to the map
-- [ ] **C019** · medium · s · Threads show incoming links like outgoing ones, so a backlink's label reads backwards
-- [ ] **P004** · medium · s · If the first load fails (network or 500), the page shows 'Opening the world…' indefinitely
-- [ ] **P017** · medium · xs · Player marker failures are silent, and Enter doesn't submit the marker form
-- [ ] **C030** · low · xs · The 404 page shows 'Account ▾ › Sign out' to signed-out visitors and sends players with a mangled share link to 'your worlds'
-- [ ] **C061** · low · xs · Category list defined three times; the Player View marker form offers '⚑ The party', which the server silently saves as a Note
-- [ ] **C075** · low · xs · The lantern hop for the current map looks like a link but does nothing when tapped
-- [ ] **C082** · low · s · ⌖ 'Go there' on a thread to something that exists only in the revealed past always fails with 'try again'
-- [ ] **P034** · low · s · Player View has no legend or help, so first-time players can't decode the map symbols
-- [ ] **P071** · low · xs · Marker form: while marking, a tap on a pin opens its sheet; the Return key doesn't submit
-- [ ] **P072** · low · s · Offline navigation moves the URL but leaves the previous map on screen
-- [ ] **P074** · low · xs · Dragging the map closes the open sheet
-- [ ] **P076** · low · xs · An open player sheet never refreshes on the 45 s poll, so a reveal doesn't show while it's open
+- [ ] **B009** · high · s · Scrubbing the past inside a later-built place turns the Player View into a permanent 'This link isn't active' screen — done c1f9016 (the map is fetched at canon with window=1; a map 404 is "This place isn't on your map", never the dead link; nothing sticks)
+- [ ] **B017** · medium · s · Share link bounces a player to the DM login page when the browser holds a stale auth token — done c1f9016 (/p/ pages skip /auth/me and http.js never redirects off them)
+- [ ] **C002** · medium · s · A deep link to a hidden or missing map says the share link is dead and offers no way back to the map — done c1f9016 (lost-place screen with ⬆ Back to the map; the tab is titled after the world)
+- [ ] **C019** · medium · s · Threads show incoming links like outgoing ones, so a backlink's label reads backwards — done c1f9016 (Threads vs Mentioned by, with ←)
+- [ ] **P004** · medium · s · If the first load fails (network or 500), the page shows 'Opening the world…' indefinitely — done c1f9016 (a failed first load shows Couldn't reach the map + Try again)
+- [ ] **P017** · medium · xs · Player marker failures are silent, and Enter doesn't submit the marker form — done c1f9016 (a <form>: Return places it; failures name the reason, 429 in plain words; success flashes)
+- [ ] **C030** · low · xs · The 404 page shows 'Account ▾ › Sign out' to signed-out visitors and sends players with a mangled share link to 'your worlds' — done c1f9016 (no account menu when signed out — a Sign in link; /p/* and /p answer in player terms)
+- [ ] **C061** · low · xs · Category list defined three times; the Player View marker form offers '⚑ The party', which the server silently saves as a Note — done c1f9016 (server/lib/vocab.js is the one list; MARKABLE mirrors it in the marker form)
+- [ ] **C075** · low · xs · The lantern hop for the current map looks like a link but does nothing when tapped — done c1f9016 (the current-map hop opens the sheet)
+- [ ] **C082** · low · s · ⌖ 'Go there' on a thread to something that exists only in the revealed past always fails with 'try again' — done c1f9016 (/locate answers {mapId, t} with the latest revealed moment; the era bar moves there; a real miss says "Not on any map at this moment")
+- [ ] **P034** · low · s · Player View has no legend or help, so first-time players can't decode the map symbols — done c1f9016 (a ? legend in the stage)
+- [ ] **P071** · low · xs · Marker form: while marking, a tap on a pin opens its sheet; the Return key doesn't submit — done c1f9016 (pins ignore taps while marking; Return submits)
+- [ ] **P072** · low · s · Offline navigation moves the URL but leaves the previous map on screen — done c1f9016 (a failed navigation shows Couldn't open that place with Back / Try again, never the old map)
+- [ ] **P074** · low · xs · Dragging the map closes the open sheet — done c1f9016 (the sheet closes on a clean empty tap, never on a drag)
+- [ ] **P076** · low · xs · An open player sheet never refreshes on the 45 s poll, so a reveal doesn't show while it's open — done c1f9016 (the open sheet refetches on every poll, guarded by the sheet request counter; hidden again → closes)
 
 ## Items
 

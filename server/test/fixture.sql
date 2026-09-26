@@ -36,3 +36,5 @@
 -- placed FIRST inside 'Hidden Interior' (the DM-only branch) and THEN on the root. Players must
 -- reach its interior through the root placement (◎ offered, 200, breadcrumb root → interior).
 -- Every root roster in the tests now includes it.
+-- NOTE when seeding by hand: a data-modifying CTE cannot UPDATE a row another CTE of the same
+-- statement inserted (same snapshot) — set nodes.interior_map_id in a second statement.

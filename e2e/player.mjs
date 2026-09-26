@@ -13,7 +13,8 @@ const step = (name, ok, note = '') => { out.steps.push({ name, ok, note }); cons
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on('pageerror', (e) => out.errors.push(`pageerror: ${e.message}`));
-page.on('console', (m) => { if (m.type() === 'error') out.errors.push(`console: ${m.text().slice(0, 200)}`); });
+// a 404 the page asked for on purpose (a hidden map, an unknown token) is not a page error
+page.on('console', (m) => { if (m.type() === 'error' && !/status of 404/.test(m.text())) out.errors.push(`console: ${m.text().slice(0, 200)}`); });
 try {
   await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
   await page.waitForSelector('.pview .pin', { timeout: 30000 });
@@ -95,6 +96,39 @@ try {
     step('era bar scrubs into the past', /past/.test(chip), chip);
   } else step('era bar present', false);
   // nothing on the page threw while all of the above ran
+  // the map's legend is a tap away
+  const helpBtn = page.locator('.pview .helpwrap button').first();
+  if (await helpBtn.count()) {
+    await helpBtn.click(); await page.waitForTimeout(300);
+    step('the ? legend opens for players', (await page.locator('.pview .helppop').count()) === 1);
+  } else step('the ? legend button exists', false, 'no .helpwrap button');
+  // the sheet survives a drag (it closes on a clean tap on empty map, never on a pan)
+  const anyPin = page.locator('.pview .pin').first();
+  if (await anyPin.count()) {
+    await anyPin.click({ force: true }); await page.locator('.pview .sheet').first().waitFor({ timeout: 8000 }).catch(() => {});
+    const before = await page.locator('.pview .sheet').count();
+    const vp = await page.locator('.pview .mp-viewport').boundingBox();
+    if (vp && before === 1) {
+      await page.mouse.move(vp.x + vp.width * 0.5, vp.y + vp.height * 0.9);
+      await page.mouse.down(); await page.mouse.move(vp.x + vp.width * 0.5 + 120, vp.y + vp.height * 0.9 - 40, { steps: 8 }); await page.mouse.up();
+      await page.waitForTimeout(300);
+      step('dragging the map keeps the open sheet', (await page.locator('.pview .sheet').count()) === 1);
+    } else step('a sheet opened before the drag check', false, `sheets: ${before}`);
+  }
+  // a hidden or missing place under a WORKING link is not a dead link; an unknown token is
+  const FIX = 'fx89ef1c8ec74cadc99ae56b256c46b337'; // the public secrecy fixture: map 61 is a DM-only interior
+  const heading = async (url) => {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.locator('.pview .deadlink h3').first().waitFor({ timeout: 20000 }).catch(() => {});
+    return (await page.locator('.pview .deadlink h3').first().textContent().catch(() => '')).trim();
+  };
+  const h1 = await heading(`${BASE}/p/${FIX}/m/61`);
+  step('a hidden map under a working link says the PLACE is missing, not the link', /isn't on your map/.test(h1), h1);
+  step('…and offers a way back to the map', (await page.locator('.pview .deadlink button').count()) === 1);
+  const h2 = await heading(`${BASE}/p/not-a-real-token-000`);
+  step('an unknown token is the dead-link page', /isn't active/.test(h2), h2);
+  const h3 = await heading(`${BASE}/p/`);
+  step('a mangled /p/ URL is answered in player terms', /isn't active/.test(h3), h3);
   step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message); }
 await browser.close();

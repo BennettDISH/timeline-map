@@ -10,14 +10,14 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B100** · medium · s · Player View applies share responses without checking they are still current: a poll or wake-up refresh landing after a tap puts the old map under the new URL, and a double-click enter reopens the owner's sheet over the interior
-- [ ] **B101** · medium · xs · A player's remembered past moment is never re-checked: hiding the revealed eras strands them in a stale 'the past' view with no era bar and no ⦿ Now, and pulling canon back leaves a 'the past' chip that contradicts the bar
-- [ ] **B102** · medium · s · A player can see a pin that offers 'go inside', but its interior and 'Go there' return 404 when the owner's lowest-id placement is in a hidden branch
-- [ ] **B103** · medium · s · Player View can show a different timed backdrop than the DM, the Player preview and CLAUDE.md's 'latest start wins' rule, because the windowed payload sets every start before the first revealed era to null
-- [ ] **B104** · medium · xs · Player View ambience keeps looping after the DM removes it, and goes silent after a regenerate while the button still reads 'Playing'
-- [ ] **B105** · low · xs · World clone renumbers rows in scan order, not id order, so an interior's 'home' placement changes in the copy (tree parent, breadcrumb, player reachability), and every row gets one timestamp
-- [ ] **B106** · low · xs · Player View: a double-click closes the marker form, because 'Cancel' slides under 'Place it' when it shrinks to 'Placing…'; a double-click on the map also opens and shuts the form
-- [ ] **C094** · low · xs · Switching a map that has ambience to ☰ List hides the DM's ambience controls, yet players keep the 🔈 toggle and the View reader still plays it
+- [ ] **B100** · medium · s · Player View applies share responses without checking they are still current: a poll or wake-up refresh landing after a tap puts the old map under the new URL, and a double-click enter reopens the owner's sheet over the interior — done c1f9016 (load and sheet request counters; a reply for another map is never painted; entering the URL already open refetches)
+- [ ] **B101** · medium · xs · A player's remembered past moment is never re-checked: hiding the revealed eras strands them in a stale 'the past' view with no era bar and no ⦿ Now, and pulling canon back leaves a 'the past' chip that contradicts the bar — done c1f9016 (a past moment the refreshed world no longer allows drops to now with a word; the era bar keeps ⦿ Now even with no open stretch)
+- [ ] **B102** · medium · s · A player can see a pin that offers 'go inside', but its interior and 'Go there' return 404 when the owner's lowest-id placement is in a hidden branch — done c1f9016 (walkUp tries every visible present placement; hasInterior only when enterable; locate tries each placement; fixture "Twice Placed" + API test)
+- [ ] **B103** · medium · s · Player View can show a different timed backdrop than the DM, the Player preview and CLAUDE.md's 'latest start wins' rule, because the windowed payload sets every start before the first revealed era to null — done c1f9016 (windowed backdrops carry rank from the unclamped order; the Player View sorts by it)
+- [ ] **B104** · medium · xs · Player View ambience keeps looping after the DM removes it, and goes silent after a regenerate while the button still reads 'Playing' — done c1f9016 (the reset keys on the URL and the <audio> is mounted only while there is one)
+- [ ] **B105** · low · xs · World clone renumbers rows in scan order, not id order, so an interior's 'home' placement changes in the copy (tree parent, breadcrumb, player reachability), and every row gets one timestamp — done c1f9016 — partial: every clone SELECT is ORDER BY id; images carry created_at (node/map/fact timestamps still default to now)
+- [ ] **B106** · low · xs · Player View: a double-click closes the marker form, because 'Cancel' slides under 'Place it' when it shrinks to 'Placing…'; a double-click on the map also opens and shuts the form — done c1f9016 (fixed-width Place button; the backdrop closes only for a press that began on it, 400 ms after opening)
+- [ ] **C094** · low · xs · Switching a map that has ambience to ☰ List hides the DM's ambience controls, yet players keep the 🔈 toggle and the View reader still plays it — done c1f9016 (lists may carry ambience: the DM sees the box there too)
 
 ## Items
 
