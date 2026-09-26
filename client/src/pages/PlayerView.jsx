@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
-import MapPlane from '../components/MapPlane'
+import MapPlane, { embedded } from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
@@ -33,7 +33,10 @@ export function DeadLink() {
 // flaky network keeps the last good view of the SAME map and says so.
 function PlayerView() {
   const { token, mapId } = useParams()
-  const navigate = useNavigate()
+  const navigateRaw = useNavigate()
+  // inside Spellforge's frame every map move REPLACES the entry: the host's Back button
+  // stays the host's, and a removed frame leaves no dead entries behind
+  const navigate = (to, opts) => navigateRaw(to, { ...(opts || {}), replace: embedded || !!opts?.replace })
 
   const [world, setWorld] = useState(null)
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
@@ -84,6 +87,9 @@ function PlayerView() {
   // did not exist yet.
   const load = useCallback(() => {
     const seq = ++loadSeq.current
+    // when the URL already names the map, both requests go out at once — a tap into a
+    // building never waits a whole round trip for /world first
+    const early = mapId ? shareService.getMap(token, mapId, null, true).catch((e) => ({ failed: e })) : null
     return shareService.getWorld(token)
       .then((w) => {
         if (seq !== loadSeq.current) return
@@ -97,7 +103,7 @@ function PlayerView() {
           if (!ok) { setViewT(null); say("Back to now — that stretch of the past isn't open any more", 'info') }
         }
         const target = mapId || w.rootMapId
-        return shareService.getMap(token, target, null, true)
+        return (early ? early.then((d) => { if (d?.failed) throw d.failed; return d }) : shareService.getMap(token, target, null, true))
           .then((d) => {
             if (seq !== loadSeq.current) return
             if (String(d?.map?.id) !== String(target)) return // never another map under this URL

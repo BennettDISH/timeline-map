@@ -1,16 +1,19 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './utils/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import AdminPanel from './pages/AdminPanel'
-import AuthCallback from './pages/AuthCallback'
-import ImageManager from './pages/ImageManager'
-import AtlasWorkspace from './pages/AtlasWorkspace'
 import PlayerView, { DeadLink } from './pages/PlayerView'
 import NotFound from './pages/NotFound'
 import worldService from './services/worldService'
+
+// The Player View and the 404 load with the entry bundle; the DM's pages arrive only when a
+// DM opens them — a player's phone never downloads the Forge, the Dashboard or the editor.
+const Login = lazy(() => import('./pages/Login'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const AdminPanel = lazy(() => import('./pages/AdminPanel'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const ImageManager = lazy(() => import('./pages/ImageManager'))
+const AtlasWorkspace = lazy(() => import('./pages/AtlasWorkspace'))
 
 // Protected Route component — a bounce to /login REPLACES the entry (Back never traps you on
 // the login page) and carries where you were going, so sign-in returns you there
@@ -60,6 +63,7 @@ const Home = () => {
 function AppRoutes() {
   return (
     <div className="app">
+      <Suspense fallback={<div className="loading">Loading...</div>}>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
@@ -110,6 +114,7 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </div>
   )
 }

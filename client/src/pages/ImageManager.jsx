@@ -37,6 +37,8 @@ function ImageManager() {
   const [q, setQ] = useState('') // debounced search
 
   const [box, setBox] = useState(-1) // lightbox index into images
+  const [pendingWorld, setPendingWorld] = useState(null) // a world browsed to with the arrow keys, not yet chosen
+  const viaKeys = useRef(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState(() => new Set())
   const [moveMenu, setMoveMenu] = useState(false) // bulk "move to" dropdown
@@ -193,7 +195,10 @@ function ImageManager() {
     refresh()
   }
 
-  const deleteImages = async (ids) => {
+  const busyRef = useRef(false) // one request per intent, whatever the keyboard repeats
+  const [busyAct, setBusyAct] = useState(false)
+  const guarded = async (fn) => { if (busyRef.current) return; busyRef.current = true; setBusyAct(true); try { await fn() } finally { busyRef.current = false; setBusyAct(false) } }
+  const deleteImages = (ids) => guarded(async () => {
     let fails = 0
     for (const id of ids) {
       try { await imageServiceBase64.deleteImage(id) } catch (e) { fails += 1 }
@@ -206,10 +211,10 @@ function ImageManager() {
     setSelectMode(false)
     setBox(-1)
     refresh()
-  }
+  })
 
   // ---- folder CRUD ----
-  const submitFolder = async (name) => {
+  const submitFolder = (name) => guarded(async () => {
     try {
       if (folderForm.rename) {
         await imageFolderService.updateFolder(folderForm.rename.id, { name })
@@ -221,8 +226,8 @@ function ImageManager() {
     } catch (e) {
       setFlash({ kind: 'err', text: e.message || 'Could not save the folder' })
     }
-  }
-  const deleteFolder = async (folder) => {
+  })
+  const deleteFolder = (folder) => guarded(async () => {
     try {
       await imageFolderService.deleteFolder(folder.id)
       setConfirmFolderDel(null)
@@ -234,7 +239,7 @@ function ImageManager() {
       setConfirmFolderDel(null)
       setFlash({ kind: 'err', text: e.message || 'Could not delete the folder' })
     }
-  }
+  })
 
   // ---- selection ----
   const toggleSel = (id) => setSelected((s) => {
@@ -244,10 +249,11 @@ function ImageManager() {
   })
   useEffect(() => {
     if (!selectMode) return
-    const esc = (e) => { if (e.key === 'Escape') { setSelectMode(false); setSelected(new Set()) } }
+    // only when nothing sits above the tiles: a confirm, a folder dialog or the viewer owns Esc
+    const esc = (e) => { if (e.key === 'Escape' && !confirmDel && !confirmFolderDel && !folderForm && box < 0) { setSelectMode(false); setSelected(new Set()) } }
     document.addEventListener('keydown', esc)
     return () => document.removeEventListener('keydown', esc)
-  }, [selectMode])
+  }, [selectMode, confirmDel, confirmFolderDel, folderForm, box])
 
   // ================================================================ render ====
   if (worlds !== null && worlds.length === 0) {
@@ -277,8 +283,10 @@ function ImageManager() {
           {world && (
             <select
               className="worldsel"
-              value={world.id}
-              onChange={(e) => navigate(`/worlds/${e.target.value}/images`)}
+              value={pendingWorld ?? world.id}
+              onKeyDown={(e) => { if (e.key.startsWith('Arrow')) viaKeys.current = true; else if (e.key === 'Enter' && pendingWorld != null) { const w = pendingWorld; setPendingWorld(null); navigate(`/worlds/${w}/images`) } }}
+              onChange={(e) => { if (viaKeys.current) setPendingWorld(e.target.value); else navigate(`/worlds/${e.target.value}/images`) }}
+              onBlur={() => { viaKeys.current = false; if (pendingWorld != null && String(pendingWorld) !== String(world.id)) { const w = pendingWorld; setPendingWorld(null); navigate(`/worlds/${w}/images`) } }}
               title="Switch world"
             >
               {(worlds || []).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -436,7 +444,7 @@ function ImageManager() {
 
       {/* folder create / rename */}
       {folderForm && (
-        <FolderModal
+        <FolderModal busy={busyAct}
           form={folderForm}
           parentName={folderForm.parentId ? flatFolders.find((f) => f.id === folderForm.parentId)?.name : null}
           onClose={() => setFolderForm(null)}
@@ -446,7 +454,7 @@ function ImageManager() {
 
       {/* delete confirms */}
       {confirmDel && (
-        <ConfirmDelete
+        <ConfirmDelete busy={busyAct}
           ids={confirmDel.ids}
           images={images}
           onClose={() => setConfirmDel(null)}
@@ -459,7 +467,7 @@ function ImageManager() {
           {(confirmFolderDel.children?.length > 0) && <p className="mwarn">It has subfolders — delete those first.</p>}
           <div className="mrow">
             <button className="sbtn ghost" onClick={() => setConfirmFolderDel(null)}>Keep it</button>
-            <button className="sbtn danger" onClick={() => deleteFolder(confirmFolderDel)}>Delete folder</button>
+            <button className="sbtn danger" disabled={busyAct} onClick={() => deleteFolder(confirmFolderDel)}>{busyAct ? 'Deleting…' : 'Delete folder'}</button>
           </div>
         </Modal>
       )}
@@ -524,7 +532,7 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-function FolderModal({ form, parentName, onClose, onSubmit }) {
+function FolderModal({ form, parentName, busy, onClose, onSubmit }) {
   const [name, setName] = useState(form.rename ? form.rename.name : '')
   const title = form.rename ? 'Rename folder' : parentName ? `New folder in “${parentName}”` : 'New folder'
   const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(name.trim()) }
@@ -538,14 +546,14 @@ function FolderModal({ form, parentName, onClose, onSubmit }) {
         </div>
         <div className="mrow">
           <button type="button" className="sbtn ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="sbtn primary" disabled={!name.trim()}>{form.rename ? 'Rename' : 'Create'}</button>
+          <button type="submit" className="sbtn primary" disabled={busy || !name.trim()}>{busy ? (form.rename ? 'Renaming…' : 'Creating…') : (form.rename ? 'Rename' : 'Create')}</button>
         </div>
       </form>
     </Modal>
   )
 }
 
-function ConfirmDelete({ ids, images, onClose, onConfirm }) {
+function ConfirmDelete({ ids, images, busy, onClose, onConfirm }) {
   const targets = images.filter((i) => ids.includes(i.id))
   const used = targets.filter((i) => usesOf(i) > 0)
   return (
@@ -559,15 +567,20 @@ function ConfirmDelete({ ids, images, onClose, onConfirm }) {
       <p className="mnote">Gone from the archive and from storage. This cannot be undone.</p>
       <div className="mrow">
         <button className="sbtn ghost" onClick={onClose}>Keep {ids.length === 1 ? 'it' : 'them'}</button>
-        <button className="sbtn danger" onClick={onConfirm}>Delete</button>
+        <button className="sbtn danger" disabled={busy} onClick={onConfirm}>{busy ? 'Deleting…' : 'Delete'}</button>
       </div>
     </Modal>
   )
 }
 
 function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onFlash }) {
+  // browsing the folder list with the arrow keys must not file the image: Move (or Enter) does
+  const cur = img.folderId == null ? '' : String(img.folderId)
+  const [pick, setPick] = useState(cur)
+  useEffect(() => { setPick(cur) }, [cur])
   useEffect(() => {
     const key = (e) => {
+      if (/select|input|textarea/i.test(e.target?.tagName)) return // a field keeps its own keys
       if (e.key === 'Escape') onClose()
       else if (e.key === 'ArrowLeft' && onPrev) onPrev()
       else if (e.key === 'ArrowRight' && onNext) onNext()
@@ -604,14 +617,18 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
           <div className={`lbuse ${uses ? 'live' : ''}`}>{uses > 0 && <span className="inuse-dot">◈</span>}{useLine}</div>
           <div className="fld">
             <label>Filed under</label>
-            <select
-              className="sselect"
-              value={img.folderId ?? ''}
-              onChange={(e) => onMove(e.target.value === '' ? null : Number(e.target.value))}
-            >
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select
+                className="sselect"
+                value={pick}
+                onChange={(e) => setPick(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && pick !== cur) { e.preventDefault(); onMove(pick === '' ? null : Number(pick)) } }}
+              >
               <option value="">Unsorted</option>
               {folders.map((f) => <option key={f.id} value={f.id}>{' '.repeat(f.depth)}{f.name}</option>)}
-            </select>
+              </select>
+              {pick !== cur && <button className="sbtn primary" onClick={() => onMove(pick === '' ? null : Number(pick))}>Move</button>}
+            </div>
           </div>
           <div className="lbactions">
             <button className="sbtn" onClick={copyUrl}>Copy address</button>

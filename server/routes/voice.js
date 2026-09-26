@@ -74,17 +74,25 @@ router.delete('/nodes/:id/line', wrap(async (req, res) => {
 }));
 
 // POST /maps/:id/ambience — a generated soundscape for this space (looped by the client).
+// one paid generation per map at a time: a repeated Enter or a double click gets a 409
+const ambienceBusy = new Set();
 router.post('/maps/:id/ambience', wrap(async (req, res) => {
   const m = (await pool.query('SELECT id, world_id, title FROM maps WHERE id=$1', [req.params.id])).rows[0];
   if (!m || !(await ownsWorld(m.world_id, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   if (!r2Enabled) return needStorage(res);
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 400) : '';
   if (!prompt) return res.status(400).json({ message: 'Describe the sound of this place' });
-  const out = await voice.ambience(prompt, Number(req.body?.seconds) || 20);
-  const key = `worlds/${m.world_id}/ambience-${m.id}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${out.ext}`;
-  const url = await putObject(key, out.bytes, out.mimeType);
-  await pool.query('UPDATE maps SET ambience_prompt=$1, ambience_url=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3', [prompt, url, m.id]);
-  res.json({ prompt, url });
+  if (ambienceBusy.has(m.id)) return res.status(409).json({ message: 'An ambience is already being made for this map — wait for it' });
+  ambienceBusy.add(m.id);
+  try {
+    const out = await voice.ambience(prompt, Number(req.body?.seconds) || 20);
+    const key = `worlds/${m.world_id}/ambience-${m.id}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${out.ext}`;
+    const url = await putObject(key, out.bytes, out.mimeType);
+    await pool.query('UPDATE maps SET ambience_prompt=$1, ambience_url=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3', [prompt, url, m.id]);
+    res.json({ prompt, url });
+  } finally {
+    ambienceBusy.delete(m.id);
+  }
 }));
 router.delete('/maps/:id/ambience', wrap(async (req, res) => {
   const m = (await pool.query('SELECT id, world_id, ambience_url FROM maps WHERE id=$1', [req.params.id])).rows[0];

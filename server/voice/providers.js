@@ -37,9 +37,12 @@ function provider() {
   for (const p of ['gemini', 'openai', 'elevenlabs']) if (has(PROVIDERS[p].key)) return p;
   return null;
 }
+// enabled means a line can actually be made: a provider key AND somewhere to keep the audio
+// (R2). `storage:false` lets the inspector say why voice is off instead of failing on a click.
 const status = () => {
   const p = provider();
-  return { enabled: !!p, provider: p, steerable: p ? PROVIDERS[p].steerable : false, ambience: !!p && has('ELEVENLABS_API_KEY') };
+  const { r2Enabled } = require('../storage');
+  return { enabled: !!p && r2Enabled, storage: r2Enabled, provider: p, steerable: p ? PROVIDERS[p].steerable : false, ambience: !!p && r2Enabled && has('ELEVENLABS_API_KEY') };
 };
 
 async function listVoices() {

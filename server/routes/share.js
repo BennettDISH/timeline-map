@@ -359,7 +359,11 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     const reachable = new Map();
     partyTrail = [];
     for (const r of rows) {
-      if (!reachable.has(r.map_id)) reachable.set(r.map_id, !!(await walkUp(r.map_id, w, t)));
+      if (!reachable.has(r.map_id)) {
+        const chain = await walkUp(r.map_id, w, t);
+        reachable.set(r.map_id, !!chain);
+        if (chain) for (const c of chain) reachable.set(c.mapId, true); // every map on the way up is reachable too
+      }
       if (!reachable.get(r.map_id)) continue;
       partyTrail.push({
         id: r.id, mapId: r.map_id, mapTitle: r.title, interior: !!r.owner_node_id,

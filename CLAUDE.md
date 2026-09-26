@@ -77,6 +77,13 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   Atlas world PATCH — keep it that way for any new write path
 - The top-level `ErrorBoundary` resets on a URL change via `resetKey` (App.jsx `RoutedBoundary`);
   never key it on the pathname — that remounts the whole page on every map hop.
+- **One click does one thing**: MapPlane ignores gestures that start within 400 ms of a
+  press inside any dialog/popover (a module-level timestamp) and honours a double-click only
+  when both presses began on the viewport; while placing or outlining, Enter/Space on a
+  focused button activate the button, never the map action. Paid generation is guarded
+  twice (ambience: `ambBusy` + a per-map 409). Voice reports `enabled` only with R2
+  (`storage`), and a saved voice the current provider does not list is named as such with
+  Say it disabled.
 - **Every delete is undoable**: facts, links, eras and timed backdrops leave tombstones
   (kinds `fact`/`link`/`era`/`backdrop`, restored by `POST /undo/:id` with their original
   ids) and their ✕ buttons show the ↩ Undo toast; removing a base backdrop, a node's image
@@ -133,6 +140,15 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   on every page except `/p/*`; its key comes from `BUG_WIDGET_KEY` and is not in the bundle.
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
+- **The embed contract**: Spellforge's Map tab frames `/p/*` in an iframe. Only `/p` and
+  `/p/*` may be framed, and only by the origins in `EMBED_ORIGINS` (comma-separated; default
+  the Spellforge origin) — a /p-only helmet CSP sets `frame-ancestors` and drops XFO; every
+  other path keeps `frame-ancestors 'self'` + `SAMEORIGIN`. A Spellforge domain change
+  means updating `EMBED_ORIGINS`; an Atlas domain change means updating Spellforge's
+  `MAP_SHARE_RE`. The API suite asserts the headers. Framed (`embedded` in MapPlane.jsx):
+  map moves REPLACE history entries, a plain wheel scrolls the host page (Ctrl/⌘+wheel
+  zooms), and a pan ends on `lostpointercapture`. The Player View fetches `/world` and the
+  map in parallel; the DM pages are lazy chunks so `/p` never downloads them.
 
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment

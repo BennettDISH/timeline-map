@@ -88,7 +88,9 @@ function AtlasWorkspace() {
   const [trail, setTrail] = useState([]) // every party footstep in the world (timebar ticks)
   const [forgeOn, setForgeOn] = useState(false)
   const [voiceMeta, setVoiceMeta] = useState({ enabled: false }) // which provider speaks, and whether it can be steered / make ambience
-  const voiceOn = voiceMeta.enabled
+  const voiceOn = voiceMeta.enabled && voiceMeta.storage !== false
+  const [voicesErr, setVoicesErr] = useState(false)
+  const loadVoices = () => { setVoicesErr(false); return voiceService.voices().then(setVoices).catch(() => setVoicesErr(true)) }
   const [voices, setVoices] = useState([])
   const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
   const [railW, setRailW] = useState(() => {
@@ -203,7 +205,7 @@ function AtlasWorkspace() {
   useEffect(() => {
     voiceService.status().then((m) => {
       setVoiceMeta(m || { enabled: false })
-      if (m?.enabled) voiceService.voices().then(setVoices).catch(() => {})
+      if (m?.enabled) loadVoices()
     })
   }, [])
   // every write goes through track(): the header chip and the error toast stay honest
@@ -219,11 +221,15 @@ function AtlasWorkspace() {
     track(voiceService.clearLine(nodeId), "Couldn't remove the line")
       .then(() => localPatchNode(nodeId, { voiceLine: null, voiceUrl: null }))
       .catch(() => {})
+  const [ambBusy, setAmbBusy] = useState(false)
   const setAmbience = (prompt) => {
+    if (ambBusy) return Promise.resolve()
     const id = map.id // the reply lands on the map it was sent for, not whichever is open by then
+    setAmbBusy(true)
     return track(voiceService.setAmbience(id, prompt), 'No sound came back')
       .then((r) => { setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
       .catch(() => {})
+      .finally(() => setAmbBusy(false))
   }
   const clearAmbience = () => {
     const id = map.id
@@ -329,6 +335,12 @@ function AtlasWorkspace() {
   const fn = sel ? sel.node : stray
   focusIdRef.current = fn?.id ?? null
   useEffect(() => { if (selId != null) setStray(null) }, [selId])
+  useEffect(() => {
+    if (!tlEdit) return
+    const close = (e) => { if (!e.target?.closest?.('.tlcfg, .tgear')) setTlEdit(false) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [tlEdit])
   // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
   // is not typing in takes the new text, so a bare click in and out never writes old text back
   useEffect(() => {
@@ -1037,7 +1049,8 @@ function AtlasWorkspace() {
         if (isList) dropNode(50, 50)
         else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))
       } else if (e.key === 'Enter' && !typing && !e.repeat && placing && mode === 'edit') {
-        e.preventDefault() // a still-focused toolbar button would also treat Enter as a click
+        if (e.target?.closest?.('button, a, [role=button], select, [contenteditable]')) return // a focused control keeps its Enter
+        e.preventDefault()
         const pt = keyboardDropPoint()
         if (!pt) return
         if (placing.kind === 'new') dropNode(pt.x, pt.y)
@@ -1051,6 +1064,7 @@ function AtlasWorkspace() {
     if (!drawing) return
     const key = (e) => {
       if (/input|textarea|select/i.test(e.target.tagName)) return
+      if (e.target?.closest?.('button, a, [role=button], [contenteditable]')) return // the HUD's own buttons take Enter and Space
       if (e.key === 'Enter') { e.preventDefault(); finishOutline() }
       else if (e.key === 'Escape') setDrawing(null)
       else if (e.key === 'Backspace') { e.preventDefault(); setDrawing((d) => d && ({ ...d, pts: d.pts.slice(0, -1) })) }
@@ -1407,7 +1421,7 @@ function AtlasWorkspace() {
               {mode === 'edit' && <div className="listhead muted">An interior list — inventory, notes, what's inside. Same nodes, no map.</div>}
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
-                  className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''}`}
+                  className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''}`}
                   onClick={() => setSelId(p.id)}
                   onDoubleClick={() => openInterior(p.node)}>
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
@@ -1818,9 +1832,10 @@ function AtlasWorkspace() {
                   <div className="isect">Ambience — players can play it here</div>
                   <input key={`amb${map?.id}`} className="ambin" maxLength={400} defaultValue={map?.ambiencePrompt || ''}
                     placeholder="the sound of this place — “cold surf on slate, wind through rigging, a far bell”"
-                    onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) setAmbience(e.target.value.trim()) }} />
+                    disabled={ambBusy}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.repeat && !ambBusy && e.target.value.trim()) setAmbience(e.target.value.trim()) }} />
                   <div className="vrow">
-                    <button className="btn" onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>🔊 Make it</button>
+                    <button className="btn" disabled={ambBusy} onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>{ambBusy ? 'Making…' : '🔊 Make it'}</button>
                     {map?.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
                     {map?.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
                   </div>
@@ -1854,7 +1869,7 @@ function AtlasWorkspace() {
               spotlit={world?.spotlightNodeId === fn.id}
               onSpotlight={sel ? () => toggleSpotlight(fn) : undefined}
               onStance={(v) => saveNode(fn.id, { stance: v })}
-              voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
+              voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta} voicesErr={voicesErr} onVoicesRetry={loadVoices}
               onVoice={(id, name, style) => setNodeVoice(fn.id, id, name, style)}
               onSay={(t, style) => sayLine(fn.id, t, style)}
               onReveal={() => revealNote(fn.id)}
@@ -2205,7 +2220,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, stray, partyExists, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
   const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
@@ -2234,6 +2249,9 @@ function Inspector({ p, stray, partyExists, onSave, onCat, onOpen, onCreate, onR
     }
   }, [p.node.title, p.node.body, p.node.dmNote, p.node.voiceLine, p.node.voiceStyle, p.start, p.end]) // eslint-disable-line
   const n = p.node
+  const providerName = voiceMeta?.provider ? (({ gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' })[voiceMeta.provider] || voiceMeta.provider) : 'this provider'
+  // a saved voice the current provider does not list (it was picked under another one)
+  const foreignVoice = !!n.voiceId && (voices || []).length > 0 && !(voices || []).some((v) => v.id === n.voiceId)
   const timeBlock = timeline?.enabled && !stray ? (
     <>
       <div className="isect">{n.category === 'party' ? 'This footstep' : 'Time'}</div>
@@ -2324,19 +2342,25 @@ function Inspector({ p, stray, partyExists, onSave, onCat, onOpen, onCreate, onR
           </button>
         )}
       </div>
+      {!voiceOn && voiceMeta?.enabled === false && voiceMeta?.storage === false && n.category !== 'party' && (
+        <div className="muted esmall">Voice is off: the server has no object storage (R2) to keep audio in.</div>
+      )}
       {voiceOn && n.category !== 'party' && (
         <>
-          <div className="isect">Voice{voiceMeta?.provider ? <span className="vprov"> · {({ gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' })[voiceMeta.provider] || voiceMeta.provider}</span> : null}</div>
+          <div className="isect">Voice{voiceMeta?.provider ? <span className="vprov"> · {providerName}</span> : null}</div>
           <div className="fld"><label>Their voice</label>
+            {voicesErr && <div className="muted esmall">Couldn't load the voice list. <button type="button" className="lnk" onClick={onVoicesRetry}>Retry</button></div>}
             <select className="vsel" value={n.voiceId || ''}
               onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); onVoice(v ? v.id : null, v ? v.name : null) }}>
               <option value="">— pick a voice —</option>
+              {foreignVoice && <option value={n.voiceId} disabled>{n.voiceName || n.voiceId} — not available with {providerName}</option>}
               {voices.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}{[v.labels?.feel, v.labels?.gender, v.labels?.age, v.labels?.accent].filter(Boolean).map((x) => ` · ${x}`).join('')}
                 </option>
               ))}
             </select>
+            {foreignVoice && <div className="muted esmall">This voice belongs to another provider — pick one from the list to speak with {providerName}.</div>}
           </div>
           {voiceMeta?.steerable && (
             <div className="fld"><label>How they sound — shapes every line</label>
@@ -2352,8 +2376,8 @@ function Inspector({ p, stray, partyExists, onSave, onCat, onOpen, onCreate, onR
               onChange={(e) => setLine(e.target.value)} />
             {n.voiceUrl && <div className="muted esmall">This line is recorded. Remove it (✕) to write and record a new one.</div>}
             <div className="vrow">
-              <button className="btn" disabled={!n.voiceId || !line.trim() || vbusy || !!n.voiceUrl}
-                title={n.voiceUrl ? 'They already have a line — clear it (✕) to record another' : (n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first')}
+              <button className="btn" disabled={!n.voiceId || foreignVoice || !line.trim() || vbusy || !!n.voiceUrl}
+                title={n.voiceUrl ? 'They already have a line — clear it (✕) to record another' : foreignVoice ? `“${n.voiceName || n.voiceId}” is not a ${providerName} voice — pick one from the list` : (n.voiceId ? 'Generate the line in their voice' : 'Pick a voice first')}
                 onClick={() => { setVbusy(true); Promise.resolve(onSay(line.trim(), voiceMeta?.steerable ? vstyle.trim() : undefined)).finally(() => setVbusy(false)) }}>
                 {vbusy ? 'Speaking…' : '🔊 Say it'}
               </button>

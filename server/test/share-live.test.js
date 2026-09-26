@@ -267,3 +267,16 @@ test('windowed backdrops carry the DM rule as a rank', async () => {
   const { body } = await get(`/maps/${IDS.root}?window=1`);
   assert.equal(body.backdrops[0].rank, 1);
 });
+
+
+// ---- the embed contract: only the Player View may be framed, and only by the allowlist ----
+
+test('the Player View may be framed by Spellforge; the DM app may not be framed at all', async () => {
+  const pv = await fetch(`${BASE}/p/${TOKEN}`);
+  const csp = pv.headers.get('content-security-policy') || '';
+  assert.match(csp, /frame-ancestors 'self' https:\/\/spellforge-production-1695\.up\.railway\.app/, 'the Player View allows the Spellforge origin');
+  assert.equal(pv.headers.get('x-frame-options'), null, 'no X-Frame-Options on the Player View (it cannot express an allowlist)');
+  const dm = await fetch(`${BASE}/dashboard`);
+  assert.match(dm.headers.get('content-security-policy') || '', /frame-ancestors 'self'(;|$)/, 'the DM app keeps frame-ancestors self');
+  assert.equal((dm.headers.get('x-frame-options') || '').toUpperCase(), 'SAMEORIGIN');
+});

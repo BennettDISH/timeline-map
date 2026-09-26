@@ -791,3 +791,16 @@
 .atlas .mform .merr{color:#e66;font-size:12px;margin-top:8px}
 .atlas.pview .helpwrap .tool.round{width:30px;height:30px;border-radius:999px;padding:0}
 .atlas .timebar .tstep.grp{width:10px;height:10px;border-width:2px}
+// the colour language holds on EVERY pin variant, region and list row: not-here (dashed
+// purple) wins over marker green and lantern gold on the edge; DM-only is faint, never a
+// colour of its own; glyphs are dark so they read on every category colour
+.atlas .pin.ghost,.atlas .pin.pmark.ghost,.atlas .pin.spot.ghost{border-style:dashed;border-color:#b07bd0}
+.atlas .pin.ipin.ghost .iart{outline:1.5px dashed #b07bd0;outline-offset:3px}
+.atlas .pin.ipin.secret .iart{filter:drop-shadow(0 2px 4px #0008)}
+.atlas .region.ghost,.atlas .region.spot.ghost,.atlas .region.ghost:hover{stroke:#b07bd0;stroke-dasharray:6 4;animation:none}
+.atlas .lsrow.ghost{opacity:1;border:1px dashed #b07bd0}
+.atlas .lsrow.secret{opacity:.45}
+.atlas .ic,.atlas .sic,.atlas .cdot,.atlas .pin .ic,.atlas .lchip .ic{color:#0d0f13}
+.atlas .helpwrap{z-index:9}
+.atlas .lnk{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+@media (min-width:900px){.atlas.pview .sheet .shero{max-height:44vh}}

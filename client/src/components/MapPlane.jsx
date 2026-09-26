@@ -25,6 +25,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 export const PLANE_W = 2560
 const DEFAULT_H = 1600
 const MAX_SCALE = 8
+// framed (Spellforge's Map tab): the host page owns plain scrolling and the Back button
+export const embedded = (() => { try { return window.self !== window.top } catch (e) { return true } })()
+
+// A dialog closing between the two clicks of a double-click lets the second click land on
+// the map underneath (zoom, deselect, enter a pin). Every press inside a dialog or popover
+// is timestamped here, and the viewport ignores gestures that start within 400 ms of one.
+let lastDialogPress = 0
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target?.closest?.('.modal-back, .modal, .smodal, .apop, .menupop, .ctxmenu, .tlcfg, .lightbox')) lastDialogPress = Date.now()
+  }, true)
+}
 
 export default function MapPlane({
   mapKey,          // change => reset & refit (map navigation)
@@ -50,6 +62,7 @@ export default function MapPlane({
   const moved = useRef(false)    // pan happened => swallow the click
   const pointers = useRef(new Map())
   const gesture = useRef(null)
+  const downs = useRef([])       // recent pointerdowns on the viewport: a double-click needs two of them
 
   const eff = () => pendingV.current || viewRef.current // the freshest view, queued or committed
 
@@ -132,6 +145,9 @@ export default function MapPlane({
     const vp = viewportRef.current
     if (!vp) return
     const onWheel = (e) => {
+      // framed: a plain wheel scrolls the host page; Ctrl/⌘ + wheel (and a trackpad pinch,
+      // which arrives as a ctrlKey wheel) zooms. The ＋ / − buttons always work.
+      if (embedded && !e.ctrlKey && !e.metaKey) return
       e.preventDefault()
       const r = vp.getBoundingClientRect()
       zoomAt(Math.exp(-e.deltaY * 0.0016), e.clientX - r.left, e.clientY - r.top)
@@ -144,6 +160,8 @@ export default function MapPlane({
   // pointerdown, so a gesture reaching the viewport is on empty space / the backdrop.
   const onPointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return
+    if (Date.now() - lastDialogPress < 400) return // the tail of a click that began on a dialog
+    const now = Date.now(); downs.current = downs.current.filter((t) => now - t < 700); downs.current.push(now)
     onEmptyPointerDown?.(e)
     const vp = viewportRef.current
     try { vp.setPointerCapture(e.pointerId) } catch (err) { /* older browsers */ }
@@ -166,6 +184,9 @@ export default function MapPlane({
   }
   const onPointerMove = (e) => {
     if (!pointers.current.has(e.pointerId)) return
+    // a mouse moving with no button held is not a pan: the release happened where no
+    // pointerup reached us (outside a frame) — end the gesture instead of following the cursor
+    if (e.pointerType === 'mouse' && e.buttons === 0) { pointers.current.delete(e.pointerId); if (!pointers.current.size) gesture.current = null; return }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const g = gesture.current
     if (!g) return
@@ -221,7 +242,12 @@ export default function MapPlane({
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
+      onLostPointerCapture={endPointer}
       onDoubleClick={(e) => {
+        // honoured only when both presses began on the viewport, none of them on a dialog
+        if (Date.now() - lastDialogPress < 600) return
+        const now = Date.now()
+        if (downs.current.filter((t) => now - t < 700).length < 2) return
         if (onWorldDoubleClick?.(e)) return
         if (!dblZoom) return
         const r = viewportRef.current.getBoundingClientRect()
