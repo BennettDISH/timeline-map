@@ -10,18 +10,18 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B123** · medium · s · Double-clicking a dialog button sends the second click to the map: it zooms, drops the selection, or enters the ◎ pin underneath
-- [ ] **B124** · medium · s · Commit 302d7b9's colour rules only reached chip pins: out-of-time image pins show no cue, DM-only image pins glow the 'not here' purple, and lantern pins, player markers and list rows break the rules
-- [ ] **C104** · medium · s · The voice picker shows '— pick a voice —' for a node that already has a voice, while 🔊 Say it stays enabled and sends that voice id; a failed voice list is swallowed
-- [ ] **B125** · low · xs · While outlining or placing, Enter on any focused button does the map action: Enter on the outline bar's ✕ saves the outline as a new node, and Enter on 'Map ▾' drops a node
-- [ ] **B126** · low · xs · Archive: the folder dialog and the delete confirms have no in-flight guard. Enter twice makes two identical folders; a double-click on Create (subfolder) or 'Delete folder' succeeds, then shows an error
-- [ ] **B127** · low · xs · Archive: Esc on the bulk 'Delete N images?' confirm clears the selection and leaves Select mode, but the confirm stays open
-- [ ] **B128** · low · xs · Ambience 'Make it' has no in-flight guard: every Enter (key auto-repeat included) and every click starts another paid ElevenLabs generation, and nothing shows one is running
-- [ ] **B129** · low · xs · The wide-screen Player View hero rule `max-height:44vh` has never applied: the nested phone rule has one more class
-- [ ] **P114** · low · xs · Archive: one arrow key on the viewer's 'Filed under' select files the image and closes the viewer; the Archive's world switcher also navigates on every arrow key
-- [ ] **P115** · low · xs · With R2 off (the README's 'deliberate fallback'), the inspector offers the whole voice section; every Say it and Make it fails with 'Audio needs object storage (R2) configured'
-- [ ] **P116** · low · xs · White category glyphs fall below 3:1 on the Item, Party and Lore colours, and they are the only cue besides colour
-- [ ] **P117** · low · xs · The timeline ⚙ panel ignores outside clicks and stacks over the ? help (z-index 8 over 7), hiding the help's lower third
+- [ ] **B123** · medium · s · Double-clicking a dialog button sends the second click to the map: it zooms, drops the selection, or enters the ◎ pin underneath — done b5247df (a press inside any dialog/popover timestamps; the viewport ignores gestures for 400 ms and needs two of its own presses for a double-click)
+- [ ] **B124** · medium · s · Commit 302d7b9's colour rules only reached chip pins: out-of-time image pins show no cue, DM-only image pins glow the 'not here' purple, and lantern pins, player markers and list rows break the rules — done b5247df (dashed purple wins over marker green and lantern gold on the edge; image pins get a dashed outline; DM-only image pins lose the purple glow; list rows go faint / dashed)
+- [ ] **C104** · medium · s · The voice picker shows '— pick a voice —' for a node that already has a voice, while 🔊 Say it stays enabled and sends that voice id; a failed voice list is swallowed — done b5247df (a foreign saved voice is named "not available with …", Say it disabled with the reason; a failed voice list shows Retry)
+- [ ] **B125** · low · xs · While outlining or placing, Enter on any focused button does the map action: Enter on the outline bar's ✕ saves the outline as a new node, and Enter on 'Map ▾' drops a node — done b5247df (a focused control keeps Enter and Space)
+- [ ] **B126** · low · xs · Archive: the folder dialog and the delete confirms have no in-flight guard. Enter twice makes two identical folders; a double-click on Create (subfolder) or 'Delete folder' succeeds, then shows an error — done b5247df (one guarded request; buttons read Creating… / Deleting…)
+- [ ] **B127** · low · xs · Archive: Esc on the bulk 'Delete N images?' confirm clears the selection and leaves Select mode, but the confirm stays open — done b5247df
+- [ ] **B128** · low · xs · Ambience 'Make it' has no in-flight guard: every Enter (key auto-repeat included) and every click starts another paid ElevenLabs generation, and nothing shows one is running — done b5247df (ambBusy + a per-map 409)
+- [ ] **B129** · low · xs · The wide-screen Player View hero rule `max-height:44vh` has never applied: the nested phone rule has one more class — done b5247df
+- [ ] **P114** · low · xs · Archive: one arrow key on the viewer's 'Filed under' select files the image and closes the viewer; the Archive's world switcher also navigates on every arrow key — done b5247df (arrows browse; Move or Enter files; the world switcher commits on Enter/blur when browsed with keys)
+- [ ] **P115** · low · xs · With R2 off (the README's 'deliberate fallback'), the inspector offers the whole voice section; every Say it and Make it fails with 'Audio needs object storage (R2) configured' — done b5247df (status carries storage; the section says why voice is off)
+- [ ] **P116** · low · xs · White category glyphs fall below 3:1 on the Item, Party and Lore colours, and they are the only cue besides colour — done b5247df (dark glyphs)
+- [ ] **P117** · low · xs · The timeline ⚙ panel ignores outside clicks and stacks over the ? help (z-index 8 over 7), hiding the help's lower third — done b5247df (outside click closes the panel; help stacks above it)
 
 ## Items
 
