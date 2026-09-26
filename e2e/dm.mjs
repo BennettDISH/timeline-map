@@ -244,6 +244,18 @@ try {
       step('switching posture cancels an outline in progress', (await page.locator('.drawhud').count()) === 0 && (await page.locator('.atlas .ovtx').count()) === 0);
       await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400);
     }
+    // 🎭 Player posture is the real Player View, framed from the share link at the current map
+    await page.locator('.mode button', { hasText: 'Player' }).click(); await page.waitForTimeout(600);
+    if (cfg.shareToken) {
+      const frameEl = page.locator('.atlas iframe.pframe');
+      const src = (await frameEl.count()) ? await frameEl.getAttribute('src') : null;
+      step('Player posture frames the share link at the current map', !!src && src.includes(`/p/${cfg.shareToken}/m/`), src || 'no frame');
+      const inner = page.frameLocator('.atlas iframe.pframe');
+      await inner.locator('.atlas.pview .pin, .atlas.pview .region, .atlas.pview .empty-map').first().waitFor({ timeout: 30000 }).catch(() => {});
+      step('…and the framed Player View renders', (await inner.locator('.atlas.pview').count()) === 1);
+      step('…with none of the DM chrome around it', (await page.locator('.atlas .rail, .atlas .insp, .atlas .gsearch, .atlas .timebar').count()) === 0);
+    } else step('Player posture without a share link says so', (await page.locator('.atlas .preview-off').count()) === 1);
+    await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400);
     // a right-click on a pin offers that pin's actions
     const pin2 = page.locator('.atlas .pin:not(.party)').first();
     if (await pin2.count()) {

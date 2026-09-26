@@ -138,7 +138,9 @@ legacy tables (`events` and friends) are gone.
 - `server/routes/share.js` is the public read-only API. **All secrecy is enforced there,
   server-side**: DM-only nodes/placements and out-of-time placements never leave the DB; links
   are pruned when either end is hidden; deep links into hidden/future branches 404 via the
-  owner-chain walk (`walkUp`). The DM-side "Player" toggle is only a preview of these rules.
+  owner-chain walk (`walkUp`). The DM-side 🎭 Player posture IS the Player View — an iframe of
+  the share link at the current map — so it can never drift from these rules (no share link:
+  it says so and offers to create one).
 - **Node detail follows the same rule as maps** (`reachableIds`): `/nodes/:id` and its
   Threads name a node only when it (or an interior it owns) stands on a map that passes
   `walkUp`, through a non-DM placement alive inside the allowed envelope (the player-visible
@@ -242,7 +244,8 @@ legacy tables (`events` and friends) are gone.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
-  past canon, silently resolves to canon. The workspace 🎭 posture previews this.
+  past canon, silently resolves to canon. The workspace 🎭 posture shows this through the
+  framed Player View.
 
 **Releases:** v1.0.0 was tagged 2026-08-20 with the founding vision implemented end-to-end;
 everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wish-shelf under

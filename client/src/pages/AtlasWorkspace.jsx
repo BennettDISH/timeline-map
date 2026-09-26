@@ -6,7 +6,6 @@ import { errText, refused } from '../services/http'
 import MapPlane from '../components/MapPlane'
 import { Compass } from '../components/TopBar'
 import Modal from '../components/Modal'
-import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
@@ -53,9 +52,8 @@ function AtlasWorkspace() {
   const [tlEdit, setTlEdit] = useState(false)
   const [sharePop, setSharePop] = useState(false)
   const [copied, setCopied] = useState(false)
-  // Three postures: edit (full tools) · view (DM eyes, reading chrome) · player
-  // (faithful preview of the share link: secrets and the future hidden, canon moment,
-  // minimal chrome).
+  // Three postures: edit (full tools) · view (DM eyes, reading chrome) · player (the real
+  // Player View, framed from the share link — so it cannot drift from what players see).
   const [mode, setMode] = useState(() => {
     const m = localStorage.getItem('atlas_mode')
     // a phone is view-only by design: it lands in View (or Player), never in the editor
@@ -120,7 +118,7 @@ function AtlasWorkspace() {
     const v = parseInt(localStorage.getItem('atlas_inspw'), 10)
     return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
   })
-  const [readerW, setReaderW] = useState(() => { // View/Player reader column; null = the CSS default
+  const [readerW, setReaderW] = useState(() => { // the View reader column; null = the CSS default
     const v = parseInt(localStorage.getItem('atlas_readerw'), 10)
     return Number.isFinite(v) ? Math.min(720, Math.max(300, v)) : null
   })
@@ -131,7 +129,6 @@ function AtlasWorkspace() {
     return () => window.removeEventListener('resize', on)
   }, [])
   const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
-  const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
 
   const saveTimer = useRef(null)
   const lifeTimer = useRef(null)          // lifespan edits keep their own clock (they used to cancel node saves)
@@ -849,14 +846,8 @@ function AtlasWorkspace() {
     setMode(m)
     setPlacing(null); setPicker(null); setNodePicker(null); setTlEdit(false); setMapMenu(false)
     setDrawing(null); setCtx(null); setBdsOpen(false); setFocusEdit(null); setRenaming(null) // edit-only tools end with the posture
-    setPreviewT(null)
     try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ }
   }
-  // the player preview prunes threads to DM-only nodes; it needs the visibility index,
-  // including when the page loads straight into player mode
-  useEffect(() => {
-    if (mode === 'player') atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
-  }, [mode, worldId])
   const toggleRail = () => setRailOpen((v) => {
     const n = !v
     try { localStorage.setItem('atlas_rail', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
@@ -927,7 +918,7 @@ function AtlasWorkspace() {
   const resetForgeW = () => { setForgeW(340); try { localStorage.setItem('atlas_forgew', '340') } catch (e) { /* ignore */ } }
   useEffect(() => { forgeWRef.current = forgeW }, [forgeW])
 
-  // drag the reader's left edge (View / Player postures) the same way; double-click resets
+  // drag the reader's left edge (View posture) the same way; double-click resets
   const startReaderResize = (e) => {
     e.preventDefault()
     readerWRef.current = readerW || (e.currentTarget.parentElement?.getBoundingClientRect().width ?? 400)
@@ -952,10 +943,9 @@ function AtlasWorkspace() {
       onPointerDown={startReaderResize} onDoubleClick={resetReaderW} />
   )
 
-  // edit/view judge presence by the DM's lens; the player preview judges by CANON,
-  // exactly like the real share link does.
+  // presence is judged by the DM's lens (players' presence is the server's business)
   const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
-  const present = (p) => presentAt(p, mode === 'player' ? (previewT ?? canon) : now)
+  const present = (p) => presentAt(p, now)
   const setCanonHere = () => {
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
       .then(() => {
@@ -1203,12 +1193,7 @@ function AtlasWorkspace() {
     return pool.filter((n) => (n.title || '').toLowerCase().includes(needle)).slice(0, 12)
   }, [q, searchIndex, sfilter])
 
-  const readerLinks = useMemo(() => {
-    const all = [...(nodeLinks.out || []), ...(nodeLinks.in || [])]
-    if (mode !== 'player') return all
-    const idx = new Map(searchIndex.map((n) => [n.id, n]))
-    return all.filter((l) => { const o = idx.get(l.otherId); return o && o.visibility !== 'dm' && o.placed !== false })
-  }, [nodeLinks, mode, searchIndex])
+  const readerLinks = useMemo(() => [...(nodeLinks.out || []), ...(nodeLinks.in || [])], [nodeLinks])
 
   const renameMap = () => {
     const t = (renaming || '').trim().slice(0, 255)
@@ -1277,7 +1262,7 @@ function AtlasWorkspace() {
     if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
   }
 
-  const bdMoment = mode === 'player' ? (previewT ?? canon) : now
+  const bdMoment = now
   // the timed period whose art is on screen at the viewed moment (the latest-starting one
   // covering it wins), or null when the base art shows
   const activeBackdropRow = useMemo(() => {
@@ -1320,17 +1305,14 @@ function AtlasWorkspace() {
 
   // View is the DM's running surface: the reader stays open — the selected node's story
   // and notes, or the space's own notes when nothing is selected.
-  const readerOpen = mode === 'view' ? (wide || !!sel || spaceOpen) // a phone shows the map; the space's notes open on request
-    : mode === 'player' ? (!!sel && sel.node.visibility !== 'dm' && sel.visibility !== 'dm')
-    : false
+  const readerOpen = mode === 'view' && (wide || !!sel || spaceOpen) // a phone shows the map; the map's notes open on request
   const resolveFact = (facts, t) => coveringFact(facts, t)?.body ?? null // a blank period is no story yet — the base text stands
   // with the clock off there is no history: one party pin, the latest footstep on this map
   const latestParty = (() => { const at = (v) => (v == null ? -Infinity : v); let best = null; for (const p of (data?.placements || [])) if (p.node.category === 'party' && (!best || at(p.start) > at(best.start) || (at(p.start) === at(best.start) && p.id > best.id))) best = p; return best?.id ?? null })()
   const legendOn = !isList && legend.length > 1 // the category filter lives with its chips: a list or a one-kind map shows everything
   const visible = (p) =>
-    (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
-    (mode === 'player' || !legendOn || !hiddenCats.has(p.node.category)) &&
-    (mode === 'player' || ghostsOn || !tl?.enabled || present(p))
+    (!legendOn || !hiddenCats.has(p.node.category)) &&
+    (ghostsOn || !tl?.enabled || present(p))
 
   // ============================================================================= render ==
   if (loading && !world) {
@@ -1361,9 +1343,7 @@ function AtlasWorkspace() {
     <div className={`atlas${labelsOn ? ' labelson' : ''}${drawing ? ' drawing' : ''}${placing ? ' placing' : ''}`}>
       <div className="top" role="banner">
         <h1 className="sr-only">{map?.title ? `${map.title} — ${world?.name}` : world?.name}</h1>
-        {mode === 'player'
-          ? <span className="brand"><Compass size={18} className="brandrose" /> {world?.name}</span>
-          : <span className="brand"><Compass size={18} className="brandrose" />{' '}
+        <span className="brand"><Compass size={18} className="brandrose" />{' '}
               <select
                 className="brandsel"
                 value={pendingWorld ?? String(worldId)}
@@ -1387,7 +1367,8 @@ function AtlasWorkspace() {
                   <option key={w.id} value={String(w.id)}>{w.name}</option>
                 ))}
               </select>
-            </span>}
+            </span>
+        {mode !== 'player' && (
         <div className="crumbs">
           {(data?.breadcrumb || []).map((b, i, arr) => (
             <React.Fragment key={b.mapId}>
@@ -1398,6 +1379,7 @@ function AtlasWorkspace() {
             </React.Fragment>
           ))}
         </div>
+        )}
         {mode !== 'player' && (
         <div className="gsearch" ref={searchRef}>
           <input
@@ -1474,18 +1456,31 @@ function AtlasWorkspace() {
         {mode === 'edit' && (
           <Link to={`/worlds/${worldId}/images`} className="exit" title="This world's images — everything painted or uploaded">🗃 Archive</Link>
         )}
-        {mode === 'player' && tl?.enabled && (
-          <span className="nowchip" title="Canon — the moment your players see">🕓 {momentLabel(canon, world?.eras, tl.unit)}</span>
-        )}
         <Link to="/dashboard" className="exit">Exit</Link>
       </div>
 
+      {mode === 'player' ? (
+        // the Player posture IS the Player View: the share link, framed at the current map.
+        // Secrecy, time and reach are decided by the same server code players hit.
+        <div className="main m-player" role="main">
+          {world?.shareToken
+            ? <iframe className="pframe" title="What players see" src={`/p/${world.shareToken}/m/${mapId}`} />
+            : (
+              <div className="preview-off">
+                <div className="pofcard">
+                  <h2>No share link yet</h2>
+                  <p>Players see this world only through its share link. Create one to see exactly what they would see.</p>
+                  <button className="tool on" onClick={shareOn}>Create share link</button>
+                </div>
+              </div>
+            )}
+        </div>
+      ) : (
       <div className={`main m-${mode}`}
         style={{ gridTemplateColumns:
-          mode === 'player' ? `1fr${readerOpen ? ` ${readerCol}` : ''}`
-            : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ` ${readerCol}` : ''}`
-              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ` ${forgeW}px` : ''}` }}>
-        {mode !== 'player' && railOpen && (
+          mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ` ${readerCol}` : ''}`
+            : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ` ${forgeW}px` : ''}` }}>
+        {railOpen && (
           <div className="rail" role="navigation" aria-label="Maps">
             <h4>Maps</h4>
             <MapTree key={worldId} tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
@@ -1495,7 +1490,7 @@ function AtlasWorkspace() {
 
         <div className="stagecol" role="main">
         <div className="stage">
-          {mode !== 'player' && (
+          {(
             <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'} aria-label={railOpen ? 'Hide the map tree' : 'Show the map tree'} aria-expanded={railOpen}
               onClick={toggleRail}>{railOpen ? '◂' : '☰'}</button>
           )}
@@ -1545,9 +1540,9 @@ function AtlasWorkspace() {
                 onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline }}
                 onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = data?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined}
                 onSelect={(it) => setSelId(it.id)} />
-              {printsOn && tl?.enabled && (mode === 'player' || !hiddenCats.has('party')) && (
-                <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras} unit={tl?.unit}
-                  onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
+              {printsOn && tl?.enabled && !hiddenCats.has('party') && (
+                <PartyTrail placements={data?.placements} t={now} eras={world?.eras} unit={tl?.unit}
+                  onStep={(st) => setNow(st)} />
               )}
               {(() => {
                 const pins = (data?.placements || []).filter(visible).filter((p) => !p.shape || p.node.category === 'party').filter((p) => p.node.category !== 'party' || (tl?.enabled ? present(p) : p.id === latestParty))
@@ -1575,7 +1570,7 @@ function AtlasWorkspace() {
                   )}
                   {(p.node.visibility === 'dm' || p.visibility === 'dm') && <span className="lock" title={p.node.visibility === 'dm' ? 'DM only' : 'Hidden on this map — the node itself is shared'}>🔒</span>}
                   {p.node.hasInterior && <span className="open" aria-hidden="true">◎</span>}
-                  {mode !== 'player' && p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
+                  {p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
                   {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? now, world?.eras); return so ? <span className="stag" title={sessionLabel(so, tl.unit)}>{stepTag(so)}</span> : null })()}
                 </div>
                 ))
@@ -1607,7 +1602,7 @@ function AtlasWorkspace() {
                   <div style={{ fontSize: '2rem' }}>📜</div>
                   {mode === 'edit'
                     ? <div>Empty list. <b>＋ Add entry</b> adds the first row.</div>
-                    : <div>Nothing {mode === 'player' ? 'known ' : ''}here yet.</div>}
+                    : <div>Nothing here yet.</div>}
                 </div>
               )}
             </div>
@@ -1688,7 +1683,7 @@ function AtlasWorkspace() {
             </div>
           )}
 
-          {mode !== 'player' && !placing && !isList && legend.length > 1 && (
+          {!placing && !isList && legend.length > 1 && (
             <div className="legend">
               {legend.map(([k, n]) => (
                 <button key={k} className={`lchip ${hiddenCats.has(k) ? 'off' : ''}`} onClick={() => toggleCat(k)}
@@ -1710,7 +1705,7 @@ function AtlasWorkspace() {
                   <div className="muted">Tip: the <b>Map ▾</b> menu sets a backdrop image.</div>
                 </>
               ) : (
-                <div>Nothing {mode === 'player' ? 'known ' : ''}here yet.</div>
+                <div>Nothing here yet.</div>
               )}
             </div>
           )}
@@ -1745,7 +1740,7 @@ function AtlasWorkspace() {
                 {mode === 'edit' && !isList && <div><b>◌ Outline</b> traces a place: click corners or drag · <b>Enter</b> closes · <b>Backspace</b> undoes · <b>Esc</b> cancels</div>}
                 {mode === 'edit' && <div><b>Right-click the map</b> to add something right there</div>}
                 {mode === 'edit' && <div><b>N</b> {isList ? 'adds a row to this list' : 'starts a new entry · '}{isList ? '' : <><b>Enter</b> drops it at the cursor</>}</div>}
-                {mode !== 'player' && <div><b>/</b> finds an entry · <b>Esc</b> cancels</div>}
+                <div><b>/</b> finds an entry · <b>Esc</b> cancels</div>
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
                 <div className="helpkey"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
@@ -1754,7 +1749,7 @@ function AtlasWorkspace() {
           </div>
         </div>
 
-          {mode !== 'player' && tl?.enabled && (
+          {tl?.enabled && (
             <div className="timebar">
               <span className="tlabel" title={momentLabel(dispMin, world?.eras, tl.unit)}>{dispMin}</span>
               <div className="ttrack" ref={trackRef}>
@@ -1860,14 +1855,9 @@ function AtlasWorkspace() {
               <button className="tgear" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
-          {mode !== 'player' && tl?.enabled && tlEdit && (
+          {tl?.enabled && tlEdit && (
             <TimelineConfig key={`${tl.min}:${tl.max}:${tl.unit}`} tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline} onNextSession={nextSession}
               onClose={() => setTlEdit(false)} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
-          )}
-          {mode === 'player' && tl?.enabled && (
-            <EraScrub tl={tl} eras={(world?.eras || []).filter((e) => e.playerVisible)}
-              value={previewT} onChange={setPreviewT} live
-              win={hasFocus ? { min: map?.focusStart, max: map?.focusEnd } : null} />
           )}
         </div>
 
@@ -1918,7 +1908,7 @@ function AtlasWorkspace() {
                   <h3>{sel.node.title}</h3>
                 </div>
                 <span className="rcat">{cat(sel.node.category).label}{mode === 'view' && sel.node.visibility === 'dm' ? ' · 🔒 DM only' : ''}
-                  {mode !== 'player' && sel.node.stance ? <span className={`stchip ${sel.node.stance}`}>{sel.node.stance}</span> : null}</span>
+                  {sel.node.stance ? <span className={`stchip ${sel.node.stance}`}>{sel.node.stance}</span> : null}</span>
                 {sel.node.visibility === 'player' && <div className="sby">✍ a player's marker{sel.node.author ? `, signed “${sel.node.author}”` : ''}</div>}
                 {tl?.enabled && (sel.start != null || sel.end != null) && (
                   <div className="rwhen">🕓 {spanLabel(sel.start, sel.end, world?.eras, tl.unit)}</div>
@@ -1927,12 +1917,12 @@ function AtlasWorkspace() {
                   const story = tl?.enabled ? (resolveFact(nodeLinks.facts, bdMoment) ?? sel.node.body) : sel.node.body
                   return story ? <p className="rbody">{story}</p> : null
                 })()}
-                {mode !== 'player' && sel.node.dmNote && (
+                {sel.node.dmNote && (
                   <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
                 )}
                 {sel.node.voiceUrl && <AudioClip className="rvoice" src={sel.node.voiceUrl} caption={sel.node.voiceLine ? `“${sel.node.voiceLine}”` : 'In their own voice'} />}
                 {sel.node.category === 'party' && tl?.enabled && (() => {
-                  const t = mode === 'player' ? (previewT ?? canon) : now
+                  const t = now
                   const { prev, next } = partyNeighbors(trail, t)
                   const lab = (st) => { const so = sessionOf(st.start ?? t, world?.eras); return so ? ` · ${stepTag(so)}` : '' }
                   if (!prev && !next) return null
@@ -2098,7 +2088,7 @@ function AtlasWorkspace() {
           <div className="fresize" style={{ right: forgeW - 3 }} title="Drag to widen the Forge — double-click resets"
             onPointerDown={startForgeResize} onDoubleClick={resetForgeW} />
         )}
-        {mode !== 'player' && railOpen && (
+        {railOpen && (
           <div className="rresize" style={{ left: railW - 3 }} title="Drag to widen the map tree — double-click resets"
             onPointerDown={startRailResize} onDoubleClick={resetRailW} />
         )}
@@ -2107,6 +2097,7 @@ function AtlasWorkspace() {
             onFlash={setFlash} onRefresh={forgeRefresh} onClose={toggleForge} />
         )}
       </div>
+      )}
 
       {picker && (() => {
         const pkNode = picker.kind === 'node' ? ((data?.placements || []).find((pp) => pp.node.id === picker.nodeId)?.node || (stray?.id === picker.nodeId ? stray : null)) : null
