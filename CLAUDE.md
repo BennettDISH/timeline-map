@@ -364,6 +364,28 @@ see, Undo and world clone drop DM notes / stance / voice, the timeline panel can
 wipe the clock, and two autosaves share one timer. Work a package at a time and tick items off
 in its file with the commit hash.
 
+## Map surface rules
+- A clean tap on empty space deselects; a pan never does. A thread, a search hit or a
+  footstep tick SHOWS the thing: its pin is selected and framed (`focusAt` on MapPlane;
+  `/locate?map=` prefers a placement on the current map and names `interiorMapId`); ◎ is
+  the explicit way inside.
+- Outlines: the name anchor sits on the shape (the centroid, moved on every redraw); a
+  SELECTED outline drags in Edit (its shape rides along); a new outline starts as the
+  remembered kind, an existing one as its own; toggles store only what differs from the
+  kind's preset (a kind change resets them); removing an outline clears kind and style
+  too; right-click while tracing undoes a corner. An outline in progress, an open dialog
+  and the legend's filter end with the map or the posture they were started in — nothing
+  is traced or saved from View/Player or onto another map. No outline tools on lists.
+- The legend's category filter applies only where the legend shows (a map with two or
+  more kinds); it resets per map. Pins sharing a spot fan out in a ring (`stackOffsets`);
+  the selected pin sits above its neighbours; only the primary mouse button drags, and a
+  right-click on a pin opens that pin's own menu.
+- A place never stands inside its own interior (400); the tree files a self-owned or
+  cyclic space under Unplaced; an ancestor of the open map cannot fold (the caret says so).
+  The tree remounts per world (folds are per world). Its thumbnail follows the backdrop.
+- SVG filters on regions are in user units of the 0–100 viewBox (a 5px blur is 5% of the
+  plane): glow is ~0.35 units; the pop's shadow sits on a wrapper OUTSIDE the clipped group.
+
 ## Inspector rules
 - Links are THREADS and they are public: players see a thread (label included) between two
   things they can both see. The editor says so; one thread per pair (a second is a 409),

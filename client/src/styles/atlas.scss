@@ -71,7 +71,7 @@
      .tool{pointer-events:auto}}
   .empty-map.static{position:static;pointer-events:auto;padding:60px 20px}
 
-  .pin{position:absolute;transform:translate(-50%,-50%) scale(var(--pinscale,1));z-index:3;display:flex;align-items:center;gap:6px;
+  .pin{position:absolute;transform:translate(calc(-50% + var(--ox,0px) * var(--pinscale,1)),calc(-50% + var(--oy,0px) * var(--pinscale,1))) scale(var(--pinscale,1));z-index:3;display:flex;align-items:center;gap:6px;
      background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:3px 10px 3px 7px;cursor:grab;
      touch-action:none;user-select:none;box-shadow:0 2px 6px #0006;white-space:nowrap;max-width:220px;color:var(--ink)}
   .pin .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
@@ -723,13 +723,15 @@
 .atlas .region.sel,.atlas .region.sel:hover{stroke:var(--accent);stroke-width:calc(2.5px * var(--pinscale,1))}
 .atlas .region.s-grow:hover,.atlas .region.s-grow.hov{transform:scale(1.05)}
 .atlas .region.s-grow.sel{transform:scale(1.03)}
-.atlas .region.s-glow:hover,.atlas .region.s-glow.hov{filter:drop-shadow(0 0 5px rgba(233,205,140,.55))}
+// filter lengths are in the SVG's user units (the 0–100 viewBox): a 5px blur spread the halo over 5% of the plane and vanished
+.atlas .region.s-glow:hover,.atlas .region.s-glow.hov{filter:drop-shadow(0 0 .35px rgba(233,205,140,.95))}
 .atlas .region.secret{opacity:.45} // DM-only: faint
 .atlas .region.ghost,.atlas .region.ghost:hover{stroke:#b07bd0;stroke-dasharray:6 4} // not here at this moment
 .atlas .region.spot{stroke:#d9b64e;fill:#d9b64e;animation:regionglow 2s ease-in-out infinite}
 @keyframes regionglow{0%,100%{fill-opacity:calc(var(--ra,.10) * 1.6)}50%{fill-opacity:calc(var(--ra,.10) * 3.4)}}
 // the pop: the art inside the outline, clipped from the same backdrop and lifted 5% with a shadow
-.atlas .rpop{pointer-events:none;animation:rpop .18s ease forwards;filter:brightness(1.08) drop-shadow(0 6px 10px rgba(0,0,0,.7))}
+.atlas .rpop{pointer-events:none;animation:rpop .18s ease forwards;filter:brightness(1.08)}
+.atlas .rpopshadow{filter:drop-shadow(0 .5px .8px rgba(0,0,0,.8))} // user units; on the wrapper so it falls outside the clip
 @keyframes rpop{from{transform:scale(1)}to{transform:scale(1.05)}}
 .atlas .regions.drawing .region,.atlas .regions.inert .region{pointer-events:none}
 // the name of an outlined place floats at its anchor: on hover, when labels are always on,
@@ -741,10 +743,10 @@
   .open{color:var(--muted);margin-left:5px}
   .lock{font-size:10px;margin-right:4px}}
 .atlas .rlabel.on{opacity:1}
-.atlas .rlabel.secret{opacity:.45}
-.atlas .rlabel.secret.on{opacity:.7}
-@media (hover: none){.atlas .rlabel{opacity:1}}
+.atlas .rlabel.secret.on{opacity:.7} // DM-only: shown by the same rules as any label, fainter
+@media (hover: none){.atlas .rlabel{opacity:1}.atlas .rlabel.secret{opacity:.45}}
 .atlas .labelson .rlabel{opacity:1}
+.atlas .labelson .rlabel.secret{opacity:.7}
 // the kind switch (drawing HUD + inspector)
 .atlas .kindsel{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;
   button{background:none;border:none;color:var(--muted);padding:3px 9px;cursor:pointer;font:inherit;font-size:12px}
@@ -768,7 +770,8 @@
 .atlas .drawhud{position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:10px;
   background:#1d2a28ee;border:1px solid #38b6a3;color:#cfe9e4;border-radius:9px;padding:6px 12px;font-size:12px;
   box-shadow:0 2px 8px #0008;white-space:nowrap;max-width:min(94%,980px);
-  span{overflow:hidden;text-overflow:ellipsis}
+  .dhtext{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .kindsel{flex:none}
   b{color:#7fe0d0}
   .btn{padding:3px 9px;flex:none}}
 @media (hover: hover){
@@ -860,3 +863,11 @@
   .onmaprow{justify-content:flex-start;flex-wrap:wrap}}
 .atlas .pick .pname{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:#000a;color:var(--ink);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;pointer-events:none}
+
+// the map surface: a selected pin above its neighbours, a crosshair while placing, a
+// selected outline that can be moved, a labelled group in the space menu
+.atlas .pin.sel{z-index:6}
+.atlas.placing .mp-viewport,.atlas.placing .pin{cursor:crosshair}
+.atlas .m-edit .region.sel{cursor:grab}
+.atlas .apop-sep{padding:7px 10px 2px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin-top:4px}
+.atlas .ctxmenu .apop-sep{border-top:0;margin-top:0;padding-top:4px;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}

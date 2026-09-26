@@ -49,6 +49,7 @@ export default function MapPlane({
   controlsOffset = 0, // lift zoom buttons above the timebar when it's shown
   dblZoom = true,     // off while placing nodes, so a fast double-drop doesn't also zoom
   grid = false,       // draw a plane-space grid over the art (scales with zoom)
+  focusAt = null,     // { x, y (plane %), key }: a new key pans the camera so that point is in view (a search hit, a thread)
   children,
 }) {
   const viewportRef = useRef(null)
@@ -139,6 +140,23 @@ export default function MapPlane({
     const k = s / v.scale
     queueView(clampView(s, cx - (cx - v.tx) * k, cy - (cy - v.ty) * k))
   }, [clampView, queueView])
+
+  // a selection made elsewhere (search, a thread, a footstep tick) is brought into view:
+  // the camera pans, keeping its zoom, only when the point is off-screen or at the edge
+  useEffect(() => {
+    if (!focusAt) return
+    const vp = viewportRef.current
+    if (!vp) return
+    const { width: vw, height: vh } = vp.getBoundingClientRect()
+    if (!vw || !vh) return
+    const v = eff()
+    const px = (focusAt.x / 100) * PLANE_W, py = (focusAt.y / 100) * planeHRef.current
+    const sx = v.tx + px * v.scale, sy = v.ty + py * v.scale
+    const m = 70
+    if (sx > m && sx < vw - m && sy > m && sy < vh - m) return
+    touched.current = true
+    queueView(clampView(v.scale, vw / 2 - px * v.scale, vh / 2 - py * v.scale))
+  }, [focusAt?.key]) // eslint-disable-line
 
   // wheel zoom needs a non-passive listener (React's synthetic wheel can't preventDefault)
   useEffect(() => {
@@ -292,7 +310,7 @@ export default function MapPlane({
         {grid && <div className="mp-grid" />}
         {children}
       </div>
-      <div className="mp-controls" style={controlsOffset ? { bottom: controlsOffset } : undefined}>
+      <div className="mp-controls" style={controlsOffset ? { bottom: controlsOffset } : undefined} onDoubleClick={(e) => e.stopPropagation()}>
         <button title="Zoom in" aria-label="Zoom in" onClick={(e) => { e.stopPropagation(); zoomCenter(1.5) }}
           onPointerDown={(e) => e.stopPropagation()}>＋</button>
         <button title="Zoom out" aria-label="Zoom out" onClick={(e) => { e.stopPropagation(); zoomCenter(1 / 1.5) }}

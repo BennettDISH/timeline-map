@@ -7,7 +7,7 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   story, ◎ enters an interior and ⬆ comes back, a ghost footprint is clickable, the era bar
   scrubs into the past, no page errors. Needs a share token of a world that has a party
   trail and at least one player-visible era (`player.config.json` or `SHARE_TOKEN`).
-- `server.mjs` — API only: non-canonical map ids 404 before any write (read-only on the fixture world), a marker lands whole on the throwaway world and is removed again, the input rules hold (an over-long title, a decimal or reversed lifespan, a reversed era, a self-link and an empty world name are 400s with a sentence; a position off the plane is clamped; a blank title reads Untitled; odd ids are 404s), the inspector rules hold (one thread per pair, a stable thread order, an interior and the default root map follow a rename, Reveal lands in the period text at canon), and the server answers.
+- `server.mjs` — API only: non-canonical map ids 404 before any write (read-only on the fixture world), a marker lands whole on the throwaway world and is removed again, the input rules hold (an over-long title, a decimal or reversed lifespan, a reversed era, a self-link and an empty world name are 400s with a sentence; a position off the plane is clamped; a blank title reads Untitled; odd ids are 404s), the inspector rules hold (one thread per pair, a stable thread order, an interior and the default root map follow a rename, Reveal lands in the period text at canon, locate shows the thing and names its interior, a place cannot stand inside itself), and the server answers.
 - `server/test/contract.test.js` — local, no database: the Forge validator never throws on malformed entries.
 - `undo.mjs` — API only, on the throwaway world: Undo restores every column (DM note, stance, body, interior notes and focus) and the delete impact tells the truth.
 - `dm.mjs` — the DM workspace on a THROWAWAY world: View posture reader, timebar ticks
@@ -15,7 +15,9 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   changes map without the error boundary, double-click on a pin without an interior stays
   put; an unknown world lands on the dashboard with a notice, a missing space offers the
   world map with no editor armed, the title input stops at 255, the editor opens at the top
-  for each selection, and a just-dropped node's title is focused and selected. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
+  for each selection, a just-dropped node's title is focused and selected, a pan keeps the
+  selection while a clean tap clears it, a search hit is framed, an outline ends with the
+  posture, Fit swallows its double-click, and a pin's right-click menu is its own. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
 `bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order; `SKIP_WAIT=1` runs them at once.

@@ -199,6 +199,60 @@ try {
       } else step('the inspector shows DM notes', false);
     }
   }
+  // the map surface: a pan keeps the selection, a search hit is framed, an outline ends with the
+  // posture, the zoom controls swallow their double-clicks, a pin has its own menu
+  {
+    const plain = page.locator('.atlas .pin:not(.party)').first();
+    if (await plain.count()) {
+      await plain.click({ force: true }); await page.waitForTimeout(400);
+      const vb = await page.locator('.mp-viewport').boundingBox();
+      const boxes = await page.evaluate(() => [...document.querySelectorAll('.atlas .pin, .atlas .region')].map((el) => { const b = el.getBoundingClientRect(); return [b.x - 16, b.y - 16, b.right + 16, b.bottom + 16]; }));
+      const spots = [[0.5, 0.92], [0.08, 0.92], [0.92, 0.92], [0.08, 0.08], [0.92, 0.08], [0.5, 0.5]];
+      const free = spots.map(([fx, fy]) => [vb.x + vb.width * fx, vb.y + vb.height * fy]).find(([x, y]) => !boxes.some(([a, b, c, d]) => x > a && x < c && y > b && y < d)) || [vb.x + vb.width / 2, vb.y + vb.height * 0.92];
+      await page.mouse.move(free[0], free[1]); await page.mouse.down();
+      await page.mouse.move(free[0] - 60, free[1] - 40, { steps: 6 }); await page.mouse.move(free[0] - 120, free[1] - 80, { steps: 6 }); await page.mouse.up();
+      await page.waitForTimeout(400);
+      step('a pan keeps the selected node in the editor', (await page.locator('.insp input[data-fld="title"]').count()) === 1);
+      await page.mouse.click(free[0] - 120, free[1] - 80); await page.waitForTimeout(400);
+      step('a clean tap on empty space deselects', (await page.locator('.insp input[data-fld="title"]').count()) === 0);
+    }
+    // a search hit off-screen is brought into view
+    for (let i = 0; i < 5; i++) { await page.locator('.mp-controls button[aria-label="Zoom in"]').click(); await page.waitForTimeout(120); }
+    const target = page.locator('.atlas .pin:not(.party) .lbl').first();
+    const name = (await target.textContent().catch(() => '')).trim();
+    if (name) {
+      await page.keyboard.press('/'); await page.waitForTimeout(300);
+      await page.keyboard.type(name.slice(0, 12)); await page.waitForTimeout(500);
+      await page.keyboard.press('Enter'); await page.waitForTimeout(1200);
+      const sel = page.locator('.atlas .pin.sel').first();
+      const sb = await sel.boundingBox().catch(() => null); const vb2 = await page.locator('.mp-viewport').boundingBox();
+      const inView = !!sb && sb.x + sb.width / 2 > vb2.x && sb.x + sb.width / 2 < vb2.x + vb2.width && sb.y + sb.height / 2 > vb2.y && sb.y + sb.height / 2 < vb2.y + vb2.height;
+      step('a search hit is framed on the map', inView, sb ? `pin at ${Math.round(sb.x)},${Math.round(sb.y)} in ${Math.round(vb2.x)}..${Math.round(vb2.x + vb2.width)}` : 'no selected pin');
+    }
+    const before = await page.locator('.mp-world').getAttribute('style');
+    await page.locator('.mp-controls button[aria-label="Fit the whole map"]').dblclick(); await page.waitForTimeout(500);
+    const fitOnce = await page.locator('.mp-world').getAttribute('style');
+    await page.locator('.mp-controls button[aria-label="Fit the whole map"]').click(); await page.waitForTimeout(500);
+    step('double-clicking Fit only fits (no zoom underneath)', fitOnce === (await page.locator('.mp-world').getAttribute('style')), before === fitOnce ? 'unchanged' : 'refit');
+    // an outline begun in Edit ends with the posture
+    const outlineBtn = page.locator('.toolbar button', { hasText: 'Outline' });
+    if (await outlineBtn.count()) {
+      await outlineBtn.click(); await page.waitForTimeout(200);
+      const vb3 = await page.locator('.mp-viewport').boundingBox();
+      await page.mouse.click(vb3.x + vb3.width * 0.3, vb3.y + vb3.height * 0.3); await page.waitForTimeout(200);
+      await page.locator('.mode button', { hasText: 'View' }).click(); await page.waitForTimeout(400);
+      step('switching posture cancels an outline in progress', (await page.locator('.drawhud').count()) === 0 && (await page.locator('.atlas .ovtx').count()) === 0);
+      await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400);
+    }
+    // a right-click on a pin offers that pin's actions
+    const pin2 = page.locator('.atlas .pin:not(.party)').first();
+    if (await pin2.count()) {
+      await pin2.click({ button: 'right', force: true }); await page.waitForTimeout(300);
+      const items = (await page.locator('.ctxmenu button').allTextContents()).join(' | ');
+      step("a right-click on a pin offers the pin's own actions", /Remove from this map/.test(items) && /Delete/.test(items), items.slice(0, 80));
+      await page.keyboard.press('Escape'); await page.mouse.click(10, 300); await page.waitForTimeout(200);
+    }
+  }
   // the editor opens at the top for each newly selected thing; a just-dropped node opens with
   // its title focused and selected, ready to be typed over
   {

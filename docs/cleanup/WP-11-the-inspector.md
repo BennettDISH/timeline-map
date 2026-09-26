@@ -10,20 +10,20 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **C010** · medium · xs · Players see links and their labels as 'Threads', but the DM's editor never says links are public
-- [ ] **C012** · medium · s · Claiming a player's marker points to a 'Who can see it' control that doesn't exist; the right button is already lit
-- [ ] **C015** · medium · s · Reveal adds the secret to the default description, which players don't see while a period's text covers canon
-- [ ] **C017** · medium · s · An interior's name is copied from the node's title when it's created and never follows a rename
-- [ ] **P030** · medium · xs · After dropping a node the title isn't focused: typing the name does nothing, and its first 'n' re-arms Add-node mode
-- [ ] **C055** · low · xs · The remove-interior dialog only says 'The interior is empty' when the impact request failed
-- [ ] **C058** · low · xs · With voice on, 'The story by period' and 'Image' appear under the Voice header
-- [ ] **C067** · low · xs · Renaming a world leaves its root map, breadcrumb and tree under the old name ('<old name> — World Map')
-- [ ] **P049** · low · xs · Editor keeps its scroll position between things, and a new thing's title isn't focused
-- [ ] **P056** · low · xs · Pickers show 'nothing here' while still loading, and hide already-placed things without saying why
-- [ ] **P064** · low · xs · Node picker says 'No matching nodes.' while it is still loading, hides load errors, and Enter does nothing
-- [ ] **P065** · low · s · Linking allows duplicates, and incoming links can't be removed or labelled from the node they point at
-- [ ] **P066** · low · xs · Link rows reorder after a label edit: the edited link jumps to the bottom
-- [ ] **P084** · low · xs · Link jump targets are anchors without href (not keyboard-reachable); 'refers here' is drawn in the border colour
+- [x] **C010** · medium · xs · Players see links and their labels as 'Threads', but the DM's editor never says links are public — done 84577b8 (the editor section is Threads and says players read them, labels included; one word for the concept)
+- [x] **C012** · medium · s · Claiming a player's marker points to a 'Who can see it' control that doesn't exist; the right button is already lit — done 84577b8 (a marker bar: Keep as canon / Hide / Delete with a flash; the visibility buttons read Players / DM and neither is lit for a marker)
+- [x] **C015** · medium · s · Reveal adds the secret to the default description, which players don't see while a period's text covers canon — done c8b98a8 (Reveal lands in the period text covering canon when one exists, the reply carries factId, and the button names its target)
+- [x] **C017** · medium · s · An interior's name is copied from the node's title when it's created and never follows a rename — done 84577b8 (an interior named after its node follows the rename, server-side and in the tree/crumb at once; a space the DM named keeps its name)
+- [x] **P030** · medium · xs · After dropping a node the title isn't focused: typing the name does nothing, and its first 'n' re-arms Add-node mode — done 84577b8 (a just-dropped node opens with its title focused and selected)
+- [x] **C055** · low · xs · The remove-interior dialog only says 'The interior is empty' when the impact request failed — done 84577b8 (the dialog names what goes with the space and says when it could not look)
+- [x] **C058** · low · xs · With voice on, 'The story by period' and 'Image' appear under the Voice header — done 84577b8 (period text and Image sit under Story with their own headers, before Voice)
+- [x] **C067** · low · xs · Renaming a world leaves its root map, breadcrumb and tree under the old name ('<old name> — World Map') — done 84577b8 (the default root map follows a world rename while it still reads "<world> — World Map")
+- [x] **P049** · low · xs · Editor keeps its scroll position between things, and a new thing's title isn't focused — done 84577b8 (the editor scrolls to the top for each newly selected thing)
+- [x] **P056** · low · xs · Pickers show 'nothing here' while still loading, and hide already-placed things without saying why — done 84577b8 (pickers show Loading…, name their tiles, and say what they left out)
+- [x] **P064** · low · xs · Node picker says 'No matching nodes.' while it is still loading, hides load errors, and Enter does nothing — done 84577b8 (the node picker shows Loading…, an error with Retry, and picks the top match on Enter)
+- [x] **P065** · low · s · Linking allows duplicates, and incoming links can't be removed or labelled from the node they point at — done 84577b8 (the thread picker leaves out what is already threaded; POST /links answers 409 for a second thread either way; incoming rows have ✎ and ✕)
+- [x] **P066** · low · xs · Link rows reorder after a label edit: the edited link jumps to the bottom — done 84577b8 (ORDER BY l.id in the node and share link queries)
+- [x] **P084** · low · xs · Link jump targets are anchors without href (not keyboard-reachable); 'refers here' is drawn in the border colour — done 84577b8 (thread jumps are buttons; ✎/✕ have a 24px hit area; "refers here" reads in the muted colour)
 
 ## Items
 

@@ -25,7 +25,7 @@ const atlasService = {
   placeNode: (mapId, data) => http.post(`${B}/maps/${mapId}/placements`, data).then((r) => r.data),
 
   getNode: (id) => http.get(`${B}/nodes/${id}`).then((r) => r.data),
-  locateNode: (id) => http.get(`${B}/nodes/${id}/locate`).then((r) => r.data),
+  locateNode: (id, mapId) => http.get(`${B}/nodes/${id}/locate${mapId != null ? `?map=${mapId}` : ''}`).then((r) => r.data),
   nodeImpact: (id) => http.get(`${B}/nodes/${id}/impact`).then((r) => r.data),
   patchNode: (id, data) => http.patch(`${B}/nodes/${id}`, data).then((r) => r.data),
   createInterior: (id, view) => http.post(`${B}/nodes/${id}/interior`, { view }).then((r) => r.data),

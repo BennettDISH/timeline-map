@@ -46,7 +46,7 @@ const areaOf = (pts) => {
 // district stays a faint wash
 const tint = (area) => Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(area, 300)))).toFixed(3)
 
-export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw, onEnter }) {
+export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw, onEnter, onDragSelected }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -67,7 +67,17 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn
   }, [on])
 
   const onDown = (e) => {
-    if (!on || space.current || (e.button !== undefined && e.button !== 0)) return
+    if (!on) {
+      // a press on the SELECTED outline moves it (its name anchor rides along); a press on
+      // any other region still pans, and a tap still selects through the plane's click
+      if (onDragSelected && e.button === 0 && e.pointerType !== 'touch') {
+        const id = regionIdAt(e)
+        const it = id != null ? ordered.find((x) => x.id === id) : null
+        if (it && isSel(it)) onDragSelected(e, id)
+      }
+      return
+    }
+    if (space.current || (e.button !== undefined && e.button !== 0)) return
     e.stopPropagation() // ours, not a pan
     try { svgRef.current.setPointerCapture(e.pointerId) } catch (err) { /* older browsers */ }
     trace.current = { id: e.pointerId, moved: false, pts: [], last: pct(e) }
@@ -110,8 +120,10 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn
         {popped && (
           <>
             <defs><clipPath id={`rclip-${popped.id}`}><polygon points={polyPoints(popped.pts)} /></clipPath></defs>
-            <g className="rpop" clipPath={`url(#rclip-${popped.id})`} style={{ transformOrigin: `${popC[0]}px ${popC[1]}px` }}>
-              <image href={backdropUrl} x="0" y="0" width="100" height="100" preserveAspectRatio="none" />
+            <g className="rpopshadow">{/* the shadow lives OUTSIDE the clipped group: a filter runs before its own clip, so on the same element it could never show */}
+              <g className="rpop" clipPath={`url(#rclip-${popped.id})`} style={{ transformOrigin: `${popC[0]}px ${popC[1]}px` }}>
+                <image href={backdropUrl} x="0" y="0" width="100" height="100" preserveAspectRatio="none" />
+              </g>
             </g>
           </>
         )}

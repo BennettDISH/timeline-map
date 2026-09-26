@@ -57,7 +57,7 @@ export default function PartyTrail({ placements, t, eras, unit, onStep }) {
         const label = s ? sessionLabel(s, unit) : `${unit ? unit.replace(/s$/i, '') : 'moment'} ${p.start ?? '…'}`
         const [ox, oy] = offset(p)
         return (
-          <button key={p.id} type="button" className="fstep"
+          <button key={p.id} type="button" className="fstep" onDoubleClick={(e) => e.stopPropagation()}
             style={{ left: `${p.x}%`, top: `${p.y}%`, '--ox': `${ox}px`, '--oy': `${oy}px`, '--sc': sessionColor(s ? s.idx : 0, latest), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
             title={onStep ? `${label} — click to look at this moment` : label}
             onPointerDown={(e) => e.stopPropagation()}

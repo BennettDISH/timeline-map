@@ -91,6 +91,11 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       await dm('PATCH', `/nodes/${a.nodeId}`, { title: 'server-probe-A3' });
       im = await json(await dm('GET', `/maps/${inner?.mapId}`));
       step('a space the DM named keeps its name through a node rename', im?.map?.title === 'Own Name', String(im?.map?.title));
+      // locate SHOWS the thing (its pin, here when it stands here) and names the way in; a place never stands inside itself
+      const loc = await json(await dm('GET', `/nodes/${a.nodeId}/locate?map=${cfg.root}`));
+      step('locate shows the thing on this map and names its interior', loc?.placementId === a.placementId && loc?.mapId === cfg.root && loc?.interiorMapId === inner?.mapId, JSON.stringify(loc));
+      const selfP = await dm('POST', `/maps/${inner?.mapId}/placements`, { node_id: a.nodeId, x: 5, y: 5 });
+      step("a place can't stand inside its own interior", selfP.status === 400, String(selfP.status));
       const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));
       const canon = wj?.world?.timeline?.current;
       if (wj?.world?.timeline?.enabled && canon != null) {

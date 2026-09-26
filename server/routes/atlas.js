@@ -126,7 +126,8 @@ async function breadcrumb(mapId) {
     if (!m) break;
     chain.unshift({ mapId: m.id, title: m.title });
     if (!m.owner_node_id) break;
-    const p = (await pool.query('SELECT map_id FROM placements WHERE node_id=$1 ORDER BY id LIMIT 1', [m.owner_node_id])).rows[0];
+    // a footstep of the owner inside its own space is not the way up
+    const p = (await pool.query('SELECT map_id FROM placements WHERE node_id=$1 AND map_id <> $2 ORDER BY id LIMIT 1', [m.owner_node_id, mid])).rows[0];
     mid = p?.map_id;
   }
   return chain;
@@ -389,7 +390,7 @@ router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
     SELECT m.id, m.title, m.owner_node_id, i.file_path AS backdrop_path,
-      (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id ORDER BY p.id LIMIT 1) AS parent_map_id
+      (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id AND p.map_id <> m.id ORDER BY p.id LIMIT 1) AS parent_map_id
     FROM maps m LEFT JOIN images i ON m.image_id=i.id
     WHERE m.world_id=$1 AND m.is_active=true ORDER BY m.id`, [req.params.worldId])).rows;
   res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.parent_map_id, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
@@ -561,6 +562,9 @@ router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   const { node_id, shape = null, shape_kind = null } = req.body;
   if (!isId(node_id) || (await worldIdOfNode(node_id)) !== wid) return bad(res, 'Node is not in this world');
+  // a place never stands inside itself: the tree and the crumb would loop
+  const own = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [node_id])).rows[0];
+  if (own?.interior_map_id === Number(req.params.mapId)) return bad(res, "A place can't stand inside its own interior");
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return bad(res, 'An outline needs 3 to 200 corners');
   if (kind === undefined) return bad(res, 'An outline is an area or a button');
@@ -638,10 +642,15 @@ router.delete('/facts/:id', wrap(async (req, res) => {
 router.get('/nodes/:id/locate', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  // a thread or a search result SHOWS the thing: its pin on a map (the one the DM is on,
+  // when it stands there), story open. Its interior is the explicit way in (◎), named
+  // alongside; only an unplaced owner lands inside.
+  const here = isId(req.query.map) ? Number(req.query.map) : null;
   const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
-  if (n?.interior_map_id) return res.json({ mapId: n.interior_map_id });
-  const p = (await pool.query('SELECT id, map_id FROM placements WHERE node_id=$1 ORDER BY id LIMIT 1', [req.params.id])).rows[0];
-  res.json(p ? { mapId: p.map_id, placementId: p.id } : {});
+  const p = (await pool.query('SELECT id, map_id FROM placements WHERE node_id=$1 ORDER BY (map_id = $2) DESC NULLS LAST, id LIMIT 1', [req.params.id, here])).rows[0];
+  if (p) return res.json({ mapId: p.map_id, placementId: p.id, interiorMapId: n?.interior_map_id ?? null });
+  if (n?.interior_map_id) return res.json({ mapId: n.interior_map_id, interiorMapId: n.interior_map_id });
+  res.json({});
 }));
 
 // GET /nodes/:id/impact — what deleting this node takes with it: how many maps it sits on,
