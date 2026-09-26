@@ -7,13 +7,15 @@
 - Hosting: Railway (no local server testing available)
 
 The legacy map system (worlds → maps → events, `MapViewer`/`NodeEditor` and friends, ~3.5k lines)
-was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap live in
-`docs/UX-REDESIGN.md`; its checkboxes reflect verified state as of 2026-08-17.
+was deleted in August 2026. **Atlas is the only map UI.** The founding vision lives in
+`docs/UX-REDESIGN.md`; its roadmap is retired — this file is the current truth, and what is
+still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
 
 ## Key Commands
 - `npm run dev` - Start both client and server (for development structure reference only)
 - `npm run build` - Build for production
-- `npm run install-all` - Install dependencies for both client and server
+- `npm install` at the root installs both (its postinstall runs `install-all`); `npm run migrate`
+  in `server/` is optional — the boot applies the schema
 
 ## Testing & Deployment
 - **No local server testing available** - always push changes to git to test on Railway
@@ -32,13 +34,15 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
   first-class bidirectional edges. A node's `interior_map_id` is what makes it zoomable-into.
 - Server: `server/routes/atlas.js` (the whole Atlas API), `worlds.js` (world CRUD only),
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
-  `auth.js` (JWT + server-side SSO), `admin.js`, `setup.js`
+  `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
+  `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
+  `storage.js` (R2), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the entire workspace: canvas, tree, inspector, timebar,
   timeline config, image picker) + `components/MapPlane.jsx` (shared pan/zoom world plane —
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
-- Supporting pages: `Dashboard` (world select → Atlas), `ImageManager`, `AdminPanel`, `Login`,
-  `AuthCallback` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
+- Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `ImageManager`
+  (the Archive), `AdminPanel`, `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
   ensured on boot and admin is a Waypoint identity)
 - Authentication context in `client/src/utils/AuthContext.jsx`; SSO is built server-side
   (no VITE_ client vars; configured only when URL + client id + secret all exist).
@@ -54,7 +58,9 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
   Guests (`users.is_guest`, from Waypoint) are named "Guest" in the menu and warned before
   sign-out; the app's guest is browser-bound (no claim path exists — Waypoint would need a
   proxy claim endpoint).
-- Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` redirects R2-backed paths
+- Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` (utils/imageUrl.js) passes
+  absolute R2 URLs through and prefixes relative paths; `/api/images-base64/serve/:filename`
+  streams base64 rows and redirects R2-backed ones
 
 ## Database
 **Production holds a real campaign** (Bennett's world 29: DM notes, R2 art, the Forge bible, a
@@ -64,11 +70,10 @@ export like `~/atlas-backups/`). Undo and world clone both insert from ONE colum
 table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
 Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
 base64 rows are lifted into R2, and folders, the lantern and the mind travel too.
-Live tables: `users`, `worlds`, `maps`, `nodes`, `placements`, `links`, `images`,
-`image_folders`, `eras`, `map_backdrops`, `node_facts`.
-Orphaned tables still present in production but absent from schema.sql and all code — droppable
-whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `timeline_settings`,
-`user_sessions`.
+Live tables (the 15 `schema.sql` creates, and exactly what production holds as of 2026-09-26):
+`users`, `worlds`, `image_folders`, `images`, `maps`, `nodes`, `placements`, `links`, `node_facts`,
+`eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`. The
+legacy tables (`events` and friends) are gone.
 
 ## Development Guidelines
 - Follow existing SCSS styling patterns in `client/src/styles/` (`atlas.scss` for the workspace)
@@ -202,7 +207,8 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
   for the DM lens, server-side in `share.js` for players.
 - The table convention: the clock counts **footsteps**, ten per session; each session is
-  an era (`Session N`, footsteps 10N–10N+9), and "＋ Next session" in the timeline config
+  an era named `Session N` of ten footsteps, each starting right after the last session's end
+  (10–19, 20–29 … when untouched), and "＋ Next session" in the timeline config
   appends the next era and grows the timeline to it, so the latest session is always the
   end of the clock. Every clock label reads era-relative via `utils/moment.js`
   ("Session 3 · footstep 7"). "The Party" node (category `party`, one per world) carries a
@@ -237,8 +243,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
   past canon, silently resolves to canon. The workspace 🎭 posture previews this.
 
-**V1.0 — tagged 2026-08-20.** The founding vision is implemented end-to-end; what remains
-below is a wish-shelf, not a gap list.
+**Releases:** v1.0.0 was tagged 2026-08-20 with the founding vision implemented end-to-end;
+everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wish-shelf under
+Known gaps.
 
 ## Player markers (live, trust-based)
 - A share-link holder can drop a marker on the Player View: POST `/:token/maps/:mapId/nodes`
@@ -336,8 +343,9 @@ below is a wish-shelf, not a gap list.
   R2 object (`keyFromUrl`). `POST /nodes/:id/line` accepts `voice_style` so the style shown
   in the box is the one used. Model overrides: `VOICE_TTS_MODEL_GEMINI`,
   `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS` (one per provider). Player View: a visible node's line plays
-  on its sheet; a map's ambience is a tap-to-play toggle in the top bar. All players use
-  `components/AudioClip.jsx` (themed; the native controls ignore the palette). helmet's CSP
+  on its sheet; a map's ambience is a tap-to-play toggle in the top bar. Voice lines play through
+  `components/AudioClip.jsx` (themed; the native controls ignore the palette); the Player View's
+  ambience is a tap-to-play toggle in the top bar over a hidden audio element. helmet's CSP
   carries `media-src 'self' blob: https:` — without it the browser renders the player but
   refuses to load R2 audio.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
@@ -453,5 +461,5 @@ in its file with the commit hash.
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)
-- From the "later" shelf: per-fact visibility, branching campaigns, zones/regions,
+- From the "later" shelf: per-fact visibility, branching campaigns,
   @-mention-to-link

@@ -1,48 +1,54 @@
-# timeline-map
+# Fantasy Map Timeline — the Atlas
 
-An interactive fantasy-map timeline tool: build worlds, upload map images, place events across a map,
-and scrub through time to see how a world changes. Your most-developed app.
+A recursively zoomable fantasy world you scrub through time. A DM builds it on a PC; players
+open a share link on their phones and see only what the DM has revealed, at the canon moment.
+
+**Start with `CLAUDE.md`.** It is the always-current description of the model, the rules the
+code enforces, and how to work on the repo (no local server: push to `main`, Railway deploys,
+the live suites prove it).
+
+## Doc map
+- `CLAUDE.md` — the truth: architecture, the timeline and secrecy rules, the Forge, voice, input rules.
+- `docs/UX-REDESIGN.md` — the founding vision (its roadmap is retired).
+- `docs/cleanup/README.md` — the 2026-09-26 whole-app audit and its work packages.
+- `docs/R2-SETUP.md` — Cloudflare R2 storage setup.
+- `e2e/README.md` — the live suites: the API secrecy tests, the Player View, DM, undo and server probes.
+- `server/test/FIXTURE.md` — the production fixture world the secrecy suite reads.
 
 ## Stack
-React 18 + Vite (`client/`) · Express + Postgres (`server/`) · JWT auth · monorepo
+React 18 + Vite + SASS (`client/`) · Express + Postgres (`server/`) · JWT auth with optional
+server-side Waypoint SSO and guest sign-in · Cloudflare R2 for art (base64-in-Postgres fallback)
+· optional Gemini "Forge" (a per-world mind) and Gemini/OpenAI/ElevenLabs voices.
 
 ## Getting started
-Requires Node and a Postgres database.
+Requires Node 18+ and a Postgres database.
 
 ```bash
-npm run install-all          # installs client + server
-cp .env.example server/.env  # DATABASE_URL, JWT_SECRET, FRONTEND_URL, ...
-cd server && npm run migrate # create tables
-
-npm run dev                  # runs server + client together (concurrently)
+npm install                  # the root postinstall installs server/ and client/
+cp .env.example server/.env  # DATABASE_URL, JWT_SECRET, … (see the comments in the file)
+npm run dev                  # server + client together
 ```
 
-Production: `npm run build` then `npm start`.
+The schema is applied on every server boot from `server/config/schema.sql`; `cd server && npm run
+migrate` runs the same statements by hand if you want to see them land first.
+
+Production: `npm run build` then `npm start` (Railway runs both from `main`).
 
 ## Layout
-- `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId`, the editor and by far the largest file),
-  **PlayerView** (`/p/:token`, the public read-only share), Dashboard, ImageManager, AdminPanel,
-  Login, AuthCallback, Setup/EnvSetup.
-- `server/routes/` — **atlas** (nodes/placements/links), **share** (tokened Player View), **forge**
-  (per-world AI, inert without `GEMINI_API_KEY`), worlds, images, imageFolders, **image-base64**,
-  auth, admin, setup.
-- `server/config/apply-schema.js` — reads schema.sql into statements; shared by the boot-time
-  schema ensure in `server.js` and `server/config/migrate.js` (`npm run migrate`).
+- `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId/m/:mapId`, the editor), **PlayerView**
+  (`/p/:token`, the public read-only share), Dashboard, ImageManager (the Archive), AdminPanel,
+  Login, AuthCallback, NotFound.
+- `server/routes/` — **atlas** (the whole Atlas API), **share** (the tokened Player View API and
+  the secrecy boundary), **forge**, **voice**, worlds, images, image-base64, imageFolders, auth, admin.
+- `server/lib/validate.js` — the one set of input rules every write route uses.
+- `server/config/apply-schema.js` — reads schema.sql into statements for the boot-time ensure and `migrate.js`.
 
-## SSO
-Optional "Sign in with bennettdishman.com" is wired **entirely server-side** — the OAuth
-`/oauth/authorize` URL is built on the server from `AUTH_SERVICE_URL` + `SSO_CLIENT_ID`, so nothing
-is baked into the client bundle (no `VITE_` vars). Set `AUTH_SERVICE_URL`, `SSO_CLIENT_ID`, and
-`SSO_CLIENT_SECRET` on the server to enable it. The client discovers whether SSO is on via
-`GET /api/auth/config` and starts the flow at `GET /api/auth/sso/login`.
+## Tests
+Everything runs against the live deploy. `bash e2e/watch.sh` waits for the deploy of the local
+HEAD and runs every suite in order; `node --test server/test/share-live.test.js` is the secrecy
+suite on its own. Details and the config files in `e2e/README.md`.
 
-## Deploy
-Railway.
-
-## Notes
-**Image storage:** Cloudflare R2 is the primary store — uploads go to R2 whenever all five `R2_*`
-vars are set (`server/storage.js`, `r2Enabled`). Base64-in-Postgres (`images.base64_data`, served by
-`/api/images-base64/serve`) is the deliberate fallback when R2 is off. World clones own their art:
-`routes/atlas.js` copies each R2 object under the clone's own prefix (and lifts base64 rows into R2
-when it is on), so deleting anything in either world never breaks the other. Both paths are live;
-neither is dead code.
+## Sign-in
+"Sign in with Waypoint" is wired entirely server-side (`AUTH_SERVICE_URL`, `SSO_CLIENT_ID`,
+`SSO_CLIENT_SECRET`); the client discovers it through `GET /api/auth/config`. Without those,
+username/password accounts work on their own.

@@ -1,5 +1,6 @@
 // The voice API: a DM gives a person a voice and a line, a place an ambience. Like the
-// Forge it is a harness — without ELEVENLABS_API_KEY every route but /status answers 404.
+// Forge it is a harness — with no voice key (Gemini/OpenAI/ElevenLabs) or VOICE_ENABLED=0 every
+// route but /status answers 404.
 // Generated audio is player-facing content, stored in R2 and served by URL; the share API
 // hands players a node's line only when the node itself is visible to them.
 

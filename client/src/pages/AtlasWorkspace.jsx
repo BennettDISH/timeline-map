@@ -83,14 +83,14 @@ function AtlasWorkspace() {
   const [save, setSave] = useState('idle') // idle | saving | saved | err
   const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
-  const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
+  const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop'|'backdrop-timed'|'backdrop-row', nodeId?, rowId?, hasCurrent }
   const [now, setNow] = useState(0) // the DM's viewing moment (local lens — NOT what players see)
   const [tlEdit, setTlEdit] = useState(false)
   const [sharePop, setSharePop] = useState(false)
   const [copied, setCopied] = useState(false)
   // Three postures: edit (full tools) · view (DM eyes, reading chrome) · player
   // (faithful preview of the share link: secrets and the future hidden, canon moment,
-  // minimal chrome). Old stored 'dm' maps to edit.
+  // minimal chrome).
   const [mode, setMode] = useState(() => {
     const m = localStorage.getItem('atlas_mode')
     // a phone is view-only by design: it lands in View (or Player), never in the editor
@@ -99,7 +99,7 @@ function AtlasWorkspace() {
   })
   const [spaceOpen, setSpaceOpen] = useState(false) // phones: the space reader opens on request, not over the map
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [], facts: [] })
-  const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place'
+  const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place' | 'place-here'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
   const trackRef = useRef(null)                 // the timebar's track, measured so ticks know their pitch
   const [trackW, setTrackW] = useState(600)
@@ -133,9 +133,9 @@ function AtlasWorkspace() {
   const noteRef = useRef(null)
   const quietRef = useRef(true)                  // nothing being dragged, drawn, typed or confirmed: safe to refresh
   const focusIdRef = useRef(null)
+  const [trail, setTrail] = useState([]) // every party footstep in the world (timebar ticks)
   // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
   // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
-  const [trail, setTrail] = useState([]) // every party footstep in the world (timebar ticks)
   const [forgeOn, setForgeOn] = useState(false)
   const [voiceMeta, setVoiceMeta] = useState({ enabled: false }) // which provider speaks, and whether it can be steered / make ambience
   const voiceOn = voiceMeta.enabled && voiceMeta.storage !== false
@@ -307,8 +307,6 @@ function AtlasWorkspace() {
     try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
     return nv
   })
-  // After the Forge lands a batch, the world (eras), the tree (new interiors), and the
-  // canvas may all have changed — refresh all three in the background.
   // The DM's lantern: point players toward one node — the share API draws the golden
   // trail (pruned at the first hidden step); here we just flip the pointer.
   const toggleSpotlight = (node) => {
@@ -329,6 +327,8 @@ function AtlasWorkspace() {
     if (!worldId) return
     atlasService.getTrail(worldId).then(setTrail).catch(() => {})
   }, [worldId, trailTick]) // eslint-disable-line
+  // After the Forge lands a batch, the world (eras), the tree (new interiors), and the
+  // canvas may all have changed — refresh all three in the background.
   const forgeRefresh = useCallback(() => {
     // the mind (or an Allow / Unmake) may have changed the very node the DM has open: push
     // pending edits first, then reseed the inspector and its threads from the server's copy
@@ -2926,9 +2926,9 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const MIND_FIELDS = ['artStyle', 'lore', 'bible', 'genSize']
   const dirty = base.current ? MIND_FIELDS.filter((k) => mind[k] !== base.current[k]) : []
   const [anchorPick, setAnchorPick] = useState(false)
-  const [dropNode, setDropNode] = useState(false) // the DM cleared the selection chip for this message
+  const [omitSel, setOmitSel] = useState(false) // the DM cleared the selection chip for this message
   const logRef = useRef(null)
-  useEffect(() => { setDropNode(false) }, [sel?.node?.id])
+  useEffect(() => { setOmitSel(false) }, [sel?.node?.id])
 
   const fromServer = (d) => ({ artStyle: d.artStyle || '', lore: d.lore || '', bible: d.bible || '', genSize: d.genSize || 'medium', styleImage: d.styleImage || null })
   // the mind's state is refreshed after every reply (a recap appends memory): fields the DM
@@ -2999,7 +2999,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
     setView('chat')
     setMsgs((m) => [...(m || []), { role: 'user', content: message }])
     setBusy('chat')
-    const nodeId = sel && !dropNode ? sel.node.id : undefined
+    const nodeId = sel && !omitSel ? sel.node.id : undefined
     forgeService.chat(worldId, message, { mapId: map?.id, nodeId })
       .then((r) => {
         const content = r.batch ? `${r.say}\n⚒ ${r.batch.summary}` : r.applyError ? `${r.say}\n⚠ Nothing was changed: ${r.applyError}` : r.say
@@ -3190,10 +3190,10 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
       </div>
       <div className="fcompose">
         <div className="fctx">
-          {sel && !dropNode && (
+          {sel && !omitSel && (
             <span className="fchip" title="The mind sees this node in full — its story, notes, threads">
               ↳ {trunc(sel.node.title)}
-              <button onClick={() => setDropNode(true)} title="Leave this node out of the message">✕</button>
+              <button onClick={() => setOmitSel(true)} title="Leave this node out of the message">✕</button>
             </span>
           )}
           {map && <span className="fchip dim">in {trunc(map.title)}</span>}

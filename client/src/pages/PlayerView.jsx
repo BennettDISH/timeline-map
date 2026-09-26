@@ -42,6 +42,7 @@ function PlayerView() {
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
   const [detail, setDetail] = useState(null) // opened node { node, links, backlinks }
   const [dead, setDead] = useState(false) // the token is unknown: the link really is dead
+  const [ambErr, setAmbErr] = useState(false) // the ambience would not play (blocked, or the audio is gone)
   const [lost, setLost] = useState(null) // { mapId }: this map is not on the player's map (hidden, gone, not built yet)
   const [loadErr, setLoadErr] = useState(null) // { target }: the last fetch for that map failed (network, 500)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
@@ -67,7 +68,7 @@ function PlayerView() {
   const toggleAmb = () => {
     const a = ambRef.current
     if (!a) return
-    if (ambOn) { a.pause(); setAmbOn(false) } else { a.play().then(() => setAmbOn(true)).catch(() => {}) }
+    if (ambOn) { a.pause(); setAmbOn(false) } else { a.play().then(() => { setAmbOn(true); setAmbErr(false) }).catch(() => { setAmbOn(false); setAmbErr(true) }) }
   }
   const say = (text, kind = 'err') => setFlash({ kind, text })
 
@@ -301,7 +302,7 @@ function PlayerView() {
           </span>
         )}
         {ambienceUrl && (
-          <button className={`ambbtn ${ambOn ? 'on' : ''}`} onClick={toggleAmb} title={ambOn ? 'Quiet the ambience' : 'Hear this place'}>
+          <button className={`ambbtn ${ambOn ? 'on' : ''}${ambErr ? ' err' : ''}`} onClick={toggleAmb} title={ambErr ? "The ambience wouldn't play — tap again, or check the sound" : ambOn ? 'Quiet the ambience' : 'Hear this place'}>
             {ambOn ? '🔊 Playing' : '🔈 Ambience'}
           </button>
         )}

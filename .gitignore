@@ -61,8 +61,6 @@ Thumbs.db
 *.swo
 
 # Uploaded files (keep structure but ignore content)
-server/uploads/*
-!server/uploads/.gitkeep
 
 # Temporary files
 tmp/

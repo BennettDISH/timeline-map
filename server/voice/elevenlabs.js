@@ -1,5 +1,5 @@
-// ElevenLabs — voices for the people of the world, and ambience for its places. The only
-// outward connection of the voice layer; inert without ELEVENLABS_API_KEY. Model IDs are
+// ElevenLabs — one of the three voice providers (server/voice/providers.js picks), and the only
+// one that generates ambience. Model IDs are
 // env-overridable so a successor model is a variable bump, not a code change.
 
 const BASE = 'https://api.elevenlabs.io';

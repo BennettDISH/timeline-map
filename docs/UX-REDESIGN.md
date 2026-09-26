@@ -86,21 +86,11 @@ app and not paper. Every flow is optimized so a DM can build faster than they co
 
 ---
 
-## Why the current app fights this vision (condensed diagnosis)
+## Status
 
-- **No app frame; the world is invisible.** 15 flat routes, each with its own header and a different
-  "back" link; the active world hides in `localStorage`, not the URL. You can never tell *where am I* —
-  fatal for an app whose whole point is *depth of place*.
-- **Nesting exists only by accident.** Maps can nest (`parent_map_id`) and nodes can "link," but there's
-  no map tree, no breadcrumb, no "open this node," no "up." The signature zoom-in is undiscoverable.
-- **A node is three things in a lie.** Identity + map-object + content, with type/geometry/style/links all
-  crammed into a column named `tooltip_text`. Hence: can't pick a type at creation, Info/NPC/Item are
-  identical, type vanishes when you add an image, "Map Link" is dead, the map never shows its own image.
-- **Split-brain save, broken-on-first-touch timeline, three image UIs, no onboarding.** (Full inventory in
-  git history / the earlier audit.)
-
-None of this is fatal — but it's all skin over the schema, so the redesign is mostly re-architecting the
-*model* and wrapping it in *one coherent shell*.
+The app this section once diagnosed (events pinned on a map) was deleted in August 2026; the
+vision above is what shipped as the Atlas. `CLAUDE.md` is the current truth and holds the honest
+list of what is still unbuilt.
 
 ---
 
@@ -110,9 +100,8 @@ None of this is fatal — but it's all skin over the schema, so the redesign is 
 - **One persistent shell**, world in the URL (`/w/:worldId/...`). Left rail is a **nesting tree** (World ▸
   Kingdom ▸ City ▸ House ▸ Room…) that mirrors the real containment; a **breadcrumb** across the top shows
   your depth with one-click "up."
-- **Open = zoom in.** Double-click a node (or hit Enter) to enter its interior. If it has none yet, opening
-  *creates* it instantly and drops you inside — descending is one gesture, never a separate "add sub-map"
-  chore. **Unbounded depth.** A back/up control and the breadcrumb mean you never get lost.
+- **Open = zoom in.** Double-click a node (or hit Enter) to enter its interior. An interior is created on purpose from the
+  inspector (＋ Interior map / ＋ List), never as a side effect of opening. **Unbounded depth.** A back/up control and the breadcrumb mean you never get lost.
 - Log in → land in your last map (0–1 clicks), not a dashboard crawl.
 
 ### 2. Nodes, categories & the palette
@@ -167,7 +156,7 @@ None of this is fatal — but it's all skin over the schema, so the redesign is 
 
 ### 8. Onboarding & the friction budget (the north star)
 Because capturing this density is the cost, v1 lives or dies on these:
-- **Descend with one key**, create-interior-on-open, **@-mention-to-create**, inline quick-title, **autosave**.
+- **Descend with one key**, **@-mention-to-create**, inline quick-title, **autosave**.
 - **Duplicate / templates** (clone an NPC or a house; category starter fields instead of a blank box).
 - **Global search + jump**; keyboard-driven placement; new nodes inherit the current context.
 - **One-click reveal** and **one-click time-stamp**.
@@ -178,49 +167,15 @@ Because capturing this density is the cost, v1 lives or dies on these:
 
 ---
 
-## Roadmap (the list), sequenced by value ÷ risk
+## Roadmap — retired
 
-Data is disposable, so "migration" ≈ "new schema + reseed a sample world."
-
-> **Status 2026-08-17** — checkboxes below were trued up after driving the live deployment
-> end-to-end. The legacy map system (MapViewer/NodeEditor/events, ~3.5k lines) is deleted;
-> Atlas is the only map UI. The big missing piece is Phase 4's Player View / share link.
-
-### Phase 0 — Shell & IA  *(pure UI; wraps existing pages; immediate "where am I" win)*
-- [x] Persistent shell; world in the URL (`/w/:worldId/...`)
-- [x] Left **nesting tree** + breadcrumb (with one-click "up") + world switcher + global search + account menu *(tree+breadcrumb+global search done; world switcher, account menu not)*
-- [x] Land in last map on login; one canonical route per screen; real 404; remove dead routes/cards/dead-ends *(done — login and `/` resume the last open map, unknown paths get a real 404 page, duplicate `/images` route removed)*
-
-### Phase 1 — The nested canvas  *(the headline interaction)*
-- [x] Map renders its own backdrop; real thumbnails *(backdrop done; tree thumbnails not)*
-- [x] **Open a node → enter its interior; create-on-open; unbounded depth; back/up**
-- [x] Interior as **Map or List** toggle *(done — list renderer + per-map toggle, both views in Player View too)*
-- [x] "+ Add node" (one gesture) + one-click category swap in the inspector + always-on legend/filter (shared icon+color vocabulary; category survives images) *(done — legend chips filter by category)*
-- [x] One Inspector; fit-to-content + zoom controls; selection frames on map *(done — wheel/pinch zoom, pan, fit; pins anchored to the map image via MapPlane)*
-
-### Phase 2 — Model & save  *(the clean schema — cheap, disposable data)*
-- [x] New schema: nodes + placements + links + maps; kill `tooltip_text`; one coordinate system
-- [x] **Entity/placement split** (one node, many placements/references, no copies) *(now reachable in UI: ⤓ Place existing + Remove from this map)*
-- [x] Autosave + Undo (kill split-brain save) *(autosave done; undo not)*
-- [x] Links as first-class bidirectional edges; **@-mention-to-link/create**; portals click-to-travel; backlinks *(links/backlinks/jump done; @-mention not)*
-
-### Phase 3 — Time
-- [x] Lifespans (unbounded default); one "Filter by time / Show all" switch *(lifespans done; explicit filter switch not — player mode + ghosts cover it)*
-- [x] Histogram + era labels *(lifespan ticks on the track; named eras with 🎭 player-visible reveal + revealed-past scrubbing in Player View)* — real Play still not built
-- [x] One-click time-stamp; playhead-as-lens vs "set canon moment" *(done — scrub is a local lens; explicit 📍 Set canon moves what players see)*
-
-### Phase 4 — Reveal (DM vs Player)
-- [x] Per-node/placement visibility; one-click reveal
-- [x] Player View lens (shared-only, up-to-now) **and** the shareable link (`/p/:token`, server-side filtering, rotate/revoke)
-
-### Phase 5 — Assets, onboarding & friction polish
-- [ ] Unified assets + upload-at-point-of-need + usage-before-delete
-- [x] Clonable sample world *(done — `is_template` worlds, `GET /templates`, deep-copy clone endpoint, "Begin from the sample world" in the create modal, pre-checked for a user's first world)*
-- [ ] Create-world wizard + live checklist; separate operator setup *(create is still a single-shot modal; no state-aware checklist; Setup/EnvSetup are plain routes in the user app)*
-- [x] Duplicate/templates; keyboard placement; the friction-budget items above *(duplicate/templates done — clone a template or any world you own; keyboard placement done — N starts a node, Enter drops it at the cursor or map centre; @-mention-to-create still not)*
-
-### Later / advanced
-- [x] Content that changes over time *(shipped: timed node descriptions + timed map backdrops)* — per-fact visibility · branching campaigns · zones/regions still later
+Every phase of the original roadmap shipped by v1.0.0 (2026-08-20): the persistent shell, the
+nesting tree and breadcrumb, the nested canvas with map or list interiors, the node/placement
+model with autosave and undo, first-class links (threads), the one clock with lifespans, eras and
+the canon moment, the reveal layer and the share link, the sample world and templates, outlines.
+Still unbuilt, and listed under Known gaps in `CLAUDE.md`: @-mention-to-link, per-fact
+visibility, branching campaigns, a create-world wizard, and portals (links carry no kind or
+moment in the UI).
 
 ---
 

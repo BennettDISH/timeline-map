@@ -10,7 +10,7 @@ const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
-// filtered by the world timeline, with a DM/Player reveal layer. Additive to the legacy API.
+// filtered by the world timeline, with a DM/Player reveal layer.
 // See docs/UX-REDESIGN.md. All routes require auth and are scoped to worlds the caller owns.
 router.use(authenticateToken);
 // a non-canonical id (60.0, abc, -1) is a 404 before any query runs
@@ -194,7 +194,7 @@ router.delete('/worlds/:worldId/spotlight', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// PATCH /worlds/:worldId — world name/description + timeline (enable, range, scrub position).
+// PATCH /worlds/:worldId — world name/description + timeline (enable, range, unit, the canon moment).
 router.patch('/worlds/:worldId', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const c = cleanBody(req.body, {
@@ -410,7 +410,7 @@ router.get('/worlds/:worldId/trail', wrap(async (req, res) => {
     start: r.start_time, end: r.end_time })) });
 }));
 
-// GET /worlds/:worldId/nodes — the world's node index (for browse + drag-to-place).
+// GET /worlds/:worldId/nodes — the world's node index (search, the Place existing and Thread pickers).
 router.get('/worlds/:worldId/nodes', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
@@ -456,7 +456,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   });
 }));
 
-// PATCH /maps/:mapId — title / view / backdrop image.
+// PATCH /maps/:mapId — title / view / base art / focus period / DM notes.
 router.patch('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
@@ -547,7 +547,7 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   res.status(201).json({ nodeId: n.id, placementId: p.id });
 }));
 
-// POST /maps/:mapId/placements — place an EXISTING node on this map (drag from the index).
+// POST /maps/:mapId/placements — place an EXISTING node on this map (the Place existing picker).
 router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
@@ -681,7 +681,9 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
   });
 }));
 
-// PATCH /nodes/:id — title / body / category / visibility / image.
+// PATCH /nodes/:id — title / body / DM note / stance / category / visibility / image / pin.
+// Revealing (visibility ≠ dm) also lifts the node's DM-only placements to shared; `reveal: true`
+// merges the DM note into the text players read.
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
@@ -971,7 +973,6 @@ router.delete('/placements/:id', wrap(async (req, res) => {
 }));
 
 // Eras: named periods of history. player_visible ones are scrubbable in the Player View.
-// (link labels are clamped to the links.label VARCHAR(255) in the PATCH below)
 router.post('/worlds/:worldId/eras', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const name = req.body.name == null ? 'An age' : text(req.body.name, 120);

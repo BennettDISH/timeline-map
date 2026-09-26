@@ -1,13 +1,12 @@
 {
   "name": "fantasy-map-timeline",
   "version": "1.0.0",
-  "description": "Interactive fantasy map timeline tool for plotting events across time and space",
-  "main": "server.js",
+  "description": "A recursively zoomable fantasy world you scrub through time — the Atlas",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
-    "build": "npm run install-all && cd client && npm run build",
+    "build": "cd client && npm run build",
     "start": "cd server && npm start",
     "install-all": "cd server && npm install && cd ../client && npm install",
     "postinstall": "npm run install-all"
@@ -16,7 +15,7 @@
     "fantasy",
     "map",
     "timeline",
-    "events",
+    "dnd",
     "storytelling"
   ],
   "author": "",

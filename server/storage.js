@@ -60,7 +60,7 @@ async function deleteObject(key) {
   await client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
 }
 
-// Delete every object under a prefix (for future world/folder purges).
+// Delete every object under a prefix (world delete uses it).
 async function deletePrefix(prefix) {
   if (!client) return;
   let token;

@@ -115,7 +115,7 @@ try {
     step('Enter closes the outline into a region', regionsAfter === regionsBefore + 1, `${regionsBefore} → ${regionsAfter}`);
     step('the new place is selected as a region, with no pin', (await page.locator('.atlas .region.sel').count()) === 1 && (await page.locator('.atlas .pin.sel').count()) === 0);
     step('the selected region shows its name label', (await page.locator('.atlas .rlabel.on').count()) >= 1);
-    // selecting something else, then a click inside the region (away from its anchor pin) selects it again
+    // selecting something else, then a click inside the region (away from its name anchor) selects it again
     const other = page.locator('.atlas .pin:not(.sel)').first();
     if (await other.count()) { await other.click({ force: true }); await page.waitForTimeout(400); }
     const [ix, iy] = at(ox + 0.03, oy + 0.02);

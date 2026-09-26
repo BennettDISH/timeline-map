@@ -1,7 +1,8 @@
 // Black-box secrecy tests for the public share API, run against a LIVE deployment.
 // This is the security boundary of the whole app: DM-only content, unrevealed eras,
 // and the future must never leave the database. The fixture world ("Secrecy Fixture",
-// token below) is seeded by server/test/fixture.sql and owned by a login-less user,
+// token below) lives only in the production DB — server/test/FIXTURE.md is its content
+// contract — and is owned by a login-less user,
 // so it appears on nobody's dashboard. The token being in the repo is deliberate:
 // the fixture holds only fake test strings and exists to be read — rotate it in the
 // DB (and here) if that ever changes.
@@ -14,7 +15,7 @@ const assert = require('node:assert');
 
 const BASE = process.env.BASE_URL || 'https://timeline-map-production.up.railway.app';
 const TOKEN = process.env.SHARE_TOKEN || 'fx89ef1c8ec74cadc99ae56b256c46b337';
-// Fixture ids (stable in the production DB; re-seed fixture.sql and update if recreated)
+// Fixture ids (stable in the production DB; see server/test/FIXTURE.md)
 // The fixture holds deliberate contradictions the app's own UI never produces — notably
 // "Ghost Spot": a SHARED node whose only placement (id 102) is DM-only, proving placement
 // visibility filters independently of node visibility. Any data sweep that "repairs"
@@ -166,12 +167,16 @@ test('windowed backdrops list the allowed timed art; the base stays base', async
 
 test('a player can mark a reachable map; the marker is live, flagged, and signed', async (t) => {
   const title = `probe-marker-${Date.now()}`;
+  // the fixture cannot clean up after itself (the share API has no delete): the test bows out
+  // long before the 200-marker cap, and FIXTURE.md has the sweep
+  const before = await get(`/maps/${IDS.root}?window=1`);
+  const probes = (before.body.placements || []).filter((p) => /^probe-marker-/.test(p.node.title)).length;
+  if (probes >= 20) { t.skip(`${probes} probe markers sit on the fixture — sweep them (SQL in server/test/FIXTURE.md)`); return; }
   const res = await fetch(`${BASE}/api/share/${TOKEN}/maps/${IDS.root}/nodes`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, body: 'left by the test suite', category: 'note', author: 'The Probe', x: 90, y: 90 }),
   });
-  // the fixture accumulates markers across runs; a full cap (400) is an operational
-  // signal to sweep, not a code failure — skip rather than fail CI in that case
+  // a full map (the 200-marker cap answers 400) is an operational signal to sweep, not a code failure
   if (res.status === 400) { t.skip('fixture marker cap reached — sweep player nodes'); return; }
   assert.equal(res.status, 201);
   const { body } = await get(`/maps/${IDS.root}?window=1`);

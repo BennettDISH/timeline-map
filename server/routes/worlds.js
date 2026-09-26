@@ -106,7 +106,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/worlds/:id - Delete world (soft delete)
+// DELETE /api/worlds/:id - Delete world (a hard delete; everything cascades, R2 objects follow)
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -121,7 +121,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'World not found' });
     }
 
-    // Hard delete — ON DELETE CASCADE reclaims this world's maps, images, folders, and events.
+    // Hard delete — ON DELETE CASCADE reclaims this world's maps, nodes, images, folders, eras and its Forge mind.
     await pool.query('DELETE FROM worlds WHERE id = $1 AND created_by = $2', [id, req.user.id]);
 
     // Best-effort: remove this world's objects from R2

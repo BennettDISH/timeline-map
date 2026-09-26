@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
 -- ============================================================================
 -- REDESIGN MODEL ("Atlas"): one world = a graph of typed nodes, seen through
 -- nested maps (spaces), filtered by the single world timeline, with a DM/Player
--- reveal layer. Additive to the legacy tables above; served by /api/atlas.
+-- reveal layer. Served by /api/atlas.
 -- See docs/UX-REDESIGN.md.
 -- ============================================================================
 
@@ -192,8 +192,8 @@ ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape_kind VARCHAR(10) NOT NULL 
 -- per-outline style toggles overriding the preset: {fill, stroke, grow, glow, pop} booleans
 ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape_style JSONB;
 
--- Voice (ElevenLabs, inert without ELEVENLABS_API_KEY): a person's chosen voice and one
--- spoken line (MP3 in R2), heard by players on the sheet when the node is visible. Maps
+-- Voice (Gemini, OpenAI or ElevenLabs; inert with no voice key or VOICE_ENABLED=0): a person's chosen voice and one
+-- spoken line (audio in R2), heard by players on the sheet when the node is visible. Maps
 -- carry a generated ambience loop the same way.
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_id VARCHAR(64);
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS voice_name VARCHAR(120);

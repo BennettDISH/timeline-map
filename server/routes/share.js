@@ -200,7 +200,7 @@ async function spotlightTrail(w) {
   return [];
 }
 
-// GET /:token/world — name, where to start, and what time it is. No min/max: players don't scrub.
+// GET /:token/world — name, where to start, what time it is, and the eras players may scrub (no min/max: the revealed eras are their whole range).
 router.get('/:token/world', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);

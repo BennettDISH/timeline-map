@@ -1,3 +1,4 @@
+require('dotenv').config(); // `npm run migrate` reads server/.env like the server does
 const pool = require('./database');
 const { applySchema } = require('./apply-schema');
 

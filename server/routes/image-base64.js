@@ -63,7 +63,7 @@ router.post('/upload', authenticateToken, async (req, res) => {
     const filename = `img-${timestamp}-${randomString}.${extension}`;
 
     // Store to R2 when configured, else fall back to base64-in-Postgres.
-    let filePathValue = `/api/images-base64/serve/${filename}`; // legacy serve endpoint
+    let filePathValue = `/api/images-base64/serve/${filename}`; // the Postgres fallback: served by the route below
     let storageKey = null;
     let base64ToStore = imageData;
     if (r2Enabled) {
@@ -148,7 +148,7 @@ router.get('/serve/:filename', async (req, res) => {
 
     if (!base64_data) {
       // R2-backed rows store the absolute R2 URL in file_path. Legacy references to this
-      // serve endpoint (including URLs embedded in event tooltip blobs) keep working via
+      // serve endpoint keep working via
       // redirect after the bytes move out of Postgres.
       if (file_path && /^https?:\/\//i.test(file_path)) {
         return res.redirect(file_path);

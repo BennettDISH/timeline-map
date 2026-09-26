@@ -8,31 +8,31 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B078** · low · xs · Player-marker 16kb body cap does nothing: the global 10mb JSON parser runs first
-- [ ] **D001** · low · xs · Regions gets props it never reads (item.kind, item.node, onDraw.cancel) and works out selection by regex on a class string
-- [ ] **D004** · low · s · Unused service methods, plus localStorage keys that are written and never read ('user', 'current_world_id')
-- [ ] **D005** · low · xs · Unused world-service surface: GET /api/worlds/:id, worldService.getWorld and getCurrentWorldId, the current_world_id key, and the worlds.settings column
-- [ ] **D006** · low · xs · atlas.scss selectors for markup that was removed or renamed (tree caret, save label, view toggle, Forge quick-actions, old sheet parts)
-- [ ] **D007** · low · xs · The CSS rule '.atlas .labelson .rlabel' never matches anything
-- [ ] **D008** · low · xs · utils/moment.js: partyNextFrom has had no caller since the on-map 'went to' marker was removed; partyWhere is exported only for internal use; the header comment is attached to the wrong function
-- [ ] **D011** · low · s · Response fields the server computes and sends but no client reads
-- [ ] **D013** · low · xs · main.scss keeps ~155 lines styling removed features: admin migration buttons, the old 404 page, an unused spin keyframe
-- [ ] **D014** · low · xs · GET /maps/:mapId computes data the client never reads, including an extra links query on every map load; MapPlane's controlsOffset prop is never passed
-- [ ] **D015** · low · xs · GET /maps/:mapId builds a links array the client never reads; link kind/time_context are never set or read
-- [ ] **D016** · low · s · Dead image-pipeline code: unused service methods, an unused route, response fields and folder columns nobody reads
-- [ ] **D017** · low · s · Share map endpoint: the per-moment branch for timeline-enabled worlds is only ever hit by tests
-- [ ] **D018** · low · xs · The cors() middleware does nothing in production
-- [ ] **D019** · low · xs · Exports never imported anywhere
-- [ ] **D020** · low · xs · Props, fields and exports that nothing reads (MapPlane controlsOffset, Regions item kind/node, STYLE_KEYS import, always-true guards, file-local exports)
-- [ ] **D021** · low · s · The share map endpoint computes map links the Player View never reads; the non-windowed timed-backdrop branch is reached only by tests
-- [ ] **D022** · low · s · Routes with no caller: GET /api/worlds/:id and GET /api/images/:id; world CRUD split across two routers
-- [ ] **O003** · low · xs · Leftovers of the removed Forge quick-action rail: CLAUDE.md '📜 Build from the bible', a 'fill this out' hint, dead .fquick/.fguide/.fbatches CSS
-- [ ] **O005** · low · xs · EraScrub's non-live (debounced) mode is dead because both callers pass `live`, and its header comment describes that dead mode
-- [ ] **O006** · low · xs · Left over since outlined places lost their pin: a 'hov' pin class that can never apply, and drag code that moves outlines
-- [ ] **O007** · low · xs · Declarations in atlas.scss that are always overridden: inline grid columns, doubled .tlcfg/.sheet/.fsend blocks, duplicate .apop top
-- [ ] **O008** · low · xs · Leftover native-<audio> rules styling elements AudioClip now hides
-- [ ] **O009** · low · xs · Obsolete overlay-era leftovers: a section comment for removed markers and MapPlane's never-passed controlsOffset prop
-- [ ] **O022** · low · xs · Player View sheet CSS has leftovers: an unused .simg, a never-matching .shead .sclose, rules overridden later, and a comment about a removed chip
+- [x] **B078** · low · xs · Player-marker 16kb body cap does nothing: the global 10mb JSON parser runs first — done 3ca732d (a 16 KB express.json for /api/share mounted ahead of the global parser; markBody gone; CLAUDE.md says so)
+- [x] **D001** · low · xs · Regions gets props it never reads (item.kind, item.node, onDraw.cancel) and works out selection by regex on a class string — done 3ca732d (items carry a `selected` flag; `kind` and onDraw.cancel dropped; `node` stays — onEnter reads it)
+- [x] **D004** · low · s · Unused service methods, plus localStorage keys that are written and never read ('user', 'current_world_id') — done 3ca732d (worldService.getWorld/getCurrentWorldId/setCurrentWorldId/getCurrentWorld/setCurrentWorld, imageServiceBase64.getImage, imageFolderService.getFolderPath and the tags option are gone; authService.getUser stays — AuthContext reads the cached user)
+- [x] **D005** · low · xs · Unused world-service surface: GET /api/worlds/:id, worldService.getWorld and getCurrentWorldId, the current_world_id key, and the worlds.settings column — done 3ca732d (GET /api/worlds/:id and the settings plumbing removed; the column waits for WP-20)
+- [x] **D006** · low · xs · atlas.scss selectors for markup that was removed or renamed (tree caret, save label, view toggle, Forge quick-actions, old sheet parts) — done 3ca732d (.trow .tw, .chip .ic, .saved, .shead .sclose, .simg, .viewtoggle, .fquick/.fbatches/.fguide removed)
+- [x] **D007** · low · xs · The CSS rule '.atlas .labelson .rlabel' never matches anything — done 3ca732d (the rule now matches the root: .atlas.labelson .rlabel; Regions no longer takes labelsOn)
+- [x] **D008** · low · xs · utils/moment.js: partyNextFrom has had no caller since the on-map 'went to' marker was removed; partyWhere is exported only for internal use; the header comment is attached to the wrong function — done 3ca732d (partyNextFrom deleted, partyWhere private, the header comment sits above momentLabel)
+- [x] **D011** · low · s · Response fields the server computes and sends but no client reads — done 3ca732d (map-level links, interiorView, timeContext, the trail's x/y and previousImageId are gone; ownerNodeId, imageId and the node object are kept — the client reads them now)
+- [x] **D013** · low · xs · main.scss keeps ~155 lines styling removed features: admin migration buttons, the old 404 page, an unused spin keyframe — done 3ca732d (the admin, migration, not-found and spin rules are gone; the admin table has one rule instead of inline styles)
+- [x] **D014** · low · xs · GET /maps/:mapId computes data the client never reads, including an extra links query on every map load; MapPlane's controlsOffset prop is never passed — done 3ca732d (the links query and interiorView join removed; controlsOffset removed)
+- [x] **D015** · low · xs · GET /maps/:mapId builds a links array the client never reads; link kind/time_context are never set or read — done 3ca732d (no map-level links; time_context no longer sent or accepted — the column stays with the schema cleanup)
+- [x] **D016** · low · s · Dead image-pipeline code: unused service methods, an unused route, response fields and folder columns nobody reads — done 3ca732d (getImage + GET /images/:id, getFolderPath, hasMore, uploadedBy and its join, the folder parent/child joins and colour/icon fields, the tags filter are gone; the columns wait for WP-20)
+- [x] **D017** · low · s · Share map endpoint: the per-moment branch for timeline-enabled worlds is only ever hit by tests — done 3ca732d (the one-moment path is kept for the API suite and the share route says so)
+- [x] **D018** · low · xs · The cors() middleware does nothing in production — done 3ca732d (cors and its dependency removed)
+- [x] **D019** · low · xs · Exports never imported anywhere — done 3ca732d (CATS, provider, elevenlabs.enabled, digest, TOKEN_TTL and migrate's export are no longer exported)
+- [x] **D020** · low · xs · Props, fields and exports that nothing reads (MapPlane controlsOffset, Regions item kind/node, STYLE_KEYS import, always-true guards, file-local exports) — done 3ca732d (controlsOffset, item kind, the NodePicker default title, the windowed param and the file-local exports are gone; STYLE_KEYS and the onOutline guards are live now)
+- [x] **D021** · low · s · The share map endpoint computes map links the Player View never reads; the non-windowed timed-backdrop branch is reached only by tests — done 3ca732d (the share map carries no links, asserted by the suite; the one-moment path is kept for the tests, with a comment)
+- [x] **D022** · low · s · Routes with no caller: GET /api/worlds/:id and GET /api/images/:id; world CRUD split across two routers — done 3ca732d (both routes deleted with their wrappers; Railway checks /health, which the deploy watch also reads — world routes stay split)
+- [x] **O003** · low · xs · Leftovers of the removed Forge quick-action rail: CLAUDE.md '📜 Build from the bible', a 'fill this out' hint, dead .fquick/.fguide/.fbatches CSS — done 3ca732d (CLAUDE.md and the Creation-size hint reworded; the rail's CSS removed)
+- [x] **O005** · low · xs · EraScrub's non-live (debounced) mode is dead because both callers pass `live`, and its header comment describes that dead mode — done 3ca732d (one code path: commits on every step)
+- [x] **O006** · low · xs · Left over since outlined places lost their pin: a 'hov' pin class that can never apply, and drag code that moves outlines — done 3ca732d (the hov class and its rule are gone; the outline-drag code is live again — a selected outline moves, WP-13)
+- [x] **O007** · low · xs · Declarations in atlas.scss that are always overridden: inline grid columns, doubled .tlcfg/.sheet/.fsend blocks, duplicate .apop top — done 3ca732d (inline columns win alone, one .tlcfg block, one .fsend border, one helpwrap rule; the sheet's overridden padding and font-size removed)
+- [x] **O008** · low · xs · Leftover native-<audio> rules styling elements AudioClip now hides — done 3ca732d (native audio sizing removed; .rvoice/.ramb keep only their width)
+- [x] **O009** · low · xs · Obsolete overlay-era leftovers: a section comment for removed markers and MapPlane's never-passed controlsOffset prop — done 3ca732d (controlsOffset removed; the trail comment was already reworded)
+- [x] **O022** · low · xs · Player View sheet CSS has leftovers: an unused .simg, a never-matching .shead .sclose, rules overridden later, and a comment about a removed chip — done 3ca732d (.simg and .shead .sclose removed, the sheet's overridden declarations dropped, the audio rule gone)
 
 ## Items
 

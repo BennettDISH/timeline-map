@@ -10,10 +10,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Ensure the DB schema exists on every boot (idempotent CREATE/ALTER IF NOT EXISTS), so a deploy
-// needs no manual `npm run migrate`. Runs the full schema.sql; per-statement errors are logged, not fatal.
+// needs no manual `npm run migrate`. Runs the full schema.sql; per-statement errors are logged,
+// not fatal. The server LISTENS only once this settles: a request arriving mid-ensure could
+// name a column the ALTER has not added yet.
 const pool = require('./config/database');
 const { applySchema } = require('./config/apply-schema');
-(async () => {
+const schemaReady = (async () => {
   try {
     // Loader lives in config/apply-schema.js so `npm run migrate` runs the identical statements.
     await applySchema(pool, {
@@ -93,7 +95,7 @@ app.use('/api/image-folders', require('./routes/imageFolders'));
 app.use('/api/atlas', require('./routes/atlas')); // redesigned model (nodes/placements/links)
 app.use('/api/share', require('./routes/share')); // public Player View (tokened, read-only, server-filtered)
 app.use('/api/forge', require('./routes/forge')); // per-world AI mind — inert without GEMINI_API_KEY
-app.use('/api/voice', require('./routes/voice')); // voices and ambience — inert without ELEVENLABS_API_KEY
+app.use('/api/voice', require('./routes/voice')); // voices and ambience — inert with no voice key (Gemini/OpenAI/ElevenLabs) or VOICE_ENABLED=0
 
 // Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {
@@ -144,7 +146,7 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-app.listen(PORT, () => {
+schemaReady.finally(() => app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+}));
