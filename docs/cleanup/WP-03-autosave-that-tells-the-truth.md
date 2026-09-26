@@ -70,6 +70,14 @@ Broken · medium · effort m · found by `resilience`
 
 Broken · medium · effort m · found by `resilience`
 
+> **Second pass — see also:** Your updated_at 409 cannot cover lifespans, because placements have no updated_at. The inspector also re-sends both ends on every edit, so a second tab silently resets a 'from' it never touched. → **B099** in [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+
+> **Second pass — see also:** Focus and visibilitychange never fire for a DM who keeps the workspace in front all session, so players' markers still never appear. The table needs a periodic refresh of the current map and the world. → **P101** in [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+
+> ⚠ **Second pass — read before fixing:** The inspector also goes stale in a single tab after every Forge turn, because forgeRefresh refetches but never re-keys the Inspector. A refetch also refreshes the node's updated_at under the stale fields, so the 409 only works if the inspector sends the updated_at it was seeded with and reseeds after each refetch. → **B095** in [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+
+> ⚠ **Second pass — read before fixing:** Refetching the map on focus leaves any save-on-blur box the DM has typed in (map notes, era, period, backdrop range, voice style) holding old text under a newer server value, and a bare click in and out then writes the old text back. Make blur compare with the seeded value first (B096). → **B096** in [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+
 - **Where:** Atlas › Edit › inspector in two tabs/windows. AtlasWorkspace.jsx:1816-1823 (inspector state seeded once), 1884-1888 (Reveal merge)
 - **Files:** `client/src/pages/AtlasWorkspace.jsx:1816`, `client/src/pages/AtlasWorkspace.jsx:1884`
 - **What happens:** Tab A set U1's description to 'body typed in tab A'. Tab B still showed 'original body', typed a DM note and clicked 'Reveal — move into the description'. The server body became 'original body\n\nnote typed in tab B', and A's text was gone with no notice. A node created elsewhere never appeared in tab B (no refresh or poll). Editing a node deleted in the other tab gave a 'Node not found' toast while its pin stayed on screen.
@@ -97,6 +105,8 @@ Broken · medium · effort s · found by `resilience` (+5 other lanes)
 
 Broken · medium · effort s · found by `resilience`
 
+> **Second pass — see also:** PlayerView.jsx has the same out-of-order problem in load() and openNode, with the 45 s poll and visibilitychange as extra racers. The fix in AtlasWorkspace does not reach it. → **B100** in [WP-23](WP-23-the-player-view-shows-the-right-map-moment-art-a.md)
+
 - **Where:** Atlas › Edit › Maps tree / crumbs on a slow connection. AtlasWorkspace.jsx:156-169 (loadMap has no staleness guard)
 - **Files:** `client/src/pages/AtlasWorkspace.jsx:156`
 - **What happens:** From 'The Keep — Inside' I clicked 'The Sunken Keep' (GET delayed 4 s), then 'Chest contents' right away. After both loaded, the URL was /m/361 and the tree highlighted 'Chest contents'. But the canvas, crumb and 'This space' panel showed The Sunken Keep with its 9 pins, because the slower response landed last. '+ Add node' then a click on that canvas created a node on the Chest contents list (2 → 3), invisible to the DM. The root map stayed at 10.
@@ -123,6 +133,10 @@ Broken · medium · effort m · found by `resilience` (+2 other lanes)
 ### B032 · Double clicks and slow networks create duplicates: '＋ Next session' makes two 'Session 1' eras, Add node makes two nodes, 'Story for a period' makes two facts
 
 Broken · medium · effort s · found by `resilience` (+1 other lane)
+
+> **Second pass — see also:** Ambience '🔊 Make it' has no busy state and no server refusal, so a repeated Enter or a double click starts several paid ElevenLabs generations. → **B128** in [WP-28](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)
+
+> **Second pass — see also:** The Archive's folder create, folder delete and image delete confirms have no busy guard either: they produce duplicate folders, or a success followed by an error toast. → **B126** in [WP-28](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)
 
 - **Where:** Atlas › timebar ⚙ › '＋ Next session' (AtlasWorkspace.jsx:578-589); toolbar '＋ Add node' + map click (305-309, 838-847); inspector '＋ Story for a period' (387-389)
 - **Files:** `client/src/pages/AtlasWorkspace.jsx:578`, `client/src/pages/AtlasWorkspace.jsx:305`, `client/src/pages/AtlasWorkspace.jsx:838`, `client/src/pages/AtlasWorkspace.jsx:387`

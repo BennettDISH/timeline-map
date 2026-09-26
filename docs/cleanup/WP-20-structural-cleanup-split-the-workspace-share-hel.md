@@ -122,6 +122,8 @@ Confusing · low · effort s · found by `confusing-code`
 
 Confusing · low · effort s · found by `scss-dead`
 
+> **Second pass — see also:** The re-proof is wrong for the ? popover: the timeline ⚙ panel (.tlcfg, z 8) paints over it (z 7) and also ignores outside clicks. With the proposed scale, keep $z-panel below $z-popover. → **P117** in [WP-28](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)
+
 - **Where:** Details that are wrong: (1) There are 54 z-index declarations, not 45 (`grep -o z-index *.scss | wc -l`: atlas 38, shell 7, dashboard 6, archive 3). The list of distinct values is correct. (2) The shell.scss `z-index: 60` is on line 203; the `.modal-back` rule starts at 195. (3) The overpaint list is only right for the Map ▾ menu (effective z 5): the legend (z5, later in the DOM at L1184), mp-controls (6), railtoggle/insptoggle (6) and drawhud (7) can all paint over it. It is wrong for the ? popover (effective z 7): legend, mp-controls and the toggles are lower, and drawhud (L1204) comes before helpwrap in the DOM, so none of them paint over it. `.markbtn` only renders in PlayerView.jsx:283, which has neither menu, so it never overlaps either one.
 - **Files:** `client/src/styles/atlas.scss:62`, `client/src/styles/atlas.scss:282`, `client/src/styles/atlas.scss:294`, `client/src/styles/atlas.scss:109`, `client/src/styles/shell.scss:195`
 - **What happens:** There are 45 z-index declarations across atlas/shell/dashboard/archive with no shared scale (values 0-9, 12, 15, 20, 25, 30, 40, 50, 55, 60, 70, 75, 80). `.apop` declares z-index:30 (L282), but the Map ▾ menu lives inside `.toolbar` (position:absolute; z-index:5, L62) and the ? popover inside `.helpwrap` (z-index:7, L294). Both parents are stacking contexts, so the menus stack at 5 and 7 among the stage overlays. The legend (5, later in the DOM), mp-controls (6), railtoggle/insptoggle (6) and drawhud/markbtn (7) would paint over them if they overlapped. The same `.modal-back` class is z 50 in atlas.scss:109 and z 60 in shell.scss:195.
@@ -145,6 +147,8 @@ Confusing · low · effort m · found by `confusing-code`
 ### C069 · Server error handling and ownership checks are copy-pasted with different behaviour (wrap x4, ownsWorld x3+, 404/400/403 for the same failure, 403 for expired tokens)
 
 Confusing · low · effort m · found by `confusing-code`
+
+> **Second pass — see also:** Forge Keep and Refuse answer 200 {ok:true} when no batch matched, while Allow and Discard answer 404. Check rowCount in those two routes when you unify the status codes. → **C096** in [WP-25](WP-25-the-forge-nothing-public-before-keep-and-unmake.md)
 
 - **Where:** server/routes/atlas.js:13-20, share.js:13, forge.js:26-32, voice.js:20-26, images.js:167/236, middleware/auth.js:23-45, client/src/services/http.js:22-31
 - **Files:** `server/routes/atlas.js:13`, `server/routes/forge.js:26`, `server/routes/voice.js:20`, `server/routes/share.js:13`, `server/routes/atlas.js:730`, `server/routes/images.js:167`, `server/middleware/auth.js:42`, `client/src/services/http.js:23`

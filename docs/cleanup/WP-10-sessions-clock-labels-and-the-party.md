@@ -234,6 +234,8 @@ Confusing · low · effort xs · found by `copy`
 
 Confusing · low · effort xs · found by `time`
 
+> **Second pass — see also:** The timeline Unit field's placeholder still suggests 'sessions', which doubles up with the Session eras ('Session 3 · session 7'). Offer 'footsteps' instead. → **C100** in [WP-26](WP-26-the-party-the-clock-and-a-long-campaign.md)
+
 - **Where:** yearEdit useState is client/src/pages/AtlasWorkspace.jsx:74 (not :73). Also the stale 'exact year' comment at client/src/components/EraScrub.jsx:27.
 - **Files:** `client/src/components/PartyTrail.jsx:46`, `client/src/pages/AtlasWorkspace.jsx:587`, `client/src/pages/AtlasWorkspace.jsx:1082`, `client/src/pages/AtlasWorkspace.jsx:1265`, `client/src/pages/AtlasWorkspace.jsx:1807`, `client/src/components/EraScrub.jsx:90`, `client/src/pages/AtlasWorkspace.jsx:1639`, `client/src/pages/AtlasWorkspace.jsx:73`, `client/src/pages/AtlasWorkspace.jsx:817`
 - **What happens:** Days world: toast 'Session 1 begins at footstep 21'. Footstep world: the player bar tooltip says 'Click to type a year — it snaps into the revealed past', and the Focus dialog says 'the scrubber's track zooms to the years its story spans'. Commit 680548e renamed the workspace's 'exact year' to 'exact moment' but left EraScrub and the yearEdit/commitYear state names behind.

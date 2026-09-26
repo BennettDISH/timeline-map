@@ -106,6 +106,8 @@ Broken · low · effort s · found by `api-contract` (+1 other lane)
 
 Broken · low · effort xs · found by `player-desktop`
 
+> **Second pass — see also:** The marker POST has the same Number()-versus-raw split on :mapId. There a non-canonical id like 60.0 writes the node before the 500, leaving an unplaced player node that counts toward the cap. The node-handler fix does not reach it. → **B094** in [WP-21](WP-21-the-server-stays-up-and-sign-in-keeps-working.md)
+
 - **Where:** server/routes/share.js:298-305, 337-343
 - **Files:** `server/routes/share.js:298-305`, `server/routes/share.js:337-343`
 - **What happens:** GET /api/share/<token>/nodes/abc, /nodes/1.5, /nodes/99999999999 and /nodes/abc/locate all return 500 {message:'Server error'}: the Postgres integer cast fails and each one logs a 'share error' on the server. /maps/abc already returns 404.

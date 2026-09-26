@@ -147,6 +147,8 @@ Product polish · medium · effort s · found by `images`
 
 Broken · low · effort xs · found by `images`
 
+> **Second pass — see also:** Esc on the Archive's bulk 'Delete N images?' confirm runs the select-mode listener instead: it clears the selection and leaves the confirm armed. The Lightbox `blocked` prop does not reach this listener. → **B127** in [WP-28](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)
+
 - **Where:** Archive › click a tile (lightbox) › Delete › press Esc; client/src/pages/ImageManager.jsx:506-511 and :567-575
 - **Files:** `client/src/pages/ImageManager.jsx:448-455`, `client/src/pages/ImageManager.jsx:506-511`, `client/src/pages/ImageManager.jsx:567-575`
 - **What happens:** With the confirm modal open over the lightbox, pressing Escape removed the lightbox (count 0) and left the confirm open (count 1). Reproduced on two runs. Both components listen for keydown on document. The Lightbox listener runs first; React flushes its setBox(-1) re-render between listeners, which re-registers the Modal's listener (its onClose prop is a fresh inline arrow each render). The re-added listener does not receive the current event, so the Modal's Esc never fires.

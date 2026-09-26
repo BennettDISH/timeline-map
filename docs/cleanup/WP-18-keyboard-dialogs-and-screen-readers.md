@@ -96,6 +96,8 @@ Product polish · low · effort s · found by `a11y-polish`
 
 Product polish · low · effort s · found by `resilience`
 
+> **Second pass — see also:** The lightbox 'Filed under' select moves the image and closes the viewer on each arrow key, which is a write rather than just navigation. The Archive's world select navigates the same way. → **P114** in [WP-28](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)
+
 - **Where:** Atlas › top bar '🧭 <world> ▾' select. AtlasWorkspace.jsx:890-910
 - **Files:** `client/src/pages/AtlasWorkspace.jsx:890`
 - **What happens:** I focused the world select (26 worlds) and pressed ArrowDown once. The app navigated from /w/111/m/359 to /w/117 on the first key press, because onChange navigates and Chrome fires change on each arrow key of a closed select. A keyboard user can't browse the list without loading every world in between.

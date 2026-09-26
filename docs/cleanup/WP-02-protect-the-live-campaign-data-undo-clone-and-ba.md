@@ -95,6 +95,8 @@ Confusing · medium · effort s · found by `maps` (+2 other lanes)
 
 Product polish · medium · effort s · found by `docs-hygiene`
 
+> **Second pass — see also:** player.mjs cannot pass on world 30 at all: it looks for the Party only on the root map and requires a party text over 20 characters. → **C102** in [WP-27](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md)
+
 - **Where:** The skip is at e2e/dm.mjs:130: a single 'ok' step replaces the three player-side outline checks at :115/:121/:126. The cleanup loops are at dm.mjs:132-138 and :160-166.
 - **Files:** `e2e/player.mjs:101`, `e2e/dm.mjs:131`, `e2e/dm.mjs:159`, `e2e/dm.config.example.json`, `e2e/README.md`
 - **What happens:** Neither suite sets a non-zero exit code on FAIL steps (the only process.exit is player.mjs:10 for a missing token), so `npm run all` ('node player.mjs && node dm.mjs') always succeeds. dm.mjs reads cfg.shareToken (:111-117), but dm.config.example.json doesn't have that key. Without it, the four player-side outline checks are reported as 'ok … skipped' (:120). dm.mjs depends on world-30 data (canon 37, `/Session 3/` at :64), which README doesn't mention. Its cleanup (:131-135 and :159-163) DELETEs every node on the map that has an outline, not only the ones it drew. README's dm.mjs summary leaves out the reader-grip, outline and freehand checks, and doesn't say how to get the JWT or that it expires (JWT_EXPIRES_IN defaults to 24h). player.mjs:97's comment still mentions the removed 'party chip'.

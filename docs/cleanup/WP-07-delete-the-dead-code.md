@@ -119,6 +119,8 @@ Dead code · low · effort xs · found by `outlines`
 
 Dead code · low · effort xs · found by `client-dead` (+3 other lanes)
 
+> **Second pass — see also:** Something from the chip is left: the partyTrail comment at share.js:229-230 still describes the removed chip and exit marker. e2e/player.mjs:97 is the other one, and P025 covers it. → **O028** in [WP-27](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md)
+
 - **Where:** client/src/utils/moment.js:1-4,16,26-37
 - **Files:** `client/src/utils/moment.js:26-37`, `client/src/utils/moment.js:16`, `client/src/utils/moment.js:1-4`, `client/src/utils/moment.js:55`
 - **What happens:** partyNextFrom has had no caller since commit 4c1baa7, when the 'went to' trail marker became text in the Party reader. partyWhere lost its last external caller in 4a1db44, when the '⚑ The party is at …' chip was removed. It is now used only inside partyNeighbors. The file's opening comment ('A moment on the world clock, read the way a table reads it…') describes momentLabel at line 55 but sits above SESSION_COLORS. Nothing else from the chip is left: `.partychip` CSS and both JSX blocks are gone.

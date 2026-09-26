@@ -108,6 +108,8 @@ Broken · medium · effort m · found by `mobile` (+1 other lane)
 
 Product polish · medium · effort s · found by `mobile` (+1 other lane)
 
+> **Second pass — see also:** Era names also vanish at full desktop width once a campaign has more than about 5 sessions (DM bar) or 15 (player bar). The phone-only fix does not reach that. → **P110** in [WP-26](WP-26-the-party-the-clock-and-a-long-campaign.md)
+
 - **Where:** Player View › era bar (EraScrub) on phones; atlas.scss:409
 - **Files:** `client/src/styles/atlas.scss:399-411`, `client/src/components/EraScrub.jsx:59-98`
 - **What happens:** `.ezone{width:260px;flex:none}`. Track widths: 90px on iPhone 13 (390), 112px on Pixel 7, 20px on iPhone SE (320). The four era bands are 18–28px wide and read 'B', 'S..', 'S..', 'S'. With about 37 footsteps across 90px, one footstep is 2.4px of thumb travel. The 'tap the label to type a moment' affordance is a title tooltip only, which never shows on touch, and it says 'Click to type a year' when the clock counts footsteps or days (EraScrub.jsx:90).

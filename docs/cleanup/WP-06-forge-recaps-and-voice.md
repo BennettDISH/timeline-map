@@ -50,6 +50,8 @@ Broken · high · effort s · found by `forge-voice`
 
 Broken · high · effort s · found by `forge-voice`
 
+> **Second pass — see also:** Unmake also deletes images the DM reused elsewhere (node art, backdrops, the style anchor) and every placement inside a Forge-built map, including hand-made nodes, Party footsteps and player markers. The confirm must count these, and discardBatch must skip or re-home them. → **B110** in [WP-25](WP-25-the-forge-nothing-public-before-keep-and-unmake.md)
+
 - **Where:** ✦ Forge › batch card › Unmake; server/forge/contract.js:538-575
 - **Files:** `server/forge/contract.js:541`, `server/forge/contract.js:550`, `server/forge/contract.js:561`, `client/src/pages/AtlasWorkspace.jsx:2295`
 - **What happens:** Unmake has no confirm and no undo: clicking it on batch 23 fired no dialog, immediately flashed 'Unmade — everything that creation added is gone', and its R2 images are deleted. discardBatch also restores blindly. enrichedBodies are set to NULL, and noteAppends, stanceChanges and mapNoteAppends are overwritten with the text captured when the batch landed. An allowed edit ask restores the old title, body, category and dm_note. Any edit the DM made to those fields while the card was pending is erased. Nodes the batch created are deleted along with any links or notes the DM added to them.

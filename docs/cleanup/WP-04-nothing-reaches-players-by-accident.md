@@ -52,6 +52,8 @@ Broken · high · effort xs · found by `time`
 
 Broken · high · effort xs · found by `time` (+3 other lanes)
 
+> ⚠ **Second pass — read before fixing:** Do not use 'min<max' to tell whether a clock was ever set. Every blank world stores the legacy defaults 0/100/50/'years' (schema.sql:37-41), so this fix would start new worlds at year 50. Drop those defaults and treat NULL min/max as never set (O027). → **O027** in [WP-26](WP-26-the-party-the-clock-and-a-long-campaign.md)
+
 - **Where:** Toolbar › 🕓 Timeline (shown after disabling); client/src/pages/AtlasWorkspace.jsx:591-598
 - **Files:** `client/src/pages/AtlasWorkspace.jsx:591-598`
 - **What happens:** World 61 had 1–20 days, canon 12. Disable timeline, then '🕓 Timeline' (tooltip 'Give the world a clock…'). GET /api/atlas/worlds/61 → {enabled:true,min:0,max:100,current:0,unit:'days'}. Players' canon jumped to 0, and the old range and unit are gone. A footstep world would be switched to 'days'. The share world endpoint now reports current 0.

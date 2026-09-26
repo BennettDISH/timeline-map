@@ -61,6 +61,32 @@ The Atlas works for day-to-day play, but a few real breaks reach Bennett's table
 - **B052** (medium) — On phones the page is wider than the screen, so crumbs, the canon chip, and the DM's posture switch and Exit are off-screen and can't be reached → [WP-09](WP-09-the-player-view-on-phones.md)
 - **B001** (high) — Saving the ⚙ mind settings overwrites memory the mind wrote since the panel opened (recap summaries lost) → [WP-06](WP-06-forge-recaps-and-voice.md)
 
+## Second pass (added 2026-09-26)
+
+After this list was committed, the session that audited Spellforge ran a second fleet here with what it learned there: 14 lanes, ten each hunting one bug class across the whole app (lost updates and stale screens, copies that drop fields, deletes that leave things dangling, double submits and where errors land, cross-account ids, a whole evening in one tab, CSS rules fighting each other, the spec against the code, leftovers found through git history, server crashes) and four on surfaces the appendix lists as not reached (a big world, the Player View inside Spellforge's Map tab, configurations production never runs, the repo's own test suites). Every item was re-proved by one skeptic and checked as new against this list by another. 75 distinct items survived (93 raw, 3 dropped, 15 folded into duplicates). IDs continue this list's: B090+, P099+, D023+, O026+, C093+. Where a second-pass item changes how a first-pass item should be fixed, a note now sits under that item.
+
+This second pass looked for the bug classes that turned out to be real in Spellforge: lost updates, copied lists that drift, dangling references, double submits, cross-account ids, long sessions, CSS cascade, spec against code, git-history leftovers and crashes. It also covered surfaces the first pass did not reach: a 40-session world, the Spellforge iframe, configurations production never runs, and the repo's own test suites. 90 findings survived two checks. 15 of them repeat a defect another lane also found, which leaves 75 items in eight packages, WP-21 to WP-28. The largest are these: an ordinary Postgres restart kills the whole server; Forge output on existing shared things reaches players before Keep, while Unmake deletes hand-made content inside Forge-built maps; the DM's workspace never shows players' markers during a session; and the secrecy suite stays green when most of share.js's newer rules are deleted. Three first-pass fixes would cause harm if followed as written: B015's would start every blank world at year 50, C048's would undo the fix that stopped ad-blockers hiding the Share button, and C071's rebuilt fixture would make the hidden-era tests blinder. The Spellforge crash class does not exist here: every route handler is wrapped or has its own try/catch, so a malformed id gets an error response and does not kill the process. The only process-killing path found is the database pool's error handling (B090).
+
+| | high | medium | low | total |
+|---|---:|---:|---:|---:|
+| B — Broken | 3 | 26 | 11 | 40 |
+| P — Product polish | 0 | 5 | 14 | 19 |
+| D — Dead code | 0 | 0 | 1 | 1 |
+| O — Obsolete | 0 | 1 | 2 | 3 |
+| C — Confusing | 0 | 2 | 10 | 12 |
+| **All** | 3 | 34 | 38 | 75 |
+
+The second-pass items that matter most to the table:
+
+- **B090** (medium) — A dropped Postgres connection kills the whole server: the pool's error handler calls process.exit(-1), and transaction clients have no error listener → [WP-21](WP-21-the-server-stays-up-and-sign-in-keeps-working.md)
+- **B109** (high) — Forge output that touches existing things reaches players as soon as a batch lands, before Keep, although the docs and the batch card say generated things stay DM-only → [WP-25](WP-25-the-forge-nothing-public-before-keep-and-unmake.md)
+- **B110** (high) — extends B002: Unmake also deletes what the DM built on top of a creation. That covers paintings the DM reused (as node art, a base backdrop, a timed backdrop or the style anchor) and every hand-made placement, Party footstep and player marker inside a Forge-built interior. Nothing gets a tombstone → [WP-25](WP-25-the-forge-nothing-public-before-keep-and-unmake.md)
+- **B095** (high) — After a Forge turn changes the selected node, the open inspector keeps showing the old DM notes, title and body, and the DM's next keystroke (or Reveal) writes them back over the Forge's change → [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+- **P101** (medium) — The DM's workspace never shows players' markers (or anything made elsewhere) during a session, and there is no in-app way to refresh the current map → [WP-22](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+- **B100** (medium) — Player View applies share responses without checking they are still current: a poll or wake-up refresh landing after a tap puts the old map under the new URL, and a double-click enter reopens the owner's sheet over the interior → [WP-23](WP-23-the-player-view-shows-the-right-map-moment-art-a.md)
+- **P103** (medium) — (Spellforge side) Switching tabs unmounts the map iframe: every return to Map reloads the Player View at the stored link's map, with the sheet, zoom and era bar reset → [WP-24](WP-24-the-player-view-inside-spellforge-and-on-a-slow.md)
+- **B091** (medium) — Waypoint sign-in 500s forever once a user's Waypoint username or email no longer fits the local users row (profile sync ignores UNIQUE and length) → [WP-21](WP-21-the-server-stays-up-and-sign-in-keeps-working.md)
+
 ## Work packages
 
 | Package | Items | high | After |
@@ -85,6 +111,14 @@ The Atlas works for day-to-day play, but a few real breaks reach Bennett's table
 | [WP-18 · Keyboard, dialogs and screen readers](WP-18-keyboard-dialogs-and-screen-readers.md) | 12 |  | WP-12, WP-13 |
 | [WP-19 · One word for one thing](WP-19-one-word-for-one-thing.md) | 16 |  | WP-10, WP-11 |
 | [WP-20 · Structural cleanup: split the workspace, share helpers, retire legacy columns](WP-20-structural-cleanup-split-the-workspace-share-hel.md) | 19 |  | WP-02, WP-03, WP-07, WP-08, WP-10, WP-13, WP-18 |
+| [WP-21 · The server stays up and sign-in keeps working](WP-21-the-server-stays-up-and-sign-in-keeps-working.md) (second pass) | 7 |  |  |
+| [WP-22 · The DM's screen shows what the server holds](WP-22-the-dm-s-screen-shows-what-the-server-holds.md) (second pass) | 8 | 1 | WP-02, WP-03 |
+| [WP-23 · The Player View shows the right map, moment, art and sound](WP-23-the-player-view-shows-the-right-map-moment-art-a.md) (second pass) | 8 |  | WP-02, WP-05 |
+| [WP-24 · The Player View inside Spellforge and on a slow phone](WP-24-the-player-view-inside-spellforge-and-on-a-slow.md) (second pass) | 8 |  | WP-09, WP-23 |
+| [WP-25 · The Forge: nothing public before Keep, and Unmake removes only its own](WP-25-the-forge-nothing-public-before-keep-and-unmake.md) (second pass) | 10 | 2 | WP-06 |
+| [WP-26 · The Party, the clock and a long campaign](WP-26-the-party-the-clock-and-a-long-campaign.md) (second pass) | 12 |  | WP-10 |
+| [WP-27 · Tests that can fail, and docs that record the rules](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md) (second pass) | 10 |  | WP-08 |
+| [WP-28 · One click does one thing, and the map's cues tell the truth](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md) (second pass) | 12 |  | WP-03, WP-10, WP-13, WP-14 |
 
 ### WP-01 · Close the leaks in the share API and image ids
 
@@ -166,3 +200,34 @@ Pick one name for each thing (node, map, lantern, links, the players' moment). R
 
 Split the 2,400-line AtlasWorkspace.jsx, and share time resolution, pin markup and modals between the workspace and the Player View. Remove the legacy columns and soft-delete filters from the live schema. → [WP-20-structural-cleanup-split-the-workspace-share-hel.md](WP-20-structural-cleanup-split-the-workspace-share-hel.md)
 
+### WP-21 · The server stays up and sign-in keeps working (second pass)
+
+A database restart or a Waypoint profile change should not take the app down or lock anyone out. Signing up on Waypoint should not give anyone another person's local account. Fix the smaller server faults found next to these. → [WP-21-the-server-stays-up-and-sign-in-keeps-working.md](WP-21-the-server-stays-up-and-sign-in-keeps-working.md)
+
+### WP-22 · The DM's screen shows what the server holds (second pass)
+
+The workspace should pick up changes made by players, the Forge and other tabs. A stale field or a late reply should never write old text over newer text, and things the server still holds, such as an unplaced node or a lit lantern, should show correctly and be reachable. → [WP-22-the-dm-s-screen-shows-what-the-server-holds.md](WP-22-the-dm-s-screen-shows-what-the-server-holds.md)
+
+### WP-23 · The Player View shows the right map, moment, art and sound (second pass)
+
+A player's screen should match the URL, show a moment the server allows and show the art the DM sees. A pin that offers 'go inside' should lead somewhere, and removed or regenerated ambience should stop or reset. → [WP-23-the-player-view-shows-the-right-map-moment-art-a.md](WP-23-the-player-view-shows-the-right-map-moment-art-a.md)
+
+### WP-24 · The Player View inside Spellforge and on a slow phone (second pass)
+
+Players reach the map through Spellforge's Map tab, often on phones. The framed map should not trap the pointer, the Back button or page scrolling, should keep the player's place across tab switches, and should load and navigate without extra round trips. → [WP-24-the-player-view-inside-spellforge-and-on-a-slow.md](WP-24-the-player-view-inside-spellforge-and-on-a-slow.md)
+
+### WP-25 · The Forge: nothing public before Keep, and Unmake removes only its own (second pass)
+
+Forge output that changes existing shared things should not reach players before the DM keeps it, and Unmake should remove only what the batch made. The mind should know what players can see and should see a long campaign's recent content. → [WP-25-the-forge-nothing-public-before-keep-and-unmake.md](WP-25-the-forge-nothing-public-before-keep-and-unmake.md)
+
+### WP-26 · The Party, the clock and a long campaign (second pass)
+
+The table adds an era and ten footsteps every session, so the Party, the timebar, the timeline panel and the editor must stay usable at 40 sessions. Keep one Party per world, and store a blank world's clock as unset rather than the legacy 0–100 years. → [WP-26-the-party-the-clock-and-a-long-campaign.md](WP-26-the-party-the-clock-and-a-long-campaign.md)
+
+### WP-27 · Tests that can fail, and docs that record the rules (second pass)
+
+The secrecy suite and both browser suites should fail when the rule a step names breaks, and the fixture and sample world should be rebuildable from the repo. CLAUDE.md and the cleanup list itself should record the rules the code enforces. → [WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md)
+
+### WP-28 · One click does one thing, and the map's cues tell the truth (second pass)
+
+A double click, Enter or an arrow key should do the one thing the DM aimed at, and paid generation should not start twice. Map colours, glyphs, popover stacking and the voice picker should show the real state. → [WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md](WP-28-one-click-does-one-thing-and-the-map-s-cues-tell.md)

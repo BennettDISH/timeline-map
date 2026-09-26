@@ -126,6 +126,8 @@ Confusing · low · effort s · found by `docs-hygiene`
 
 Confusing · low · effort s · found by `server-dead` (+1 other lane)
 
+> ⚠ **Second pass — read before fixing:** A seed rebuilt from the contract as written makes the suite blinder: the contract leaves out 'Interlude Ghost', and with no row inside the Hidden Era, removing player_visible from share.js leaves all 17 tests green. Add a 42-48 row and Ghost's real lifespan to the contract. → **B118** in [WP-27](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md)
+
 - **Where:** server/test/fixture.sql:1-20; server/test/share-live.test.js:3-4 and 17
 - **Files:** `server/test/fixture.sql`, `server/test/share-live.test.js:3-4`, `server/test/share-live.test.js:17`
 - **What happens:** fixture.sql is only comments. It says 'The full executable block lives in git history', but no commit ever put an INSERT into server/test: `git log --all -S "INSERT INTO nodes" -- server/test` returns nothing, and 6bf13db:server/test/fixture.sql contains 0 INSERTs. share-live.test.js:3-4 says the fixture world 'is seeded by server/test/fixture.sql', and line 17 says 're-seed fixture.sql'.

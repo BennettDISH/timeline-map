@@ -61,6 +61,8 @@ Confusing · low · effort m · found by `journey` (+1 other lane)
 
 Confusing · low · effort xs · found by `postures-share`
 
+> ⚠ **Second pass — read before fixing:** Do not rename invite* back to share*: commit 1224c84 chose invite* on purpose, because ad-blocker 'social sharing' filters hide share-named elements and so hid the DM's Share button. Change only the Dashboard badge, drop 'invite vs share' from WP-19's notes, and add a comment recording why. → **C101** in [WP-27](WP-27-tests-that-can-fail-and-docs-that-record-the-rul.md)
+
 - **Where:** Dashboard world card badge; workspace Share popover; atlas.scss
 - **Files:** `client/src/pages/Dashboard.jsx:42`, `client/src/pages/AtlasWorkspace.jsx:964-969`, `client/src/styles/atlas.scss:135-145`
 - **What happens:** The workspace says '🔗 Share', 'Create share link', and 'Player shows exactly what the share link shows'. The Player View says 'Ask your DM for a fresh share link'. The Dashboard badge for the same thing says '🔗 party link live' (Dashboard.jsx:42). The code calls the popover invitewrap/invitebtn/invitepop.
