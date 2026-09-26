@@ -199,6 +199,14 @@ below is a wish-shelf, not a gap list.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
   visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
 
+## Open cleanup list
+A whole-app audit on 2026-09-26 (every control clicked on the live site, all code read) left a
+verified punch list in `docs/cleanup/` — start at `docs/cleanup/README.md`. 326 items in 20
+work packages, highest-value first: the share API's node endpoint serves nodes players must not
+see, Undo and world clone drop DM notes / stance / voice, the timeline panel can move canon or
+wipe the clock, and two autosaves share one timer. Work a package at a time and tick items off
+in its file with the commit hash.
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)

@@ -2,7 +2,8 @@
 
 Pick-up doc for a fresh session. **`CLAUDE.md` is the always-current source of truth** — read it
 first and trust it over this file. `docs/UX-REDESIGN.md` holds the vision and roadmap;
-`docs/READINESS.md` holds the audit history.
+`docs/READINESS.md` holds the audit history. **`docs/cleanup/README.md` is the open punch list**
+from the 2026-09-26 whole-app audit — 326 verified items in 20 work packages; pick up there.
 
 ## What this is
 
