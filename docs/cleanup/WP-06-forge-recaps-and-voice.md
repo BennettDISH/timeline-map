@@ -8,28 +8,28 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B001** · high · s · Saving the ⚙ mind settings overwrites memory the mind wrote since the panel opened (recap summaries lost)
-- [ ] **B002** · high · s · Unmake deletes a whole creation in one click with no confirm, and restores snapshots that wipe the DM's later edits
-- [ ] **B003** · high · xs · Forge contract: enrich facts/placements never land, and any batch with map notes (every recap) crashes with 'en is not defined'
-- [ ] **B020** · medium · s · A failed Forge send throws the DM's message away: box cleared, bubble shown as sent, gone on reopen
-- [ ] **B021** · medium · s · When the Forge state fails to load, the panel shows the empty-conversation intro and blank settings, and Save would wipe the bible and memory
-- [ ] **B041** · medium · s · Forge 'move' asks move an outlined place's name but leave its outline behind, even when carrying it to another map
-- [ ] **B045** · medium · xs · Changing a voice style then clicking Say sends the line before the new style is saved
-- [ ] **C004** · medium · xs · The mind reads only part of the bible and memory that the ⚙ partition says it reads every turn
-- [ ] **C005** · medium · s · Allow asks the DM to approve a rewrite without showing the new text ('Rewrite the title of "Supply Chest"')
-- [ ] **C006** · medium · xs · Keep on a card with a pending request silently refuses the request
-- [ ] **C007** · medium · s · Conversation history keeps the mind's success claims after a failed or unmade creation, and the failure exists only as a 4-second flash
-- [ ] **P007** · medium · s · Unsaved ⚙ edits (including a loaded .md bible) vanish when the Forge closes, with no unsaved marker
-- [ ] **P009** · medium · xs · Forge messages over 12,000 characters are cut silently: the composer has no limit or counter
-- [ ] **P016** · medium · s · Remove the line (✕) drops a paid voice line with one click and leaves the audio public in R2; the line box stays editable while a line exists
-- [ ] **B063** · low · xs · Saving the mind during a running chat clears the 'Working…' state and allows a second concurrent message
-- [ ] **C073** · low · xs · VOICE_TTS_MODEL names a model for two different providers
-- [ ] **O016** · low · xs · The Forge rulebook assumes years and six categories, but the world clock counts footsteps and the digest includes 'party' nodes
-- [ ] **P038** · low · xs · Batch card copy: raw keys, plural errors, placeholder summary 'A generation', and a DM-only note on cards with nothing new
-- [ ] **P039** · low · xs · Clicking Keep shows the spinner on Unmake (and Refuse shows it on Allow)
-- [ ] **P046** · low · xs · Internal names shown in the DM UI: raw Forge count keys ('1 nodes', '2 placements', '3 facts'), the voice provider id, and 'Nano Banana'
-- [ ] **P053** · low · xs · Disabled buttons look enabled across the Forge and voice (Send, Keep/Unmake, Allow/Refuse, Say it)
-- [ ] **P082** · low · s · Clearing a voice line or ambience (or deleting its node) leaves the audio file in R2
+- [ ] **B001** · high · s · Saving the ⚙ mind settings overwrites memory the mind wrote since the panel opened (recap summaries lost) — done 0135f7f (the panel PATCHes only fields the DM changed and refreshes the mind after every reply)
+- [ ] **B002** · high · s · Unmake deletes a whole creation in one click with no confirm, and restores snapshots that wipe the DM's later edits — done 0135f7f (Unmake confirms with counts; reverts are compare-and-set on what the batch wrote, so later DM edits survive — B110 in WP-25 extends it)
+- [ ] **B003** · high · xs · Forge contract: enrich facts/placements never land, and any batch with map notes (every recap) crashes with 'en is not defined' — done 0135f7f (facts and extra placements land; map-note appends no longer crash)
+- [ ] **B020** · medium · s · A failed Forge send throws the DM's message away: box cleared, bubble shown as sent, gone on reopen — done 0135f7f (the message is stored before the model call; a failed send puts the words back in the box and marks the bubble)
+- [ ] **B021** · medium · s · When the Forge state fails to load, the panel shows the empty-conversation intro and blank settings, and Save would wipe the bible and memory — done 0135f7f (load failure says so with Retry; Save stays disabled until the mind loaded)
+- [ ] **B041** · medium · s · Forge 'move' asks move an outlined place's name but leave its outline behind, even when carrying it to another map — done 0135f7f (moves carry the outline, or clear it across maps; undo restores it)
+- [ ] **B045** · medium · xs · Changing a voice style then clicking Say sends the line before the new style is saved — done 0135f7f (Say sends the style shown; the line route accepts voice_style)
+- [ ] **C004** · medium · xs · The mind reads only part of the bible and memory that the ⚙ partition says it reads every turn — done 0135f7f (whole bible ≤100k, latest 20k of memory; the hints say so)
+- [ ] **C005** · medium · s · Allow asks the DM to approve a rewrite without showing the new text ('Rewrite the title of "Supply Chest"') — done 0135f7f (edit asks show the proposed words)
+- [ ] **C006** · medium · xs · Keep on a card with a pending request silently refuses the request — done 0135f7f (the button reads "Keep (decline the request)" and the flash says it was declined)
+- [ ] **C007** · medium · s · Conversation history keeps the mind's success claims after a failed or unmade creation, and the failure exists only as a 4-second flash — done 0135f7f (failed turns are stored as "⚠ Nothing was changed: …"; an unmade batch gets a "↩ Unmade" line)
+- [ ] **P007** · medium · s · Unsaved ⚙ edits (including a loaded .md bible) vanish when the Forge closes, with no unsaved marker — done 0135f7f (unsaved marker on ⚙, confirm on ✕, ".md loaded — Save the mind to keep it")
+- [ ] **P009** · medium · xs · Forge messages over 12,000 characters are cut silently: the composer has no limit or counter — done 0135f7f (maxLength 12,000 with a counter past 9,000; the server refuses longer with 400)
+- [ ] **P016** · medium · s · Remove the line (✕) drops a paid voice line with one click and leaves the audio public in R2; the line box stays editable while a line exists — done 0135f7f (✕ confirms; the audio is deleted; the box is read-only while a line exists)
+- [ ] **B063** · low · xs · Saving the mind during a running chat clears the 'Working…' state and allows a second concurrent message — done 0135f7f (own savingMind state — B114 in WP-25 still makes the server append in SQL)
+- [ ] **C073** · low · xs · VOICE_TTS_MODEL names a model for two different providers — done 0135f7f (VOICE_TTS_MODEL_GEMINI / _OPENAI / _ELEVENLABS)
+- [ ] **O016** · low · xs · The Forge rulebook assumes years and six categories, but the world clock counts footsteps and the digest includes 'party' nodes — done 0135f7f (rulebook speaks the world clock unit and knows the party node)
+- [ ] **P038** · low · xs · Batch card copy: raw keys, plural errors, placeholder summary 'A generation', and a DM-only note on cards with nothing new — done 0135f7f
+- [ ] **P039** · low · xs · Clicking Keep shows the spinner on Unmake (and Refuse shows it on Allow) — done 0135f7f
+- [ ] **P046** · low · xs · Internal names shown in the DM UI: raw Forge count keys ('1 nodes', '2 placements', '3 facts'), the voice provider id, and 'Nano Banana' — done 0135f7f
+- [ ] **P053** · low · xs · Disabled buttons look enabled across the Forge and voice (Send, Keep/Unmake, Allow/Refuse, Say it) — done 0135f7f
+- [ ] **P082** · low · s · Clearing a voice line or ambience (or deleting its node) leaves the audio file in R2 — done 0135f7f — partial: clearing a line or ambience deletes its audio; a deleted node keeps its audio, because its 24 h tombstone and any clone still point at it
 
 ## Items
 

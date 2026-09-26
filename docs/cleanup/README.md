@@ -8,6 +8,11 @@ styles. Every item then survived **two independent checks**: one re-proved the c
 re-read, or re-clicked on production), the other checked it against CLAUDE.md, the docs and git
 history for intent and asked whether it deserves a line at all.
 
+## Progress
+
+- Done: WP-01, WP-03, WP-04, WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048).
+- Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js`.
+
 ## How to work this list
 
 - Take one **work package** at a time, in the order below. Each package is its own file: a
