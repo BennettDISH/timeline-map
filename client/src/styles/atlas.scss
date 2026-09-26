@@ -351,6 +351,10 @@
   .main{position:relative}
   .iresize,.rresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9}
   .iresize:hover,.iresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
+  // the reader (View / Player) resizes from its own left edge
+  .reader .rgrip{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
+  .reader .rgrip:hover,.reader .rgrip:active{background:linear-gradient(90deg,var(--accent),transparent)}
+  @media (max-width: 700px){.reader .rgrip{display:none}}
   .rresize:hover,.rresize:active{background:linear-gradient(270deg,var(--accent),transparent)}
   .insptoggle{position:absolute;top:10px;right:10px;z-index:6;width:32px;justify-content:center;color:var(--muted)}
   .main.m-edit .helpwrap{right:52px}

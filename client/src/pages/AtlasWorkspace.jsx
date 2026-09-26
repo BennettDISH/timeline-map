@@ -90,6 +90,16 @@ function AtlasWorkspace() {
     const v = parseInt(localStorage.getItem('atlas_inspw'), 10)
     return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
   })
+  const [readerW, setReaderW] = useState(() => { // View/Player reader column; null = the CSS default
+    const v = parseInt(localStorage.getItem('atlas_readerw'), 10)
+    return Number.isFinite(v) ? Math.min(720, Math.max(300, v)) : null
+  })
+  const [wide, setWide] = useState(() => window.innerWidth > 700) // below that the reader overlays the map
+  useEffect(() => {
+    const on = () => setWide(window.innerWidth > 700)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
   const [ctx, setCtx] = useState(null) // right-click menu: { sx, sy, px, py }
   const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
 
@@ -105,6 +115,8 @@ function AtlasWorkspace() {
   const helpRef = useRef(null)
   const inspWRef = useRef(310)
   const inspRaf = useRef(0)
+  const readerWRef = useRef(0)
+  const readerRaf = useRef(0)
   const railWRef = useRef(230)
   const railRaf = useRef(0)
   const placePoint = useRef(null) // where "place existing here" should land
@@ -519,6 +531,31 @@ function AtlasWorkspace() {
     window.addEventListener('pointerup', up)
   }
   const resetInspW = () => { setInspW(310); try { localStorage.setItem('atlas_inspw', '310') } catch (e) { /* ignore */ } }
+
+  // drag the reader's left edge (View / Player postures) the same way; double-click resets
+  const startReaderResize = (e) => {
+    e.preventDefault()
+    readerWRef.current = readerW || (e.currentTarget.parentElement?.getBoundingClientRect().width ?? 400)
+    const move = (ev) => {
+      readerWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 300), Math.min(720, Math.round(window.innerWidth * 0.6)))
+      if (!readerRaf.current) {
+        readerRaf.current = requestAnimationFrame(() => { readerRaf.current = 0; setReaderW(readerWRef.current) })
+      }
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      try { localStorage.setItem('atlas_readerw', String(readerWRef.current)) } catch (err) { /* ignore */ }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const resetReaderW = () => { setReaderW(null); try { localStorage.removeItem('atlas_readerw') } catch (e) { /* ignore */ } }
+  const readerCol = readerW && wide ? `${readerW}px` : 'var(--readerw)'
+  const readerGrip = (
+    <div className="rgrip" title="Drag to widen the reader — double-click resets"
+      onPointerDown={startReaderResize} onDoubleClick={resetReaderW} />
+  )
 
   // edit/view judge presence by the DM's lens; the player preview judges by CANON,
   // exactly like the real share link does.
@@ -965,8 +1002,8 @@ function AtlasWorkspace() {
 
       <div className={`main m-${mode}`}
         style={{ gridTemplateColumns:
-          mode === 'player' ? `1fr${readerOpen ? ' var(--readerw)' : ''}`
-            : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ' var(--readerw)' : ''}`
+          mode === 'player' ? `1fr${readerOpen ? ` ${readerCol}` : ''}`
+            : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ` ${readerCol}` : ''}`
               : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ' 340px' : ''}` }}>
         {mode !== 'player' && railOpen && (
           <div className="rail">
@@ -1297,6 +1334,7 @@ function AtlasWorkspace() {
 
           {readerOpen && !sel && (
             <div className="reader">
+              {readerGrip}
               <div className="rinner">
                 <div className="rhead">
                   <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
@@ -1312,6 +1350,7 @@ function AtlasWorkspace() {
           )}
           {readerOpen && sel && !present(sel) && (
             <div className="reader">
+              {readerGrip}
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               <div className="rinner rghost">
                 <div className="rhead">
@@ -1327,6 +1366,7 @@ function AtlasWorkspace() {
           )}
           {readerOpen && sel && present(sel) && (
             <div className="reader">
+              {readerGrip}
               <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
               {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
               <div className="rinner">
