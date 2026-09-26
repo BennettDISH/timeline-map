@@ -72,6 +72,11 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   server. A clock with no canon fails closed (`NEVER`). Malformed ids 404.
 - Image ids are checked to belong to the world on every write (`imageInWorld` in
   `atlas.js`); R2 URLs are public, so this is what keeps one account's art out of another's.
+- **Every node is born DM-only** — manual ones (＋ Add node, right-click, ◌ Outline; POST
+  `/maps/:mapId/nodes` inserts `visibility='dm'`) exactly like Forge-born ones. Revealing is
+  always a deliberate act. The one exception is a player's own marker (forced 'player').
+- The internal bug-tracker widget is injected server-side (the SPA fallback in `server.js`)
+  on every page except `/p/*`; its key comes from `BUG_WIDGET_KEY` and is not in the bundle.
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
 

@@ -400,9 +400,11 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
+  // born DM-only, like Forge-born nodes: session prep never reaches players until the DM
+  // reveals it on purpose (the one exception is a player's own marker, in share.js)
   const n = (await pool.query(
-    'INSERT INTO nodes (world_id, title, category, body, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [wid, title, category, body, req.user.id])).rows[0];
+    'INSERT INTO nodes (world_id, title, category, body, created_by, visibility) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+    [wid, title, category, body, req.user.id, 'dm'])).rows[0];
   const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
     [n.id, req.params.mapId, x, y, shapeParam(sh), kind])).rows[0];
   res.status(201).json({ nodeId: n.id, placementId: p.id });

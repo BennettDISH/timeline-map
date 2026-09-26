@@ -115,13 +115,22 @@ app.get('/health', (req, res) => {
 // NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".
 const distPath = path.join(__dirname, '../client/dist');
 if (fs.existsSync(path.join(distPath, 'index.html'))) {
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { index: false }));
+
+  // The internal bug-tracker widget is injected HERE, server-side, into every page except
+  // the public Player View (/p/*): anonymous players get neither the reporting UI nor its
+  // key, and the key never ships inside the client bundle.
+  const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
+  const widgetKey = process.env.BUG_WIDGET_KEY || '74c1c3da43cd9020a09f570d78ab8834b7ff73c59d9586793d9e8119f53f8c2d';
+  const widgetTag = `<script src="https://bug-tracker-production-4ccb.up.railway.app/widget.js" data-api-key="${widgetKey}"></script>`;
+  const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
 
   // SPA fallback: serve index.html for any non-API GET so client-side routes work on direct
-  // navigation / refresh (e.g. /auth/callback, /map/:id).
+  // navigation / refresh (e.g. /auth/callback, /w/:id/m/:id).
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    res.sendFile(path.join(distPath, 'index.html'));
+    const isPlayer = req.path === '/p' || req.path.startsWith('/p/');
+    res.type('html').send(isPlayer ? indexHtml : withWidget);
   });
 }
 

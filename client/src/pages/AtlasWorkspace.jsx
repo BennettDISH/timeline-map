@@ -1130,7 +1130,7 @@ function AtlasWorkspace() {
           {mode === 'edit' && (
             <div className="toolbar">
               <button className={`tool ${placing?.kind === 'new' ? 'on' : ''}`}
-                title="Create a brand-new node on this map"
+                title="Create a brand-new node on this map — born DM-only; reveal it when the table should see it"
                 onClick={() => {
                   if (isList) dropNode(50, 50)
                   else setPlacing((v) => (v?.kind === 'new' ? null : { kind: 'new' }))

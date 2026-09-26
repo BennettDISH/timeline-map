@@ -110,6 +110,12 @@ try {
     const mapNow = page.url().split('/m/')[1];
     if (cfg.shareToken) {
       try {
+        // a new place is born DM-only: reveal it first, as the DM would, so the table can see the outline
+        const dmAuth = { headers: { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' } };
+        const dmMap = await (await fetch(`${BASE}/api/atlas/maps/${mapNow}`, dmAuth)).json();
+        for (const pl of (dmMap.placements || []).filter((x) => x.shape && x.node.visibility === 'dm')) {
+          await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...dmAuth, method: 'PATCH', body: JSON.stringify({ visibility: 'shared' }) });
+        }
         const sm = await (await fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${mapNow}`)).json();
         const shaped = (sm.placements || []).filter((x) => Array.isArray(x.shape) && x.shape.length >= 3).length;
         step('the share payload carries the outline', shaped >= 1, `${shaped} outlined placement(s) for players`);

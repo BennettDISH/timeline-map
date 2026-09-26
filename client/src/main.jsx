@@ -3,18 +3,9 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './styles/main.scss'
 
-// Internal bug-tracker widget. Injected here instead of index.html so the public
-// Player View (/p/*) never loads the reporting UI. (The ingest key below still ships in
-// the shared bundle — it is a public write-only key, the same one /login serves.) The
-// widget reads its key via document.currentScript, which is set for dynamically
-// inserted classic scripts, so injection is equivalent to the old inline tag.
-const path = window.location.pathname
-if (!(path === '/p' || path.startsWith('/p/'))) {
-  const widget = document.createElement('script')
-  widget.src = 'https://bug-tracker-production-4ccb.up.railway.app/widget.js'
-  widget.setAttribute('data-api-key', '74c1c3da43cd9020a09f570d78ab8834b7ff73c59d9586793d9e8119f53f8c2d')
-  document.body.appendChild(widget)
-}
+// The internal bug-tracker widget is injected by the server (server.js SPA fallback) on
+// every page except the public Player View, so neither the reporting UI nor its key
+// reaches anonymous players or this bundle.
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
