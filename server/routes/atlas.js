@@ -689,7 +689,7 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   if (req.body?.category === 'party' && (await pool.query(`SELECT 1 FROM nodes WHERE world_id=$1 AND category='party' AND id<>$2`, [wid, req.params.id])).rows.length)
     return res.status(409).json({ message: 'This world already has a Party — there is one per world' });
   const c = cleanBody(req.body, {
-    title: [(v) => text(v, 255) ?? '', 'A title is text of up to 255 characters'],
+    title: [(v) => (v == null ? '' : text(v, 255)), 'A title is text of up to 255 characters'], // a number or an object is unusable, not blank
     body: [long, 'A description is text'],
     dm_note: [long, 'A DM note is text'],
     stance: [(v) => (v == null ? null : oneOf(v, STANCES)), 'A stance is friend, neutral or foe'],
@@ -714,13 +714,17 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
       `SELECT id FROM node_facts WHERE node_id = $1 AND body <> '' AND (start_time IS NULL OR start_time <= $2)
          AND (end_time IS NULL OR end_time >= $2) ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [req.params.id, canon])).rows[0];
     if (fact) {
+      // the note is read BEFORE it is emptied (an UPDATE's RETURNING would hand back the new,
+      // blank value); every part of the statement sees the same snapshot
       const r = await pool.query(
-        `WITH n AS (UPDATE nodes SET dm_note = '', updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $2 AND btrim(COALESCE(dm_note, '')) <> '' RETURNING btrim(dm_note) AS note)
-         UPDATE node_facts f SET body = CASE WHEN btrim(COALESCE(f.body, '')) = '' THEN n.note ELSE btrim(f.body) || E'\n\n' || n.note END
-         FROM n WHERE f.id = $1 RETURNING f.body`, [fact.id, req.params.id]);
+        `WITH cur AS (SELECT btrim(COALESCE(dm_note, '')) AS note FROM nodes WHERE id = $2),
+              n AS (UPDATE nodes SET dm_note = '', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $2 AND (SELECT note FROM cur) <> '' RETURNING 1)
+         UPDATE node_facts f SET body = CASE WHEN btrim(COALESCE(f.body, '')) = '' THEN cur.note ELSE btrim(f.body) || E'\n\n' || cur.note END
+         FROM cur WHERE f.id = $1 AND cur.note <> '' RETURNING f.body`, [fact.id, req.params.id]);
       const body = (await pool.query('SELECT body FROM nodes WHERE id=$1', [req.params.id])).rows[0]?.body ?? null;
-      return res.json({ ok: true, body, factId: fact.id, factBody: r.rows[0]?.body ?? null });
+      const factBody = r.rows[0]?.body ?? (await pool.query('SELECT body FROM node_facts WHERE id=$1', [fact.id])).rows[0]?.body ?? null;
+      return res.json({ ok: true, body, factId: fact.id, factBody });
     }
     const r = await pool.query(
       `UPDATE nodes SET body = CASE WHEN btrim(COALESCE(dm_note, '')) = '' THEN body
