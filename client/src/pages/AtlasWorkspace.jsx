@@ -321,7 +321,7 @@ function AtlasWorkspace() {
     const ro = new ResizeObserver(() => setTrackW(el.clientWidth || 600))
     ro.observe(el); setTrackW(el.clientWidth || 600)
     return () => ro.disconnect()
-  }, [tl?.enabled, mode]) // eslint-disable-line
+  }, [world?.timeline?.enabled, mode]) // eslint-disable-line — `tl` is derived further down; read the world directly
   const sel = data?.placements.find((p) => p.id === selId) || null
   const map = data?.map
   const isList = map?.view === 'list'
