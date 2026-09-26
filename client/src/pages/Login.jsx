@@ -20,6 +20,7 @@ function Login() {
   const { login, register, guestLogin, submitting, error, clearError } = useAuth()
   const navigate = useNavigate()
   const go = () => navigate(next.startsWith('/') ? next : '/', { replace: true })
+  useEffect(() => { document.title = 'Sign in · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
 
   const handleGuest = async () => {
     clearError()

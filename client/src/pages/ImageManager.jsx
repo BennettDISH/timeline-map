@@ -524,7 +524,7 @@ function Modal({ title, onClose, children }) {
       <div className="smodal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
           <h3>{title}</h3>
-          <button className="mclose" onClick={onClose}>✕</button>
+          <button className="mclose" onClick={onClose} aria-label="Close">✕</button>
         </div>
         {children}
       </div>
@@ -635,7 +635,7 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
             <a className="sbtn ghost" href={img.url} target="_blank" rel="noopener noreferrer">Full size</a>
             <button className="sbtn danger" onClick={onDelete}>Delete</button>
           </div>
-          <button className="mclose lbclose" onClick={onClose} title="Close (Esc)">✕</button>
+          <button className="mclose lbclose" onClick={onClose} title="Close (Esc)" aria-label="Close">✕</button>
         </div>
       </div>
       {onNext && <button className="lbnav next" onClick={(e) => { e.stopPropagation(); onNext() }} title="Next (→)">›</button>}

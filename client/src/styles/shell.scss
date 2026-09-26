@@ -307,3 +307,5 @@
     .sbtn { margin-top: 12px; }
   }
 }
+
+@media (pointer: coarse){ .shell input,.shell textarea,.shell select{font-size:16px} }

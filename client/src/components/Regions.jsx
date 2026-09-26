@@ -46,7 +46,7 @@ const areaOf = (pts) => {
 // district stays a faint wash
 const tint = (area) => Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(area, 300)))).toFixed(3)
 
-export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw }) {
+export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw, onEnter }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -131,7 +131,9 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn
           style={{ left: `${it.x}%`, top: `${it.y}%` }}>
           {it.secret && <em className="lock" title="DM only">🔒</em>}
           {it.title}
-          {it.hasInterior && <em className="open" title="Has an interior">◎</em>}
+          {it.hasInterior && (onEnter
+            ? <button type="button" className="enter" title="Go inside" aria-label="Go inside" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEnter(it) }}>◎</button>
+            : <em className="open" title="Has an interior">◎</em>)}
         </span>
       ))}
       {on && pts.map(([x, y], i) => (

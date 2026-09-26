@@ -146,6 +146,8 @@ function PlayerView() {
     return () => clearTimeout(t)
   }, [flash])
   useEffect(() => { document.title = world?.name ? `${world.name} — map` : 'Fantasy Map Timeline' }, [world?.name])
+  // the current crumb stays in view on phones, where the trail scrolls sideways
+  useEffect(() => { document.querySelector('.pview .crumbs .here')?.scrollIntoView?.({ inline: 'end', block: 'nearest' }) }, [data?.map?.id])
   useEffect(() => {
     if (!help) return
     const close = (e) => { if (helpRef.current && !helpRef.current.contains(e.target)) setHelp(false) }
@@ -292,7 +294,7 @@ function PlayerView() {
             </React.Fragment>
           ))}
         </div>
-        {stale && <span className="stalechip" title="Couldn't refresh — showing the last thing we saw">offline?</span>}
+        {stale && <span className="stalechip" role="status" title="Couldn't refresh — showing the last thing we saw">offline · last update shown</span>}
         {tl?.enabled && (
           <span className="nowchip" title={viewT != null ? 'A remembered moment — the era bar goes back to now' : 'The current moment, set by your DM'}>
             🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
@@ -339,7 +341,7 @@ function PlayerView() {
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras} unit={tl?.unit}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
-              <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl}
+              <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
@@ -367,7 +369,7 @@ function PlayerView() {
                     </>
                   )}
                   {p.node.hasInterior && (
-                    <button className="open enter" title="Go inside"
+                    <button className="enter" title="Go inside" aria-label="Go inside"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
                   )}
@@ -384,7 +386,7 @@ function PlayerView() {
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
                   <div className="lsbody"><div className="lstitle">{p.node.title}</div></div>
                   {p.node.hasInterior && (
-                    <button className="open enter" title="Go inside"
+                    <button className="enter" title="Go inside" aria-label="Go inside"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
                   )}
@@ -413,7 +415,7 @@ function PlayerView() {
           )}
           {marking && <div className="markhint">Tap the map where you want your marker.</div>}
           <div className="helpwrap" ref={helpRef}>
-            <button className="tool round" title="What the map's marks mean" onClick={() => setHelp((v) => !v)}>?</button>
+            <button className="tool round" title="What the map's marks mean" aria-label="What the map's marks mean" onClick={() => setHelp((v) => !v)}>?</button>
             {help && (
               <div className="apop helppop">
                 <div><b>Tap a pin</b> or an outlined place to read about it · <b>drag</b> to look around · <b>pinch or scroll</b> to zoom</div>
@@ -437,7 +439,7 @@ function PlayerView() {
 
         {detail && (
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <button className="sclose" onClick={() => setDetail(null)}>✕</button>
+            <button className="sclose" aria-label="Close" onClick={() => setDetail(null)}>✕</button>
             {detail.node.imageUrl && <div className="shero"><img src={detail.node.imageUrl} alt="" /></div>}
             <div className="sinner">
               <div className="shead">
@@ -480,7 +482,7 @@ function PlayerView() {
                         <span className="lgo" onClick={() => openNode(l.otherId)}>
                           {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
                         </span>
-                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
+                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there" aria-label="Go there">⌖</button>
                       </div>
                     ))}
                   </div>
@@ -496,7 +498,7 @@ function PlayerView() {
                         <span className="lgo" onClick={() => openNode(l.otherId)} title={`“${l.otherTitle}” refers here${l.label ? `: ${l.label}` : ''}`}>
                           <span className="ldir">←</span>{l.otherTitle}{l.label ? ` — ${l.label}` : ''}
                         </span>
-                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
+                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there" aria-label="Go there">⌖</button>
                       </div>
                     ))}
                   </div>
@@ -533,7 +535,7 @@ function MarkerForm({ busy, err, onClose, onSubmit }) {
       onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget }}
       onClick={(e) => { if (e.target === e.currentTarget && downOnBack.current && Date.now() - openedAt.current > 400) onClose() }}>
       <form className="modal mform" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <div className="modal-head"><h4>Mark the map</h4><button type="button" onClick={onClose}>✕</button></div>
+        <div className="modal-head"><h4>Mark the map</h4><button type="button" onClick={onClose} aria-label="Close">✕</button></div>
         <input className="nsearch" autoFocus maxLength={80} placeholder="What is here?"
           value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="mcats">

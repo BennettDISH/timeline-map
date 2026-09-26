@@ -804,3 +804,43 @@
 .atlas .helpwrap{z-index:9}
 .atlas .lnk{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
 @media (min-width:900px){.atlas.pview .sheet .shero{max-height:44vh}}
+// ---- phones: the page fits the screen, the map stays the main thing, targets are tappable ----
+.atlas{grid-template-columns:minmax(0,1fr)}
+.atlas .top{min-width:0}
+.atlas .top .brand{min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+@media (max-width:700px){
+  .atlas{grid-template-rows:auto 1fr}
+  .atlas .top{flex-wrap:wrap;height:auto;min-height:46px;padding:4px 8px;gap:6px 8px}
+  .atlas .top .crumbs{flex-basis:100%;order:9;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:7;width:32px;height:32px;border-radius:50%;padding:0}
+}
+.atlas.pview .sheet .shero,.atlas.pview .sheet .sinner{flex:none} // the hero keeps its height; the sheet scrolls
+.atlas.pview .sinner .shead{padding-right:40px}
+.atlas.pview .shead .ic{width:22px;height:22px;border-radius:50%;line-height:22px;text-align:center;flex:none}
+@media (hover: hover){ // on a collapsed chip the way in is a small badge at its corner
+  .atlas:not(.labelson) .pin:not(.ipin) .enter{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;padding:0;line-height:16px;font-size:11px;
+    border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+}
+.atlas .rlabel{z-index:2} // a place's name never covers a pin
+.atlas .rlabel .enter{pointer-events:auto;background:none;border:0;color:var(--muted);margin-left:5px;cursor:pointer;font:inherit;padding:0 2px}
+@media (hover: none){
+  .atlas .pin{max-width:40vw}
+  .atlas .pin .lbl{max-width:30vw;overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:600px){ // the era bar on its own two rows: the track wide, the clock under it
+  .atlas .erabar{flex-wrap:wrap;height:auto;padding:6px 10px 8px;gap:4px 12px}
+  .atlas .etrack{flex:1 1 100%;height:44px}
+  .atlas .ezone{width:100%;justify-content:space-between}
+}
+.atlas .dmtrail{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none} // one line, scrolling
+@media (max-height:500px) and (orientation:landscape){ // a landscape phone: the sheet beside the map, not over it
+  .atlas.pview .sheet{position:fixed;left:auto;top:46px;right:0;bottom:0;width:min(46vw,420px);max-height:none}
+}
+@media (pointer: coarse){ // touch: 44px targets, and inputs that don't make iOS zoom
+  .atlas.pview .pin .enter,.atlas.pview .lsrow .enter{min-width:36px;min-height:36px;padding:6px 8px;font-size:18px}
+  .atlas .fstep{width:22px;height:22px;margin:-5px 0 0 -5px}
+  .atlas.pview .lrow .lgo,.atlas.pview .rtrail a,.atlas.pview .dmtrail a{display:inline-block;padding:9px 0}
+  .atlas.pview .tool,.atlas .mp-controls button,.atlas.pview .sclose,.atlas .modal-head button,.atlas .rclose{min-width:44px;min-height:44px}
+  .atlas .mp-controls button{width:44px;height:44px}
+  .atlas input,.atlas textarea,.atlas select{font-size:16px}
+}

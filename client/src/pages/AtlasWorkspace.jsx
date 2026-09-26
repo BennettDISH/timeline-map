@@ -19,6 +19,9 @@ const clamp = (v) => Math.max(0, Math.min(100, v))
 const errText = (e, fallback) => e?.response?.data?.message || e?.message || fallback
 const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
+// a phone: narrow, or a touch-first pointer — editing happens on a PC (CLAUDE.md), so it lands in View
+const isPhone = () => { try { return window.innerWidth <= 700 || window.matchMedia('(pointer:coarse)').matches } catch (e) { return false } }
+
 function AtlasWorkspace() {
   const { worldId, mapId } = useParams()
   const navigate = useNavigate()
@@ -46,8 +49,11 @@ function AtlasWorkspace() {
   // minimal chrome). Old stored 'dm' maps to edit.
   const [mode, setMode] = useState(() => {
     const m = localStorage.getItem('atlas_mode')
+    // a phone is view-only by design: it lands in View (or Player), never in the editor
+    if (isPhone()) return m === 'player' ? 'player' : 'view'
     return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
   })
+  const [spaceOpen, setSpaceOpen] = useState(false) // phones: the space reader opens on request, not over the map
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [], facts: [] })
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
@@ -75,7 +81,7 @@ function AtlasWorkspace() {
   const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
   const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
   const [momentEdit, setMomentEdit] = useState(null) // string while typing an exact moment
-  const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
+  const [railOpen, setRailOpen] = useState(() => !isPhone() && localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
   const [stray, setStray] = useState(null)      // a node opened WITHOUT a placement (unplaced, or an orphaned interior's owner)
   const [refreshVer, setRefreshVer] = useState(0) // bumps after a Forge turn / Allow / Unmake: the inspector reseeds from the server
@@ -335,6 +341,7 @@ function AtlasWorkspace() {
   const fn = sel ? sel.node : stray
   focusIdRef.current = fn?.id ?? null
   useEffect(() => { if (selId != null) setStray(null) }, [selId])
+  useEffect(() => { document.title = `${map?.title ? `${map.title} · ` : ''}${world?.name || 'Fantasy Map Timeline'}`; return () => { document.title = 'Fantasy Map Timeline' } }, [map?.title, world?.name])
   useEffect(() => {
     if (!tlEdit) return
     const close = (e) => { if (!e.target?.closest?.('.tlcfg, .tgear')) setTlEdit(false) }
@@ -992,7 +999,8 @@ function AtlasWorkspace() {
     } else setSelId(d.id)
   }, [onDragMove, track])
   const onPinDown = (e, p) => {
-    if (mode !== 'edit') { e.stopPropagation(); setSelId(p.id); return } // read-only: select, never drag
+    // read-only, and any touch: select, never drag — a swipe that starts on a pin must not rewrite the world
+    if (mode !== 'edit' || e.pointerType === 'touch') { e.stopPropagation(); setSelId(p.id); return }
     if (placing) return // placing mode: let the press reach the plane so the click drops there
     e.stopPropagation()
     const rect = worldRef.current.getBoundingClientRect()
@@ -1186,7 +1194,7 @@ function AtlasWorkspace() {
 
   // View is the DM's running surface: the reader stays open — the selected node's story
   // and notes, or the space's own notes when nothing is selected.
-  const readerOpen = mode === 'view' ? true
+  const readerOpen = mode === 'view' ? (wide || !!sel || spaceOpen) // a phone shows the map; the space's notes open on request
     : mode === 'player' ? (!!sel && sel.node.visibility !== 'dm' && sel.visibility !== 'dm')
     : false
   const resolveFact = (facts, t) => { // a blank period is no story yet — the base text stands
@@ -1375,7 +1383,7 @@ function AtlasWorkspace() {
               dblZoom={!placing && !drawing}
               grid={gridOn}
             >
-              <Regions backdropUrl={activeBackdropUrl}
+              <Regions backdropUrl={activeBackdropUrl} onEnter={(it) => openInterior(it.node)}
                 items={(data?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node,
                   secret: p.visibility === 'dm' || p.node.visibility === 'dm', hasInterior: p.node.hasInterior,
@@ -1692,9 +1700,13 @@ function AtlasWorkspace() {
           )}
         </div>
 
+          {mode === 'view' && !wide && !sel && !spaceOpen && (
+            <button className="tool spaceinfo" title="About this space" aria-label="About this space" onClick={() => setSpaceOpen(true)}>ℹ</button>
+          )}
           {readerOpen && !sel && (
             <div className="reader">
               {readerGrip}
+              {!wide && <button className="rclose" title="Close" aria-label="Close" onClick={() => setSpaceOpen(false)}>✕</button>}
               <div className="rinner">
                 <div className="rhead">
                   <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
@@ -2291,7 +2303,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
             <>
               <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
               <button className="btn xint" title="Remove the interior — the space inside is deleted; this node stays"
-                onClick={onRemoveInterior}>✕</button>
+                onClick={onRemoveInterior} aria-label="Close">✕</button>
             </>
           )
           : n.category === 'party' ? (
@@ -2560,7 +2572,7 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>Choose image</h4><button onClick={onClose}>✕</button></div>
+        <div className="modal-head"><h4>Choose image</h4><button onClick={onClose} aria-label="Close">✕</button></div>
         {generate && (
           <div className="pgen">
             <button className="btn primary block" disabled={genBusy || busy} onClick={runGen}
@@ -2609,7 +2621,7 @@ function NodePicker({ worldId, excludeId, excludeIds, title = 'Link to…', unpl
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>{title}</h4><button onClick={onClose}>✕</button></div>
+        <div className="modal-head"><h4>{title}</h4><button onClick={onClose} aria-label="Close">✕</button></div>
         <input className="nsearch" autoFocus placeholder="Search nodes…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="nlist">
           {list.map((n) => (

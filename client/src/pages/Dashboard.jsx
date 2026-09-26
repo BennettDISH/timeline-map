@@ -60,7 +60,7 @@ function Modal({ title, onClose, children }) {
       <div className="smodal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
           <h3>{title}</h3>
-          <button className="mclose" onClick={onClose}>✕</button>
+          <button className="mclose" onClick={onClose} aria-label="Close">✕</button>
         </div>
         {children}
       </div>

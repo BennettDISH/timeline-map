@@ -182,6 +182,26 @@ export default function MapPlane({
       }
     }
   }
+  // every touch counts for pinch detection, even one that began on a pin (a pin stops the
+  // bubbling pointerdown to keep its own tap): two fingers anywhere zoom
+  const onPointerDownCapture = (e) => {
+    if (e.pointerType !== 'touch') return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 2) {
+      const pts = [...pointers.current.values()]
+      const vp = viewportRef.current
+      const r = vp ? vp.getBoundingClientRect() : { left: 0, top: 0 }
+      const v = eff()
+      moved.current = true; touched.current = true
+      gesture.current = {
+        mode: 'pinch',
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+        cx: (pts[0].x + pts[1].x) / 2 - r.left,
+        cy: (pts[0].y + pts[1].y) / 2 - r.top,
+        scale: v.scale, tx: v.tx, ty: v.ty,
+      }
+    }
+  }
   const onPointerMove = (e) => {
     if (!pointers.current.has(e.pointerId)) return
     // a mouse moving with no button held is not a pan: the release happened where no
@@ -238,6 +258,7 @@ export default function MapPlane({
     <div
       ref={viewportRef}
       className="mp-viewport"
+      onPointerDownCapture={onPointerDownCapture}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
@@ -272,11 +293,11 @@ export default function MapPlane({
         {children}
       </div>
       <div className="mp-controls" style={controlsOffset ? { bottom: controlsOffset } : undefined}>
-        <button title="Zoom in" onClick={(e) => { e.stopPropagation(); zoomCenter(1.5) }}
+        <button title="Zoom in" aria-label="Zoom in" onClick={(e) => { e.stopPropagation(); zoomCenter(1.5) }}
           onPointerDown={(e) => e.stopPropagation()}>＋</button>
-        <button title="Zoom out" onClick={(e) => { e.stopPropagation(); zoomCenter(1 / 1.5) }}
+        <button title="Zoom out" aria-label="Zoom out" onClick={(e) => { e.stopPropagation(); zoomCenter(1 / 1.5) }}
           onPointerDown={(e) => e.stopPropagation()}>−</button>
-        <button title="Fit the whole map" onClick={(e) => { e.stopPropagation(); touched.current = false; fit() }}
+        <button title="Fit the whole map" aria-label="Fit the whole map" onClick={(e) => { e.stopPropagation(); touched.current = false; fit() }}
           onPointerDown={(e) => e.stopPropagation()}>⊡</button>
       </div>
     </div>

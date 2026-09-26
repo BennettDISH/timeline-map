@@ -5,6 +5,7 @@ import '../styles/shell.scss'
 
 // A real 404 — unknown paths land here instead of silently bouncing to the dashboard.
 function NotFound() {
+  React.useEffect(() => { document.title = 'Page not found · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
   return (
     <div className="shell">
       <TopBar crumb="Uncharted" />
