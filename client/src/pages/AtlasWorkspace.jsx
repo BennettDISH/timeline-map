@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import { errText, refused } from '../services/http'
 import MapPlane from '../components/MapPlane'
+import { Compass } from '../components/TopBar'
 import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
@@ -143,6 +144,10 @@ function AtlasWorkspace() {
   const loadVoices = () => { setVoicesErr(false); return voiceService.voices().then(setVoices).catch(() => setVoicesErr(true)) }
   const [voices, setVoices] = useState([])
   const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
+  const [forgeW, setForgeW] = useState(() => { const v = Number(localStorage.getItem('atlas_forgew')); return v >= 280 && v <= 600 ? v : 340 }) // the Forge column resizes like the other panes
+  const forgeWRef = useRef(340)
+  const forgeRaf = useRef(0)
+  const ctxRef = useRef(null) // the right-click menu measures itself and stays inside the window
   const [railW, setRailW] = useState(() => {
     const v = parseInt(localStorage.getItem('atlas_railw'), 10)
     return Number.isFinite(v) ? Math.min(420, Math.max(160, v)) : 230
@@ -302,11 +307,22 @@ function AtlasWorkspace() {
       .then(() => setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
       .catch(() => {})
   }
-  const toggleForge = () => setForgeOpen((v) => {
-    const nv = !v
+  const toggleForge = () => {
+    const nv = !forgeOpen
+    // a laptop cannot hold tree, canvas, editor and Forge at once: the editor folds while the
+    // Forge opens (▸ brings it back), so the map keeps its room
+    if (nv && window.innerWidth < 1400 && inspOpen) setInspOpen(false)
+    setForgeOpen(nv)
     try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
-    return nv
-  })
+  }
+  useLayoutEffect(() => {
+    const el = ctxRef.current
+    if (!el) return
+    el.style.transform = ''
+    const r = el.getBoundingClientRect()
+    const dy = Math.max(0, r.bottom - window.innerHeight + 8), dx = Math.max(0, r.right - window.innerWidth + 8)
+    if (dx || dy) el.style.transform = `translate(${-dx}px, ${-dy}px)`
+  }, [ctx])
   // The DM's lantern: point players toward one node — the share API draws the golden
   // trail (pruned at the first hidden step); here we just flip the pointer.
   const toggleSpotlight = (node) => {
@@ -910,8 +926,9 @@ function AtlasWorkspace() {
   const startInspResize = (e) => {
     e.preventDefault()
     inspWRef.current = inspW
+    const forgeCol = forgeOn && forgeOpen ? forgeWRef.current : 0 // the Forge column sits to the editor's right
     const move = (ev) => {
-      inspWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 280), Math.min(640, Math.round(window.innerWidth * 0.55)))
+      inspWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX - forgeCol, 280), Math.min(640, Math.round(window.innerWidth * 0.55)))
       if (!inspRaf.current) {
         inspRaf.current = requestAnimationFrame(() => { inspRaf.current = 0; setInspW(inspWRef.current) })
       }
@@ -925,6 +942,24 @@ function AtlasWorkspace() {
     window.addEventListener('pointerup', up)
   }
   const resetInspW = () => { setInspW(310); try { localStorage.setItem('atlas_inspw', '310') } catch (e) { /* ignore */ } }
+  // the Forge column's left edge drags the same way; double-click resets
+  const startForgeResize = (e) => {
+    e.preventDefault()
+    forgeWRef.current = forgeW
+    const move = (ev) => {
+      forgeWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 280), Math.min(600, Math.round(window.innerWidth * 0.5)))
+      if (!forgeRaf.current) forgeRaf.current = requestAnimationFrame(() => { forgeRaf.current = 0; setForgeW(forgeWRef.current) })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      try { localStorage.setItem('atlas_forgew', String(forgeWRef.current)) } catch (err) { /* ignore */ }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const resetForgeW = () => { setForgeW(340); try { localStorage.setItem('atlas_forgew', '340') } catch (e) { /* ignore */ } }
+  useEffect(() => { forgeWRef.current = forgeW }, [forgeW])
 
   // drag the reader's left edge (View / Player postures) the same way; double-click resets
   const startReaderResize = (e) => {
@@ -1350,8 +1385,8 @@ function AtlasWorkspace() {
     <div className={`atlas${labelsOn ? ' labelson' : ''}${drawing ? ' drawing' : ''}${placing ? ' placing' : ''}`}>
       <div className="top">
         {mode === 'player'
-          ? <span className="brand">🧭 {world?.name}</span>
-          : <span className="brand">🧭{' '}
+          ? <span className="brand"><Compass size={18} className="brandrose" /> {world?.name}</span>
+          : <span className="brand"><Compass size={18} className="brandrose" />{' '}
               <select
                 className="brandsel"
                 value={String(worldId)}
@@ -1467,7 +1502,7 @@ function AtlasWorkspace() {
         style={{ gridTemplateColumns:
           mode === 'player' ? `1fr${readerOpen ? ` ${readerCol}` : ''}`
             : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ` ${readerCol}` : ''}`
-              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ' 340px' : ''}` }}>
+              : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ` ${forgeW}px` : ''}` }}>
         {mode !== 'player' && railOpen && (
           <div className="rail">
             <h4>Maps</h4>
@@ -1726,7 +1761,7 @@ function AtlasWorkspace() {
                 {mode === 'edit' && <div><b>N</b> {isList ? 'adds a row to this list' : 'starts a new node · '}{isList ? '' : <><b>Enter</b> drops it at the cursor</>}</div>}
                 {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
-                <div className="legend"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
+                <div className="helpkey"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
               </div>
             )}
@@ -2069,8 +2104,12 @@ function AtlasWorkspace() {
         </div>
         )}
         {mode === 'edit' && inspOpen && (
-          <div className="iresize" style={{ right: inspW - 3 }} title="Drag to widen the editor — double-click resets"
+          <div className="iresize" style={{ right: inspW - 3 + (forgeOn && forgeOpen ? forgeW : 0) }} title="Drag to widen the editor — double-click resets"
             onPointerDown={startInspResize} onDoubleClick={resetInspW} />
+        )}
+        {mode === 'edit' && forgeOn && forgeOpen && (
+          <div className="fresize" style={{ right: forgeW - 3 }} title="Drag to widen the Forge — double-click resets"
+            onPointerDown={startForgeResize} onDoubleClick={resetForgeW} />
         )}
         {mode !== 'player' && railOpen && (
           <div className="rresize" style={{ left: railW - 3 }} title="Drag to widen the map tree — double-click resets"
@@ -2178,7 +2217,7 @@ function AtlasWorkspace() {
         const p = data?.placements.find((pp) => pp.id === ctx.placementId)
         if (!p) return null
         return (
-          <div className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
+          <div ref={ctxRef} className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
             <div className="apop-sep">{p.node.title}</div>
             {p.node.hasInterior && <button onClick={() => { setCtx(null); openInterior(p.node) }}>◎ Open interior</button>}
             {!isList && p.node.category !== 'party' && <button onClick={() => { setCtx(null); startOutline(p.id) }}>◌ {p.shape ? 'Redraw the outline' : 'Outline on the map'}</button>}
@@ -2188,7 +2227,7 @@ function AtlasWorkspace() {
         )
       })()}
       {ctx && !ctx.placementId && (
-        <div className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
+        <div ref={ctxRef} className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={() => { const c = ctx; setCtx(null); dropNode(c.px, c.py) }}>＋ New node here</button>
           {tl?.enabled && <button title="Record the party's next footstep at this spot: the current one ends at the lens moment" onClick={() => { const c = ctx; setCtx(null); partyMoveHere(c.px, c.py) }}>👣 The party moves here</button>}
           <button onClick={() => { const c = ctx; startOutline(null, [c.px, c.py]) }}>◌ Outline a place from here</button>

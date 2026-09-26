@@ -15,7 +15,8 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   changes map without the error boundary, double-click on a pin without an interior stays
   put; an unknown world lands on the dashboard with a notice, a missing space offers the
   world map with no editor armed, the title input stops at 255, the editor opens at the top
-  for each selection, a just-dropped node's title is focused and selected, a pan keeps the
+  for each selection, a just-dropped node's title is focused and selected, at 1280px the top bar and editor
+  fit the window, the View scrubber keeps a track and the Forge clears the ? button, a pan keeps the
   selection while a clean tap clears it, a search hit is framed, an outline ends with the
   posture, Fit swallows its double-click, and a pin's right-click menu is its own. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.

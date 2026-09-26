@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
 import MapPlane, { embedded } from '../components/MapPlane'
+import { Compass } from '../components/TopBar'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
@@ -284,7 +285,7 @@ function PlayerView() {
   return (
     <div className="atlas pview">
       <div className="top">
-        <span className="brand">🧭 {world.name}</span>
+        <span className="brand"><Compass size={18} className="brandrose" /> {world.name}</span>
         <div className="crumbs">
           {(data.breadcrumb || []).map((b, i, arr) => (
             <React.Fragment key={b.mapId}>

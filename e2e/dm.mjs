@@ -286,6 +286,29 @@ try {
       step('the dropped probe node is removed again', removed >= 1, `${removed} removed`);
     } else step('the toolbar offers ＋ Add node', false);
   }
+  // laptop widths: the workspace fits the window, the scrubber keeps a track, the Forge folds the editor
+  {
+    await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(600);
+    const fits = await page.evaluate(() => { const t = document.querySelector('.atlas .top')?.getBoundingClientRect(); const i = document.querySelector('.atlas .insp')?.getBoundingClientRect(); return { top: t ? Math.round(t.right) : null, insp: i ? Math.round(i.right) : null, w: window.innerWidth }; });
+    step('at 1280 the top bar and the editor end inside the window', fits.top <= fits.w && (fits.insp == null || fits.insp <= fits.w), JSON.stringify(fits));
+    await page.locator('.mode button', { hasText: 'View' }).click(); await page.waitForTimeout(400);
+    const first = page.locator('.atlas .pin:not(.party)').first();
+    if (await first.count()) { await first.click({ force: true }); await page.waitForTimeout(400); }
+    const track = await page.locator('.timebar .ttrack').boundingBox().catch(() => null);
+    step('in View with the reader open the scrubber keeps a track', !!track && track.width >= 160, `track ${Math.round(track?.width || 0)}px`);
+    await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400);
+    const forgeBtn = page.locator('.forgebtn');
+    if (await forgeBtn.count()) {
+      const wasOpen = (await forgeBtn.getAttribute('class') || '').includes('on');
+      if (!wasOpen) { await forgeBtn.click(); await page.waitForTimeout(500); }
+      const gap = await page.evaluate(() => { const tb = document.querySelector('.atlas .toolbar')?.getBoundingClientRect(); const h = document.querySelector('.atlas .helpwrap')?.getBoundingClientRect(); const f = document.querySelector('.atlas .forge')?.getBoundingClientRect(); const s = document.querySelector('.atlas .stagecol')?.getBoundingClientRect(); return { overlap: !!(tb && h && tb.right > h.left && tb.top < h.bottom && tb.bottom > h.top), forge: f ? Math.round(f.width) : null, stage: s ? Math.round(s.width) : null, insp: document.querySelectorAll('.atlas .insp').length }; });
+      step('with the Forge open at 1280 the toolbar clears the ? button and the canvas keeps room', !gap.overlap && gap.stage >= 500, JSON.stringify(gap));
+      await forgeBtn.click(); await page.waitForTimeout(300);
+      if (wasOpen) { await forgeBtn.click(); await page.waitForTimeout(300); }
+      if (!(await page.locator('.atlas .insp').count())) { await page.locator('.insptoggle').click().catch(() => {}); await page.waitForTimeout(300); }
+    }
+    await page.setViewportSize({ width: 1400, height: 900 }); await page.waitForTimeout(500);
+  }
   // a world that can't be opened: the dashboard says so; a space that is gone: a way out and no editor armed
   {
     await page.goto(`${BASE}/w/999999`, { timeout: 60000 });

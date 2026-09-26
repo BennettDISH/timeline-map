@@ -6,10 +6,10 @@
 // ============================================================================
 
 .shell {
-  // palette (mirrors .atlas)
+  // palette (the same tokens, with the same meaning, as .atlas: --panel is the lighter surface)
   --bg: #12151a;
-  --panel: #1b1f25;
-  --panel2: #232830;
+  --panel: #232830;
+  --panel2: #1b1f25;
   --ink: #e8e8e6;
   --muted: #9a9a94;
   --line: #3a3f47;
@@ -93,7 +93,7 @@
     top: calc(100% + 6px);
     right: 0;
     min-width: 170px;
-    background: var(--panel2);
+    background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 9px;
     box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
@@ -122,7 +122,7 @@
     justify-content: center;
     gap: 7px;
     border: 1px solid var(--line);
-    background: var(--panel2);
+    background: var(--panel);
     color: var(--ink);
     border-radius: 8px;
     padding: 7px 14px;
@@ -146,7 +146,7 @@
 
   .sinput, .stext, .sselect {
     width: 100%;
-    background: var(--panel2);
+    background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
     color: var(--ink);
@@ -204,7 +204,7 @@
     padding: 18px;
   }
   .smodal {
-    background: var(--panel);
+    background: var(--panel2);
     border: 1px solid var(--line);
     border-radius: 12px;
     width: min(460px, 94vw);
@@ -262,7 +262,7 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 80;
-    background: var(--panel2);
+    background: var(--panel);
     border: 1px solid var(--line);
     border-left: 3px solid var(--ok);
     border-radius: 9px;
@@ -276,7 +276,7 @@
 
   // ---- loading skeleton ------------------------------------------------------
   .skel {
-    background: linear-gradient(100deg, var(--panel) 40%, var(--panel2) 50%, var(--panel) 60%);
+    background: linear-gradient(100deg, var(--panel2) 40%, var(--panel) 50%, var(--panel2) 60%);
     background-size: 200% 100%;
     animation: shimmer 1.4s infinite linear;
     border-radius: 10px;
@@ -309,3 +309,15 @@
 }
 
 @media (pointer: coarse){ .shell input,.shell textarea,.shell select{font-size:16px} }
+
+// the modal close button, wherever a modal stands (the lightbox too)
+.shell .mclose {
+  background: none; border: 0; color: var(--muted); font-size: 16px; cursor: pointer; padding: 2px 6px;
+  &:hover { color: var(--ink); }
+}
+// phones: a one-line top bar — the compass alone, the account pill on one line
+@media (max-width: 480px) {
+  .shell .wm-text { display: none; }
+  .shell .shellcrumb { display: none; }
+  .shell .userbtn { white-space: nowrap; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+}

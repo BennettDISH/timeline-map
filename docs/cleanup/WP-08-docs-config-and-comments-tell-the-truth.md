@@ -10,26 +10,26 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **O001** · medium · s · CLAUDE.md has drifted: regions listed as a gap, 4 tables missing, wrong session formula, resolveImageUrl mis-described
-- [ ] **O002** · medium · s · docs/UX-REDESIGN.md describes removed behaviour, and its roadmap checkboxes are wrong in both directions
-- [ ] **B079** · low · xs · README 'Getting started' fails on a fresh clone: concurrently is never installed, and migrate ignores server/.env
-- [ ] **B082** · low · xs · Server starts accepting requests before the boot-time schema ensure finishes
-- [ ] **C025** · low · xs · Config drift: .env.example lacks the five R2 vars, suggests a retired Forge model, and documents a CORS setting that does nothing in production
-- [ ] **C041** · low · xs · Misplaced and stale comments in AtlasWorkspace, and one name used for two different things (dropNode)
-- [ ] **C052** · low · s · README is stale and never says which doc to read first
-- [ ] **C071** · low · s · server/test/fixture.sql contains no SQL; the fixture world the security tests depend on cannot be rebuilt
-- [ ] **C072** · low · s · fixture.sql contains no SQL, and each run of the share test adds a probe marker toward the 200-marker cap
-- [ ] **O004** · low · xs · Docs still list zones/regions as unbuilt, and an e2e comment refers to an 'anchor pin' that no longer exists
-- [ ] **O010** · low · xs · docs/REVIEW.md audits the deleted legacy app: 19 of 38 cited paths are gone, and its open boxes are wrong
-- [ ] **O011** · low · xs · Stale comments and docs in the image pipeline describe behaviour that no longer exists
-- [ ] **O012** · low · xs · docs/wireframe.html is an orphaned pre-build mock from July 2026
-- [ ] **O013** · low · s · Server comments still describe removed things: the legacy API, the events table, soft delete, ElevenLabs-only voice, /map/:id
-- [ ] **O015** · low · xs · Root package.json, railway.toml and .gitignore carry leftovers
-- [ ] **O017** · low · xs · Three different 'list of tables' in server and docs, and only migrate.js is complete
-- [ ] **O018** · low · xs · Comments in the maps and image code describe removed features or sit above the wrong code
-- [ ] **O020** · low · xs · Voice comments still describe the ElevenLabs-only era, and elevenlabs.enabled is a dead export
-- [ ] **O021** · low · s · Comments and docs describe code that is gone or changed
-- [ ] **O024** · low · xs · Stale comments and docs: 'players don't scrub'; 'All players use AudioClip'
+- [x] **O001** · medium · s · CLAUDE.md has drifted: regions listed as a gap, 4 tables missing, wrong session formula, resolveImageUrl mis-described — done 554ce11 (every route and page listed, all 15 tables, the serve route and the session convention described as the code does them, the roadmap retired, a Releases line, regions off the gaps)
+- [x] **O002** · medium · s · docs/UX-REDESIGN.md describes removed behaviour, and its roadmap checkboxes are wrong in both directions — done 554ce11 (the vision stays; the old diagnosis, create-on-open and the roadmap are gone — a Status and a retired-roadmap note say what shipped and what did not)
+- [x] **B079** · low · xs · README 'Getting started' fails on a fresh clone: concurrently is never installed, and migrate ignores server/.env — done 554ce11 (README: npm install at the root; migrate reads server/.env and is optional)
+- [x] **B082** · low · xs · Server starts accepting requests before the boot-time schema ensure finishes — done 554ce11 (app.listen waits for the schema ensure to settle)
+- [x] **C025** · low · xs · Config drift: .env.example lacks the five R2 vars, suggests a retired Forge model, and documents a CORS setting that does nothing in production — done 554ce11 (no CORS setting, Waypoint named, the current Forge model, the admin ids and embed origins documented)
+- [x] **C041** · low · xs · Misplaced and stale comments in AtlasWorkspace, and one name used for two different things (dropNode) — done 554ce11 (the two comments moved next to their code, the dm note dropped, ForgePanel's flag is omitSel)
+- [x] **C052** · low · s · README is stale and never says which doc to read first — done 554ce11 (README is a short doc map that starts with CLAUDE.md; HANDOFF deleted; one product name)
+- [x] **C071** · low · s · server/test/fixture.sql contains no SQL; the fixture world the security tests depend on cannot be rebuilt — done 554ce11 (server/test/FIXTURE.md states the fixture exists only in production and holds its content contract; the test header says so)
+- [x] **C072** · low · s · fixture.sql contains no SQL, and each run of the share test adds a probe marker toward the 200-marker cap — done 554ce11 (the marker test bows out at twenty probes and FIXTURE.md carries the sweep SQL)
+- [x] **O004** · low · xs · Docs still list zones/regions as unbuilt, and an e2e comment refers to an 'anchor pin' that no longer exists — done 554ce11 (regions off both docs; the e2e comment says name anchor)
+- [x] **O010** · low · xs · docs/REVIEW.md audits the deleted legacy app: 19 of 38 cited paths are gone, and its open boxes are wrong — done 554ce11 (docs/REVIEW.md deleted)
+- [x] **O011** · low · xs · Stale comments and docs in the image pipeline describe behaviour that no longer exists — done 554ce11 (the serve, tooltip-blob, cascade, purge and soft-delete comments rewritten; CLAUDE.md describes the serve route)
+- [x] **O012** · low · xs · docs/wireframe.html is an orphaned pre-build mock from July 2026 — done 554ce11 (docs/wireframe.html deleted)
+- [x] **O013** · low · s · Server comments still describe removed things: the legacy API, the events table, soft delete, ElevenLabs-only voice, /map/:id — done 554ce11 (legacy API, events, soft delete, ElevenLabs-only and /map/:id comments gone; the link-label note removed with the validator)
+- [x] **O015** · low · xs · Root package.json, railway.toml and .gitignore carry leftovers — done 554ce11 (no phantom main, a true description and keywords, build no longer reinstalls, railway.toml trimmed with a health check, the uploads ignore rules gone)
+- [x] **O017** · low · xs · Three different 'list of tables' in server and docs, and only migrate.js is complete — done 554ce11 (admin.js already reads the table list from schema.sql; CLAUDE.md lists all 15)
+- [x] **O018** · low · xs · Comments in the maps and image code describe removed features or sit above the wrong code — done 554ce11 (the atlas route comments and the picker/nodePicker comments match the code)
+- [x] **O020** · low · xs · Voice comments still describe the ElevenLabs-only era, and elevenlabs.enabled is a dead export — done 554ce11 (three-provider wording in server.js, voice.js, schema.sql and elevenlabs.js; the dead export went in WP-07)
+- [x] **O021** · low · s · Comments and docs describe code that is gone or changed — done 554ce11 (each cited comment edited or deleted with WP-07's deletions)
+- [x] **O024** · low · xs · Stale comments and docs: 'players don't scrub'; 'All players use AudioClip' — done 554ce11 (the share comment says players scrub the revealed eras; CLAUDE.md names AudioClip for lines and the tap toggle for ambience; a refused play() shows on the button)
 
 ## Items
 

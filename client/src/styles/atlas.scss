@@ -2,6 +2,7 @@
 .atlas {
   --ink:#e8e8e6; --muted:#9a9a94; --line:#3a3f47; --panel:#232830; --panel2:#1b1f25;
   --bg:#12151a; --accent:#5b9bd5;
+  --serif:'Cormorant Garamond',Georgia,'Times New Roman',serif; // the one display serif, shared with the shell pages
   --note:#8a8a86; --place:#4f9f6f; --person:#b07bd0; --item:#d0a24a; --lore:#5b9bd5; --event:#d05b5b;
   position:fixed; inset:0; display:grid; grid-template-rows:46px 1fr; background:var(--bg); color:var(--ink);
   font:13px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;
@@ -58,7 +59,7 @@
      button:hover{border-color:var(--accent)}}
   .mp-viewport:hover .mp-controls,.mp-controls:hover{opacity:1}
   @media (hover: none){.mp-controls{opacity:1}}
-  .toolbar{position:absolute;top:10px;left:52px;z-index:5;display:flex;gap:6px}
+  .toolbar{position:absolute;top:10px;left:52px;right:100px;z-index:5;display:flex;flex-wrap:wrap;gap:6px} // wraps before it reaches ? and ▸
   .tool{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 10px;cursor:pointer}
   .tool.on{outline:2px solid var(--accent)}
   .tool:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
@@ -84,8 +85,8 @@
   .insp{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:12px}
   .insp .empty{color:var(--muted);font-style:italic;text-align:center;margin-top:40px;padding:0 14px}
   .fld{margin-bottom:12px}
-  .fld label{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
-  .fld input,.fld textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;font:inherit}
+  .fld > label{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+  .fld input:not([type=range]):not([type=checkbox]),.fld textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;font:inherit}
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:11px;background:var(--panel2);color:var(--ink);cursor:pointer}
   .chip.on{background:var(--accent);border-color:var(--accent);color:#08131f}
@@ -119,15 +120,15 @@
   // language as the player era bar: named eras on their own line, slider beneath
   .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;user-select:none;-webkit-user-select:none;
      height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
-  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;width:152px;flex:none}
-  .timebar .ttrack{flex:1;position:relative;height:100%}
+  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none}
+  .timebar .ttrack{flex:1;min-width:160px;position:relative;height:100%} // the labels give way before the track does
   .timebar input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:var(--accent);z-index:2}
   .canonmark{position:absolute;top:8px;bottom:6px;width:2px;background:#c9a35f;border-radius:1px;pointer-events:none;z-index:3}
   .canonchip{color:#c9a35f;border:1px solid #c9a35f44;border-radius:999px;padding:1px 8px;font-size:10px;
      letter-spacing:.08em;text-transform:uppercase}
   .tcanon{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
   .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
-  .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;text-align:right}
+  .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;max-width:240px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   // share link (DM popover) + Player View chrome
   // not share*: ad-blocker "social sharing" cosmetic filters hide share-named elements, and hid this button (1224c84)
   .invitebtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit}
@@ -140,7 +141,6 @@
      border-radius:6px;padding:6px 8px;word-break:break-all;user-select:all}
   .invitepop .srow{display:flex;gap:6px;flex-wrap:wrap}
   .invitepop .muted{color:var(--muted);font-size:12px}
-  .invitepop .danger{color:#e66}
   .nowchip{color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:999px;
      padding:3px 10px;white-space:nowrap;font-weight:600}
 
@@ -175,7 +175,6 @@
   .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
   .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
   .tlcfg input[type=text]{width:140px}
-  .tlcfg .danger{color:#e66}
   .pin.ghost{border-style:dashed;border-color:#b07bd0} // not present at the lens moment: a dashed purple edge (⏳ on the timebar hides them)
   .span{display:flex;align-items:center;gap:8px}
   .span input{width:80px}
@@ -296,7 +295,7 @@
       &::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel))}}
     .rinner{padding:20px 26px 30px}
     .rhead{display:flex;align-items:center;gap:11px;margin-bottom:3px;padding-right:24px;
-      h3{margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:30px;line-height:1.12;letter-spacing:.01em}
+      h3{margin:0;font-family:var(--serif);font-weight:600;font-size:30px;line-height:1.12;letter-spacing:.01em}
       .ic{width:22px;height:22px;border-radius:50%;color:#fff;font-size:12px;line-height:22px;text-align:center;flex:none}}
     .rcat{color:#c9a35f;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
     .rwhen{color:var(--muted);font-size:12px;margin-top:8px}
@@ -404,7 +403,7 @@
       img{width:100%;height:100%;object-fit:cover;display:block}
       &::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel))}}
     .sinner{padding:14px 18px 22px;display:flex;flex-direction:column;gap:9px}
-    .shead h3{font-family:Georgia,'Times New Roman',serif;font-size:24px}
+    .shead h3{font-family:var(--serif);font-size:24px}
     .sbody{font-size:15px;line-height:1.6}
     .rk{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c9a35f;margin-top:6px}
     .sic{width:17px;height:17px;border-radius:50%;color:#fff;font-size:10px;line-height:17px;text-align:center;flex:none}}
@@ -523,7 +522,6 @@
     textarea{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);
       padding:6px 8px;font:inherit;font-size:12.5px;resize:none}}}
 @keyframes forgepulse{0%,100%{opacity:.55}50%{opacity:1}}
-.atlas .forge .fbrow .danger{color:#e66;border-color:#5a2a2a}
 .atlas .forge .fhbtns{display:flex;gap:2px;align-items:center}
 .atlas .forge .fhbtns .gear{background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px}
 .atlas .forge .fhbtns .gear.on{color:var(--accent)}
@@ -726,7 +724,7 @@
 .atlas .drawhud .kindsel{border-color:#38b6a3;
   button{color:#cfe9e4}
   button.on{background:#38b6a3;color:#0d0f13}}
-.atlas .helppop .legend{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
+.atlas .helppop .helpkey{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
 .atlas .stylerow{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .atlas .stoggles{display:flex;flex-wrap:wrap;gap:5px;
   button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:2px 9px;cursor:pointer;font:inherit;font-size:11.5px}
@@ -845,3 +843,26 @@
 .atlas .modal-back.top{z-index:55}
 .atlas .pick.current{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
 .atlas .modal .nsearch{margin:8px 0 0}
+
+// ---- laptop widths and one look ----
+// crumbs shrink with an ellipsis instead of pushing the posture switcher and Exit off-screen
+.atlas .crumbs{min-width:0}
+.atlas .crumbs a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:2ch}
+.atlas .top .brand .brandrose{color:#c9a35f;flex:none}
+// the Forge column resizes from its left edge, like the editor and the tree
+.atlas .fresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:9}
+.atlas .fresize:hover,.atlas .fresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
+// the ⚙ partition's boxes keep their rows; the partition scrolls
+.atlas .forge .fmind > *{flex:none}
+// the reader: a still shell (grip, ✕, hero) around a scrolling body
+.atlas .reader{overflow:hidden;display:flex;flex-direction:column}
+.atlas .reader .rhero{flex:none}
+.atlas .reader .rinner{flex:1;min-height:0;overflow-y:auto}
+.atlas .loading{min-height:0}
+// base looks for controls no context rule reached
+.atlas .span input{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;font:inherit}
+.atlas .lx{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px}
+.atlas .ic{border-radius:50%;text-align:center;flex:none;width:16px;height:16px;line-height:16px;font-size:10px}
+// the destructive choice is marked wherever it stands
+.atlas .danger{color:#e66}
+.atlas .tool.danger{border-color:#5a2a2a}

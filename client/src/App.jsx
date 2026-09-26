@@ -22,12 +22,12 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation()
 
   if (loading) {
-    return <div className="loading">Loading...</div>
+    return <div className="route-loading">Loading...</div>
   }
   if (!isAuthenticated && offline) {
     // the token was kept; the server just could not be reached to check it
     return (
-      <div className="loading">
+      <div className="route-loading">
         <div>Can't reach the server to check your session.</div>
         <button type="button" style={{ marginTop: 12 }} onClick={retry}>Try again</button>
       </div>
@@ -41,7 +41,7 @@ const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth()
   
   if (loading) {
-    return <div className="loading">Loading...</div>
+    return <div className="route-loading">Loading...</div>
   }
   
   return !isAuthenticated ? children : <Navigate to="/" replace />
@@ -52,7 +52,7 @@ const Home = () => {
   const { isAuthenticated, loading } = useAuth()
 
   if (loading) {
-    return <div className="loading">Loading...</div>
+    return <div className="route-loading">Loading...</div>
   }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
@@ -63,7 +63,7 @@ const Home = () => {
 function AppRoutes() {
   return (
     <div className="app">
-      <Suspense fallback={<div className="loading">Loading...</div>}>
+      <Suspense fallback={<div className="route-loading">Loading...</div>}>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route

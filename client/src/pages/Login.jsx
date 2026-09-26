@@ -211,9 +211,9 @@ function Login() {
           <>
             <button
               type="button"
+              className="guest-button"
               onClick={handleGuest}
               disabled={submitting}
-              style={{ width: '100%', marginTop: '0.5rem' }}
             >
               {submitting ? 'Starting…' : 'Try it as a guest'}
             </button>
