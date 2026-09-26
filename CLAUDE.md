@@ -37,8 +37,9 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
   `storage.js` (R2), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
-- Client: `pages/AtlasWorkspace.jsx` (the entire workspace: canvas, tree, inspector, timebar,
-  timeline config, image picker) + `components/MapPlane.jsx` (shared pan/zoom world plane —
+- Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
+  its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
+  `Pickers` = ImagePicker + NodePicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
 - Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `ImageManager`
