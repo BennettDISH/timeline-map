@@ -39,6 +39,11 @@ function provider() {
 }
 // enabled means a line can actually be made: a provider key AND somewhere to keep the audio
 // (R2). `storage:false` lets the inspector say why voice is off instead of failing on a click.
+// what the DM is told for a provider's status (the raw status and body stay in the log)
+const plain = (who, status) => (status === 401 || status === 403 ? `${who} refused the API key — check it in the server's environment`
+  : status === 429 ? `${who} is rate-limited right now — try again in a minute`
+  : status >= 500 ? `${who} is having trouble — try again later` : `${who} refused the request`);
+
 const status = () => {
   const p = provider();
   const { r2Enabled } = require('../storage');
@@ -83,13 +88,13 @@ async function speakGemini({ voiceId, style, text }) {
     });
     const json = await res.json().catch(() => ({}));
     if (res.status === 404) { last = new Error(json?.error?.message || `model ${model} not found`); continue; }
-    if (!res.ok) throw new Error(json?.error?.message || `Gemini speech ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(json?.error?.message || `Gemini speech ${res.status}`), { status: res.status, userMessage: plain('The voice service', res.status) });
     const part = (json.candidates?.[0]?.content?.parts || []).find((p) => p.inlineData?.data);
-    if (!part) throw new Error('Gemini returned no audio (the line may have been blocked)');
+    if (!part) throw Object.assign(new Error('Gemini returned no audio (the line may have been blocked)'), { userMessage: 'No audio came back — the line may have been refused; reword it and try again' });
     const rate = Number((part.inlineData.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
     return { bytes: wavFromPcm(Buffer.from(part.inlineData.data, 'base64'), rate), mimeType: 'audio/wav', ext: 'wav' };
   }
-  throw last || new Error('Gemini speech unavailable');
+  throw Object.assign(last || new Error('Gemini speech unavailable'), { userMessage: 'The voice service has no speech model to offer right now — try again later' });
 }
 
 async function speakOpenAI({ voiceId, style, text }) {
@@ -103,7 +108,7 @@ async function speakOpenAI({ voiceId, style, text }) {
     }),
     signal: AbortSignal.timeout(60000),
   });
-  if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`OpenAI speech ${res.status}${t ? `: ${t.slice(0, 160)}` : ''}`); }
+  if (!res.ok) { const t = await res.text().catch(() => ''); throw Object.assign(new Error(`OpenAI speech ${res.status}${t ? `: ${t.slice(0, 160)}` : ''}`), { status: res.status, userMessage: plain('The voice service', res.status) }); }
   return { bytes: Buffer.from(await res.arrayBuffer()), mimeType: 'audio/mpeg', ext: 'mp3' };
 }
 
@@ -112,12 +117,12 @@ async function speak({ voiceId, style, text }) {
   if (p === 'gemini') return speakGemini({ voiceId, style, text });
   if (p === 'openai') return speakOpenAI({ voiceId, style, text });
   if (p === 'elevenlabs') return { bytes: await eleven.speak(voiceId, text), mimeType: 'audio/mpeg', ext: 'mp3' };
-  throw new Error('No voice provider is configured');
+  throw Object.assign(new Error('No voice provider is configured'), { userMessage: 'No voice provider is configured' });
 }
 
 // Ambience is ElevenLabs-only for now (no big-name model offers sound design as a plain call).
 async function ambience(prompt, seconds) {
-  if (!has('ELEVENLABS_API_KEY')) throw new Error('Ambience needs an ElevenLabs key');
+  if (!has('ELEVENLABS_API_KEY')) throw Object.assign(new Error('Ambience needs an ElevenLabs key'), { userMessage: 'Ambience needs an ElevenLabs key' });
   return { bytes: await eleven.soundscape(prompt, seconds), mimeType: 'audio/mpeg', ext: 'mp3' };
 }
 

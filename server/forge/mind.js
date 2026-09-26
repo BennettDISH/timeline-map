@@ -214,7 +214,8 @@ async function converse({ worldId, userId, message, context }) {
         applied = await applyBatch({ worldId, userId, batch: resp.batch, artStyle: mind.art_style });
       } catch (e) {
         console.error('forge apply failed:', e);
-        applyError = e.message;
+        applyError = e.userMessage || 'something in the proposal could not be applied — ask again'; // the raw reason is in the log
+        console.error('forge apply error:', e);
       }
     } else if (errs.length) {
       applyError = `the proposal stayed malformed (${errs[0]})`;

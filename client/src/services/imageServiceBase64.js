@@ -39,7 +39,7 @@ const imageServiceBase64 = {
       
       return response.data
     } catch (error) {
-      throw error.response?.data || { message: 'Upload failed' }
+      throw error // the same error shape everywhere: callers show errText(e, fallback)
     }
   },
 
@@ -60,38 +60,26 @@ const imageServiceBase64 = {
       const response = await http.get(`/api/images/?${params}`)
       return response.data
     } catch (error) {
-      throw error.response?.data || { message: 'Failed to fetch images' }
+      throw error // the same error shape everywhere: callers show errText(e, fallback)
     }
   },
 
   // Get single image by ID
   async getImage(id) {
-    try {
-      const response = await http.get(`/api/images/${id}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to fetch image' }
-    }
+    const response = await http.get(`/api/images/${id}`)
+    return response.data
   },
 
   // Update image metadata (tags, alt text, etc.)
   async updateImage(id, updateData) {
-    try {
-      const response = await http.put(`/api/images/${id}`, updateData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to update image' }
-    }
+    const response = await http.put(`/api/images/${id}`, updateData)
+    return response.data
   },
 
   // Delete image
   async deleteImage(id) {
-    try {
-      const response = await http.delete(`/api/images/${id}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to delete image' }
-    }
+    const response = await http.delete(`/api/images/${id}`)
+    return response.data
   },
 
   // Validate image file

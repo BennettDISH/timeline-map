@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { errText } from '../services/http'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
 import atlasService from '../services/atlasService'
@@ -87,9 +88,15 @@ function Dashboard() {
     setLoadError(null)
     return worldService.getWorlds()
       .then((r) => setWorlds(r.worlds || []))
-      .catch((e) => { setWorlds(null); setLoadError(e.message || 'Could not load your worlds') })
+      .catch((e) => { setWorlds(null); setLoadError(errText(e, "Couldn't load your worlds")) })
   }
   useEffect(() => { load(); atlasService.getTemplates().then(setTemplates).catch(() => {}) }, [])
+  // a world that could not be opened sends its reader here with a word about why
+  const location = useLocation()
+  useEffect(() => {
+    const notice = location.state?.notice
+    if (notice) { setFlash({ kind: 'info', text: notice }); window.history.replaceState({}, '') }
+  }, []) // eslint-disable-line
 
   // close any open card menu on outside click
   useEffect(() => {
@@ -131,7 +138,7 @@ function Dashboard() {
       setModal(null)
       open(w) // straight onto the canvas — the Atlas ensures a root map
     } catch (e) {
-      setFlash({ kind: 'err', text: e?.response?.data?.message || e.message || 'Could not create the world' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't create the world") })
     } finally { setBusy(false) }
   }
 
@@ -143,7 +150,7 @@ function Dashboard() {
       if (stored?.id === world.id) worldService.setCurrentWorld({ ...stored, name, description })
       setModal(null)
     } catch (e) {
-      setFlash({ kind: 'err', text: e.message || 'Could not save changes' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't save the changes") })
     } finally { setBusy(false) }
   }
 
@@ -157,7 +164,7 @@ function Dashboard() {
       setModal(null)
       setFlash({ kind: 'ok', text: `"${world.name}" has passed out of all knowledge.` })
     } catch (e) {
-      setFlash({ kind: 'err', text: e.message || 'Could not delete the world' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't delete the world") })
     } finally { setBusy(false) }
   }
 

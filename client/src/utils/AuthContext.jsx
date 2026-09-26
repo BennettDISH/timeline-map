@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import authService from '../services/authService'
+import { errText } from '../services/http'
 
 const AuthContext = createContext()
 
@@ -36,7 +37,7 @@ const initialState = {
 
 const TOKEN_DEAD = /token|access token|user not found/i
 // only the server saying the TOKEN is bad ends a session — a 5xx, a 429 or no network is a blip
-const tokenDead = (e) => e?.status === 401 || (e?.status === 403 && TOKEN_DEAD.test(e?.message || ''))
+const tokenDead = (e) => { const s = e?.response?.status; return s === 401 || (s === 403 && TOKEN_DEAD.test(e?.response?.data?.message || '')) }
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState)
@@ -75,7 +76,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Login failed' })
+      dispatch({ type: 'LOGIN_ERROR', payload: errText(error, 'Login failed') })
       throw error
     }
   }
@@ -87,7 +88,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Registration failed' })
+      dispatch({ type: 'LOGIN_ERROR', payload: errText(error, 'Registration failed') })
       throw error
     }
   }
@@ -99,7 +100,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'SSO login failed' })
+      dispatch({ type: 'LOGIN_ERROR', payload: errText(error, 'SSO login failed') })
       throw error
     }
   }
@@ -111,7 +112,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Could not start a guest session' })
+      dispatch({ type: 'LOGIN_ERROR', payload: errText(error, 'Could not start a guest session') })
       throw error
     }
   }

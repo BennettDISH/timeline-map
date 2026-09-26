@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
-import http from '../services/http'
+import http, { errText } from '../services/http'
 import TopBar, { Compass } from '../components/TopBar'
 import '../styles/shell.scss'
 
@@ -18,7 +18,7 @@ function AdminPanel() {
     setLoading(true); setError(null)
     Promise.all([http.get('/api/admin/db-status'), http.get('/api/admin/users')])
       .then(([statusRes, usersRes]) => { setDbStatus(statusRes.data); setUsers(usersRes.data.users || []) })
-      .catch((e) => setError(e?.response?.data?.message || e.message || "Couldn't load the admin data"))
+      .catch((e) => setError(errText(e, "Couldn't load the admin data")))
       .finally(() => setLoading(false))
   }
   useEffect(() => { if (user?.isAdmin) load() }, [user]) // eslint-disable-line

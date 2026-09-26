@@ -845,3 +845,7 @@
   .atlas .mp-controls button{width:44px;height:44px}
   .atlas input,.atlas textarea,.atlas select{font-size:16px}
 }
+
+// a held period: the bounds are reversed, nothing is saved until they are in order
+.atlas .muted.warn{color:#d9a441}
+.atlas .empty-map.worldgone{gap:6px}

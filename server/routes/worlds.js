@@ -3,10 +3,13 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deletePrefix } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const { worldName, text, idParam } = require('../lib/validate');
 const router = express.Router();
 
 // All world routes require authentication
 router.use(authenticateToken);
+// a non-canonical id is a 404 before any query runs (never a Postgres error dressed as 500)
+router.param('id', idParam);
 
 // GET /api/worlds - Get all worlds for the current user
 router.get('/', async (req, res) => {
@@ -108,20 +111,17 @@ router.get('/:id', async (req, res) => {
 // POST /api/worlds - Create new world
 router.post('/', async (req, res) => {
   try {
-    const { name, description, settings = {} } = req.body;
-
-    if (!name || name.trim().length === 0) {
-      return res.status(400).json({ message: 'World name is required' });
-    }
-
-    if (name.length > 255) {
-      return res.status(400).json({ message: 'World name must be less than 255 characters' });
-    }
+    const { settings = {} } = req.body || {};
+    // the one world-name rule (shared with rename and clone in atlas.js): text, 1 to 255 characters
+    const name = worldName(req.body?.name);
+    if (name === undefined) return res.status(400).json({ message: 'A world needs a name of 1 to 255 characters' });
+    const description = text(req.body?.description, 2000);
+    if (description === undefined) return res.status(400).json({ message: 'The description is text' });
 
     // Check if user already has a world with this name
     const existingWorld = await pool.query(
       'SELECT id FROM worlds WHERE name = $1 AND created_by = $2 AND is_active = true',
-      [name.trim(), req.user.id]
+      [name, req.user.id]
     );
 
     if (existingWorld.rows.length > 0) {
@@ -132,7 +132,7 @@ router.post('/', async (req, res) => {
       INSERT INTO worlds (name, description, created_by, settings)
       VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [name.trim(), description || null, req.user.id, JSON.stringify(settings)]);
+    `, [name, description || null, req.user.id, JSON.stringify(settings)]);
 
     const world = result.rows[0];
     

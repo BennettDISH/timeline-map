@@ -3,7 +3,9 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deleteObject } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const { idParam } = require('../lib/validate');
 const router = express.Router();
+router.param('id', idParam);
 
 // An image belongs to whoever uploaded it or owns the world it lives in — the same
 // world-owner rule as every other route; nobody reaches across tenants
@@ -29,7 +31,7 @@ router.get('/', async (req, res) => {
     );
 
     if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found or access denied' });
+      return res.status(404).json({ message: 'World not found' });
     }
     
     // Shared WHERE fragments so the page query and the total-count query always agree.
@@ -171,7 +173,7 @@ router.put('/:id', async (req, res) => {
     const image = imageResult.rows[0];
     
     if (!(await canTouch(image, req.user.id))) {
-      return res.status(403).json({ message: 'Not authorized to update this image' });
+      return res.status(403).json({ message: "That image isn't in one of your worlds" });
     }
 
     // If folder_id is provided, verify it exists and belongs to the same world
@@ -239,7 +241,7 @@ router.delete('/:id', async (req, res) => {
     const image = imageResult.rows[0];
     
     if (!(await canTouch(image, req.user.id))) {
-      return res.status(403).json({ message: 'Not authorized to delete this image' });
+      return res.status(403).json({ message: "That image isn't in one of your worlds" });
     }
 
     // Delete from database, capturing the R2 key so we can remove the object too

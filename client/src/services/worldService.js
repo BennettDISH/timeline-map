@@ -5,42 +5,26 @@ const API_BASE = '/api/worlds'
 const worldService = {
   // Get all worlds for current user
   async getWorlds() {
-    try {
-      const response = await http.get(`${API_BASE}/`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to fetch worlds' }
-    }
+    const response = await http.get(`${API_BASE}/`)
+    return response.data
   },
 
   // Get specific world by ID
   async getWorld(id) {
-    try {
-      const response = await http.get(`${API_BASE}/${id}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to fetch world' }
-    }
+    const response = await http.get(`${API_BASE}/${id}`)
+    return response.data
   },
 
   // Create new world
   async createWorld(worldData) {
-    try {
-      const response = await http.post(`${API_BASE}/`, worldData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to create world' }
-    }
+    const response = await http.post(`${API_BASE}/`, worldData)
+    return response.data
   },
 
   // Delete world
   async deleteWorld(id) {
-    try {
-      const response = await http.delete(`${API_BASE}/${id}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to delete world' }
-    }
+    const response = await http.delete(`${API_BASE}/${id}`)
+    return response.data
   },
 
   // Get/Set current world from localStorage

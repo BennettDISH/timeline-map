@@ -6,6 +6,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pool = require('../config/database');
+const { idParam } = require('../lib/validate');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
@@ -23,8 +24,11 @@ router.use((req, res, next) => (enabled() ? next() : res.status(404).json({ mess
 // Generations call a paid API — keep an honest ceiling well above table use.
 router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120 }));
 
+// the raw error (provider JSON, SQL, a stack) goes to the log; the DM gets one plain sentence
 const wrap = (fn) => (req, res) =>
-  fn(req, res).catch((err) => { console.error('forge error:', err); res.status(500).json({ message: err.message || 'Server error' }); });
+  fn(req, res).catch((err) => { console.error('forge error:', err); res.status(500).json({ message: err.userMessage || 'The Forge hit a problem — try again' }); });
+router.param('worldId', idParam);
+router.param('id', idParam);
 
 async function ownsWorld(worldId, userId) {
   const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2 AND is_active=true', [worldId, userId]);
@@ -179,7 +183,7 @@ router.post('/worlds/:worldId/batches/:id/keep', wrap(async (req, res) => {
        asks_state = CASE WHEN asks_state='pending' THEN 'refused' ELSE asks_state END
      WHERE id=$1 AND world_id=$2 AND status='pending' RETURNING id`,
     [req.params.id, req.params.worldId]);
-  if (!r.rowCount) return res.status(404).json({ message: 'No such pending batch' });
+  if (!r.rowCount) return res.status(404).json({ message: 'That card was already kept or unmade' });
   res.json({ ok: true });
 }));
 
@@ -188,7 +192,7 @@ router.post('/worlds/:worldId/batches/:id/keep', wrap(async (req, res) => {
 router.post('/worlds/:worldId/batches/:id/allow', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const out = await allowAsks({ worldId: Number(req.params.worldId), batchId: Number(req.params.id) });
-  if (!out) return res.status(404).json({ message: 'No pending asks on that batch' });
+  if (!out) return res.status(404).json({ message: 'Those asks were already answered' });
   res.json(out);
 }));
 router.post('/worlds/:worldId/batches/:id/refuse', wrap(async (req, res) => {
@@ -196,13 +200,13 @@ router.post('/worlds/:worldId/batches/:id/refuse', wrap(async (req, res) => {
   const r = await pool.query(
     `UPDATE forge_batches SET asks_state='refused' WHERE id=$1 AND world_id=$2 AND asks_state='pending' RETURNING id`,
     [req.params.id, req.params.worldId]);
-  if (!r.rowCount) return res.status(404).json({ message: 'No pending asks on that batch' });
+  if (!r.rowCount) return res.status(404).json({ message: 'Those asks were already answered' });
   res.json({ ok: true });
 }));
 router.post('/worlds/:worldId/batches/:id/discard', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const out = await discardBatch({ worldId: Number(req.params.worldId), batchId: Number(req.params.id) });
-  if (!out) return res.status(404).json({ message: 'No such pending batch' });
+  if (!out) return res.status(404).json({ message: 'That card was already kept or unmade' });
   // the DM built on this creation: nothing was touched — the card says what stands in the way
   if (out.blocked) return res.status(409).json({ message: 'Unmake would take things you built on this creation — move them out first', blocked: out.blocked });
   res.json(out);

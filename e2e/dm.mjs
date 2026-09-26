@@ -199,7 +199,31 @@ try {
       } else step('the inspector shows DM notes', false);
     }
   }
-  step('no page errors', out.errors.length === 0, out.errors.slice(0, 3).join(' | '));
+  // a world that can't be opened: the dashboard says so; a space that is gone: a way out and no editor armed
+  {
+    await page.goto(`${BASE}/w/999999`, { timeout: 60000 });
+    const notice = await page.waitForSelector('.flash', { timeout: 15000 }).then((el) => el.textContent()).catch(() => '');
+    step('an unknown world lands on the dashboard with a word about why', page.url().includes('/dashboard') && /isn't in your atlas/.test(notice), `${page.url().split('/').pop()} — “${notice.trim().slice(0, 48)}”`);
+    await page.goto(`${BASE}/w/${cfg.worldId}/m/999999`, { timeout: 60000 });
+    await page.waitForSelector('.empty-map.gone', { timeout: 30000 }).catch(() => null);
+    await page.waitForTimeout(500);
+    const wayOut = page.locator('.empty-map.gone button', { hasText: 'world map' });
+    step('a missing space says so and offers the world map, with no editor armed', (await page.locator('.empty-map.gone').count()) === 1 && (await page.locator('.toolbar').count()) === 0 && (await wayOut.count()) === 1);
+    if (await wayOut.count()) {
+      await wayOut.click();
+      await page.waitForSelector('.atlas .pin', { timeout: 30000 });
+      step('…and the way out reaches the world map', page.url().includes(`/m/${cfg.root}`), page.url().split('/m/')[1]);
+    }
+    // the title input can't take more than a name's worth
+    if (await page.locator('.mode button', { hasText: 'Edit' }).count()) { await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400); }
+    const pin = page.locator('.atlas .pin:not(.party)').first();
+    if (await pin.count()) {
+      await pin.click({ force: true }); await page.waitForTimeout(500);
+      const maxLen = await page.locator('.insp input[data-fld="title"]').getAttribute('maxlength').catch(() => null);
+      step('the title input stops at 255 characters', maxLen === '255', `maxlength=${maxLen}`);
+    }
+  }
+  step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();
 const failed = out.steps.filter((s) => !s.ok).length;

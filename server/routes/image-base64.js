@@ -21,7 +21,7 @@ router.post('/upload', authenticateToken, async (req, res) => {
     );
 
     if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found or access denied' });
+      return res.status(404).json({ message: 'World not found' });
     }
 
     // Validate base64 image data

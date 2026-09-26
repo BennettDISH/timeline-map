@@ -8,16 +8,16 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B008** · high · s · Undo and world clone use hand-copied column lists that drifted: Undo silently drops DM notes, stance, voice and interior map notes — done d1f2c67 + d8c526d (one column list per table, shared by undo and clone; the API suite checks every column survives undo)
-- [ ] **B036** · medium · s · World clone drops DM notes, stance, voices, map notes, ambience, spotlight, image folders and the Forge mind — done d1f2c67
-- [ ] **B051** · medium · m · Cloned worlds share the source's R2 files: deleting the image or world in the source breaks the clone's art (README says the opposite) — done d1f2c67 (clones copy their R2 objects)
-- [ ] **C014** · medium · xs · Design docs still say production data is disposable and the schema can be recreated, but it holds Bennett's live campaign — done d1f2c67
-- [ ] **C016** · medium · s · The remove-interior and delete dialogs overstate what gets deleted (nested interiors survive as orphans) — done d1f2c67 (impact reports nested spaces; dialogs say what really goes)
-- [ ] **P025** · medium · s · e2e suites exit 0 even when steps FAIL, the DM config example is incomplete, and cleanup deletes every outlined place — done d1f2c67
-- [ ] **C051** · low · xs · Undo is described as a 24-hour restore, but the UI offers it for 9 seconds and the server never enforces the age — done d1f2c67 (server enforces the 24 h; the UI wording matches)
-- [ ] **C064** · low · s · Template clones write base64 art back into Postgres even with R2 on, and .env.example omits the R2 settings — done d1f2c67
+- [x] **B008** · high · s · Undo and world clone use hand-copied column lists that drifted: Undo silently drops DM notes, stance, voice and interior map notes — done d1f2c67 + d8c526d (one column list per table, shared by undo and clone; the API suite checks every column survives undo)
+- [x] **B036** · medium · s · World clone drops DM notes, stance, voices, map notes, ambience, spotlight, image folders and the Forge mind — done d1f2c67
+- [x] **B051** · medium · m · Cloned worlds share the source's R2 files: deleting the image or world in the source breaks the clone's art (README says the opposite) — done d1f2c67 (clones copy their R2 objects)
+- [x] **C014** · medium · xs · Design docs still say production data is disposable and the schema can be recreated, but it holds Bennett's live campaign — done d1f2c67
+- [x] **C016** · medium · s · The remove-interior and delete dialogs overstate what gets deleted (nested interiors survive as orphans) — done d1f2c67 (impact reports nested spaces; dialogs say what really goes)
+- [x] **P025** · medium · s · e2e suites exit 0 even when steps FAIL, the DM config example is incomplete, and cleanup deletes every outlined place — done d1f2c67
+- [x] **C051** · low · xs · Undo is described as a 24-hour restore, but the UI offers it for 9 seconds and the server never enforces the age — done d1f2c67 (server enforces the 24 h; the UI wording matches)
+- [x] **C064** · low · s · Template clones write base64 art back into Postgres even with R2 on, and .env.example omits the R2 settings — done d1f2c67
 - [x] **C065** · low · xs · Production has an undocumented hand-made table 'world_backups' holding a full snapshot of Bennett's campaign — done (exported to ~/atlas-backups/world-29-…-2026-09-26.json and dropped, with Bennett's ok)
-- [ ] **C078** · low · xs · A cloned sample world keeps the template's 'Clone it, break it, learn it.' description when the user leaves the description blank — done d1f2c67
+- [x] **C078** · low · xs · A cloned sample world keeps the template's 'Clone it, break it, learn it.' description when the user leaves the description blank — done d1f2c67
 - [ ] **P048** · low · m · Undo is a single 9-second toast: a second delete replaces it, a reload loses it, and Ctrl+Z / Delete do nothing, though tombstones live 24 h
 
 ## Items

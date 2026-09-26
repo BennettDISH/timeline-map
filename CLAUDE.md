@@ -364,6 +364,30 @@ see, Undo and world clone drop DM notes / stance / voice, the timeline panel can
 wipe the clock, and two autosaves share one timer. Work a package at a time and tick items off
 in its file with the commit hash.
 
+## Input rules (server-side, `server/lib/validate.js`)
+- Every write route cleans its body first: text is clamped to its column (titles 255, era
+  names 120, the clock unit 50, link labels 255, bodies and notes 20k), moments are whole
+  numbers, enums are checked (category, visibility, stance, pin, view), positions are
+  clamped onto the plane, and a bad value is a 400 with a plain sentence — never a Postgres
+  error dressed as 'Server error'. A blank node title stores as 'Untitled'.
+- Ranges are ordered: a lifespan, focus period, era, period text or backdrop whose end is
+  before its start is refused, and a PATCH of one bound is judged against the STORED other
+  bound. The client HOLDS a reversed pair instead of sending it (a hint under the inputs,
+  `periodBlur` / `setLifespan` in AtlasWorkspace) and never retries a refused (4xx) save:
+  the stored value comes back (`refused()` in `services/http.js`).
+- Ids have one spelling: `router.param` answers 404 for `60.0`, `abc`, `-1` in every router.
+  A map opened under the wrong world redirects to its own (the map payload carries `worldId`).
+- One world-name rule on every path (create, rename, clone): text of 1–255 characters, unique
+  among your worlds (409 otherwise).
+- The DM reads one sentence per failure: `errText(e, fallback)` in `services/http.js` shows
+  the server's own 4xx message, the caller's fallback for a 5xx, and adds "check your
+  connection" when nothing answered; every service rejects with the same (axios) error.
+  Forge and voice routes log the raw provider error and answer with `err.userMessage` or a
+  generic line — provider JSON, SQL and dev-speak never reach the DM.
+- A world that fails to load shows a Try-again panel (a 404 sends the DM to the dashboard
+  with a notice); a space that is gone (404) shows 'This space no longer exists' with a way
+  to the world map, and no editor chrome is armed until a map is loaded.
+
 ## Known gaps (the honest list)
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)

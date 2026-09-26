@@ -10,6 +10,12 @@ const imageModel = () => process.env.FORGE_IMAGE_MODEL || 'gemini-2.5-flash-imag
 
 const enabled = () => Boolean(process.env.GEMINI_API_KEY) && process.env.FORGE_ENABLED !== '0';
 
+// what the DM is told for a provider's status (the raw status and body stay in the log)
+const plain = (who, status) => (status === 401 || status === 403 ? `${who} refused the API key — check it in the server's environment`
+  : status === 429 ? `${who} is rate-limited right now — try again in a minute`
+  : status >= 500 ? `${who} is having trouble — try again later` : `${who} refused the request`);
+const plainError = (detail, userMessage) => Object.assign(new Error(detail), { userMessage });
+
 async function call(model, body, timeoutMs) {
   const res = await fetch(`${BASE}/${model}:generateContent`, {
     method: 'POST',
@@ -21,6 +27,7 @@ async function call(model, body, timeoutMs) {
   if (!res.ok) {
     const err = new Error(json?.error?.message || `Gemini responded ${res.status}`);
     err.status = res.status;
+    err.userMessage = plain('The mind', res.status);
     throw err;
   }
   return json;
@@ -38,11 +45,11 @@ async function generateJSON({ system, messages, maxTokens = 20000 }) {
     generationConfig: { responseMimeType: 'application/json', maxOutputTokens: maxTokens, temperature: 0.9 },
   }, 180000);
   const text = parts(json).map((p) => p.text || '').join('');
-  if (!text.trim()) throw new Error('The mind returned nothing (the reply may have been safety-blocked)');
+  if (!text.trim()) throw plainError('The mind returned nothing (the reply may have been safety-blocked)', 'The mind said nothing — it may have refused the prompt; reword it and try again');
   try { return JSON.parse(text); } catch (e) {
     const m = text.match(/\{[\s\S]*\}/);
     if (m) { try { return JSON.parse(m[0]); } catch (e2) { /* fall through */ } }
-    throw new Error('The mind returned malformed JSON');
+    throw plainError('The mind returned malformed JSON', 'The mind answered in a form I could not read — try again');
   }
 }
 
@@ -72,7 +79,7 @@ async function generateImage({ prompt, refs = [], aspect }) {
   const img = parts(json).find((p) => p.inlineData?.data);
   if (!img) {
     const said = parts(json).map((p) => p.text || '').join(' ').trim();
-    throw new Error(said ? `No image came back — the model said: ${said.slice(0, 200)}` : 'No image came back');
+    throw plainError(said ? `No image came back — the model said: ${said.slice(0, 200)}` : 'No image came back', 'No painting came back — reword the prompt and try again');
   }
   return { mimeType: img.inlineData.mimeType || 'image/png', data: img.inlineData.data };
 }

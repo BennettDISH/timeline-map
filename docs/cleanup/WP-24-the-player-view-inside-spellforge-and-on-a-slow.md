@@ -10,14 +10,14 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B107** · medium · xs · In Spellforge's frame, a map pan released outside the frame never ends: the map keeps following the cursor with no button held — done b5247df (onLostPointerCapture ends the gesture; a button-less mouse move ends it too)
-- [ ] **B108** · medium · s · Every Player View map move pushes a history entry: in Spellforge each map visited later costs one Back press that does nothing, and ⬆ back pushes forward — done b5247df (framed navigation replaces)
+- [x] **B107** · medium · xs · In Spellforge's frame, a map pan released outside the frame never ends: the map keeps following the cursor with no button held — done b5247df (onLostPointerCapture ends the gesture; a button-less mouse move ends it too)
+- [x] **B108** · medium · s · Every Player View map move pushes a history entry: in Spellforge each map visited later costs one Back press that does nothing, and ⬆ back pushes forward — done b5247df (framed navigation replaces)
 - [ ] **P103** · medium · xs · (Spellforge side) Switching tabs unmounts the map iframe: every return to Map reloads the Player View at the stored link's map, with the sheet, zoom and era bar reset
-- [ ] **P104** · medium · s · Party trail share payload runs one walkUp per visited map on every Player View fetch and poll, adding about 230 ms at 15 maps and growing with the campaign — done b5247df — partial: a reachable map marks every ancestor reachable, so a deep map no longer re-walks its town and root; a single CTE is still to do
-- [ ] **C095** · low · s · The Spellforge embed contract lives only in a string replace on helmet's CSP text, with two hard-coded origins and no doc or test — done b5247df (EMBED_ORIGINS on a /p-only CSP; CLAUDE.md states the contract; the API suite asserts the headers)
-- [ ] **P105** · low · s · Inside Spellforge the map swallows every wheel and touch scroll: the page stalls and the map zooms to its floor instead — done b5247df — Atlas half: framed, a plain wheel scrolls the host page and Ctrl/⌘+wheel zooms; the Spellforge layout half is in that repo
-- [ ] **P106** · low · s · The share link loads the whole DM app: 122 KB gzipped script for a 7 KB map payload, 3.7 s to the first pin on a throttled phone — done b5247df (DM pages are lazy chunks; the entry bundle dropped from 211 KB to 56 KB)
-- [ ] **P107** · low · xs · Every Player View navigation and poll fetches /world first and only then the map — done b5247df
+- [x] **P104** · medium · s · Party trail share payload runs one walkUp per visited map on every Player View fetch and poll, adding about 230 ms at 15 maps and growing with the campaign — done b5247df — partial: a reachable map marks every ancestor reachable, so a deep map no longer re-walks its town and root; a single CTE is still to do
+- [x] **C095** · low · s · The Spellforge embed contract lives only in a string replace on helmet's CSP text, with two hard-coded origins and no doc or test — done b5247df (EMBED_ORIGINS on a /p-only CSP; CLAUDE.md states the contract; the API suite asserts the headers)
+- [x] **P105** · low · s · Inside Spellforge the map swallows every wheel and touch scroll: the page stalls and the map zooms to its floor instead — done b5247df — Atlas half: framed, a plain wheel scrolls the host page and Ctrl/⌘+wheel zooms; the Spellforge layout half is in that repo
+- [x] **P106** · low · s · The share link loads the whole DM app: 122 KB gzipped script for a 7 KB map payload, 3.7 s to the first pin on a throttled phone — done b5247df (DM pages are lazy chunks; the entry bundle dropped from 211 KB to 56 KB)
+- [x] **P107** · low · xs · Every Player View navigation and poll fetches /world first and only then the map — done b5247df
 
 ## Items
 

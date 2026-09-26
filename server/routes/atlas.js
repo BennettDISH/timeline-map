@@ -5,12 +5,20 @@ const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { r2Enabled, putObject, copyObject } = require('../storage');
 const { spotlightTrail, pendingForge } = require('./share');
+const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
+const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
 // filtered by the world timeline, with a DM/Player reveal layer. Additive to the legacy API.
 // See docs/UX-REDESIGN.md. All routes require auth and are scoped to worlds the caller owns.
 router.use(authenticateToken);
+// a non-canonical id (60.0, abc, -1) is a 404 before any query runs
+router.param('worldId', idParam);
+router.param('mapId', idParam);
+router.param('id', idParam);
+// every write reads req.body as an object; a missing or odd body is an empty one
+router.use((req, res, next) => { if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) req.body = {}; next(); });
 
 const wrap = (fn) => (req, res) =>
   fn(req, res).catch((err) => { console.error('atlas error:', err); res.status(500).json({ message: 'Server error' }); });
@@ -42,6 +50,26 @@ async function imageInWorld(imageId, wid) {
   return (await pool.query('SELECT 1 FROM images WHERE id=$1 AND world_id=$2', [id, wid])).rows.length > 0;
 }
 const badImage = (res) => res.status(400).json({ message: 'Image is not in this world' });
+// ---- input rules: a bad value is a 400 with a plain sentence (server/lib/validate.js) ----
+const bad = (res, message) => res.status(400).json({ message });
+const NODE_CATS = [...CATEGORIES, 'party'];
+const VIS = ['dm', 'shared', 'player'];
+const STANCES = ['friend', 'neutral', 'foe'];
+const long = (v) => text(v, 20000, { trim: false }); // bodies and notes: TEXT columns under a generous ceiling
+const idOrNull = (v) => (v == null ? null : (isId(v) ? Number(v) : undefined));
+// a start/end pair on a PATCH is judged with the stored value standing in for the bound not sent
+async function pairOk(table, id, vals) {
+  if (!('start_time' in vals) && !('end_time' in vals)) return true;
+  const row = (await pool.query(`SELECT start_time, end_time FROM ${table} WHERE id=$1`, [id])).rows[0] || {};
+  return ordered('start_time' in vals ? vals.start_time : row.start_time, 'end_time' in vals ? vals.end_time : row.end_time);
+}
+// UPDATE the cleaned fields (column names equal the body's keys)
+async function updateCols(table, id, vals, touch = false) {
+  const keys = Object.keys(vals);
+  if (!keys.length) return;
+  await pool.query(`UPDATE ${table} SET ${keys.map((k, i) => `${k}=$${i + 1}`).join(', ')}${touch ? ', updated_at=CURRENT_TIMESTAMP' : ''} WHERE id=$${keys.length + 1}`,
+    [...keys.map((k) => vals[k]), id]);
+}
 // An outline is 3..200 [x,y] points in % of the plane (null clears it); undefined = bad input.
 function cleanShape(raw) {
   if (raw == null) return null;
@@ -148,7 +176,8 @@ router.delete('/worlds/:worldId/share', wrap(async (req, res) => {
 // at a secret shows players the way only as far as they may see.
 router.post('/worlds/:worldId/spotlight', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const nodeId = Number(req.body?.nodeId);
+  if (!isId(req.body.nodeId)) return bad(res, 'That node is not in this world');
+  const nodeId = Number(req.body.nodeId);
   const n = (await pool.query('SELECT id FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, req.params.worldId])).rows[0];
   if (!n) return res.status(400).json({ message: 'That node is not in this world' });
   await pool.query('UPDATE worlds SET spotlight_node_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [nodeId, req.params.worldId]);
@@ -167,6 +196,18 @@ router.delete('/worlds/:worldId/spotlight', wrap(async (req, res) => {
 // PATCH /worlds/:worldId — world name/description + timeline (enable, range, scrub position).
 router.patch('/worlds/:worldId', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const c = cleanBody(req.body, {
+    name: [worldName, 'A world needs a name of 1 to 255 characters'],
+    description: [(v) => text(v, 2000), 'The description is text'],
+    timeline_time_unit: [(v) => text(v, 50, { required: true }), 'The unit is a word of 1 to 50 characters'],
+    timeline_enabled: [bool, 'The timeline is on or off'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  Object.assign(req.body, c.vals);
+  // one world-name rule on every path (create, rename, clone): no two of yours share a name
+  if ('name' in c.vals && (await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2 AND is_active=true AND id<>$3',
+    [c.vals.name, req.user.id, req.params.worldId])).rows.length)
+    return res.status(409).json({ message: 'You already have a world with this name' });
   // Keep the timeline invariant (min < max, current within range) against partial updates.
   // Every clock field must be a whole number — a null or a word would switch off the time
   // secrecy the share API builds on.
@@ -213,8 +254,13 @@ router.get('/templates', wrap(async (req, res) => {
 // deleting anything in the source can never break the clone, and vice versa.
 router.post('/worlds/clone', wrap(async (req, res) => {
   const { source_id, name, description } = req.body;
+  if (!isId(source_id)) return res.status(404).json({ message: 'World not found' });
   const src = (await pool.query('SELECT * FROM worlds WHERE id=$1 AND is_active=true', [source_id])).rows[0];
   if (!src || (!src.is_template && src.created_by !== req.user.id)) return res.status(404).json({ message: 'World not found' });
+  const cleanName = name == null ? String(src.name).slice(0, 255) : worldName(name);
+  if (cleanName === undefined) return bad(res, 'A world needs a name of 1 to 255 characters');
+  if ((await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2 AND is_active=true', [cleanName, req.user.id])).rows.length)
+    return res.status(409).json({ message: 'You already have a world with this name' });
   // storage-amplification backstop: cloning duplicates base64 art rows per clone
   const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1 AND is_active=true', [req.user.id])).rows[0];
   if (parseInt(owned.count) >= 50) return res.status(400).json({ message: 'That is a lot of worlds — delete some first' });
@@ -228,7 +274,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   const w = (await client.query(
     `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [String(name || src.name).slice(0, 255), desc, req.user.id, src.timeline_enabled,
+    [cleanName, desc, req.user.id, src.timeline_enabled,
      src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit])).rows[0];
 
   const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
@@ -402,7 +448,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
      FROM map_backdrops b JOIN images i ON i.id = b.image_id
      WHERE b.map_id = $1 ORDER BY b.start_time NULLS FIRST, b.id`, [req.params.mapId])).rows;
   res.json({
-    map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, imageId: map.image_id,
+    map: { id: map.id, worldId: map.world_id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, imageId: map.image_id,
            focusStart: map.focus_start, focusEnd: map.focus_end, dmNote: map.dm_note,
            ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
@@ -415,11 +461,22 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
 router.patch('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
-  const cols = { title: 'title', view: 'view', image_id: 'image_id', focus_start: 'focus_start', focus_end: 'focus_end', dm_note: 'dm_note' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.mapId); await pool.query(`UPDATE maps SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  const c = cleanBody(req.body, {
+    title: [(v) => text(v, 255, { required: true }), 'A space needs a name of 1 to 255 characters'],
+    view: [(v) => oneOf(v, ['map', 'list']), 'A space is a map or a list'],
+    image_id: [idOrNull, 'Image is not in this world'],
+    focus_start: [whole, 'A focus period is whole numbers on the clock'],
+    focus_end: [whole, 'A focus period is whole numbers on the clock'],
+    dm_note: [long, 'Map notes are text'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  if (c.vals.image_id != null && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
+  if ('focus_start' in c.vals || 'focus_end' in c.vals) {
+    const row = (await pool.query('SELECT focus_start, focus_end FROM maps WHERE id=$1', [req.params.mapId])).rows[0];
+    if (!ordered('focus_start' in c.vals ? c.vals.focus_start : row.focus_start, 'focus_end' in c.vals ? c.vals.focus_end : row.focus_end))
+      return bad(res, 'A focus period ends after it starts');
+  }
+  await updateCols('maps', req.params.mapId, c.vals, true);
   res.json({ ok: true });
 }));
 
@@ -427,28 +484,35 @@ router.patch('/maps/:mapId', wrap(async (req, res) => {
 router.post('/maps/:mapId/backdrops', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { image_id, start_time = null, end_time = null } = req.body;
+  const { image_id } = req.body;
+  const st = whole(req.body.start_time), en = whole(req.body.end_time);
+  if (st === undefined || en === undefined) return bad(res, 'A period is whole numbers on the clock');
+  if (!ordered(st, en)) return bad(res, 'A period ends after it starts');
   if (!(await imageInWorld(image_id, wid))) return badImage(res);
   const r = (await pool.query(
     'INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
-    [req.params.mapId, image_id, start_time, end_time])).rows[0];
+    [req.params.mapId, Number(image_id), st, en])).rows[0];
   res.status(201).json({ id: r.id });
 }));
 const worldIdOfBackdrop = async (id) =>
   (await pool.query('SELECT m.world_id FROM map_backdrops b JOIN maps m ON b.map_id=m.id WHERE b.id=$1', [id])).rows[0]?.world_id;
 router.patch('/backdrops/:id', wrap(async (req, res) => {
   const wid = await worldIdOfBackdrop(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
-  if ('image_id' in req.body && !(await imageInWorld(req.body.image_id, wid))) return badImage(res); // a backdrop always has art
-  const cols = { start_time: 'start_time', end_time: 'end_time', image_id: 'image_id' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE map_backdrops SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: "That period's art no longer exists" });
+  const c = cleanBody(req.body, {
+    start_time: [whole, 'A period is whole numbers on the clock'],
+    end_time: [whole, 'A period is whole numbers on the clock'],
+    image_id: [(v) => (isId(v) ? Number(v) : undefined), 'Image is not in this world'], // a backdrop always has art
+  });
+  if (c.bad) return bad(res, c.bad);
+  if ('image_id' in c.vals && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
+  if (!(await pairOk('map_backdrops', req.params.id, c.vals))) return bad(res, 'A period ends after it starts');
+  await updateCols('map_backdrops', req.params.id, c.vals);
   res.json({ ok: true });
 }));
 router.delete('/backdrops/:id', wrap(async (req, res) => {
   const wid = await worldIdOfBackdrop(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: "That period's art no longer exists" });
   const row = (await pool.query('SELECT * FROM map_backdrops WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM map_backdrops WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(wid, req.user.id, 'backdrop', { backdrop: row });
@@ -461,7 +525,16 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   if (req.body?.category === 'party' && (await pool.query(`SELECT 1 FROM nodes WHERE world_id=$1 AND category='party'`, [wid])).rows.length)
     return res.status(409).json({ message: 'This world already has a Party — there is one per world' });
-  const { title = 'New node', category = 'note', x = 50, y = 50, body = null, shape = null, shape_kind = null } = req.body;
+  const c = cleanBody(req.body, {
+    title: [(v) => text(v, 255), 'A title is text of up to 255 characters'],
+    category: [(v) => oneOf(v, NODE_CATS), 'That is not a kind of node'],
+    body: [long, 'A description is text'],
+    x: [(v) => pct(v), 'A position is a % of the map'],
+    y: [(v) => pct(v), 'A position is a % of the map'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  const { shape = null, shape_kind = null } = req.body;
+  const title = c.vals.title || 'New node', category = c.vals.category || 'note', body = c.vals.body ?? null, x = c.vals.x ?? 50, y = c.vals.y ?? 50;
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
@@ -479,18 +552,19 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
 router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
-  const { node_id, x = 50, y = 50, shape = null, shape_kind = null, start_time = null, end_time = null } = req.body;
-  if ((await worldIdOfNode(node_id)) !== wid) return res.status(400).json({ message: 'Node is not in this world' });
+  const { node_id, shape = null, shape_kind = null } = req.body;
+  if (!isId(node_id) || (await worldIdOfNode(node_id)) !== wid) return bad(res, 'Node is not in this world');
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
-  if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
-  if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
-  // a footstep is born with its moment: start/end are integers on the world clock or null
-  const tval = (v) => (v == null ? null : (Number.isInteger(Number(v)) ? Number(v) : undefined));
-  const st = tval(start_time), en = tval(end_time);
-  if (st === undefined || en === undefined) return res.status(400).json({ message: 'A lifespan is whole numbers on the clock' });
-  if (st != null && en != null && st > en) return res.status(400).json({ message: 'A lifespan ends after it starts' });
+  if (sh === undefined) return bad(res, 'An outline needs 3 to 200 corners');
+  if (kind === undefined) return bad(res, 'An outline is an area or a button');
+  const x = pct(req.body.x), y = pct(req.body.y);
+  if (x === undefined || y === undefined) return bad(res, 'A position is a % of the map');
+  // a footstep is born with its moment: start/end are whole numbers on the world clock or null
+  const st = whole(req.body.start_time), en = whole(req.body.end_time);
+  if (st === undefined || en === undefined) return bad(res, 'A lifespan is whole numbers on the clock');
+  if (!ordered(st, en)) return bad(res, 'A lifespan ends after it starts');
   const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
-    [node_id, req.params.mapId, x, y, shapeParam(sh), kind, st, en])).rows[0];
+    [Number(node_id), req.params.mapId, x, y, shapeParam(sh), kind, st, en])).rows[0];
   res.status(201).json({ placementId: p.id });
 }));
 
@@ -519,26 +593,34 @@ router.get('/nodes/:id', wrap(async (req, res) => {
 router.post('/nodes/:id/facts', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
-  const { body = '', start_time = null, end_time = null } = req.body;
+  const body = req.body.body == null ? '' : long(req.body.body);
+  const st = whole(req.body.start_time), en = whole(req.body.end_time);
+  if (body === undefined) return bad(res, 'A period text is text');
+  if (st === undefined || en === undefined) return bad(res, 'A period is whole numbers on the clock');
+  if (!ordered(st, en)) return bad(res, 'A period ends after it starts');
   const r = (await pool.query(
     'INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
-    [req.params.id, body, start_time, end_time])).rows[0];
+    [req.params.id, body, st, en])).rows[0];
   res.status(201).json({ id: r.id });
 }));
 const worldIdOfFact = async (id) =>
   (await pool.query('SELECT n.world_id FROM node_facts f JOIN nodes n ON f.node_id=n.id WHERE f.id=$1', [id])).rows[0]?.world_id;
 router.patch('/facts/:id', wrap(async (req, res) => {
   const wid = await worldIdOfFact(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Fact not found' });
-  const cols = { body: 'body', start_time: 'start_time', end_time: 'end_time' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE node_facts SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That period text no longer exists' });
+  const c = cleanBody(req.body, {
+    body: [(v) => (v == null ? '' : long(v)), 'A period text is text'],
+    start_time: [whole, 'A period is whole numbers on the clock'],
+    end_time: [whole, 'A period is whole numbers on the clock'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  if (!(await pairOk('node_facts', req.params.id, c.vals))) return bad(res, 'A period ends after it starts');
+  await updateCols('node_facts', req.params.id, c.vals);
   res.json({ ok: true });
 }));
 router.delete('/facts/:id', wrap(async (req, res) => {
   const wid = await worldIdOfFact(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Fact not found' });
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That period text no longer exists' });
   const row = (await pool.query('SELECT * FROM node_facts WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM node_facts WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(wid, req.user.id, 'fact', { fact: row });
@@ -599,7 +681,20 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   // one Party per world: a second 'party' node would merge its footsteps into the one trail
   if (req.body?.category === 'party' && (await pool.query(`SELECT 1 FROM nodes WHERE world_id=$1 AND category='party' AND id<>$2`, [wid, req.params.id])).rows.length)
     return res.status(409).json({ message: 'This world already has a Party — there is one per world' });
-  if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
+  const c = cleanBody(req.body, {
+    title: [(v) => text(v, 255) ?? '', 'A title is text of up to 255 characters'],
+    body: [long, 'A description is text'],
+    dm_note: [long, 'A DM note is text'],
+    stance: [(v) => (v == null ? null : oneOf(v, STANCES)), 'A stance is friend, neutral or foe'],
+    category: [(v) => oneOf(v, NODE_CATS), 'That is not a kind of node'],
+    visibility: [(v) => oneOf(v, VIS), 'Visibility is dm, shared or player'],
+    image_id: [idOrNull, 'Image is not in this world'],
+    pin: [(v) => oneOf(v, ['chip', 'image']), 'A pin is a chip or an image'],
+    pin_size: [(v) => { const n = whole(v); return n == null || n < 16 || n > 256 ? undefined : n; }, 'A pin size is 16 to 256 pixels'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  if ('title' in c.vals && !c.vals.title) c.vals.title = 'Untitled'; // a pin always has a visible name
+  if (c.vals.image_id != null && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
   if (req.body.reveal) {
     // Reveal merges the secret into the CURRENT description here, so a stale tab can never
     // paste an old body over a newer one; the note is emptied in the same statement
@@ -611,13 +706,10 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
        WHERE id = $1 RETURNING body`, [req.params.id]);
     return res.json({ ok: true, body: r.rows[0]?.body ?? null });
   }
-  const cols = { title: 'title', body: 'body', dm_note: 'dm_note', stance: 'stance', category: 'category', visibility: 'visibility', image_id: 'image_id', pin: 'pin', pin_size: 'pin_size' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE nodes SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  await updateCols('nodes', req.params.id, c.vals, true);
   // Revealing a node reveals where it stands: the Forge births placements DM-only, so a
   // "revealed" node would otherwise stay invisible to players behind its hidden placement.
-  if ('visibility' in req.body && req.body.visibility !== 'dm') {
+  if ('visibility' in c.vals && c.vals.visibility !== 'dm') {
     await pool.query(`UPDATE placements SET visibility='shared' WHERE node_id=$1 AND visibility='dm'`, [req.params.id]);
   }
   res.json({ ok: true });
@@ -781,7 +873,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
       await insertBackdrop(b);
     } else {
       await client.query('ROLLBACK');
-      return res.status(400).json({ message: 'Unknown tombstone' });
+      return res.status(400).json({ message: "That can't be undone any more" });
     }
 
     for (const table of ['nodes', 'maps', 'placements', 'links', 'node_facts', 'map_backdrops']) {
@@ -803,10 +895,18 @@ router.post('/undo/:id', wrap(async (req, res) => {
 // PATCH /placements/:id — move / lifespan / visibility / outline.
 router.patch('/placements/:id', wrap(async (req, res) => {
   const wid = await worldIdOfPlacement(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Placement not found' });
-  const cols = { x: 'x', y: 'y', start_time: 'start_time', end_time: 'end_time', visibility: 'visibility' };
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That pin is no longer on the map' });
+  const c = cleanBody(req.body, {
+    x: [(v) => pct(v, undefined), 'A position is a % of the map'],
+    y: [(v) => pct(v, undefined), 'A position is a % of the map'],
+    start_time: [whole, 'A lifespan is whole numbers on the clock'],
+    end_time: [whole, 'A lifespan is whole numbers on the clock'],
+    visibility: [(v) => oneOf(v, VIS), 'Visibility is dm, shared or player'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  if (!(await pairOk('placements', req.params.id, c.vals))) return bad(res, 'A lifespan ends after it starts');
   const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  for (const k of Object.keys(c.vals)) { sets.push(`${k}=$${i++}`); vals.push(c.vals[k]); }
   if ('shape' in req.body) {
     const sh = cleanShape(req.body.shape);
     if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
@@ -829,7 +929,7 @@ router.patch('/placements/:id', wrap(async (req, res) => {
 // DELETE /placements/:id — remove the node from THIS map (the node itself survives).
 router.delete('/placements/:id', wrap(async (req, res) => {
   const wid = await worldIdOfPlacement(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Placement not found' });
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That pin is no longer on the map' });
   const row = (await pool.query('SELECT * FROM placements WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM placements WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(wid, req.user.id, 'placement', { placement: row });
@@ -840,24 +940,33 @@ router.delete('/placements/:id', wrap(async (req, res) => {
 // (link labels are clamped to the links.label VARCHAR(255) in the PATCH below)
 router.post('/worlds/:worldId/eras', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const { name = 'An age', start_time = 0, end_time = 0, player_visible = false } = req.body;
+  const name = req.body.name == null ? 'An age' : text(req.body.name, 120);
+  const st = req.body.start_time == null ? 0 : whole(req.body.start_time), en = req.body.end_time == null ? 0 : whole(req.body.end_time);
+  if (name === undefined) return bad(res, 'An era name is text of up to 120 characters');
+  if (st === undefined || en === undefined) return bad(res, 'An era is whole numbers on the clock');
+  if (!ordered(st, en)) return bad(res, 'An era ends after it starts');
   const r = (await pool.query(
     'INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [req.params.worldId, String(name).slice(0, 120), parseInt(start_time, 10) || 0, parseInt(end_time, 10) || 0, !!player_visible])).rows[0];
+    [req.params.worldId, name || 'An age', st, en, !!req.body.player_visible])).rows[0];
   res.status(201).json({ id: r.id });
 }));
 router.patch('/eras/:id', wrap(async (req, res) => {
   const wid = await worldIdOfEra(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Era not found' });
-  const cols = { name: 'name', start_time: 'start_time', end_time: 'end_time', player_visible: 'player_visible' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE eras SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That era no longer exists' });
+  const c = cleanBody(req.body, {
+    name: [(v) => text(v, 120, { required: true }), 'An era needs a name of 1 to 120 characters'],
+    start_time: [(v) => (v == null ? undefined : whole(v)), 'An era is whole numbers on the clock'],
+    end_time: [(v) => (v == null ? undefined : whole(v)), 'An era is whole numbers on the clock'],
+    player_visible: [bool, 'An era is open to players or not'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  if (!(await pairOk('eras', req.params.id, c.vals))) return bad(res, 'An era ends after it starts');
+  await updateCols('eras', req.params.id, c.vals);
   res.json({ ok: true });
 }));
 router.delete('/eras/:id', wrap(async (req, res) => {
   const wid = await worldIdOfEra(req.params.id);
-  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Era not found' });
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'That era no longer exists' });
   const row = (await pool.query('SELECT * FROM eras WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM eras WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(wid, req.user.id, 'era', { era: row });
@@ -866,28 +975,35 @@ router.delete('/eras/:id', wrap(async (req, res) => {
 
 // POST /links — connect two nodes in the same world; DELETE /links/:id.
 router.post('/links', wrap(async (req, res) => {
-  const { from_node_id, to_node_id, kind = 'reference', label = null, time_context = null } = req.body;
+  const { from_node_id, to_node_id } = req.body;
+  if (!isId(from_node_id) || !isId(to_node_id)) return bad(res, 'A link joins two nodes of the same world');
+  if (String(from_node_id) === String(to_node_id)) return bad(res, 'A link joins two different nodes');
+  const kind = req.body.kind == null ? 'reference' : text(req.body.kind, 20, { required: true });
+  const label = text(req.body.label, 255), time_context = text(req.body.time_context, 255);
+  if (kind === undefined) return bad(res, 'A link kind is a word of 1 to 20 characters');
+  if (label === undefined || time_context === undefined) return bad(res, 'A link label is text of up to 255 characters');
   const wid = await worldIdOfNode(from_node_id);
   if (!wid || wid !== (await worldIdOfNode(to_node_id)) || !(await ownsWorld(wid, req.user.id)))
-    return res.status(400).json({ message: 'Invalid link' });
+    return bad(res, 'A link joins two nodes of the same world');
   const l = (await pool.query(
     'INSERT INTO links (world_id, from_node_id, to_node_id, kind, label, time_context) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-    [wid, from_node_id, to_node_id, kind, label, time_context])).rows[0];
+    [wid, Number(from_node_id), Number(to_node_id), kind, label || null, time_context || null])).rows[0];
   res.status(201).json({ id: l.id });
 }));
 router.patch('/links/:id', wrap(async (req, res) => {
-  if (typeof req.body.label === 'string') req.body.label = req.body.label.slice(0, 255) || null;
   const r = (await pool.query('SELECT world_id FROM links WHERE id=$1', [req.params.id])).rows[0];
-  if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'Link not found' });
-  const cols = { label: 'label', kind: 'kind' };
-  const sets = [], vals = []; let i = 1;
-  for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
-  if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE links SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
+  if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'That link no longer exists' });
+  const c = cleanBody(req.body, {
+    label: [(v) => { const t = text(v, 255); return t === undefined ? undefined : (t || null); }, 'A link label is text of up to 255 characters'],
+    kind: [(v) => text(v, 20, { required: true }), 'A link kind is a word of 1 to 20 characters'],
+  });
+  if (c.bad) return bad(res, c.bad);
+  await updateCols('links', req.params.id, c.vals);
   res.json({ ok: true });
 }));
 router.delete('/links/:id', wrap(async (req, res) => {
   const r = (await pool.query('SELECT world_id FROM links WHERE id=$1', [req.params.id])).rows[0];
-  if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'Link not found' });
+  if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'That link no longer exists' });
   const row = (await pool.query('SELECT * FROM links WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM links WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(r.world_id, req.user.id, 'link', { link: row });

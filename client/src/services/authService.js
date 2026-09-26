@@ -4,41 +4,33 @@ import api, { clearLocalSession } from './http'
 const authService = {
   // Register new user
   async register(username, email, password) {
-    try {
-      const response = await api.post('/api/auth/register', {
-        username,
-        email,
-        password
-      })
-      
-      if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-      }
-      
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Registration failed' }
+    const response = await api.post('/api/auth/register', {
+      username,
+      email,
+      password
+    })
+    
+    if (response.data.token) {
+      localStorage.setItem('auth_token', response.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
     }
+    
+    return response.data
   },
 
   // Login user
   async login(username, password) {
-    try {
-      const response = await api.post('/api/auth/login', {
-        username,
-        password
-      })
-      
-      if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-      }
-      
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Login failed' }
+    const response = await api.post('/api/auth/login', {
+      username,
+      password
+    })
+    
+    if (response.data.token) {
+      localStorage.setItem('auth_token', response.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
     }
+    
+    return response.data
   },
 
   // Drop this browser's session without touching the server. For "the token we hold did
@@ -69,18 +61,14 @@ const authService = {
 
   // Get current user
   async getCurrentUser() {
-    try {
-      const response = await api.get('/api/auth/me')
-      // Sliding session: the server returns a fresh token once the current one is past
-      // halfway through its life, so an app that is actually being used never runs into
-      // the short expiry. Absent on every other call — only store one when it is there.
-      if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token)
-      }
-      return response.data.user
-    } catch (error) {
-      throw { ...(error.response?.data || { message: 'Failed to get user' }), status: error.response?.status }
+    const response = await api.get('/api/auth/me')
+    // Sliding session: the server returns a fresh token once the current one is past
+    // halfway through its life, so an app that is actually being used never runs into
+    // the short expiry. Absent on every other call — only store one when it is there.
+    if (response.data.token) {
+      localStorage.setItem('auth_token', response.data.token)
     }
+    return response.data.user
   },
 
   // Store a session minted outside the normal login flow (e.g. first-run setup)
@@ -102,16 +90,12 @@ const authService = {
 
   // One-click guest sign-in — the server mints a central guest account and returns a token.
   async guest() {
-    try {
-      const response = await api.post('/api/auth/guest')
-      if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-      }
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Could not start a guest session' }
+    const response = await api.post('/api/auth/guest')
+    if (response.data.token) {
+      localStorage.setItem('auth_token', response.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
     }
+    return response.data
   },
 
   // SSO login — exchange authorization code
@@ -126,7 +110,7 @@ const authService = {
 
       return response.data
     } catch (error) {
-      throw error.response?.data || { message: 'SSO login failed' }
+      throw error // the same error shape everywhere: callers show errText(e, fallback)
     }
   },
 }

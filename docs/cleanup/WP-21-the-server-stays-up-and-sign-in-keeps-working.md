@@ -8,13 +8,13 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B090** · medium · s · A dropped Postgres connection kills the whole server: the pool's error handler calls process.exit(-1), and transaction clients have no error listener — done 0135f7f (no process.exit; transactions use pool.connectTx(), which discards a broken client)
-- [ ] **B091** · medium · s · Waypoint sign-in 500s forever once a user's Waypoint username or email no longer fits the local users row (profile sync ignores UNIQUE and length) — done 0135f7f (username/email widened to 100/255; a clash or overflow is skipped with a warning, never a 500)
+- [x] **B090** · medium · s · A dropped Postgres connection kills the whole server: the pool's error handler calls process.exit(-1), and transaction clients have no error listener — done 0135f7f (no process.exit; transactions use pool.connectTx(), which discards a broken client)
+- [x] **B091** · medium · s · Waypoint sign-in 500s forever once a user's Waypoint username or email no longer fits the local users row (profile sync ignores UNIQUE and length) — done 0135f7f (username/email widened to 100/255; a clash or overflow is skipped with a warning, never a 500)
 - [ ] **B092** · medium · s · Anyone can take over an unclaimed local account, including the first-run admin, by signing up on Waypoint with its email
-- [ ] **B093** · low · xs · Two simultaneous first-run setups both succeed and create two admins — done 0135f7f (first-run setup holds an advisory lock and re-checks the count)
-- [ ] **B094** · low · xs · Player-marker POST with a non-canonical map id (60.0, 6e1) passes walkUp, then 500s after the node is already written, leaving an unplaced player node — done 0135f7f + 187e62e (ids parsed once and canonical: 60.0, 6e1 and 060 are 404s; a marker lands node + placement in one statement; e2e/server.mjs probes it on the throwaway world)
-- [ ] **P099** · low · s · The ErrorBoundary never resets: browser Back leaves the error page up, and both of its exits (Reload and the site root) go straight back into the crash — done 0135f7f + 187e62e (resets on navigation through resetKey without remounting the page; exits go to Your worlds / Back to the map and forget the crashed location)
-- [ ] **P100** · low · xs · The Archive and image-picker list query selects every image's base64 bytes, so each page pulls up to 50 whole images through the server to send about 18 KB of metadata — done 0135f7f (list, metadata, ownership queries select explicit columns)
+- [x] **B093** · low · xs · Two simultaneous first-run setups both succeed and create two admins — done 0135f7f (first-run setup holds an advisory lock and re-checks the count)
+- [x] **B094** · low · xs · Player-marker POST with a non-canonical map id (60.0, 6e1) passes walkUp, then 500s after the node is already written, leaving an unplaced player node — done 0135f7f + 187e62e (ids parsed once and canonical: 60.0, 6e1 and 060 are 404s; a marker lands node + placement in one statement; e2e/server.mjs probes it on the throwaway world)
+- [x] **P099** · low · s · The ErrorBoundary never resets: browser Back leaves the error page up, and both of its exits (Reload and the site root) go straight back into the crash — done 0135f7f + 187e62e (resets on navigation through resetKey without remounting the page; exits go to Your worlds / Back to the map and forget the crashed location)
+- [x] **P100** · low · xs · The Archive and image-picker list query selects every image's base64 bytes, so each page pulls up to 50 whole images through the server to send about 18 KB of metadata — done 0135f7f (list, metadata, ownership queries select explicit columns)
 
 ## Items
 

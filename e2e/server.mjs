@@ -36,6 +36,35 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   let removed = 0;
   for (const p of strays) { const r = await dm('DELETE', `/nodes/${p.node.id}`); if (r.ok) removed++; }
   step('the probe markers are removed again', removed === strays.length && strays.length >= (made.status === 201 ? 1 : 0), `${removed} removed`);
+
+  // input rules: a bad value is a 400 with a sentence, never a 500 'Server error'; ids have one spelling
+  const probe = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-validation', x: 5, y: 5 }));
+  if (probe?.nodeId) {
+    const t = async (name, method, path, body, want, test) => {
+      const r = await dm(method, path, body); const b = await json(r);
+      step(name, r.status === want && (!test || test(b)), `${r.status} ${b?.message || ''}`.trim());
+    };
+    await t('a 300-character title is refused with a sentence', 'PATCH', `/nodes/${probe.nodeId}`, { title: 'L'.repeat(300) }, 400, (b) => /255/.test(b?.message || ''));
+    await t('a decimal lifespan is refused with a sentence', 'PATCH', `/placements/${probe.placementId}`, { start_time: 2.5 }, 400, (b) => /whole/.test(b?.message || ''));
+    await t('a reversed lifespan is refused', 'PATCH', `/placements/${probe.placementId}`, { start_time: 15, end_time: 5 }, 400, (b) => /after/.test(b?.message || ''));
+    await t('a lifespan bound is judged against the stored other bound', 'PATCH', `/placements/${probe.placementId}`, { start_time: 3, end_time: 7 }, 200);
+    await t('…so a start past the stored end is refused', 'PATCH', `/placements/${probe.placementId}`, { start_time: 9 }, 400, (b) => /after/.test(b?.message || ''));
+    await t('a position off the plane is clamped onto it', 'PATCH', `/placements/${probe.placementId}`, { x: 500 }, 200);
+    const m3 = await json(await dm('GET', `/maps/${cfg.root}`)); const pl = (m3?.placements || []).find((p) => p.id === probe.placementId);
+    step('…the pin sits at the edge, with its lifespan kept', pl && pl.x === 100 && pl.start === 3 && pl.end === 7, `x=${pl?.x} [${pl?.start},${pl?.end}]`);
+    await t('a reversed era is refused', 'POST', `/worlds/${cfg.worldId}/eras`, { name: 'probe', start_time: 49, end_time: 40 }, 400, (b) => /after/.test(b?.message || ''));
+    await t('a self-link is refused', 'POST', '/links', { from_node_id: probe.nodeId, to_node_id: probe.nodeId }, 400, (b) => /different/.test(b?.message || ''));
+    await t('an empty world name is refused', 'PATCH', `/worlds/${cfg.worldId}`, { name: '' }, 400, (b) => /name/.test(b?.message || ''));
+    await t('a stance outside the vocabulary is refused', 'PATCH', `/nodes/${probe.nodeId}`, { stance: 'enemy-of-all' }, 400);
+    await t('a blank title is accepted', 'PATCH', `/nodes/${probe.nodeId}`, { title: '' }, 200);
+    const n3 = await json(await dm('GET', `/nodes/${probe.nodeId}`));
+    step('…and the pin keeps a visible name', n3?.node?.title === 'Untitled', String(n3?.node?.title));
+    await t('a non-numeric world id is a 404, not a 500', 'GET', '/worlds/abc', null, 404);
+    await t('a huge node id is a 404, not a 500', 'GET', '/nodes/99999999999', null, 404);
+    await t('a map payload names its world', 'GET', `/maps/${cfg.root}`, null, 200, (b) => b?.map?.worldId === cfg.worldId);
+    const del = await dm('DELETE', `/nodes/${probe.nodeId}`);
+    step('the validation probe node is removed again', del.ok, String(del.status));
+  } else step('a probe node for the input rules', false, JSON.stringify(probe));
 } else {
   step('marker probes need dm.config.json (shareToken, token, root)', false, 'skipped');
 }

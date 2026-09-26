@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
+import { errText } from '../services/http'
 
 function AuthCallback() {
   const [searchParams] = useSearchParams()
@@ -30,7 +31,7 @@ function AuthCallback() {
     try { next = sessionStorage.getItem('sso_next') || '/'; sessionStorage.removeItem('sso_next') } catch (e) { /* ignore */ }
     ssoLogin(code, `${window.location.origin}/auth/callback`)
       .then(() => navigate(next.startsWith('/') ? next : '/', { replace: true }))
-      .catch(err => setError(err.message || 'SSO login failed'))
+      .catch(err => setError(errText(err, 'SSO login failed')))
   }, [])
 
   if (error) {

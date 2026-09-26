@@ -55,4 +55,18 @@ http.interceptors.response.use(
   }
 )
 
+// The one sentence a failure shows. The server's own answer is used when it is one (a 4xx:
+// 'A lifespan ends after it starts', 'You already have a world with this name'); a 5xx, a
+// timeout or no network gets the caller's fallback — with a connection hint when nothing
+// answered at all — never axios's 'Request failed with status code 502' or a bare 'Server error'.
+export const errText = (e, fallback = 'Something went wrong — try again') => {
+  const status = e?.response?.status
+  const msg = e?.response?.data?.message
+  if (status && status < 500 && typeof msg === 'string' && msg.trim()) return msg
+  if (e?.isAxiosError && !e.response) return fallback.includes(' — ') ? fallback : `${fallback} — check your connection`
+  return fallback
+}
+// a refused save (400/409: the server said what was wrong) is not retried; a blip is
+export const refused = (e) => { const s = e?.response?.status; return s >= 400 && s < 500 }
+
 export default http

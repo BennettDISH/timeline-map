@@ -10,6 +10,10 @@ async function fail(res, what) {
   const t = await res.text().catch(() => '');
   const err = new Error(`ElevenLabs ${what} ${res.status}${t ? `: ${t.slice(0, 160)}` : ''}`);
   err.status = res.status;
+  // the DM's sentence; the status and body above stay in the log
+  err.userMessage = res.status === 401 || res.status === 403 ? "The voice service refused the API key — check it in the server's environment"
+    : res.status === 429 ? 'The voice service is rate-limited right now — try again in a minute'
+    : res.status >= 500 ? 'The voice service is having trouble — try again later' : 'The voice service refused the request';
   throw err;
 }
 

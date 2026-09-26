@@ -4,6 +4,7 @@ import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
 import imageFolderService from '../services/imageFolderService'
+import { errText } from '../services/http'
 import '../styles/shell.scss'
 import '../styles/archive.scss'
 
@@ -95,7 +96,7 @@ function ImageManager() {
       setImages((prev) => (reset ? r.images : [...prev, ...r.images]))
       setTotal(r.total ?? r.images.length)
     } catch (e) {
-      setFlash({ kind: 'err', text: e.message || 'Could not load the archive' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't load the archive") })
     } finally { setLoading(false); setLoadingMore(false) }
   }, [world?.id, folderSel, q, images.length]) // eslint-disable-line
   useEffect(() => { if (world) { setBox(-1); setSelected(new Set()); loadImages(true) } }, [world?.id, folderSel, q]) // eslint-disable-line
@@ -224,7 +225,7 @@ function ImageManager() {
       setFolderForm(null)
       loadFolders(world.id)
     } catch (e) {
-      setFlash({ kind: 'err', text: e.message || 'Could not save the folder' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't save the folder") })
     }
   })
   const deleteFolder = (folder) => guarded(async () => {
@@ -237,7 +238,7 @@ function ImageManager() {
       setFlash({ kind: 'ok', text: `Folder "${folder.name}" removed — its images went back to Unsorted` })
     } catch (e) {
       setConfirmFolderDel(null)
-      setFlash({ kind: 'err', text: e.message || 'Could not delete the folder' })
+      setFlash({ kind: 'err', text: errText(e, "Couldn't delete the folder") })
     }
   })
 

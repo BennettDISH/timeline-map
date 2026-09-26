@@ -10,16 +10,16 @@ Part of the [Atlas cleanup list](README.md) — **second pass** (2026-09-26).
 
 ## Checklist
 
-- [ ] **B118** · medium · s · The secrecy suite can't catch players reading the hidden past: no documented fixture row lives in the Hidden Era, so dropping player_visible from share.js leaves all 17 tests green
-- [ ] **B119** · medium · s · 'windowed lifespans are clamped to the revealed envelope' only asserts values no clamp touches: every future-trimming clamp in share.js can be deleted and the suite stays green
-- [ ] **B120** · medium · m · No API test covers any secrecy rule share.js gained after the fixture (2026-08-20): DM notes, map notes, stance, the party trail's reachable-map filter, the lantern prune, outlines. /locate has no positive test, so a locate that always 404s passes
-- [ ] **B121** · medium · s · player.mjs steps stay green when what they name breaks: the era-bar check passes through the footprint step's side effect, and '⬆ returns' passes on the dead-link screen
-- [ ] **B122** · medium · s · dm.mjs steps stay green when what they name breaks: the freehand region check is satisfied by the stale, already-deleted first region, and the double-click guard passes when the click never reaches the pin
-- [ ] **C101** · medium · xs · C048's fix renames invite* back to share*, which undoes 1224c84, the fix that stopped ad-blockers hiding the DM's Share button
-- [ ] **C102** · low · s · player.mjs can't pass on the repo's own proving ground (world 30): the party step needs the party's canon footstep on the ROOT map and a party text over 20 characters
-- [ ] **C103** · low · s · CLAUDE.md never states several rules the code enforces: the Spellforge frame exception for /p, map-note and stance secrecy, the lantern's rules, the sample-template clone path, undo tombstones and guest accounts
-- [ ] **O028** · low · xs · extends D008/O009: two comments from the removed 'party is at' chip and exit marker are still in the repo, although D008 says nothing of the chip is left
-- [ ] **P113** · low · s · 'Begin from the sample world' exists only as a production row: a fresh deploy never offers it, and nothing in the repo can rebuild it
+- [x] **B118** · medium · s · The secrecy suite can't catch players reading the hidden past: no documented fixture row lives in the Hidden Era, so dropping player_visible from share.js leaves all 17 tests green — done 02af064 (fixture rows in the Hidden Era; the suite asserts they never leave the DB)
+- [x] **B119** · medium · s · 'windowed lifespans are clamped to the revealed envelope' only asserts values no clamp touches: every future-trimming clamp in share.js can be deleted and the suite stays green — done 02af064 (clamp probes on placements and a backdrop that the clamps actually touch)
+- [x] **B120** · medium · m · No API test covers any secrecy rule share.js gained after the fixture (2026-08-20): DM notes, map notes, stance, the party trail's reachable-map filter, the lantern prune, outlines. /locate has no positive test, so a locate that always 404s passes — done 02af064 (DM notes, stance, map notes, the party trail filter, the lantern prune, outlines and a positive /locate are each asserted)
+- [x] **B121** · medium · s · player.mjs steps stay green when what they name breaks: the era-bar check passes through the footprint step's side effect, and '⬆ returns' passes on the dead-link screen — done 02af064 (the era bar returns to now first; ⬆ asserts the crumb and no dead-link page)
+- [x] **B122** · medium · s · dm.mjs steps stay green when what they name breaks: the freehand region check is satisfied by the stale, already-deleted first region, and the double-click guard passes when the click never reaches the pin — done 02af064 (the freehand check proves a NEW server region; the double-click check reads the refusal flash)
+- [x] **C101** · medium · xs · C048's fix renames invite* back to share*, which undoes 1224c84, the fix that stopped ad-blockers hiding the DM's Share button — done 02af064 (C048 is refused: the invite* names stay, and CLAUDE.md records why)
+- [x] **C102** · low · s · player.mjs can't pass on the repo's own proving ground (world 30): the party step needs the party's canon footstep on the ROOT map and a party text over 20 characters — done 02af064 (world 30 has the party at canon on the root with a 20+ character text)
+- [x] **C103** · low · s · CLAUDE.md never states several rules the code enforces: the Spellforge frame exception for /p, map-note and stance secrecy, the lantern's rules, the sample-template clone path, undo tombstones and guest accounts — done 02af064 (CLAUDE.md states the frame exception, map-note and stance secrecy, the lantern, the template clone, tombstones and guests)
+- [x] **O028** · low · xs · extends D008/O009: two comments from the removed 'party is at' chip and exit marker are still in the repo, although D008 says nothing of the chip is left — done 02af064
+- [x] **P113** · low · s · 'Begin from the sample world' exists only as a production row: a fresh deploy never offers it, and nothing in the repo can rebuild it — done 02af064 (server/test/sample-world.json + server/scripts/seed-sample.js rebuild the template)
 
 ## Items
 

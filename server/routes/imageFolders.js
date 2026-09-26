@@ -1,7 +1,9 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { idParam } = require('../lib/validate');
 const router = express.Router();
+router.param('id', idParam);
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
     );
 
     if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found or access denied' });
+      return res.status(404).json({ message: 'World not found' });
     }
 
     // Get all folders for this world
@@ -82,7 +84,7 @@ router.post('/', async (req, res) => {
     );
 
     if (worldCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'World not found or access denied' });
+      return res.status(404).json({ message: 'World not found' });
     }
 
     // If parent_id is provided, verify it exists and belongs to the same world

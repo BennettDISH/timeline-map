@@ -277,15 +277,15 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
   for (const em of batch.enrich_maps) wantMaps.add(em.map);
   if (wantNodes.size) {
     const r = await pool.query('SELECT id, interior_map_id FROM nodes WHERE id = ANY($1) AND world_id=$2', [[...wantNodes], worldId]);
-    if (r.rows.length !== wantNodes.size) throw new Error('the batch references nodes that are not in this world');
+    if (r.rows.length !== wantNodes.size) throw Object.assign(new Error('the batch references nodes that are not in this world'), { userMessage: 'the mind pointed at things that are not in this world — ask again' });
     const interiors = new Map(r.rows.map((x) => [x.id, x.interior_map_id]));
     for (const m of batch.maps)
       if (typeof m.owner === 'number' && interiors.get(m.owner) != null)
-        throw new Error(`node ${m.owner} already has an interior — it cannot get a second one`);
+        throw Object.assign(new Error(`node ${m.owner} already has an interior — it cannot get a second one`), { userMessage: 'the mind tried to give a place a second interior — ask again' });
   }
   if (wantMaps.size) {
     const r = await pool.query('SELECT id FROM maps WHERE id = ANY($1) AND world_id=$2', [[...wantMaps], worldId]);
-    if (r.rows.length !== wantMaps.size) throw new Error('the batch references maps that are not in this world');
+    if (r.rows.length !== wantMaps.size) throw Object.assign(new Error('the batch references maps that are not in this world'), { userMessage: 'the mind pointed at maps that are not in this world — ask again' });
   }
 
   // Paint. Sequential, not parallel — each painting after the first can only match the
@@ -301,7 +301,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
     }
   } catch (e) {
     await cleanupImages(created.images, images);
-    throw new Error(`painting failed: ${e.message}`);
+    throw Object.assign(new Error(`painting failed: ${e.message}`), { userMessage: `a painting failed — ${e.userMessage || 'try again'}` });
   }
 
   const client = await pool.connectTx();

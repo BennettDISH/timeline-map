@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
 import worldService from '../services/worldService'
 import imageServiceBase64 from '../services/imageServiceBase64'
+import { errText, refused } from '../services/http'
 import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
@@ -16,7 +17,24 @@ import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
 const clamp = (v) => Math.max(0, Math.min(100, v))
-const errText = (e, fallback) => e?.response?.data?.message || e?.message || fallback
+// a moment typed into a number input: '' = open (null), a decimal rounds, a non-number is undefined (not sent)
+const wholeOr = (v) => { if (v === '' || v == null) return null; const n = Math.round(Number(v)); return Number.isFinite(n) ? n : undefined }
+// Both bounds of a period are read together when either input blurs (the two number inputs
+// share a parent). A reversed pair is HELD with a hint and never sent — the DM is mid-edit,
+// typing the start before the end; a non-number remounts to the stored value; otherwise only
+// the bounds that changed travel, and a refused save (a stale tab) remounts to the stored ones.
+function periodBlur(e, cur, id, { hint, bump, send, required = false }) {
+  const [si, ei] = e.target.parentElement.querySelectorAll('input[type=number]')
+  const st = wholeOr(si.value), en = wholeOr(ei.value)
+  if (st === undefined || en === undefined || (required && (st == null || en == null))) { bump(); return }
+  if (st != null && en != null && st > en) { hint(id); return }
+  hint(null)
+  const patch = {}
+  if (st !== (cur.start ?? null)) patch.start_time = st
+  if (en !== (cur.end ?? null)) patch.end_time = en
+  if (Object.keys(patch).length) Promise.resolve(send(patch)).then((ok) => { if (ok === false) bump() })
+}
+const REVERSED = '⚠ Ends before it starts — not saved until the bounds are in order.'
 const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
 // a phone: narrow, or a touch-first pointer — editing happens on a PC (CLAUDE.md), so it lands in View
@@ -30,7 +48,11 @@ function AtlasWorkspace() {
   const [worldList, setWorldList] = useState(null) // null until the switcher is first opened
   const [tree, setTree] = useState([])
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
-  const [loadState, setLoadState] = useState('loading') // loading | ok | err
+  const [loadState, setLoadState] = useState('loading') // loading | ok | err | missing (the space is gone)
+  const [worldErr, setWorldErr] = useState(null) // the world did not load (not a 404: those go to the dashboard)
+  const [worldTick, setWorldTick] = useState(0) // bumped by ⟳ Try again
+  const [bdHint, setBdHint] = useState(null) // a backdrop row whose bounds are reversed
+  const [bdVer, setBdVer] = useState(0) // remounts the backdrop rows to their stored bounds
   const [selId, setSelId] = useState(null) // selected placement id
   const [placing, setPlacing] = useState(null) // null | {kind:'new'} | {kind:'existing', node}
   const [drawing, setDrawing] = useState(null) // an outline in progress: { placementId|null, pts:[[x,y]], kind }
@@ -157,7 +179,7 @@ function AtlasWorkspace() {
       .catch((e) => {
         inflight.current -= 1
         setSave('err')
-        setFlash({ kind: 'err', text: errText(e, failMsg || "Couldn't save — check your connection") })
+        setFlash({ kind: 'err', text: errText(e, failMsg || "Couldn't save") })
         throw e
       })
   }, [])
@@ -186,6 +208,9 @@ function AtlasWorkspace() {
     return atlasService.getMap(mapId)
       .then((d) => {
         if (seq !== loadSeq.current) return // a newer map was asked for since: this reply is stale
+        // a map opened under the wrong world goes to its own: one world's clock, tree and
+        // eras must never dress another's map (and edits would split across two worlds)
+        if (d.map?.worldId != null && String(d.map.worldId) !== String(worldId)) { navigate(`/w/${d.map.worldId}/m/${mapId}`, { replace: true }); return }
         setData((prev) => {
           // a background refresh that brings a new player marker says so — the DM's tab is not a wall
           if (prev && prev.map?.id === d.map?.id) {
@@ -201,10 +226,17 @@ function AtlasWorkspace() {
       })
       .catch((e) => {
         if (seq !== loadSeq.current) return
+        if (e?.response?.status === 404) {
+          // the space is gone (removed on another tab, or unmade): say so, offer the way
+          // out, and never resume here
+          worldService.clearLastLocation(worldId)
+          setData(null); setLoadState('missing')
+          return
+        }
         if (blank) setLoadState('err')
         else setFlash({ kind: 'err', text: errText(e, "Couldn't refresh the map") })
       })
-  }, [worldId, mapId])
+  }, [worldId, mapId, navigate])
   const refreshMap = () => loadMap(false) // background refresh: keeps the canvas up while fetching
 
   useEffect(() => { forgeService.status().then(setForgeOn) }, [])
@@ -281,7 +313,7 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     let live = true
-    setLoading(true)
+    setLoading(true); setWorldErr(null)
     atlasService.getWorld(worldId)
       .then(async (w) => {
         if (!live) return
@@ -294,16 +326,17 @@ function AtlasWorkspace() {
       .catch((e) => {
         if (!live) return
         if (e?.response?.status === 404) {
-          // not this account's world (a pointer left by another account, or a deleted one)
+          // not this account's world (a pointer left by another account, or a deleted one):
+          // the dashboard says so
           worldService.clearLastLocation(worldId)
-          navigate('/dashboard', { replace: true })
+          navigate('/dashboard', { replace: true, state: { notice: "That world isn't in your atlas — it may have been deleted, or it belongs to another account." } })
           return
         }
-        setFlash({ kind: 'err', text: errText(e, "Couldn't load this world") })
+        setWorldErr(errText(e, "Couldn't load this world"))
       })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [worldId]) // eslint-disable-line
+  }, [worldId, worldTick]) // eslint-disable-line
 
   useEffect(() => {
     setSelId(null)
@@ -542,19 +575,23 @@ function AtlasWorkspace() {
       for (const [nodeId, patch] of [...failedPatches.current]) {
         failedPatches.current.delete(nodeId)
         track(atlasService.patchNode(nodeId, patch), "Still couldn't save — will keep trying")
-          .catch(() => { failedPatches.current.set(nodeId, { ...patch, ...(failedPatches.current.get(nodeId) || {}) }); scheduleRetry() })
+          .catch((e) => {
+            if (refused(e)) { loadMap(false); return } // the server said what was wrong: the stored value comes back
+            failedPatches.current.set(nodeId, { ...patch, ...(failedPatches.current.get(nodeId) || {}) }); scheduleRetry()
+          })
       }
     }, 5000)
-  }, [track])
+  }, [track, loadMap])
   const flushSave = useCallback(() => {
     const { nodeId, patch } = pendingPatch.current
     if (nodeId == null) return Promise.resolve()
     pendingPatch.current = { nodeId: null, patch: {} }
-    return track(atlasService.patchNode(nodeId, patch), "Couldn't save — will retry").catch(() => {
+    return track(atlasService.patchNode(nodeId, patch), "Couldn't save — will retry").catch((e) => {
+      if (refused(e)) { loadMap(false); return } // refused for what it is (too long, not a kind): back to the stored value, no retry
       failedPatches.current.set(nodeId, { ...(failedPatches.current.get(nodeId) || {}), ...patch })
       scheduleRetry()
     })
-  }, [track, scheduleRetry])
+  }, [track, scheduleRetry, loadMap])
   const saveNode = (nodeId, patch) => {
     localPatchNode(nodeId, patch)
     const f = failedPatches.current.get(nodeId) // a newer edit of a field beats its refused older value
@@ -571,20 +608,21 @@ function AtlasWorkspace() {
     pendingLife.current = null
     return track(atlasService.patchPlacement(pl.placementId, pl.patch), "Couldn't save the lifespan — will retry")
       .then(() => setTrailTick((t) => t + 1))
-      .catch(() => {
-        // the refused bounds wait under anything typed since, and are retried
+      .catch((e) => {
+        if (refused(e)) { loadMap(false); return } // a reversed or non-whole bound: the stored lifespan comes back
+        // the failed bounds wait under anything typed since, and are retried
         const cur = pendingLife.current
         pendingLife.current = cur && cur.placementId === pl.placementId ? { placementId: pl.placementId, patch: { ...pl.patch, ...cur.patch } } : (cur || pl)
         clearTimeout(lifeTimer.current); lifeTimer.current = setTimeout(flushLife, 5000)
       })
-  }, [track])
+  }, [track, loadMap])
   const flushNote = useCallback(() => {
     const pn = pendingNote.current
     if (!pn) return Promise.resolve()
     pendingNote.current = null
     return track(atlasService.patchMap(pn.mapId, { dm_note: pn.note }), "Couldn't save the map notes — will retry")
       .then(() => setData((d) => (d && d.map?.id === pn.mapId) ? { ...d, map: { ...d.map, dmNote: pn.note } } : d))
-      .catch(() => { pendingNote.current = pendingNote.current || pn; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(flushNote, 5000) })
+      .catch((e) => { if (refused(e)) return; pendingNote.current = pendingNote.current || pn; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(flushNote, 5000) })
   }, [track])
   const saveMapNote = (mapIdNow, note) => {
     if (mapIdNow == null) return
@@ -673,7 +711,7 @@ function AtlasWorkspace() {
       .then(() => reloadLinks(nodeId)).catch(() => {})
   })
   const factPatch = (nodeId, id, data) =>
-    track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
+    track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => { reloadLinks(nodeId); return true }).catch(() => false)
   const factDelete = (nodeId, id) =>
     track(atlasService.deleteFact(id), "Couldn't remove the entry")
       .then((r) => { reloadLinks(nodeId); setFlash({ kind: 'ok', text: "That period's text is gone.", undoId: r?.undoId }) }).catch(() => {})
@@ -750,8 +788,8 @@ function AtlasWorkspace() {
   const addTimedBackdrop = (imageId) =>
     track(atlasService.addBackdrop(mapId, { image_id: imageId, start_time: Math.round(now), end_time: null }),
       "Couldn't add the backdrop").then(refreshMap).catch(() => {})
-  const patchBackdrop = (id, data) =>
-    track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(refreshMap).catch(() => {})
+  const patchBackdrop = (id, data) => // resolves false when refused, so the row can go back to the stored bounds
+    track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(() => { refreshMap(); return true }).catch(() => false)
   const deleteBackdrop = (id) =>
     track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop")
       .then((r) => { refreshMap(); setFlash({ kind: 'ok', text: "That period's art is gone.", undoId: r?.undoId }) }).catch(() => {})
@@ -759,7 +797,7 @@ function AtlasWorkspace() {
   const setMapView = (view) => {
     if (!map || map.view === view) return
     setData((d) => d && ({ ...d, map: { ...d.map, view } }))
-    track(atlasService.patchMap(mapId, { view }), "Couldn't switch the view").catch(() => {})
+    track(atlasService.patchMap(mapId, { view }), "Couldn't switch the view").catch(() => refreshMap())
   }
 
   // ---- reveal + timeline: the scrubber is a LENS (local); players see the CANON moment,
@@ -867,7 +905,7 @@ function AtlasWorkspace() {
   const refreshWorldMeta = () => atlasService.getWorld(worldId).then(setWorld).catch(() => {})
   const eraAdd = () => once('era', () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era"))
     .then(refreshWorldMeta).catch(() => {})
-  const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(refreshWorldMeta).catch(() => {})
+  const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(() => { refreshWorldMeta(); return true }).catch(() => false)
   const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era")
     .then((r) => { refreshWorldMeta(); setFlash({ kind: 'ok', text: 'Era deleted — players lose that stretch of the past.', undoId: r?.undoId }) }).catch(() => {})
   // Sessions are eras of ten footsteps; the next one starts where the last ended and the
@@ -916,12 +954,12 @@ function AtlasWorkspace() {
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: Math.min(Math.max(w.timeline.current ?? min, min), max) } }))
     setNow((v) => Math.min(Math.max(v, min), max))
     setTlEdit(false)
-    track(atlasService.patchWorld(worldId, { timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit })).catch(() => {})
+    track(atlasService.patchWorld(worldId, { timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit })).catch(() => refreshWorldMeta())
   }
   const disableTimeline = () => {
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
     setTlEdit(false)
-    track(atlasService.patchWorld(worldId, { timeline_enabled: false })).catch(() => {})
+    track(atlasService.patchWorld(worldId, { timeline_enabled: false })).catch(() => refreshWorldMeta())
   }
 
   // ---- share link ----------------------------------------------------------------------
@@ -959,11 +997,16 @@ function AtlasWorkspace() {
     // only the bound that changed is sent, merged per placement: a second tab's stale copy
     // of the OTHER bound never travels, and a quick from-then-to keeps both
     const key = which === 'start' ? 'start_time' : 'end_time'
+    const cur = data?.placements.find((pp) => pp.id === placementId)
+    const st = which === 'start' ? v : cur?.start ?? null, en = which === 'end' ? v : cur?.end ?? null
     setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, [which]: v } : pp)) }))
     if (pendingLife.current && pendingLife.current.placementId !== placementId) flushLife()
     const prev = pendingLife.current && pendingLife.current.placementId === placementId ? pendingLife.current.patch : {}
     pendingLife.current = { placementId, patch: { ...prev, [key]: v } }
     clearTimeout(lifeTimer.current)
+    // a reversed pair is held, not sent: the DM is typing the start before the end (the
+    // inspector says so); the merged patch goes once the bounds are in order
+    if (st != null && en != null && st > en) return
     lifeTimer.current = setTimeout(flushLife, 500)
   }
 
@@ -1097,11 +1140,11 @@ function AtlasWorkspace() {
   }, [nodeLinks, mode, searchIndex])
 
   const renameMap = () => {
-    const t = (renaming || '').trim()
+    const t = (renaming || '').trim().slice(0, 255)
     setRenaming(null)
     if (!t || !map || t === map.title) return
     setData((d) => d && ({ ...d, map: { ...d.map, title: t } }))
-    track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => {})
+    track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => refreshMap())
   }
 
   useEffect(() => {
@@ -1141,12 +1184,14 @@ function AtlasWorkspace() {
 
   const saveFocus = () => {
     const f = focusEdit
+    if (!f || !map) { setFocusEdit(null); return }
+    const st = wholeOr(f.start), en = wholeOr(f.end)
+    // the modal stays open on a bad pair, so the DM can fix it in place
+    if (st === undefined || en === undefined) { setFlash({ kind: 'err', text: 'A focus period is whole numbers on the clock' }); return }
+    if (st != null && en != null && st > en) { setFlash({ kind: 'err', text: 'A focus period ends after it starts — swap the two' }); return }
     setFocusEdit(null)
-    if (!f || !map) return
-    const st = f.start === '' ? null : Number(f.start)
-    const en = f.end === '' ? null : Number(f.end)
     setData((d) => d && ({ ...d, map: { ...d.map, focusStart: st, focusEnd: en } }))
-    track(atlasService.patchMap(mapId, { focus_start: st, focus_end: en }), "Couldn't save the focus period").catch(() => {})
+    track(atlasService.patchMap(mapId, { focus_start: st, focus_end: en }), "Couldn't save the focus period").catch(() => refreshMap())
   }
 
   const commitMoment = () => {
@@ -1213,6 +1258,22 @@ function AtlasWorkspace() {
   // ============================================================================= render ==
   if (loading && !world) {
     return <div className="atlas"><div className="loading" style={{ gridRow: '1 / 3' }}>Loading world…</div></div>
+  }
+  if (!world) {
+    // the world did not load (a server blip, no network): a way to try again and a way out,
+    // and no editor armed on nothing
+    return (
+      <div className="atlas">
+        <div className="empty-map static worldgone" style={{ gridRow: '1 / 3' }}>
+          <div style={{ fontSize: '2rem' }}>🌫️</div>
+          <div>{worldErr || "This world isn't available right now."}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="tool on" onClick={() => setWorldTick((t) => t + 1)}>⟳ Try again</button>
+            <Link className="tool" to="/dashboard">To your worlds</Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const saveChip = save === 'saving' ? { c: 'sv', t: 'Saving…' }
@@ -1369,6 +1430,15 @@ function AtlasWorkspace() {
               <button className="tool on" onClick={() => loadMap(true)}>⟳ Try again</button>
             </div>
           )}
+          {loadState === 'missing' && (
+            <div className="empty-map gone">
+              <div style={{ fontSize: '2rem' }}>🌫️</div>
+              <div>This space no longer exists.</div>
+              {world?.rootMapId && String(world.rootMapId) !== String(mapId) && (
+                <button className="tool on" onClick={() => navigate(`/w/${worldId}/m/${world.rootMapId}`)}>🗺 To the world map</button>
+              )}
+            </div>
+          )}
           {loadState === 'loading' && <div className="loading" style={{ position: 'absolute', inset: 0 }}>Opening…</div>}
 
           {loadState === 'ok' && !isList && (
@@ -1453,7 +1523,7 @@ function AtlasWorkspace() {
             </div>
           )}
 
-          {mode === 'edit' && (
+          {mode === 'edit' && loadState === 'ok' && (
             <div className="toolbar">
               <button className={`tool ${placing?.kind === 'new' ? 'on' : ''}`}
                 title="Create a brand-new node on this map — born DM-only; reveal it when the table should see it"
@@ -1500,7 +1570,7 @@ function AtlasWorkspace() {
                     {tl?.enabled && (
                       <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
                         onClick={() => { setMapMenu(false); setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' }) }}>
-                        🎯 Focus period…{hasFocus ? ' ✓' : ''}
+                        🎯 Focus period…{focusOk ? ' ✓' : ''}
                       </button>
                     )}
                     <button onClick={() => { setMapMenu(false); setRenaming(map?.title || '') }}>✎ Rename this space…</button>
@@ -1793,7 +1863,12 @@ function AtlasWorkspace() {
 
         {mode === 'edit' && inspOpen && (
         <div className="insp">
-          {!sel && !stray ? (
+          {!sel && !stray ? (loadState !== 'ok' ? (
+            <div className="spacepanel">
+              <div className="isect">This space</div>
+              <div className="muted esmall">{loadState === 'missing' ? 'This space no longer exists.' : loadState === 'err' ? "Couldn't load this space." : 'Opening…'}</div>
+            </div>
+          ) : (
             <div className="spacepanel">
               <div className="isect">This space</div>
               <h3 className="sptitle">{map?.title}
@@ -1829,7 +1904,7 @@ function AtlasWorkspace() {
               {tl?.enabled && (
                 <button className="btn block" title="The stretch of history this place's story spans"
                   onClick={() => setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' })}>
-                  🎯 Focus period…{hasFocus ? ' ✓' : ''}
+                  🎯 Focus period…{focusOk ? ' ✓' : ''}
                 </button>
               )}
               <div className="isect">🔒 Map notes — players never see this</div>
@@ -1856,7 +1931,7 @@ function AtlasWorkspace() {
               <hr />
               <div className="empty sphint">Click a node to edit it — or use <b>+ Add node</b>, then click the map.</div>
             </div>
-          ) : (
+          )) : (
             <Inspector key={`${sel ? `p${sel.id}` : `n${stray.id}`}:${refreshVer}`}
               p={sel || { id: null, node: stray, start: null, end: null, shape: null, shapeKind: 'area', shapeStyle: null }} stray={!sel}
               onSave={saveNode}
@@ -2012,16 +2087,19 @@ function AtlasWorkspace() {
               </button>
             </div>
             {(data?.backdrops || []).map((b) => (
-              <div key={b.id} className="bdrow">
+              <React.Fragment key={b.id}>
+              <div className="bdrow">
                 <img className="bdthumb" src={b.url} alt="" />
                 <span className="bdfrom">from</span>
-                <input key={`s${b.start ?? ''}`} className="enum" type="number" defaultValue={b.start ?? ''} placeholder="start"
-                  onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.start) patchBackdrop(b.id, { start_time: v }) }} />
+                <input key={`s${b.start ?? ''}:${bdVer}`} className="enum" type="number" step={1} defaultValue={b.start ?? ''} placeholder="start"
+                  onBlur={(ev) => periodBlur(ev, b, b.id, { hint: setBdHint, bump: () => setBdVer((v) => v + 1), send: (d) => patchBackdrop(b.id, d) })} />
                 <span className="edash">–</span>
-                <input key={`e${b.end ?? ''}`} className="enum" type="number" defaultValue={b.end ?? ''} placeholder="∞"
-                  onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.end) patchBackdrop(b.id, { end_time: v }) }} />
+                <input key={`e${b.end ?? ''}:${bdVer}`} className="enum" type="number" step={1} defaultValue={b.end ?? ''} placeholder="∞"
+                  onBlur={(ev) => periodBlur(ev, b, b.id, { hint: setBdHint, bump: () => setBdVer((v) => v + 1), send: (d) => patchBackdrop(b.id, d) })} />
                 <button className="ex" title="Remove this period's art" onClick={() => deleteBackdrop(b.id)}>✕</button>
               </div>
+              {bdHint === b.id && <div className="muted warn">{REVERSED}</div>}
+              </React.Fragment>
             ))}
             <button className="tool" onClick={() => setPicker({ kind: 'backdrop-timed', hasCurrent: false })}>
               ＋ Add art for a period (starts at {momentLabel(Math.round(now), world?.eras, tl?.unit)})
@@ -2036,10 +2114,10 @@ function AtlasWorkspace() {
             <div className="modal-head"><h4>Focus period</h4><button onClick={() => setFocusEdit(null)}>✕</button></div>
             <p className="muted esmall">Still the one world clock — but inside this space, the scrubber's track zooms to the {tl?.unit || 'moments'} its story spans. ⤢ on the bar shows the full timeline again. Blank = the world's full range.</p>
             <div className="span" style={{ marginBottom: 12 }}>
-              <input type="number" placeholder={String(tl?.min ?? '')} value={focusEdit.start}
+              <input type="number" step={1} placeholder={String(tl?.min ?? '')} value={focusEdit.start}
                 onChange={(e) => setFocusEdit((f) => ({ ...f, start: e.target.value }))} />
               <span>→</span>
-              <input type="number" placeholder={String(tl?.max ?? '')} value={focusEdit.end}
+              <input type="number" step={1} placeholder={String(tl?.max ?? '')} value={focusEdit.end}
                 onChange={(e) => setFocusEdit((f) => ({ ...f, end: e.target.value }))} />
             </div>
             <div className="mrow">
@@ -2055,7 +2133,7 @@ function AtlasWorkspace() {
         <div className="modal-back" onClick={() => setRenaming(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head"><h4>Rename this space</h4><button onClick={() => setRenaming(null)}>✕</button></div>
-            <input className="nsearch" autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)}
+            <input className="nsearch" autoFocus maxLength={255} value={renaming} onChange={(e) => setRenaming(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') renameMap() }} />
             <div className="mrow">
               <button className="tool" onClick={() => setRenaming(null)}>Cancel</button>
@@ -2179,16 +2257,18 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   const [max, setMax] = useState(tl.max)
   const [unit, setUnit] = useState(tl.unit || 'days')
   const [confirmOff, setConfirmOff] = useState(false)
-  const bad = min === '' || max === '' || !(Number(min) < Number(max))
-  const num = (v) => (v == null || String(v).trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v)) // blank = no change
+  const [eraHint, setEraHint] = useState(null) // an era row whose bounds are reversed (held, not saved)
+  const [ver, setVer] = useState(0) // remounts the era rows to their stored values after a refused save
+  const bad = min === '' || max === '' || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) || !(Math.round(Number(min)) < Math.round(Number(max)))
+  const eraOpts = (e) => ({ hint: setEraHint, bump: () => setVer((v) => v + 1), send: (d) => onEraPatch(e.id, d), required: true })
   return (
     <div className="tlcfg">
-      <label>From <input type="number" value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
-      <label>To <input type="number" value={max} onChange={(e) => setMax(e.target.value === '' ? '' : Number(e.target.value))} /></label>
-      <label>Unit <input type="text" value={unit} placeholder="footsteps (ten a session), days, years…" onChange={(e) => setUnit(e.target.value)} /></label>
+      <label>From <input type="number" step={1} value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
+      <label>To <input type="number" step={1} value={max} onChange={(e) => setMax(e.target.value === '' ? '' : Number(e.target.value))} /></label>
+      <label>Unit <input type="text" maxLength={50} value={unit} placeholder="footsteps (ten a session), days, years…" onChange={(e) => setUnit(e.target.value)} /></label>
       <div className="tlrow">
         <button className="tool on" disabled={bad} title={bad ? 'Start must be before end' : ''}
-          onClick={() => onSave(Number(min), Number(max), unit.trim() || 'days')}>Save</button>
+          onClick={() => onSave(Math.round(Number(min)), Math.round(Number(max)), unit.trim().slice(0, 50) || 'days')}>Save</button>
         <button className="tool" onClick={onClose}>Close</button>
       </div>
       <div className="isect">Eras</div>
@@ -2199,19 +2279,22 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
         </div>
       )}
       {(eras || []).map((e) => (
-        <div key={e.id} className="erarow">
-          <input key={`n${e.name}`} className="ename" defaultValue={e.name} title="Era name"
-            onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== e.name) onEraPatch(e.id, { name: v }) }} />
-          <input key={`s${e.start}`} className="enum" type="number" defaultValue={e.start} title="From"
-            onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.start; return } if (v !== e.start) onEraPatch(e.id, { start_time: v }) }} />
+        <React.Fragment key={e.id}>
+        <div className="erarow">
+          <input key={`n${e.name}:${ver}`} className="ename" maxLength={120} defaultValue={e.name} title="Era name"
+            onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 120); if (v && v !== e.name) onEraPatch(e.id, { name: v }).then((ok) => { if (ok === false) setVer((x) => x + 1) }) }} />
+          <input key={`s${e.start}:${ver}`} className="enum" type="number" step={1} defaultValue={e.start} title="From"
+            onBlur={(ev) => periodBlur(ev, e, e.id, eraOpts(e))} />
           <span className="edash">–</span>
-          <input key={`e${e.end}`} className="enum" type="number" defaultValue={e.end} title="To"
-            onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.end; return } if (v !== e.end) onEraPatch(e.id, { end_time: v }) }} />
+          <input key={`e${e.end}:${ver}`} className="enum" type="number" step={1} defaultValue={e.end} title="To"
+            onBlur={(ev) => periodBlur(ev, e, e.id, eraOpts(e))} />
           <button className={`etoggle ${e.playerVisible ? 'on' : ''}`}
             title={e.playerVisible ? 'Players can scrub this era — click to hide' : 'Hidden from players — click to reveal'}
             onClick={() => onEraPatch(e.id, { player_visible: !e.playerVisible })}>🎭</button>
           <button className="ex" title="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
         </div>
+        {eraHint === e.id && <div className="muted warn">{REVERSED}</div>}
+        </React.Fragment>
       ))}
       <div className="tlrow">
         {(tl.unit === 'footsteps' || (eras || []).some((e) => sessionNum(e) != null)) && (
@@ -2241,6 +2324,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
   const [vstyle, setVstyle] = useState(p.node.voiceStyle || '')
   const [vbusy, setVbusy] = useState(false)
   const [start, setStart] = useState(p.start ?? '')
+  const [factHint, setFactHint] = useState(null) // a period row whose bounds are reversed (held, not saved)
+  const [factVer, setFactVer] = useState(0) // remounts the period rows to their stored bounds after a refused save
   const [end, setEnd] = useState(p.end ?? '')
   const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
   const [factsOpen, setFactsOpen] = useState(false) // every period shown, not just the one at the lens
@@ -2269,15 +2354,17 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       <div className="isect">{n.category === 'party' ? 'This footstep' : 'Time'}</div>
       <div className="fld"><label>{n.category === 'party' ? 'Footstep — when the party stands here' : "Lifespan — when it's present"}</label>
         <div className="span">
-          <input data-fld="start" type="number" placeholder="from" value={start}
-            onChange={(e) => { const v = e.target.value; setStart(v); onLifespan('start', v === '' ? null : Number(v)) }} />
+          <input data-fld="start" type="number" step={1} placeholder="from" value={start}
+            onChange={(e) => { const v = e.target.value; setStart(v); const n = wholeOr(v); if (n !== undefined) onLifespan('start', n) }} />
           <span>→</span>
-          <input data-fld="end" type="number" placeholder="to" value={end}
-            onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan('end', v === '' ? null : Number(v)) }} />
+          <input data-fld="end" type="number" step={1} placeholder="to" value={end}
+            onChange={(e) => { const v = e.target.value; setEnd(v); const n = wholeOr(v); if (n !== undefined) onLifespan('end', n) }} />
         </div>
-        <div className="muted">{start === '' && end === ''
-          ? 'Blank = always present. Scrub the timeline to see it appear / disappear.'
-          : `= ${spanLabel(start === '' ? null : Number(start), end === '' ? null : Number(end), eras, timeline?.unit)}`}</div>
+        {wholeOr(start) != null && wholeOr(end) != null && wholeOr(start) > wholeOr(end)
+          ? <div className="muted warn">{REVERSED}</div>
+          : <div className="muted">{start === '' && end === ''
+            ? 'Blank = always present. Scrub the timeline to see it appear / disappear.'
+            : `= ${spanLabel(wholeOr(start) ?? null, wholeOr(end) ?? null, eras, timeline?.unit)}`}</div>}
       </div>
     </>
   ) : null
@@ -2285,7 +2372,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
     <>
       {stray && <div className="muted esmall strayhint">○ Not on any map — edit it here, place it on this map, or delete it.</div>}
       <div className="fld"><label>Title</label>
-        <input data-fld="title" value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
+        <input data-fld="title" maxLength={255} value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
       </div>
       {n.visibility === 'player' && (
         <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>✍ A player placed this{n.author ? `, signed “${n.author}”` : ''} — a self-typed name, not verified. Set “Who can see it” to claim it into canon or hide it.</div>
@@ -2414,13 +2501,14 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
                 {shown.map((f) => (
             <div key={f.id} className="factrow">
               <div className="factspan">
-                <input key={`s${f.start ?? ''}`} type="number" defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
-                  onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.start) onFactPatch(f.id, { start_time: v }) }} />
+                <input key={`s${f.start ?? ''}:${factVer}`} type="number" step={1} defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
+                  onBlur={(e) => periodBlur(e, f, f.id, { hint: setFactHint, bump: () => setFactVer((v) => v + 1), send: (d) => onFactPatch(f.id, d) })} />
                 <span>–</span>
-                <input key={`e${f.end ?? ''}`} type="number" defaultValue={f.end ?? ''} placeholder="…" title="To"
-                  onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.end) onFactPatch(f.id, { end_time: v }) }} />
+                <input key={`e${f.end ?? ''}:${factVer}`} type="number" step={1} defaultValue={f.end ?? ''} placeholder="…" title="To"
+                  onBlur={(e) => periodBlur(e, f, f.id, { hint: setFactHint, bump: () => setFactVer((v) => v + 1), send: (d) => onFactPatch(f.id, d) })} />
                 <button className="lx" title="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
               </div>
+              {factHint === f.id && <div className="muted warn">{REVERSED}</div>}
               <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
                 onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
             </div>

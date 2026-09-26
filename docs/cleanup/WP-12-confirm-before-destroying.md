@@ -10,12 +10,12 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **P012** · medium · m · Many destructive one-click controls skip both the confirm and the undo system (outline, period text, era, backdrops, image, link, voice line, share link, Forge Unmake) — done 7ff296a (tombstones for facts, links, eras and timed backdrops; local undo for the base backdrop, node image and outlines; two-click share breaking; ambience ✕ asks; voice ✕ and Unmake done in WP-06; Disable timeline already asked)
-- [ ] **P013** · medium · s · Regenerate and Turn off kill every player's link in one click with no confirmation and no feedback — done 7ff296a (the button asks for 4 s, then acts, then the toast says what happened)
-- [ ] **P015** · medium · s · Small ✕ buttons delete a period's text or a link (with its label) at once, with no confirm and no undo — done 7ff296a
-- [ ] **P050** · low · s · '✕ Remove outline' and '◌ Redraw' throw away a traced outline with no confirm and no Undo — done 7ff296a (the old ring, kind and style come back from the toast)
-- [ ] **P055** · low · s · Removing a timed backdrop or the base backdrop happens instantly, with no confirmation and no undo — done 7ff296a
-- [ ] **P059** · low · s · Deleting an era is one click with no confirmation and no Undo — done 7ff296a
+- [x] **P012** · medium · m · Many destructive one-click controls skip both the confirm and the undo system (outline, period text, era, backdrops, image, link, voice line, share link, Forge Unmake) — done 7ff296a (tombstones for facts, links, eras and timed backdrops; local undo for the base backdrop, node image and outlines; two-click share breaking; ambience ✕ asks; voice ✕ and Unmake done in WP-06; Disable timeline already asked)
+- [x] **P013** · medium · s · Regenerate and Turn off kill every player's link in one click with no confirmation and no feedback — done 7ff296a (the button asks for 4 s, then acts, then the toast says what happened)
+- [x] **P015** · medium · s · Small ✕ buttons delete a period's text or a link (with its label) at once, with no confirm and no undo — done 7ff296a
+- [x] **P050** · low · s · '✕ Remove outline' and '◌ Redraw' throw away a traced outline with no confirm and no Undo — done 7ff296a (the old ring, kind and style come back from the toast)
+- [x] **P055** · low · s · Removing a timed backdrop or the base backdrop happens instantly, with no confirmation and no undo — done 7ff296a
+- [x] **P059** · low · s · Deleting an era is one click with no confirmation and no Undo — done 7ff296a
 
 ## Items
 

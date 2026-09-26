@@ -5,42 +5,26 @@ const API_BASE = '/api/image-folders'
 const imageFolderService = {
   // Get all folders for a world
   async getFolders(worldId) {
-    try {
-      const response = await http.get(`${API_BASE}/?world_id=${worldId}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to fetch folders' }
-    }
+    const response = await http.get(`${API_BASE}/?world_id=${worldId}`)
+    return response.data
   },
 
   // Create a new folder
   async createFolder(folderData) {
-    try {
-      const response = await http.post(`${API_BASE}/`, folderData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to create folder' }
-    }
+    const response = await http.post(`${API_BASE}/`, folderData)
+    return response.data
   },
 
   // Update a folder
   async updateFolder(folderId, updateData) {
-    try {
-      const response = await http.put(`${API_BASE}/${folderId}`, updateData)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to update folder' }
-    }
+    const response = await http.put(`${API_BASE}/${folderId}`, updateData)
+    return response.data
   },
 
   // Delete a folder
   async deleteFolder(folderId) {
-    try {
-      const response = await http.delete(`${API_BASE}/${folderId}`)
-      return response.data
-    } catch (error) {
-      throw error.response?.data || { message: 'Failed to delete folder' }
-    }
+    const response = await http.delete(`${API_BASE}/${folderId}`)
+    return response.data
   },
 
   // Helper function to build folder tree structure
