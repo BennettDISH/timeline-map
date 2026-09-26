@@ -408,7 +408,7 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
       const to = typeof l.to === 'number' ? l.to : nodeIds.get(l.to);
       if (from === to) continue;
       const r = await client.query(
-        `INSERT INTO links (world_id, from_node_id, to_node_id, kind, label) VALUES ($1,$2,$3,'reference',$4) RETURNING id`,
+        `INSERT INTO links (world_id, from_node_id, to_node_id, label) VALUES ($1,$2,$3,$4) RETURNING id`,
         [worldId, from, to, l.label]);
       created.links.push(r.rows[0].id);
     }
@@ -629,10 +629,10 @@ async function discardBatch({ worldId, batchId }) {
         if (u.op === 'move') {
           const r = u.shape === undefined
             ? await client.query(
-              'UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4 AND EXISTS (SELECT 1 FROM maps WHERE id=$1 AND is_active=true)',
+              'UPDATE placements SET map_id=$1, x=$2, y=$3 WHERE id=$4 AND EXISTS (SELECT 1 FROM maps WHERE id=$1)',
               [u.map_id, u.x, u.y, u.placement])
             : await client.query(
-              'UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5 AND EXISTS (SELECT 1 FROM maps WHERE id=$1 AND is_active=true)',
+              'UPDATE placements SET map_id=$1, x=$2, y=$3, shape=$4 WHERE id=$5 AND EXISTS (SELECT 1 FROM maps WHERE id=$1)',
               [u.map_id, u.x, u.y, u.shape ? JSON.stringify(u.shape) : null, u.placement]);
           if (!r.rowCount) skipped.push('a moved pin stays where it is — the map it came from is gone');
         } else if (u.op === 'edit') {

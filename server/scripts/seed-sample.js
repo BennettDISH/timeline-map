@@ -13,7 +13,7 @@ const pool = require('../config/database');
 const seed = require(path.join(__dirname, '..', 'test', 'sample-world.json'));
 
 async function main() {
-  const existing = (await pool.query('SELECT id FROM worlds WHERE is_template = true AND name = $1 AND is_active = true', [seed.world.name])).rows[0];
+  const existing = (await pool.query('SELECT id FROM worlds WHERE is_template = true AND name = $1', [seed.world.name])).rows[0];
   if (existing) { console.log(`template already present: world ${existing.id}`); return; }
   const owner = Number(process.env.SEED_OWNER_ID) || (await pool.query('SELECT id FROM users ORDER BY id LIMIT 1')).rows[0]?.id;
   if (!owner) throw new Error('no user to own the template — sign in once first, or set SEED_OWNER_ID');

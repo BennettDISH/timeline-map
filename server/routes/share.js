@@ -20,7 +20,7 @@ async function worldOf(token) {
   if (!token || token.length < 10) return null;
   const r = await pool.query(
     `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit, spotlight_node_id
-     FROM worlds WHERE share_token = $1 AND is_active = true`, [token]);
+     FROM worlds WHERE share_token = $1`, [token]);
   const w = r.rows[0] || null;
   if (w) w.pending = await pendingForge(w.id);
   return w;
@@ -146,7 +146,7 @@ async function walkUp(mapId, w, t, seen = new Set()) {
   if (!mapId || seen.has(mapId)) return null;
   seen.add(mapId);
   const m = (await pool.query(
-    'SELECT id, title, world_id, owner_node_id FROM maps WHERE id = $1 AND is_active = true', [mapId])).rows[0];
+    'SELECT id, title, world_id, owner_node_id FROM maps WHERE id = $1', [mapId])).rows[0];
   if (!m || m.world_id !== w.id) return null;
   if (w.pending && w.pending.maps.has(m.id)) return null; // built by a pending Forge batch: not yet
   const here = { mapId: m.id, title: m.title };
@@ -336,7 +336,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       `SELECT p.id, p.map_id, m.title, m.owner_node_id, p.start_time, p.end_time
        FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id
        WHERE n.world_id = $1 AND n.category = 'party' AND n.visibility != 'dm' AND p.visibility != 'dm'
-         AND m.is_active = true AND (${conds}) ORDER BY p.start_time NULLS FIRST, p.id`, args)).rows;
+         AND (${conds}) ORDER BY p.start_time NULLS FIRST, p.id`, args)).rows;
     const reachable = new Map();
     partyTrail = [];
     for (const r of rows) {
@@ -434,7 +434,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   }
 
   const linkSql = (dir) => `
-    SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
+    SELECT l.id, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
     FROM links l JOIN nodes n2 ON l.${dir === 'out' ? 'to' : 'from'}_node_id = n2.id
     WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm' AND NOT (l.id = ANY($2::int[]))
     ORDER BY l.id`;
@@ -444,7 +444,7 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   const known = await reachableIds([...new Set([...out, ...back].map((l) => l.other))], w, t);
   out = out.filter((l) => known.has(l.other));
   back = back.filter((l) => known.has(l.other));
-  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
+  const shape = (l, dir) => ({ id: l.id, dir, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
 
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category,

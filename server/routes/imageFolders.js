@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
 
     // Verify user owns the world
     const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
       [world_id, req.user.id]
     );
 
@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
 
     // Verify user owns the world
     const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
       [world_id, req.user.id]
     );
 

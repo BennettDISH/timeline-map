@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
     // cover_path: the root map's backdrop is the world's face; fall back to its newest image.
     const result = await pool.query(`
       SELECT w.*,
-             (SELECT COUNT(*) FROM maps m WHERE m.world_id = w.id AND m.is_active = true) as map_count,
+             (SELECT COUNT(*) FROM maps m WHERE m.world_id = w.id) as map_count,
              (SELECT COUNT(*) FROM images i WHERE i.world_id = w.id) as image_count,
              (SELECT COUNT(*) FROM nodes n WHERE n.world_id = w.id) as node_count,
              (SELECT ci.file_path FROM maps rm JOIN images ci ON ci.id = rm.image_id
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
              (SELECT li.file_path FROM images li WHERE li.world_id = w.id
                 ORDER BY li.created_at DESC LIMIT 1) as cover_fallback
       FROM worlds w
-      WHERE w.created_by = $1 AND w.is_active = true
+      WHERE w.created_by = $1
       -- "most recently charted" means the last edit ANYWHERE in the world: a node or a map
       -- touched tonight outranks a world merely renamed last week
       ORDER BY GREATEST(w.updated_at,
@@ -72,7 +72,7 @@ router.post('/', async (req, res) => {
 
     // Check if user already has a world with this name
     const existingWorld = await pool.query(
-      'SELECT id FROM worlds WHERE name = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id FROM worlds WHERE name = $1 AND created_by = $2',
       [name, req.user.id]
     );
 
@@ -113,7 +113,7 @@ router.delete('/:id', async (req, res) => {
 
     // Check if world exists and user owns it
     const worldCheck = await pool.query(
-      'SELECT id, name FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id, name FROM worlds WHERE id = $1 AND created_by = $2',
       [id, req.user.id]
     );
 

@@ -25,7 +25,7 @@ const wrap = (fn) => (req, res) =>
 
 // ---- ownership resolution (a caller may only touch their own worlds) ----
 async function ownsWorld(worldId, userId) {
-  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2 AND is_active=true', [worldId, userId]);
+  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2', [worldId, userId]);
   return r.rows.length > 0;
 }
 const worldIdOfMap = async (id) => (await pool.query('SELECT world_id FROM maps WHERE id=$1', [id])).rows[0]?.world_id;
@@ -101,8 +101,8 @@ const styleParam = (st) => (st ? JSON.stringify(st) : null);
 // one path while the other keeps it. Both paths insert from these lists.
 const NODE_COLS = ['id', 'world_id', 'title', 'body', 'category', 'interior_map_id', 'image_id', 'visibility', 'pin', 'pin_size', 'author',
   'created_by', 'created_at', 'updated_at', 'dm_note', 'stance', 'voice_id', 'voice_name', 'voice_line', 'voice_url', 'voice_style'];
-const MAP_COLS = ['id', 'title', 'description', 'world_id', 'image_id', 'parent_map_id', 'created_by', 'created_at', 'updated_at', 'is_active',
-  'zoom_level', 'map_order', 'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url'];
+const MAP_COLS = ['id', 'title', 'world_id', 'image_id', 'created_by', 'created_at', 'updated_at',
+  'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url'];
 const MIND_COLS = ['lore', 'art_style', 'style_image_id', 'gen_size', 'bible'];
 const without = (cols, ...drop) => cols.filter((c) => !drop.includes(c));
 // INSERT a row from a snapshot, copying every listed column the snapshot has, with overrides
@@ -206,7 +206,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
   if (c.bad) return bad(res, c.bad);
   Object.assign(req.body, c.vals);
   // one world-name rule on every path (create, rename, clone): no two of yours share a name
-  if ('name' in c.vals && (await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2 AND is_active=true AND id<>$3',
+  if ('name' in c.vals && (await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2 AND id<>$3',
     [c.vals.name, req.user.id, req.params.worldId])).rows.length)
     return res.status(409).json({ message: 'You already have a world with this name' });
   // Keep the timeline invariant (min < max, current within range) against partial updates.
@@ -251,7 +251,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
 
 // GET /templates — worlds any signed-in user may clone (the sample world).
 router.get('/templates', wrap(async (req, res) => {
-  const rows = await rowsOf('SELECT id, name, description FROM worlds WHERE is_template=true AND is_active=true ORDER BY id', []);
+  const rows = await rowsOf('SELECT id, name, description FROM worlds WHERE is_template=true ORDER BY id', []);
   res.json({ templates: rows });
 }));
 
@@ -263,14 +263,14 @@ router.get('/templates', wrap(async (req, res) => {
 router.post('/worlds/clone', wrap(async (req, res) => {
   const { source_id, name, description } = req.body;
   if (!isId(source_id)) return res.status(404).json({ message: 'World not found' });
-  const src = (await pool.query('SELECT * FROM worlds WHERE id=$1 AND is_active=true', [source_id])).rows[0];
+  const src = (await pool.query('SELECT * FROM worlds WHERE id=$1', [source_id])).rows[0];
   if (!src || (!src.is_template && src.created_by !== req.user.id)) return res.status(404).json({ message: 'World not found' });
   const cleanName = name == null ? String(src.name).slice(0, 255) : worldName(name);
   if (cleanName === undefined) return bad(res, 'A world needs a name of 1 to 255 characters');
-  if ((await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2 AND is_active=true', [cleanName, req.user.id])).rows.length)
+  if ((await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2', [cleanName, req.user.id])).rows.length)
     return res.status(409).json({ message: 'You already have a world with this name' });
   // storage-amplification backstop: cloning duplicates base64 art rows per clone
-  const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1 AND is_active=true', [req.user.id])).rows[0];
+  const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1', [req.user.id])).rows[0];
   if (parseInt(owned.count) >= 50) return res.status(400).json({ message: 'That is a lot of worlds — delete some first' });
 
   const client = await pool.connectTx();
@@ -313,15 +313,15 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       }
     } else if (im.base64_data) filePath = `/api/images-base64/serve/${fname}`;
     const r = (await client.query(
-      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key, folder_id, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, CURRENT_TIMESTAMP)) RETURNING id`,
-      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, im.tags, base64, storageKey,
+      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key, folder_id, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12, CURRENT_TIMESTAMP)) RETURNING id`,
+      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, base64, storageKey,
        im.folder_id ? (folderMap.get(im.folder_id) || null) : null, im.created_at || null])).rows[0];
     imgMap.set(im.id, r.id);
   }
-  const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 AND is_active=true ORDER BY id', [src.id]);
+  const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const m of maps) {
-    const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'parent_map_id', 'owner_node_id'), m,
+    const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'owner_node_id'), m,
       { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null });
     mapMap.set(m.id, r.id);
   }
@@ -345,8 +345,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1 ORDER BY id', [src.id])) {
     if (!nodeMap.has(l.from_node_id) || !nodeMap.has(l.to_node_id)) continue;
-    await client.query('INSERT INTO links (world_id, from_node_id, to_node_id, kind, label, time_context) VALUES ($1,$2,$3,$4,$5,$6)',
-      [w.id, nodeMap.get(l.from_node_id), nodeMap.get(l.to_node_id), l.kind, l.label, l.time_context]);
+    await client.query('INSERT INTO links (world_id, from_node_id, to_node_id, label) VALUES ($1,$2,$3,$4)',
+      [w.id, nodeMap.get(l.from_node_id), nodeMap.get(l.to_node_id), l.label]);
   }
   for (const e of await rowsOfC('SELECT * FROM eras WHERE world_id=$1 ORDER BY id', [src.id])) {
     await client.query('INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5)',
@@ -390,10 +390,10 @@ router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
     SELECT m.id, m.title, m.owner_node_id, i.file_path AS backdrop_path,
-      (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id AND p.map_id <> m.id ORDER BY p.id LIMIT 1) AS parent_map_id
+      (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id AND p.map_id <> m.id ORDER BY p.id LIMIT 1) AS owner_map_id
     FROM maps m LEFT JOIN images i ON m.image_id=i.id
-    WHERE m.world_id=$1 AND m.is_active=true ORDER BY m.id`, [req.params.worldId])).rows;
-  res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.parent_map_id, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
+    WHERE m.world_id=$1 ORDER BY m.id`, [req.params.worldId])).rows;
+  res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.owner_map_id, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
 }));
 
 // GET /worlds/:worldId/trail — every footstep of party-category nodes across the world:
@@ -403,7 +403,7 @@ router.get('/worlds/:worldId/trail', wrap(async (req, res) => {
   const rows = (await pool.query(`
     SELECT p.id, p.node_id, p.map_id, m.title AS map_title, m.owner_node_id, p.start_time, p.end_time
     FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id
-    WHERE n.world_id = $1 AND n.category = 'party' AND m.is_active = true
+    WHERE n.world_id = $1 AND n.category = 'party'
     ORDER BY p.start_time NULLS FIRST, (m.owner_node_id IS NULL) DESC, p.id`, [req.params.worldId])).rows;
   res.json({ steps: rows.map((r) => ({
     id: r.id, nodeId: r.node_id, mapId: r.map_id, mapTitle: r.map_title, interior: !!r.owner_node_id,
@@ -575,9 +575,9 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const n = (await pool.query('SELECT n.*, i.file_path AS img FROM nodes n LEFT JOIN images i ON n.image_id=i.id WHERE n.id=$1', [req.params.id])).rows[0];
-  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
-  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
-  const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
+  const out = (await pool.query('SELECT l.id, l.label, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
+  const back = (await pool.query('SELECT l.id, l.label, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
+  const shape = (l, dir) => ({ id: l.id, dir, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
   const facts = (await pool.query(
     'SELECT id, body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time NULLS FIRST, id',
     [req.params.id])).rows.map((f) => ({ id: f.id, body: f.body, start: f.start_time, end: f.end_time }));
@@ -867,8 +867,8 @@ router.post('/undo/:id', wrap(async (req, res) => {
       for (const l of p.links || []) {
         if (!(await exists('nodes', l.from_node_id)) || !(await exists('nodes', l.to_node_id))) continue;
         await client.query(
-          'INSERT INTO links (id, world_id, from_node_id, to_node_id, kind, label, time_context, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-          [l.id, l.world_id, l.from_node_id, l.to_node_id, l.kind, l.label, l.time_context, l.created_at]);
+          'INSERT INTO links (id, world_id, from_node_id, to_node_id, label, created_at) VALUES ($1,$2,$3,$4,$5,$6)',
+          [l.id, l.world_id, l.from_node_id, l.to_node_id, l.label, l.created_at]);
       }
       for (const f of p.facts || []) {
         await client.query(
@@ -895,8 +895,8 @@ router.post('/undo/:id', wrap(async (req, res) => {
       const l = p.link;
       if (!(await exists('nodes', l.from_node_id)) || !(await exists('nodes', l.to_node_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'One end of the link is gone' }); }
       await client.query(
-        'INSERT INTO links (id, world_id, from_node_id, to_node_id, kind, label, time_context, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING',
-        [l.id, l.world_id, l.from_node_id, l.to_node_id, l.kind, l.label, l.time_context, l.created_at]);
+        'INSERT INTO links (id, world_id, from_node_id, to_node_id, label, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
+        [l.id, l.world_id, l.from_node_id, l.to_node_id, l.label, l.created_at]);
     } else if (t.kind === 'era') {
       const e = p.era;
       await client.query(
@@ -1013,9 +1013,7 @@ router.post('/links', wrap(async (req, res) => {
   const { from_node_id, to_node_id } = req.body;
   if (!isId(from_node_id) || !isId(to_node_id)) return bad(res, 'A link joins two nodes of the same world');
   if (String(from_node_id) === String(to_node_id)) return bad(res, 'A link joins two different nodes');
-  const kind = req.body.kind == null ? 'reference' : text(req.body.kind, 20, { required: true });
   const label = text(req.body.label, 255);
-  if (kind === undefined) return bad(res, 'A link kind is a word of 1 to 20 characters');
   if (label === undefined) return bad(res, 'A link label is text of up to 255 characters');
   const wid = await worldIdOfNode(from_node_id);
   if (!wid || wid !== (await worldIdOfNode(to_node_id)) || !(await ownsWorld(wid, req.user.id)))
@@ -1024,8 +1022,8 @@ router.post('/links', wrap(async (req, res) => {
   if ((await pool.query('SELECT 1 FROM links WHERE (from_node_id=$1 AND to_node_id=$2) OR (from_node_id=$2 AND to_node_id=$1)', [from_node_id, to_node_id])).rows.length)
     return res.status(409).json({ message: 'Those two are already threaded' });
   const l = (await pool.query(
-    'INSERT INTO links (world_id, from_node_id, to_node_id, kind, label) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [wid, Number(from_node_id), Number(to_node_id), kind, label || null])).rows[0];
+    'INSERT INTO links (world_id, from_node_id, to_node_id, label) VALUES ($1,$2,$3,$4) RETURNING id',
+    [wid, Number(from_node_id), Number(to_node_id), label || null])).rows[0];
   res.status(201).json({ id: l.id });
 }));
 router.patch('/links/:id', wrap(async (req, res) => {
@@ -1033,7 +1031,6 @@ router.patch('/links/:id', wrap(async (req, res) => {
   if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'That link no longer exists' });
   const c = cleanBody(req.body, {
     label: [(v) => { const t = text(v, 255); return t === undefined ? undefined : (t || null); }, 'A link label is text of up to 255 characters'],
-    kind: [(v) => text(v, 20, { required: true }), 'A link kind is a word of 1 to 20 characters'],
   });
   if (c.bad) return bad(res, c.bad);
   await updateCols('links', req.params.id, c.vals);

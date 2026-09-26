@@ -37,8 +37,6 @@ CREATE TABLE IF NOT EXISTS worlds (
     created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT true,
-    settings JSONB DEFAULT '{}',
     timeline_enabled BOOLEAN DEFAULT true,
     timeline_min_time INTEGER DEFAULT 0,
     timeline_max_time INTEGER DEFAULT 100,
@@ -54,8 +52,6 @@ CREATE TABLE IF NOT EXISTS image_folders (
     world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
     created_by INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    color VARCHAR(7) DEFAULT '#4CAF50',
-    icon VARCHAR(10) DEFAULT '📁',
     UNIQUE(name, world_id, parent_id)
 );
 
@@ -71,7 +67,6 @@ CREATE TABLE IF NOT EXISTS images (
     uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     alt_text TEXT,
-    tags TEXT[],
     base64_data TEXT,
     folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL
 );
@@ -83,16 +78,11 @@ ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500);
 CREATE TABLE IF NOT EXISTS maps (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    description TEXT,
     world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE,
     image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
-    parent_map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT true,
-    zoom_level INTEGER DEFAULT 1,
-    map_order INTEGER DEFAULT 0
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes for better performance
@@ -104,7 +94,6 @@ CREATE INDEX IF NOT EXISTS idx_images_world ON images(world_id);
 CREATE INDEX IF NOT EXISTS idx_images_uploaded_by ON images(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
 CREATE INDEX IF NOT EXISTS idx_maps_world ON maps(world_id);
-CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
 
 -- ============================================================================
 -- REDESIGN MODEL ("Atlas"): one world = a graph of typed nodes, seen through
@@ -151,9 +140,7 @@ CREATE TABLE IF NOT EXISTS links (
     world_id INTEGER REFERENCES worlds(id) ON DELETE CASCADE NOT NULL,
     from_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
     to_node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE NOT NULL,
-    kind VARCHAR(20) NOT NULL DEFAULT 'reference',
     label VARCHAR(255),
-    time_context INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -345,3 +332,13 @@ CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);
 CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_node_id);
 CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_node_id);
 CREATE INDEX IF NOT EXISTS idx_maps_owner ON maps(owner_node_id);
+
+-- Retired columns (nothing reads or writes them; production held only defaults). Worlds and
+-- maps are hard-deleted, so is_active was never false. Dropped where a database still has them.
+DROP INDEX IF EXISTS idx_maps_parent;
+ALTER TABLE worlds DROP COLUMN IF EXISTS is_active, DROP COLUMN IF EXISTS settings;
+ALTER TABLE maps DROP COLUMN IF EXISTS is_active, DROP COLUMN IF EXISTS description, DROP COLUMN IF EXISTS parent_map_id,
+  DROP COLUMN IF EXISTS zoom_level, DROP COLUMN IF EXISTS map_order;
+ALTER TABLE links DROP COLUMN IF EXISTS kind, DROP COLUMN IF EXISTS time_context;
+ALTER TABLE images DROP COLUMN IF EXISTS tags;
+ALTER TABLE image_folders DROP COLUMN IF EXISTS color, DROP COLUMN IF EXISTS icon;

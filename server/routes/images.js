@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
 
     // Verify user owns the world
     const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
       [world_id, req.user.id]
     );
 
@@ -73,8 +73,8 @@ router.get('/', async (req, res) => {
     // map_uses/node_uses: where this image is placed in the world (backdrop / node art),
     // so the UI can say "in use" before anyone deletes it.
     const query = `
-      SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.tags, i.folder_id, i.created_at,
-             (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id AND m.is_active = true) as map_uses,
+      SELECT i.id, i.filename, i.original_name, i.file_path, i.file_size, i.mime_type, i.alt_text, i.folder_id, i.created_at,
+             (SELECT COUNT(*) FROM maps m WHERE m.image_id = i.id) as map_uses,
              (SELECT COUNT(*) FROM nodes n WHERE n.image_id = i.id) as node_uses,
              (SELECT COUNT(*) FROM map_backdrops b WHERE b.image_id = i.id) as backdrop_uses,
              (SELECT COUNT(*) FROM world_minds wm WHERE wm.style_image_id = i.id) as anchor_uses
@@ -93,7 +93,6 @@ router.get('/', async (req, res) => {
       fileSize: row.file_size,
       mimeType: row.mime_type,
       altText: row.alt_text,
-      tags: row.tags,
       folderId: row.folder_id,
       uploadedAt: row.created_at,
       usage: { maps: parseInt(row.map_uses), nodes: parseInt(row.node_uses),
@@ -118,7 +117,7 @@ async function ownedIds(req) {
   if (!raw || !raw.length || raw.length > 500 || !raw.every(isId)) return null;
   const ids = [...new Set(raw.map(Number))];
   const r = await pool.query(
-    'SELECT i.id FROM images i JOIN worlds w ON w.id = i.world_id WHERE i.id = ANY($1::int[]) AND w.created_by = $2 AND w.is_active = true', [ids, req.user.id]);
+    'SELECT i.id FROM images i JOIN worlds w ON w.id = i.world_id WHERE i.id = ANY($1::int[]) AND w.created_by = $2', [ids, req.user.id]);
   return r.rows.length === ids.length ? ids : null;
 }
 // PUT /api/images/bulk - file many images under one folder (null = Unsorted) in one request
@@ -175,7 +174,7 @@ router.put('/:id', async (req, res) => {
     }
     
     // Get image info first to check ownership
-    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, tags, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
+    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
     
     if (imageResult.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
@@ -202,7 +201,7 @@ router.put('/:id', async (req, res) => {
     const updateResult = await pool.query(`
       UPDATE images SET ${sets.map((c, i) => `${c} = $${i + 1}`).join(', ')}
       WHERE id = $${sets.length + 1}
-      RETURNING id, filename, original_name, file_path, file_size, mime_type, alt_text, tags, folder_id, created_at
+      RETURNING id, filename, original_name, file_path, file_size, mime_type, alt_text, folder_id, created_at
     `, [...vals, id]);
 
     const updatedImage = updateResult.rows[0];
@@ -217,7 +216,6 @@ router.put('/:id', async (req, res) => {
         fileSize: updatedImage.file_size,
         mimeType: updatedImage.mime_type,
         altText: updatedImage.alt_text,
-        tags: updatedImage.tags,
         folderId: updatedImage.folder_id,
         uploadedAt: updatedImage.created_at,
         url: resolveImageUrl(req, updatedImage.file_path)
@@ -236,7 +234,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Get image info first
-    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, tags, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
+    const imageResult = await pool.query('SELECT id, uploaded_by, world_id, alt_text, folder_id, storage_key, file_path, filename FROM images WHERE id = $1', [id]); // metadata only — never the bytes
     
     if (imageResult.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });

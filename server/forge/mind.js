@@ -97,7 +97,7 @@ async function digest(worldId, context = {}) {
   const w = (await pool.query('SELECT * FROM worlds WHERE id=$1', [worldId])).rows[0];
   const mapId = Number.isInteger(context?.mapId) ? context.mapId : null;
   const eras = (await pool.query('SELECT id, name, start_time, end_time FROM eras WHERE world_id=$1 ORDER BY start_time', [worldId])).rows;
-  const maps = (await pool.query('SELECT id, title, owner_node_id, view FROM maps WHERE world_id=$1 AND is_active=true ORDER BY id', [worldId])).rows;
+  const maps = (await pool.query('SELECT id, title, owner_node_id, view FROM maps WHERE world_id=$1 ORDER BY id', [worldId])).rows;
   const nodes = (await pool.query(
     `SELECT n.id, n.title, n.category, n.visibility, n.author, n.interior_map_id, LEFT(COALESCE(n.body,''), 160) AS body,
             LEFT(COALESCE(n.dm_note,''), 160) AS secret,
@@ -110,18 +110,18 @@ async function digest(worldId, context = {}) {
   const placements = (await pool.query(
     `SELECT p.node_id AS n, p.map_id AS m, p.x, p.y, p.start_time AS s, p.end_time AS e, p.visibility AS v
      FROM placements p JOIN maps mp ON p.map_id=mp.id JOIN nodes n ON n.id=p.node_id
-     WHERE mp.world_id=$1 AND mp.is_active=true AND n.category <> 'party'
+     WHERE mp.world_id=$1 AND n.category <> 'party'
      ORDER BY (p.map_id = $2::int) DESC NULLS LAST, p.id DESC LIMIT 600`, [worldId, mapId])).rows;
   const placementCount = Number((await pool.query(
     `SELECT COUNT(*) FROM placements p JOIN maps mp ON p.map_id=mp.id JOIN nodes n ON n.id=p.node_id
-     WHERE mp.world_id=$1 AND mp.is_active=true AND n.category <> 'party'`, [worldId])).rows[0].count);
+     WHERE mp.world_id=$1 AND n.category <> 'party'`, [worldId])).rows[0].count);
   // the Party: where they stand at canon, and how many footsteps they have taken
   let party = null;
   const pn = (await pool.query(`SELECT id, title FROM nodes WHERE world_id=$1 AND category='party' ORDER BY id LIMIT 1`, [worldId])).rows[0];
   if (pn) {
     const steps = (await pool.query(
       `SELECT p.map_id AS m, p.x, p.y, p.start_time AS s, p.end_time AS e FROM placements p JOIN maps mp ON mp.id=p.map_id
-       WHERE p.node_id=$1 AND mp.is_active=true ORDER BY p.start_time DESC NULLS LAST, p.id DESC`, [pn.id])).rows;
+       WHERE p.node_id=$1 ORDER BY p.start_time DESC NULLS LAST, p.id DESC`, [pn.id])).rows;
     const canon = w.timeline_current_time;
     const live = steps.find((p) => canon == null || ((p.s == null || p.s <= canon) && (p.e == null || p.e >= canon))) || steps[0] || null;
     party = { id: pn.id, title: pn.title, footsteps: steps.length,

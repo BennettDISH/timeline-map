@@ -11,7 +11,7 @@ const router = express.Router();
 // (the fallback the /serve route below reads back).
 const upload = async (req, res) => {
   try {
-    const { imageData, world_id, alt_text, tags, folder_id } = req.body;
+    const { imageData, world_id, alt_text, folder_id } = req.body;
     // a name is a string of 1 to 255 characters (a pasted file arrives as 'image.png')
     const originalName = typeof req.body.originalName === 'string' ? req.body.originalName.trim().slice(0, 255) : '';
 
@@ -21,7 +21,7 @@ const upload = async (req, res) => {
 
     // Verify user owns the world
     const worldCheck = await pool.query(
-      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2 AND is_active = true',
+      'SELECT id FROM worlds WHERE id = $1 AND created_by = $2',
       [world_id, req.user.id]
     );
 
@@ -77,8 +77,8 @@ const upload = async (req, res) => {
     let result;
     try {
       result = await pool.query(`
-        INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key, folder_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key, folder_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
       `, [
         filename,
@@ -89,7 +89,6 @@ const upload = async (req, res) => {
         world_id,
         req.user.id,
         typeof alt_text === 'string' && alt_text.trim() ? alt_text.trim().slice(0, 2000) : null,
-        typeof tags === 'string' && tags.trim() ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : null,
         base64ToStore,
         storageKey,
         folderId,
@@ -113,7 +112,6 @@ const upload = async (req, res) => {
         fileSize: imageRecord.file_size,
         mimeType: imageRecord.mime_type,
         altText: imageRecord.alt_text,
-        tags: imageRecord.tags,
         uploadedAt: imageRecord.created_at,
         url: imageUrl
       }

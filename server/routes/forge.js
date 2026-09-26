@@ -31,7 +31,7 @@ router.param('worldId', idParam);
 router.param('id', idParam);
 
 async function ownsWorld(worldId, userId) {
-  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2 AND is_active=true', [worldId, userId]);
+  const r = await pool.query('SELECT id FROM worlds WHERE id=$1 AND created_by=$2', [worldId, userId]);
   return r.rows.length > 0;
 }
 
