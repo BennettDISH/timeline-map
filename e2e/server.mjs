@@ -40,6 +40,9 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   step('marker probes need dm.config.json (shareToken, token, root)', false, 'skipped');
 }
 
+// a JSON body of `null` is the caller's mistake: a 400 before the route, never a 500 (sign-out sends {})
+const nullBody = await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'null' });
+step('a malformed JSON body is answered with a 4xx, not a 500', nullBody.status >= 400 && nullBody.status < 500, String(nullBody.status));
 const health = await fetch(`${BASE}/health`);
 step('the server answers /health', health.status === 200, String(health.status));
 const failed = steps.filter((s) => !s).length;

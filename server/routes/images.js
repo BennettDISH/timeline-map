@@ -5,6 +5,11 @@ const { r2Enabled, deleteObject } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 
+// An image belongs to whoever uploaded it or owns the world it lives in — the same
+// world-owner rule as every other route; nobody reaches across tenants
+const canTouch = async (image, userId) => image.uploaded_by === userId
+  || (await pool.query('SELECT 1 FROM images i JOIN worlds w ON w.id = i.world_id WHERE i.id = $1 AND w.created_by = $2', [image.id, userId])).rows.length > 0;
+
 // All image routes require authentication
 router.use(authenticateToken);
 
@@ -165,8 +170,7 @@ router.put('/:id', async (req, res) => {
 
     const image = imageResult.rows[0];
     
-    // Check if user owns the image or is admin
-    if (image.uploaded_by !== req.user.id && req.user.role !== 'admin') {
+    if (!(await canTouch(image, req.user.id))) {
       return res.status(403).json({ message: 'Not authorized to update this image' });
     }
 
@@ -234,8 +238,7 @@ router.delete('/:id', async (req, res) => {
 
     const image = imageResult.rows[0];
     
-    // Check if user owns the image or is admin
-    if (image.uploaded_by !== req.user.id && req.user.role !== 'admin') {
+    if (!(await canTouch(image, req.user.id))) {
       return res.status(403).json({ message: 'Not authorized to delete this image' });
     }
 

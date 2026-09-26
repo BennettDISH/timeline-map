@@ -5,24 +5,32 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
-import Setup from './pages/Setup'
 import AuthCallback from './pages/AuthCallback'
-import EnvSetup from './pages/EnvSetup'
 import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
 import PlayerView, { DeadLink } from './pages/PlayerView'
 import NotFound from './pages/NotFound'
 import worldService from './services/worldService'
 
-// Protected Route component
+// Protected Route component — a bounce to /login REPLACES the entry (Back never traps you on
+// the login page) and carries where you were going, so sign-in returns you there
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth()
-  
+  const { isAuthenticated, loading, offline, retry } = useAuth()
+  const location = useLocation()
+
   if (loading) {
     return <div className="loading">Loading...</div>
   }
-  
-  return isAuthenticated ? children : <Navigate to="/login" />
+  if (!isAuthenticated && offline) {
+    // the token was kept; the server just could not be reached to check it
+    return (
+      <div className="loading">
+        <div>Can't reach the server to check your session.</div>
+        <button type="button" style={{ marginTop: 12 }} onClick={retry}>Try again</button>
+      </div>
+    )
+  }
+  return isAuthenticated ? children : <Navigate to="/login" replace state={{ from: location }} />
 }
 
 // Public Route component (redirect to dashboard if logged in)
@@ -33,7 +41,7 @@ const PublicRoute = ({ children }) => {
     return <div className="loading">Loading...</div>
   }
   
-  return !isAuthenticated ? children : <Navigate to="/" />
+  return !isAuthenticated ? children : <Navigate to="/" replace />
 }
 
 // "/" resumes where you left off — the last map you had open — else the dashboard.
@@ -53,14 +61,6 @@ function AppRoutes() {
   return (
     <div className="app">
       <Routes>
-        <Route 
-          path="/setup" 
-          element={<Setup />} 
-        />
-        <Route 
-          path="/env-setup" 
-          element={<EnvSetup />} 
-        />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           path="/login"

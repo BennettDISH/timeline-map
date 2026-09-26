@@ -8,6 +8,14 @@ import axios from 'axios'
 // stuck on Saving… forever. Long calls (Forge, voice) pass their own timeouts per request.
 const http = axios.create({ headers: { 'Content-Type': 'application/json' }, timeout: 20000 })
 
+// Forget this browser's session AND its per-account pointers (the last map, the current
+// world): the next account on this browser must never land in someone else's world.
+export const clearLocalSession = () => {
+  for (const k of ['auth_token', 'user', 'atlas_last_location', 'current_world', 'current_world_id']) {
+    try { localStorage.removeItem(k) } catch (e) { /* ignore */ }
+  }
+}
+
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -40,9 +48,8 @@ http.interceptors.response.use(
       // let the workspace stash unsaved edits first (synchronous listeners), then say why
       try { window.dispatchEvent(new CustomEvent('atlas:auth-expired')) } catch (e) { /* ignore */ }
       try { sessionStorage.setItem('atlas_session_ended', '1') } catch (e) { /* ignore */ }
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+      clearLocalSession()
+      window.location.href = `/login?reason=expired&next=${encodeURIComponent(window.location.pathname)}`
     }
     return Promise.reject(error)
   }

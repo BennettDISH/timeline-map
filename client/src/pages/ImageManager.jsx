@@ -510,7 +510,9 @@ function Modal({ title, onClose, children }) {
     return () => document.removeEventListener('keydown', esc)
   }, [onClose])
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-back"
+      onPointerDown={(e) => { e.currentTarget.dataset.down = e.target === e.currentTarget ? '1' : '' }}
+      onClick={(e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.down === '1') onClose() }}>
       <div className="smodal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
           <h3>{title}</h3>

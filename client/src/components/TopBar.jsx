@@ -16,14 +16,22 @@ export function Compass({ size = 22, className = '' }) {
   )
 }
 
-// Shared chrome for the study pages (Dashboard, Archive) — wordmark home-link,
-// an optional crumb for where you are, and the account menu.
+let accountUrlCache // fetched once per page load
+// Shared chrome for the study pages (Dashboard, Archive, Admin) — wordmark home-link,
+// an optional crumb for where you are, and the account menu (nothing for nobody).
 function TopBar({ crumb }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [accountUrl, setAccountUrl] = useState(accountUrlCache || null)
   const ref = useRef(null)
 
+  useEffect(() => {
+    if (accountUrlCache !== undefined) return
+    fetch('/api/auth/config').then((r) => r.json())
+      .then((d) => { accountUrlCache = d.accountUrl || null; setAccountUrl(accountUrlCache) })
+      .catch(() => { accountUrlCache = null })
+  }, [])
   useEffect(() => {
     if (!open) return
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -33,7 +41,13 @@ function TopBar({ crumb }) {
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc) }
   }, [open])
 
-  const signOut = async () => { await logout(); navigate('/login') }
+  const signOut = async () => {
+    // a guest's only credential is this browser's session: signing out ends the account
+    if (user?.isGuest && !window.confirm('You are a guest. Signing out ends this guest account — its worlds cannot be recovered. Sign out anyway?')) return
+    setOpen(false)
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="shellbar">
@@ -45,13 +59,15 @@ function TopBar({ crumb }) {
       <div className="spacer" />
       {user ? (
         <div className="usermenu" ref={ref}>
-          <button className="userbtn" onClick={() => setOpen((v) => !v)}>
-            {user.username || 'Account'} <span className="chev">▾</span>
+          <button className="userbtn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {user.isGuest ? 'Guest' : (user.username || 'Account')} <span className="chev">▾</span>
           </button>
           {open && (
-            <div className="menupop">
-              {user.role === 'admin' && <Link to="/admin" onClick={() => setOpen(false)}>Admin panel</Link>}
-              <button onClick={signOut}>Sign out</button>
+            <div className="menupop" role="menu">
+              {user.isGuest && <div className="menunote" role="presentation" style={{ padding: '6px 10px', fontSize: 12, opacity: .8 }}>{user.username} — a guest in this browser</div>}
+              {accountUrl && !user.isGuest && <a role="menuitem" href={accountUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>Account settings ↗</a>}
+              {user.isAdmin && <Link role="menuitem" to="/admin" onClick={() => setOpen(false)}>Admin panel</Link>}
+              <button role="menuitem" onClick={signOut}>Sign out</button>
             </div>
           )}
         </div>

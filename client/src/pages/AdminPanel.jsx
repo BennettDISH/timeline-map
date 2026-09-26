@@ -1,107 +1,97 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
-import axios from 'axios'
+import http from '../services/http'
+import TopBar, { Compass } from '../components/TopBar'
+import '../styles/shell.scss'
 
-const createAuthAPI = () => {
-  const token = localStorage.getItem('auth_token')
-  return axios.create({
-    baseURL: '/api/admin',
-    headers: { 'Authorization': `Bearer ${token}` }
-  })
-}
-
+// The admin's status page — database health and the account list. Admin is a Waypoint
+// identity (ADMIN_CENTRAL_USER_IDS on the server); the server enforces it, this only hides.
 function AdminPanel() {
   const { user } = useAuth()
   const [dbStatus, setDbStatus] = useState(null)
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState(null)
+  const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (user?.role === 'admin') {
-      loadAdminData()
-    }
-  }, [user])
-
-  const loadAdminData = async () => {
-    try {
-      setLoading(true)
-      const api = createAuthAPI()
-      const [statusRes, usersRes] = await Promise.all([
-        api.get('/db-status'),
-        api.get('/users')
-      ])
-      setDbStatus(statusRes.data)
-      setUsers(usersRes.data.users || [])
-    } catch (error) {
-      console.error('Failed to load admin data:', error)
-    } finally {
-      setLoading(false)
-    }
+  const load = () => {
+    setLoading(true); setError(null)
+    Promise.all([http.get('/api/admin/db-status'), http.get('/api/admin/users')])
+      .then(([statusRes, usersRes]) => { setDbStatus(statusRes.data); setUsers(usersRes.data.users || []) })
+      .catch((e) => setError(e?.response?.data?.message || e.message || "Couldn't load the admin data"))
+      .finally(() => setLoading(false))
   }
+  useEffect(() => { if (user?.isAdmin) load() }, [user]) // eslint-disable-line
 
-  if (!user || user.role !== 'admin') {
+  if (!user?.isAdmin) {
     return (
-      <div className="admin-panel">
-        <div className="access-denied">
-          <h2>Access Denied</h2>
-          <p>You need admin privileges to access this panel.</p>
+      <div className="shell">
+        <TopBar crumb="Admin" />
+        <div className="voidstate">
+          <Compass size={92} className="void-rose" />
+          <h2>This door is for the admin</h2>
+          <p>Nothing here is yours to change. Your worlds are where you left them.</p>
+          <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="admin-panel">
-      <div className="admin-container">
-        <h1>Admin Panel</h1>
-        <p>Welcome, {user.username}!</p>
-
-        <div className="admin-section">
-          <h2>Database Status</h2>
-          {loading ? (
-            <p>Loading...</p>
-          ) : dbStatus ? (
-            <div className="env-status">
-              <p><strong>Status:</strong> {dbStatus.message}</p>
-              <p><strong>Tables:</strong> {dbStatus.details?.tablesFound?.join(', ')}</p>
-              {dbStatus.details?.missingTables?.length > 0 && (
-                <p><strong>Missing:</strong> {dbStatus.details.missingTables.join(', ')}</p>
-              )}
-              <p><strong>Users:</strong> {dbStatus.details?.userCount}</p>
+    <div className="shell">
+      <TopBar crumb="Admin" />
+      <main className="dashmain admin-panel">
+        <div className="admin-container">
+          <h1>Admin panel</h1>
+          {error && (
+            <div className="voidstate" role="alert">
+              <h2>Couldn't load the admin data</h2>
+              <p>{error}</p>
+              <button className="sbtn primary" onClick={load}>Try again</button>
             </div>
-          ) : (
-            <p>Failed to load database status.</p>
+          )}
+          {!error && (
+            <>
+              <div className="admin-section">
+                <h2>Database</h2>
+                {loading ? <p>Loading…</p> : dbStatus ? (
+                  <div className="env-status">
+                    <p><strong>Status:</strong> {dbStatus.message}</p>
+                    <p><strong>Tables:</strong> {dbStatus.details?.tablesFound?.join(', ')}</p>
+                    {dbStatus.details?.missingTables?.length > 0 && (
+                      <p><strong>Missing:</strong> {dbStatus.details.missingTables.join(', ')}</p>
+                    )}
+                    <p><strong>Accounts:</strong> {dbStatus.details?.userCount}</p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="admin-section">
+                <h2>Accounts</h2>
+                {loading ? <p>Loading…</p> : users && users.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Username</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Email</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.id}>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.username}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.email || '—'}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : <p>No accounts yet.</p>}
+              </div>
+            </>
           )}
         </div>
-
-        <div className="admin-section">
-          <h2>Users</h2>
-          {users.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Username</th>
-                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Email</th>
-                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Role</th>
-                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee' }}>Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.username}</td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.email}</td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{u.role}</td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p>No users found.</p>
-          )}
-        </div>
-      </div>
+      </main>
     </div>
   )
 }

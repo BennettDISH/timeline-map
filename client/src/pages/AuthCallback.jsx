@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
 
 function AuthCallback() {
@@ -25,8 +25,11 @@ function AuthCallback() {
 
     sessionStorage.removeItem('sso_state')
 
+    // back to where the person was going before the sign-in bounce, if anywhere
+    let next = '/'
+    try { next = sessionStorage.getItem('sso_next') || '/'; sessionStorage.removeItem('sso_next') } catch (e) { /* ignore */ }
     ssoLogin(code, `${window.location.origin}/auth/callback`)
-      .then(() => navigate('/', { replace: true }))
+      .then(() => navigate(next.startsWith('/') ? next : '/', { replace: true }))
       .catch(err => setError(err.message || 'SSO login failed'))
   }, [])
 
@@ -35,8 +38,8 @@ function AuthCallback() {
       <div className="login-page">
         <div className="login-container">
           <h1>Login Failed</h1>
-          <div className="error-message">{error}</div>
-          <a href="/login">Back to login</a>
+          <div className="error-message" role="alert">{error}</div>
+          <Link to="/login">Back to login</Link>
         </div>
       </div>
     )

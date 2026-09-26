@@ -15,6 +15,7 @@ ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(255);
 
 -- SSO integration: link to central auth service
 ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Central accounts may have no email (the auth-service made it optional), so the local
 -- mirror must accept NULL. The UNIQUE index stays: Postgres allows multiple NULLs, so any

@@ -38,9 +38,22 @@ was deleted in August 2026. **Atlas is the only map UI.** The vision and roadmap
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
 - Supporting pages: `Dashboard` (world select → Atlas), `ImageManager`, `AdminPanel`, `Login`,
-  `AuthCallback`, `Setup`, `EnvSetup`
+  `AuthCallback` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
+  ensured on boot and admin is a Waypoint identity)
 - Authentication context in `client/src/utils/AuthContext.jsx`; SSO is built server-side
-  (no VITE_ client vars)
+  (no VITE_ client vars; configured only when URL + client id + secret all exist).
+  **Admin is a Waypoint identity**: `ADMIN_CENTRAL_USER_IDS` (unset = central id 1, Bennett;
+  explicitly empty = nobody; guests never) — `isAdmin` in `server/middleware/auth.js`; the
+  local `users.role` grants nothing. `/me` and every sign-in return `{role: 'admin'|'dm',
+  isAdmin, isGuest}`. Sign-out POSTs `{}` (a `null` JSON body is a 400 before the route)
+  and bumps `token_version`; `clearLocalSession` in `http.js` also forgets the last map and
+  current world. The first `/me` check clears the token ONLY when the server says the token
+  is bad; a 5xx/429/network blip keeps it (cached user, or a retry screen). Sign-in and
+  sign-up are `submitting`, the initial check is `initializing` — the login card never
+  unmounts mid-request. Guards bounce with `replace` + `state.from` (SSO: `sso_next`).
+  Guests (`users.is_guest`, from Waypoint) are named "Guest" in the menu and warned before
+  sign-out; the app's guest is browser-bound (no claim path exists — Waypoint would need a
+  proxy claim endpoint).
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` redirects R2-backed paths
 
 ## Database

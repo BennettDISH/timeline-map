@@ -24,7 +24,11 @@ router.get('/', async (req, res) => {
                 ORDER BY li.created_at DESC LIMIT 1) as cover_fallback
       FROM worlds w
       WHERE w.created_by = $1 AND w.is_active = true
-      ORDER BY w.updated_at DESC
+      -- "most recently charted" means the last edit ANYWHERE in the world: a node or a map
+      -- touched tonight outranks a world merely renamed last week
+      ORDER BY GREATEST(w.updated_at,
+        COALESCE((SELECT MAX(n.updated_at) FROM nodes n WHERE n.world_id = w.id), w.updated_at),
+        COALESCE((SELECT MAX(m.updated_at) FROM maps m WHERE m.world_id = w.id), w.updated_at)) DESC
     `, [req.user.id]);
 
     const worlds = result.rows.map(row => ({

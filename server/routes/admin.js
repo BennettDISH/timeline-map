@@ -1,7 +1,12 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { readStatements } = require('../config/apply-schema');
 const router = express.Router();
+
+// the tables schema.sql creates, read from the file itself — never a hand list that drifts
+const expectedTables = readStatements()
+  .map((st) => /CREATE TABLE IF NOT EXISTS\s+(\w+)/i.exec(st)).filter(Boolean).map((m) => m[1].toLowerCase());
 
 // All admin routes require authentication and admin role
 router.use(authenticateToken);
@@ -20,7 +25,6 @@ router.get('/db-status', async (req, res) => {
     `);
 
     const tables = tablesResult.rows.map(row => row.table_name);
-    const expectedTables = ['users', 'worlds', 'images', 'image_folders', 'maps', 'nodes', 'placements', 'links'];
     const missingTables = expectedTables.filter(table => !tables.includes(table));
 
     let userCount = 0;

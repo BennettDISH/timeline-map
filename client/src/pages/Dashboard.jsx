@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
@@ -45,13 +45,18 @@ function WorldBadges({ w }) {
 }
 
 function Modal({ title, onClose, children }) {
+  const downOnBack = useRef(false)
   useEffect(() => {
     const esc = (e) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', esc)
     return () => document.removeEventListener('keydown', esc)
   }, [onClose])
+  // only a press AND release on the backdrop closes it — a text selection that ends
+  // outside the dialog never throws away what was typed
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-back"
+      onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget }}
+      onClick={(e) => { if (e.target === e.currentTarget && downOnBack.current) onClose() }}>
       <div className="smodal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
           <h3>{title}</h3>
@@ -71,16 +76,19 @@ function Dashboard() {
   const [flash, setFlash] = useState(null) // {kind:'ok'|'err', text}
   const [busy, setBusy] = useState(false)
   const [templates, setTemplates] = useState([]) // clonable sample worlds
+  const [loadError, setLoadError] = useState(null) // the list could not be fetched — never the first-run empty state
 
   useEffect(() => {
     document.title = 'Your worlds · Fantasy Map Timeline'
     return () => { document.title = 'Fantasy Map Timeline' }
   }, [])
 
-  const load = () =>
-    worldService.getWorlds()
+  const load = () => {
+    setLoadError(null)
+    return worldService.getWorlds()
       .then((r) => setWorlds(r.worlds || []))
-      .catch((e) => { setWorlds([]); setFlash({ kind: 'err', text: e.message || 'Could not load your worlds' }) })
+      .catch((e) => { setWorlds(null); setLoadError(e.message || 'Could not load your worlds') })
+  }
   useEffect(() => { load(); atlasService.getTemplates().then(setTemplates).catch(() => {}) }, [])
 
   // close any open card menu on outside click
@@ -97,7 +105,9 @@ function Dashboard() {
     return () => clearTimeout(t)
   }, [flash])
 
-  const stored = worldService.getCurrentWorld()
+  // one memory of "where you left off": the last map opened (what "/" resumes too)
+  const last = worldService.getLastLocation()
+  const stored = last ? { id: Number(last.worldId) } : null
   const featured = useMemo(
     () => (worlds && worlds.length ? worlds.find((w) => w.id === stored?.id) || worlds[0] : null),
     [worlds] // eslint-disable-line
@@ -173,7 +183,15 @@ function Dashboard() {
       <TopBar />
 
       <main className="dashmain">
-        {worlds === null && (
+        {worlds === null && loadError && (
+          <div className="voidstate">
+            <Compass size={92} className="void-rose" />
+            <h2>Couldn't load your worlds</h2>
+            <p>{loadError}. They are still there — the list just didn't arrive.</p>
+            <button className="sbtn primary" onClick={load}>Try again</button>
+          </div>
+        )}
+        {worlds === null && !loadError && (
           <>
             <div className="skel featured-skel" />
             <div className="wgrid">
@@ -185,8 +203,8 @@ function Dashboard() {
         {worlds !== null && worlds.length === 0 && (
           <div className="voidstate">
             <Compass size={92} className="void-rose" />
-            <h2>Every campaign begins with a blank map</h2>
-            <p>Found your first world, give it a face, and start dropping the places, people, and secrets your party will find.</p>
+            <h2>No worlds yet</h2>
+            <p>{templates.length ? 'Start from the sample keep — a tiny world that shows every trick — or found a blank one, then drop in the places, people and secrets your party will find.' : 'Found your first world, give it a face, and start dropping the places, people, and secrets your party will find.'}</p>
             <button className="sbtn primary" onClick={() => setModal({ kind: 'create' })}>Found your first world</button>
           </div>
         )}
@@ -269,6 +287,8 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [useSample, setUseSample] = useState(defaultSample && templates.length > 0)
+  // the sample list may arrive after the dialog opened: the default still holds
+  useEffect(() => { if (defaultSample && templates.length) setUseSample(true) }, [defaultSample, templates.length])
   const submit = (e) => {
     e.preventDefault()
     if (name.trim()) onSubmit(name.trim(), desc.trim(), useSample && templates[0] ? templates[0].id : null)

@@ -276,7 +276,16 @@ function AtlasWorkspace() {
         if (live) setTree(maps)
         if (!mapId && w.rootMapId) navigate(`/w/${worldId}/m/${w.rootMapId}`, { replace: true })
       })
-      .catch((e) => { if (live) setFlash({ kind: 'err', text: errText(e, "Couldn't load this world") }) })
+      .catch((e) => {
+        if (!live) return
+        if (e?.response?.status === 404) {
+          // not this account's world (a pointer left by another account, or a deleted one)
+          worldService.clearLastLocation(worldId)
+          navigate('/dashboard', { replace: true })
+          return
+        }
+        setFlash({ kind: 'err', text: errText(e, "Couldn't load this world") })
+      })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
   }, [worldId]) // eslint-disable-line

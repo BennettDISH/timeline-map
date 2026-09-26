@@ -3,34 +3,21 @@ import authService from '../services/authService'
 
 const AuthContext = createContext()
 
+// Two different clocks: `initializing` is the one-time check of the stored token that the
+// route guards wait for; `submitting` is a sign-in / sign-up / guest call in flight, which
+// only the login card cares about (it keeps its form up and its button busy).
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'LOGIN_START':
-      return { ...state, loading: true, error: null }
+      return { ...state, submitting: true, error: null }
     case 'LOGIN_SUCCESS':
-      return { 
-        ...state, 
-        loading: false, 
-        isAuthenticated: true, 
-        user: action.payload.user,
-        error: null 
-      }
+      return { ...state, initializing: false, submitting: false, offline: false, isAuthenticated: true, user: action.payload.user, error: null }
     case 'LOGIN_ERROR':
-      return { 
-        ...state, 
-        loading: false, 
-        isAuthenticated: false, 
-        user: null,
-        error: action.payload 
-      }
+      return { ...state, initializing: false, submitting: false, isAuthenticated: false, user: null, error: action.payload }
     case 'LOGOUT':
-      return { 
-        ...state, 
-        isAuthenticated: false, 
-        user: null,
-        loading: false,
-        error: null 
-      }
+      return { ...state, initializing: false, submitting: false, offline: false, isAuthenticated: false, user: null, error: null }
+    case 'OFFLINE':
+      return { ...state, initializing: false, submitting: false, offline: true }
     case 'CLEAR_ERROR':
       return { ...state, error: null }
     default:
@@ -41,55 +28,54 @@ const authReducer = (state, action) => {
 const initialState = {
   isAuthenticated: false,
   user: null,
-  loading: true, // start true so route guards wait for the initial token check instead of bouncing to /login
-  error: null
+  initializing: true, // route guards wait for the initial token check instead of bouncing to /login
+  submitting: false,
+  offline: false, // the server could not be reached to check the token; nothing was thrown away
+  error: null,
 }
+
+const TOKEN_DEAD = /token|access token|user not found/i
+// only the server saying the TOKEN is bad ends a session — a 5xx, a 429 or no network is a blip
+const tokenDead = (e) => e?.status === 401 || (e?.status === 403 && TOKEN_DEAD.test(e?.message || ''))
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState)
 
-  // Check for existing authentication on app load
-  useEffect(() => {
-    const checkAuth = async () => {
-      // the Player View is public: it never asks who the visitor is, so a stale DM token in
-      // this browser can neither bounce a player to the login page nor spend a request
-      if (/^\/p(\/|$)/.test(window.location.pathname)) { dispatch({ type: 'LOGOUT' }); return }
-      if (authService.isAuthenticated()) {
-        try {
-          const user = await authService.getCurrentUser()
-          dispatch({ 
-            type: 'LOGIN_SUCCESS', 
-            payload: { user } 
-          })
-        } catch (error) {
-          // The stored token did not work. Drop it locally only — this branch also catches
-          // a server blip, and that must not revoke the user's sessions on other devices.
-          authService.clearSession()
-          dispatch({ type: 'LOGOUT' })
-        }
-      } else {
-        // No stored token — resolve the initial loading state so guards stop waiting
+  const checkAuth = async () => {
+    // the Player View is public: it never asks who the visitor is, so a stale DM token in
+    // this browser can neither bounce a player to the login page nor spend a request
+    if (/^\/p(\/|$)/.test(window.location.pathname)) { dispatch({ type: 'LOGOUT' }); return }
+    if (!authService.isAuthenticated()) { dispatch({ type: 'LOGOUT' }); return }
+    try {
+      const user = await authService.getCurrentUser()
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user } })
+    } catch (error) {
+      if (tokenDead(error)) {
+        // the stored token did not work: drop it locally only (never revoke other devices
+        // over what this browser holds)
+        authService.clearSession()
         dispatch({ type: 'LOGOUT' })
+        return
       }
+      // a server blip or a dead network: keep the token. With a remembered user the app
+      // simply carries on (each call reports its own failure); without one, wait and retry.
+      const cached = authService.getUser()
+      if (cached) dispatch({ type: 'LOGIN_SUCCESS', payload: { user: cached } })
+      else dispatch({ type: 'OFFLINE' })
     }
+  }
 
-    checkAuth()
-  }, [])
+  // Check for existing authentication on app load
+  useEffect(() => { checkAuth() }, [])
 
   const login = async (username, password) => {
     dispatch({ type: 'LOGIN_START' })
     try {
       const response = await authService.login(username, password)
-      dispatch({ 
-        type: 'LOGIN_SUCCESS', 
-        payload: { user: response.user } 
-      })
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ 
-        type: 'LOGIN_ERROR', 
-        payload: error.message || 'Login failed' 
-      })
+      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Login failed' })
       throw error
     }
   }
@@ -98,16 +84,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_START' })
     try {
       const response = await authService.register(username, email, password)
-      dispatch({ 
-        type: 'LOGIN_SUCCESS', 
-        payload: { user: response.user } 
-      })
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({ 
-        type: 'LOGIN_ERROR', 
-        payload: error.message || 'Registration failed' 
-      })
+      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'Registration failed' })
       throw error
     }
   }
@@ -116,16 +96,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_START' })
     try {
       const response = await authService.ssoLogin(code, redirectUri)
-      dispatch({
-        type: 'LOGIN_SUCCESS',
-        payload: { user: response.user }
-      })
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
       return response
     } catch (error) {
-      dispatch({
-        type: 'LOGIN_ERROR',
-        payload: error.message || 'SSO login failed'
-      })
+      dispatch({ type: 'LOGIN_ERROR', payload: error.message || 'SSO login failed' })
       throw error
     }
   }
@@ -142,7 +116,7 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // Adopt a session minted outside the login/register flow (e.g. first-run setup)
+  // Adopt a session minted outside the login/register flow
   const setSession = (token, user) => {
     authService.setSession(token, user)
     dispatch({ type: 'LOGIN_SUCCESS', payload: { user } })
@@ -153,19 +127,19 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' })
   }
 
-  const clearError = () => {
-    dispatch({ type: 'CLEAR_ERROR' })
-  }
+  const clearError = () => dispatch({ type: 'CLEAR_ERROR' })
 
   const value = {
     ...state,
+    loading: state.initializing, // the guards' name for it
     login,
     register,
     ssoLogin,
     guestLogin,
     setSession,
     logout,
-    clearError
+    clearError,
+    retry: checkAuth,
   }
 
   return (

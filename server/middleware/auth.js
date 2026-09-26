@@ -2,6 +2,14 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { refreshIfStale } = require('../utils/token');
 
+// Admin is a Waypoint IDENTITY, never a local role: the central ids listed in
+// ADMIN_CENTRAL_USER_IDS (comma-separated). Unset means the fleet convention — central id 1,
+// Bennett — while an explicitly empty value grants nobody. A guest is never an admin, and a
+// row with no central id (the no-Waypoint dev mode) is never an admin either.
+const ADMIN_IDS = new Set((process.env.ADMIN_CENTRAL_USER_IDS ?? '1').split(',')
+  .map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0));
+const isAdmin = (u) => !!u && !u.is_guest && u.central_user_id != null && ADMIN_IDS.has(Number(u.central_user_id));
+
 // Middleware to verify JWT token
 const authenticateToken = async (req, res, next) => {
   try {
@@ -16,7 +24,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Check if user still exists and session is valid
     const userResult = await pool.query(
-      'SELECT id, username, email, role, token_version FROM users WHERE id = $1',
+      'SELECT id, username, email, role, token_version, central_user_id, is_guest FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -34,7 +42,7 @@ const authenticateToken = async (req, res, next) => {
       return res.status(403).json({ message: 'Token no longer valid. Please sign in again.' });
     }
 
-    req.user = user;
+    req.user = { ...user, isAdmin: isAdmin(user) };
     req.tokenVersion = tokenVersion;
     req.tokenPayload = decoded;
     // sliding session: an actively used browser never meets the expiry mid-edit
@@ -47,32 +55,17 @@ const authenticateToken = async (req, res, next) => {
     if (error.name === 'TokenExpiredError') {
       return res.status(403).json({ message: 'Token expired' });
     }
-    
+
     console.error('Auth middleware error:', error);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Middleware to check user roles
-const requireRole = (roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
-    next();
-  };
-};
-
 // Middleware for admin-only routes
-const requireAdmin = requireRole(['admin']);
-
-module.exports = {
-  authenticateToken,
-  requireRole,
-  requireAdmin
+const requireAdmin = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: 'Authentication required' });
+  if (!req.user.isAdmin) return res.status(403).json({ message: 'Insufficient permissions' });
+  next();
 };
+
+module.exports = { authenticateToken, requireAdmin, isAdmin };

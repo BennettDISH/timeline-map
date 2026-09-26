@@ -1,13 +1,17 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, exchangeCode } = require('../config/sso');
 const rateLimit = require('express-rate-limit');
 const { generateToken, refreshIfStale } = require('../utils/token');
 const router = express.Router();
 
-const SSO_ENABLED = !!process.env.AUTH_SERVICE_URL;
+// SSO is configured only when all three of URL / client id / client secret exist
+const SSO_ENABLED = !!(process.env.AUTH_SERVICE_URL && process.env.SSO_CLIENT_ID && process.env.SSO_CLIENT_SECRET);
+// what the client learns about an account: admin is computed from the Waypoint identity,
+// every DM is a 'dm', and a guest is flagged so the UI can say so
+const shape = (u) => ({ id: u.id, username: u.username, email: u.email, role: isAdmin(u) ? 'admin' : 'dm', isAdmin: isAdmin(u), isGuest: !!u.is_guest });
 
 // The client OAuth callback route (a client-side React route). Both the authorize redirect_uri
 // and the token-exchange redirect_uri point here.
@@ -56,6 +60,7 @@ async function findOrCreateLocalUser(centralUser) {
       const taken = (await pool.query('SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2', [e, local.id])).rows.length > 0;
       if (!taken) want.email = e;
     }
+    if (typeof centralUser.is_guest === 'boolean' && centralUser.is_guest !== !!local.is_guest) want.is_guest = centralUser.is_guest;
     const keys = Object.keys(want);
     if (keys.length) {
       try {
@@ -106,10 +111,10 @@ async function findOrCreateLocalUser(centralUser) {
   const email = centralUser.email ? await freeEmail(centralUser.email) : null;
 
   const result = await pool.query(
-    `INSERT INTO users (username, email, password_hash, role, central_user_id)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO users (username, email, password_hash, role, central_user_id, is_guest)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [username, email, '', 'viewer', centralUser.central_user_id]
+    [username, email, '', 'viewer', centralUser.central_user_id, !!centralUser.is_guest]
   );
 
   return result.rows[0];
@@ -142,19 +147,6 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    // Check if database is set up
-    try {
-      await pool.query('SELECT 1 FROM users LIMIT 1');
-    } catch (dbError) {
-      if (dbError.code === '42P01') {
-        return res.status(503).json({
-          message: 'Database not initialized. Please contact an administrator to run the migration.',
-          code: 'DB_NOT_INITIALIZED'
-        });
-      }
-      throw dbError;
-    }
-
     if (SSO_ENABLED) {
       const centralRes = await centralRegister({ username, email, password });
       if (!centralRes.ok) {
@@ -162,10 +154,13 @@ router.post('/register', authLimiter, async (req, res) => {
       }
       const localUser = await findOrCreateLocalUser(centralRes.data);
       const token = generateToken(localUser.id, localUser.token_version);
+      // Waypoint hands the one-time recovery code back exactly once: pass it on, so the new
+      // account is recoverable without the person ever having heard of Waypoint
       return res.status(201).json({
         message: 'User created successfully',
         token,
-        user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
+        user: shape(localUser),
+        recoveryCode: centralRes.data.recovery_code || null,
       });
     }
 
@@ -191,7 +186,7 @@ router.post('/register', authLimiter, async (req, res) => {
     res.status(201).json({
       message: 'User created successfully',
       token,
-      user: { id: user.id, username: user.username, email: user.email, role: user.role, createdAt: user.created_at }
+      user: { ...shape(user), createdAt: user.created_at }
     });
 
   } catch (error) {
@@ -209,19 +204,6 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Username and password are required' });
     }
 
-    // Check if database is set up
-    try {
-      await pool.query('SELECT 1 FROM users LIMIT 1');
-    } catch (dbError) {
-      if (dbError.code === '42P01') {
-        return res.status(503).json({
-          message: 'Database not initialized. Please contact an administrator to run the migration.',
-          code: 'DB_NOT_INITIALIZED'
-        });
-      }
-      throw dbError;
-    }
-
     if (SSO_ENABLED) {
       const centralRes = await centralLogin({ email: username, password });
       if (!centralRes.ok) {
@@ -229,11 +211,7 @@ router.post('/login', authLimiter, async (req, res) => {
       }
       const localUser = await findOrCreateLocalUser(centralRes.data);
       const token = generateToken(localUser.id, localUser.token_version);
-      return res.json({
-        message: 'Login successful',
-        token,
-        user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
-      });
+      return res.json({ message: 'Login successful', token, user: shape(localUser) });
     }
 
     // Fallback: local auth
@@ -255,11 +233,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const token = generateToken(user.id, user.token_version);
     await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
-    res.json({
-      message: 'Login successful',
-      token,
-      user: { id: user.id, username: user.username, email: user.email, role: user.role }
-    });
+    res.json({ message: 'Login successful', token, user: shape(user) });
 
   } catch (error) {
     console.error('Login error:', error);
@@ -283,11 +257,7 @@ router.post('/sso-callback', async (req, res) => {
     const localUser = await findOrCreateLocalUser(result.data);
     const token = generateToken(localUser.id, localUser.token_version);
 
-    res.json({
-      message: 'SSO login successful',
-      token,
-      user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
-    });
+    res.json({ message: 'SSO login successful', token, user: shape(localUser) });
   } catch (error) {
     console.error('SSO callback error:', error);
     res.status(500).json({ message: 'SSO login failed' });
@@ -304,11 +274,7 @@ router.post('/guest', guestLimiter, async (req, res) => {
     }
     const localUser = await findOrCreateLocalUser(result.data);
     const token = generateToken(localUser.id, localUser.token_version);
-    res.json({
-      message: 'Guest session started',
-      token,
-      user: { id: localUser.id, username: localUser.username, email: localUser.email, role: localUser.role }
-    });
+    res.json({ message: 'Guest session started', token, user: shape(localUser) });
   } catch (error) {
     console.error('Guest login error:', error);
     res.status(500).json({ message: 'Could not start a guest session' });
@@ -318,7 +284,8 @@ router.post('/guest', guestLimiter, async (req, res) => {
 // GET /api/auth/config — public. Lets the client decide whether to show the SSO button
 // without any build-time (VITE) vars; SSO is configured entirely server-side now.
 router.get('/config', (req, res) => {
-  res.json({ ssoEnabled: SSO_ENABLED });
+  // accountUrl: where passwords are reset and accounts managed — Waypoint, when SSO is on
+  res.json({ ssoEnabled: SSO_ENABLED, accountUrl: SSO_ENABLED ? AUTH_SERVICE_URL : null });
 });
 
 // GET /api/auth/sso/login — begin SSO. Bounce to the auth-service authorize endpoint with the
@@ -356,14 +323,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
 // GET /api/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const body = {
-      user: {
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role
-      }
-    };
+    const body = { user: shape(req.user) };
 
     // The app calls this on every load, which makes it the natural place to slide the
     // session forward: past the halfway mark, hand back a fresh token. Without it the

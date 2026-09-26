@@ -95,7 +95,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
-app.use('/api/setup', require('./routes/setup'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/worlds', require('./routes/worlds'));
@@ -137,6 +136,11 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  // the body parser and friends set err.status: a malformed body is the caller's 400, not a 500
+  const status = err.status || err.statusCode;
+  if (status && status < 500) {
+    return res.status(status).json({ message: err.type === 'entity.parse.failed' ? 'The request body is not valid JSON' : (err.message || 'Bad request') });
+  }
   console.error(err.stack);
   res.status(500).json({ 
     message: 'Something went wrong!',

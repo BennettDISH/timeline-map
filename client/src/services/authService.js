@@ -1,5 +1,5 @@
 // Session handling (token header + dead-token redirect) lives in the shared http instance.
-import api from './http'
+import api, { clearLocalSession } from './http'
 
 const authService = {
   // Register new user
@@ -45,8 +45,7 @@ const authService = {
   // not work" — a failed /me, an expired token — where revoking the user's OTHER devices
   // over what may be a passing server error would be wrong.
   clearSession() {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user')
+    clearLocalSession()
   },
 
   // Logout user. Forgetting the token locally does not stop it working — it stays valid
@@ -60,7 +59,9 @@ const authService = {
     authService.clearSession()
     if (!token) return
     try {
-      await api.post('/api/auth/logout', null, { headers: { Authorization: `Bearer ${token}` } })
+      // an empty object, never null: a JSON body of `null` is rejected by the parser before
+      // the route runs, which is why revoking on sign-out never worked from the UI
+      await api.post('/api/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } })
     } catch (error) {
       // Already signed out here; a dead or unreachable token just expires on its own.
     }
@@ -78,7 +79,7 @@ const authService = {
       }
       return response.data.user
     } catch (error) {
-      throw error.response?.data || { message: 'Failed to get user' }
+      throw { ...(error.response?.data || { message: 'Failed to get user' }), status: error.response?.status }
     }
   },
 
@@ -128,11 +129,6 @@ const authService = {
       throw error.response?.data || { message: 'SSO login failed' }
     }
   },
-
-  // Get stored token
-  getToken() {
-    return localStorage.getItem('auth_token')
-  }
 }
 
 export default authService
