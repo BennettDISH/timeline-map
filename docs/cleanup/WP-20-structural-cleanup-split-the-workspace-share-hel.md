@@ -6,29 +6,29 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 **Do after:** [WP-02](WP-02-protect-the-live-campaign-data-undo-clone-and-ba.md), [WP-03](WP-03-autosave-that-tells-the-truth.md), [WP-07](WP-07-delete-the-dead-code.md), [WP-08](WP-08-docs-config-and-comments-tell-the-truth.md), [WP-10](WP-10-sessions-clock-labels-and-the-party.md), [WP-13](WP-13-the-map-surface-canvas-tree-and-outlines.md), [WP-18](WP-18-keyboard-dialogs-and-screen-readers.md)
 
-**Notes:** Do this last, with one refactor per commit. confusing-code-08 already contains a split plan. postures-share-02 is best fixed by rendering the Player posture with the Player View's own code (confusing-code-14) instead of patching a second copy. The column work (server-dead-11, schema-data-11, maps-29) touches the live campaign database. Take a backup, remove the code that reads each column, deploy, and only then drop the column. Re-run every suite after each step.
+**Notes:** Done as one refactor per commit, each deployed and run through every suite before the next. confusing-code-08 already contains a split plan. postures-share-02 is best fixed by rendering the Player posture with the Player View's own code (confusing-code-14) instead of patching a second copy. The column work (server-dead-11, schema-data-11, maps-29) touches the live campaign database. Take a backup, remove the code that reads each column, deploy, and only then drop the column. Re-run every suite after each step.
 
 ## Checklist
 
-- [ ] **B060** · medium · l · The Player preview is not what the share link shows: it misses the lantern trail, shows extra footprints, the future party step, lifespans and descriptions, and enters DM-only interiors
-- [ ] **C021** · medium · s · One class name, several meanings (legend, open, tgear, factions, fname, muted, env-status); two caused real bugs
-- [ ] **C038** · low · s · Misleading names and hidden logic: nodeLinks holds facts, searchIndex doubles as a visibility index, dropNode means two things, selection parsed from a className
-- [ ] **C039** · low · m · Workspace and Player View copy-paste pin markup, pointer→plane math and outline constants; STYLE_KEYS is imported but a third hardcoded list is used
-- [ ] **C040** · low · s · Time vocabulary collides: `now` is the DM lens in the workspace but canon in EraScrub; `current` means canon; the effective moment has three names
-- [ ] **C042** · low · s · UI preferences and 'last world' state are hand-rolled many times with inconsistent encodings, guards and magic numbers
-- [ ] **C044** · low · s · Time resolution (presence and 'latest-starting row covering t') is implemented about 12 times across client and server
-- [ ] **C050** · low · s · z-index is a set of magic numbers with no scale; `.apop` z-index:30 does nothing inside the Map ▾ and ? popovers
-- [ ] **C068** · low · m · API shapes differ per route: camelCase body on spotlight/forge context, mixed-case upload body, three shapes for the world timeline, many response envelopes
-- [ ] **C069** · low · m · Server error handling and ownership checks are copy-pasted with different behaviour (wrap x4, ownsWorld x3+, 404/400/403 for the same failure, 403 for expired tokens)
-- [ ] **C070** · low · m · Image pipeline naming: the only upload route is called 'base64' and writes to R2; base64 storage is 'legacy' in code but 'deliberate fallback' in the README
-- [ ] **C083** · low · l · A newcomer can't tell which stylesheet styles what; atlas.scss is a 775-line changelog and the per-page imports imply isolation that doesn't exist
-- [ ] **C084** · low · l · AtlasWorkspace.jsx is a 2,408-line / 135 KB file; concrete split plan (what moves where, and in what order)
-- [ ] **C090** · low · m · Same job, many looks: 8 'on' treatments for toggles, `.tool.on` doubling as the primary button, 8 close-button classes, 5 section-label styles
-- [ ] **D009** · low · s · Legacy maps columns (description, parent_map_id, zoom_level, map_order, is_active) are only copied around, and 'parentMapId' means something else in the API
-- [ ] **D010** · low · s · Duplicated helpers: an identical Modal component, plural(), usesOf(), and the 'latest start covering t' resolver written three times
-- [ ] **D012** · low · m · Legacy columns nothing reads or writes meaningfully: worlds.settings, maps.description/parent_map_id/zoom_level/map_order, links.kind/time_context, images.tags, folder color/icon
-- [ ] **O023** · low · s · worlds/maps.is_active is a soft-delete leftover: never set to false, yet filtered 29 times; the DELETE route is still labelled '(soft delete)'
-- [ ] **O025** · low · s · 'imageServiceBase64' is really the whole image client, one of its comments points at a file that was deleted, and its upload progress numbers are made up
+- [x] **B060** · medium · l · The Player preview is not what the share link shows: it misses the lantern trail, shows extra footprints, the future party step, lifespans and descriptions, and enters DM-only interiors — done ed3e125 (the Player posture is the framed Player View itself)
+- [x] **C021** · medium · s · One class name, several meanings (legend, open, tgear, factions, fname, muted, env-status); two caused real bugs — done 14816c1
+- [x] **C038** · low · s · Misleading names and hidden logic: nodeLinks holds facts, searchIndex doubles as a visibility index, dropNode means two things, selection parsed from a className — done cbafaa9 (names and the ambience input; the two JSX IIFEs and the short CSS class names stay)
+- [x] **C039** · low · m · Workspace and Player View copy-paste pin markup, pointer→plane math and outline constants; STYLE_KEYS is imported but a third hardcoded list is used — done bd8baf0
+- [x] **C040** · low · s · Time vocabulary collides: `now` is the DM lens in the workspace but canon in EraScrub; `current` means canon; the effective moment has three names — done cbafaa9 (lens/shownAt; tl.current stays and CLAUDE.md names it canon)
+- [x] **C042** · low · s · UI preferences and 'last world' state are hand-rolled many times with inconsistent encodings, guards and magic numbers — done 8fa7c6c
+- [x] **C044** · low · s · Time resolution (presence and 'latest-starting row covering t') is implemented about 12 times across client and server — done 08dd708
+- [x] **C050** · low · s · z-index is a set of magic numbers with no scale; `.apop` z-index:30 does nothing inside the Map ▾ and ? popovers — done 0de9116
+- [x] **C068** · low · m · API shapes differ per route: camelCase body on spotlight/forge context, mixed-case upload body, three shapes for the world timeline, many response envelopes — done 3a3bb9b (world CRUD stays split across worlds.js and the atlas PATCH — both already use the one name rule)
+- [x] **C069** · low · m · Server error handling and ownership checks are copy-pasted with different behaviour (wrap x4, ownsWorld x3+, 404/400/403 for the same failure, 403 for expired tokens) — done 8bbb2ce
+- [x] **C070** · low · m · Image pipeline naming: the only upload route is called 'base64' and writes to R2; base64 storage is 'legacy' in code but 'deliberate fallback' in the README — done 51f73c8
+- [ ] **C083** · low · l · A newcomer can't tell which stylesheet styles what; atlas.scss is a 775-line changelog and the per-page imports imply isolation that doesn't exist — left: reordering atlas.scss by component changes cascade order and needs a visual pass
+- [x] **C084** · low · l · AtlasWorkspace.jsx is a 2,408-line / 135 KB file; concrete split plan (what moves where, and in what order) — done 05a8088 (stage one — the seven panels moved out; the timebar, reader and dialogs still live in the workspace)
+- [ ] **C090** · low · m · Same job, many looks: 8 'on' treatments for toggles, `.tool.on` doubling as the primary button, 8 close-button classes, 5 section-label styles — left: unifying the control looks is a design change for Bennett to look at
+- [x] **D009** · low · s · Legacy maps columns (description, parent_map_id, zoom_level, map_order, is_active) are only copied around, and 'parentMapId' means something else in the API — done 349ce20
+- [x] **D010** · low · s · Duplicated helpers: an identical Modal component, plural(), usesOf(), and the 'latest start covering t' resolver written three times — done 08dd708
+- [x] **D012** · low · m · Legacy columns nothing reads or writes meaningfully: worlds.settings, maps.description/parent_map_id/zoom_level/map_order, links.kind/time_context, images.tags, folder color/icon — done 349ce20 (the columns were dropped in production on deploy; every value was a default)
+- [x] **O023** · low · s · worlds/maps.is_active is a soft-delete leftover: never set to false, yet filtered 29 times; the DELETE route is still labelled '(soft delete)' — done 349ce20 (the one soft-deleted map (id 17, empty) was hard-deleted first)
+- [x] **O025** · low · s · 'imageServiceBase64' is really the whole image client, one of its comments points at a file that was deleted, and its upload progress numbers are made up — done 51f73c8
 
 ## Items
 
