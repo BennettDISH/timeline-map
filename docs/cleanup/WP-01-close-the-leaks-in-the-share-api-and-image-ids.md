@@ -8,15 +8,15 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B010** · high · m · Share node endpoint serves future, DM-placed, hidden-branch and unplaced nodes, and lists them as links
-- [ ] **B011** · high · s · Any image id, from any world or account, is accepted as node art, map backdrop or timed backdrop, and its URL comes back
-- [ ] **B023** · medium · xs · Forge panel looks up ask titles across all worlds; ask ids are not world-checked until Allow
-- [ ] **B049** · medium · xs · Guest sign-in has no rate limit of its own and can drain Waypoint's app-wide 500/hour guest quota
-- [ ] **B071** · low · s · Windowed share payload gives players exact times inside hidden stretches and the map's full focus window
-- [ ] **B076** · low · s · World PATCH lets a null or non-integer timeline through, and a null canon turns off all player time secrecy
-- [ ] **B081** · low · xs · Malformed node ids on the public share API return 500 instead of 404
-- [ ] **C037** · low · xs · main.jsx says players never get the bug-tracker API key, but the key ships in the bundle /p/ loads
-- [ ] **P083** · low · xs · Player View image loads count against the same rate-limit bucket as the DM's world, image and auth calls
+- [x] **B010** · high · m · Share node endpoint serves future, DM-placed, hidden-branch and unplaced nodes, and lists them as links — done 2a657dc
+- [x] **B011** · high · s · Any image id, from any world or account, is accepted as node art, map backdrop or timed backdrop, and its URL comes back — done 2a657dc
+- [x] **B023** · medium · xs · Forge panel looks up ask titles across all worlds; ask ids are not world-checked until Allow — done 2a657dc (names resolve only inside the world; Allow already re-checks ids)
+- [x] **B049** · medium · xs · Guest sign-in has no rate limit of its own and can drain Waypoint's app-wide 500/hour guest quota — done 2a657dc
+- [x] **B071** · low · s · Windowed share payload gives players exact times inside hidden stretches and the map's full focus window — done 2a657dc
+- [x] **B076** · low · s · World PATCH lets a null or non-integer timeline through, and a null canon turns off all player time secrecy — done 2a657dc
+- [x] **B081** · low · xs · Malformed node ids on the public share API return 500 instead of 404 — done 2a657dc
+- [x] **C037** · low · xs · main.jsx says players never get the bug-tracker API key, but the key ships in the bundle /p/ loads — done 2a657dc (the comment now tells the truth; keeping the key out of the /p/ bundle is Bennett's call)
+- [x] **P083** · low · xs · Player View image loads count against the same rate-limit bucket as the DM's world, image and auth calls — done 2a657dc
 
 ## Items
 
