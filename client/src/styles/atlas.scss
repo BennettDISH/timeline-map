@@ -713,14 +713,14 @@
 // non-scaling-stroke and counter-scale with --pinscale; corner dots are HTML so they stay round.
 .atlas .regions{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;pointer-events:none} // under prints (2) and pins (3)
 .atlas .regions.drawing{pointer-events:auto;cursor:crosshair;z-index:5}
-.atlas .region{pointer-events:auto;fill:rgba(201,163,95,.10);stroke:rgba(201,163,95,.55);stroke-linejoin:round;
-  stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s ease}
-.atlas .region:hover,.atlas .region.hov{fill:rgba(201,163,95,.22);stroke:rgba(233,205,140,.9)}
-.atlas .region.sel{fill:rgba(201,163,95,.26);stroke:var(--accent);stroke-width:calc(2.5px * var(--pinscale,1))}
+.atlas .region{pointer-events:auto;fill:#c9a35f;fill-opacity:var(--ra,.10);stroke:rgba(201,163,95,.55);stroke-linejoin:round;
+  stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;transition:fill-opacity .15s ease}
+.atlas .region:hover,.atlas .region.hov{fill-opacity:calc(var(--ra,.10) * 2.2);stroke:rgba(233,205,140,.9)}
+.atlas .region.sel{fill-opacity:calc(var(--ra,.10) * 2.6);stroke:var(--accent);stroke-width:calc(2.5px * var(--pinscale,1))}
 .atlas .region.secret{stroke:#b07bd0;stroke-dasharray:6 4}
 .atlas .region.ghost{opacity:.25}
-.atlas .region.spot{stroke:#d9b64e;fill:rgba(217,182,78,.22);animation:regionglow 2s ease-in-out infinite}
-@keyframes regionglow{0%,100%{fill:rgba(217,182,78,.16)}50%{fill:rgba(217,182,78,.34)}}
+.atlas .region.spot{stroke:#d9b64e;fill:#d9b64e;animation:regionglow 2s ease-in-out infinite}
+@keyframes regionglow{0%,100%{fill-opacity:calc(var(--ra,.10) * 1.6)}50%{fill-opacity:calc(var(--ra,.10) * 3.4)}}
 .atlas .regions.drawing .region,.atlas .regions.inert .region{pointer-events:none}
 .atlas .odraw{fill:none;stroke:#38b6a3;stroke-width:calc(2px * var(--pinscale,1));vector-effect:non-scaling-stroke;
   stroke-dasharray:6 4;stroke-linejoin:round;pointer-events:none}

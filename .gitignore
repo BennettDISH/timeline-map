@@ -73,3 +73,4 @@ temp/
 # Browser suite configs (tokens) and deps
 e2e/node_modules
 e2e/*.config.json
+e2e/*.tmp.mjs

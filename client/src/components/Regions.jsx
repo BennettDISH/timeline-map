@@ -20,6 +20,15 @@ export const regionIdAt = (e) => {
   return poly ? Number(poly.dataset.id) : null
 }
 
+// a region's tint scales with its size: a single shed reads at full strength, a whole
+// district stays a faint wash (shoelace area in %², clamped)
+const tint = (pts) => {
+  let a = 0
+  for (let i = 0; i < pts.length; i++) { const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length]; a += x0 * y1 - x1 * y0 }
+  a = Math.abs(a) / 2
+  return Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(a, 300)))).toFixed(3)
+}
+
 export default function Regions({ items, hoverId, onHover, inert = false, drawing, onDraw }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
@@ -76,6 +85,7 @@ export default function Regions({ items, hoverId, onHover, inert = false, drawin
         onDoubleClick={on ? (e) => { e.stopPropagation(); onDraw?.finish() } : undefined}>
         {items.map((it) => (
           <polygon key={it.id} data-id={it.id} className={`region ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`} points={polyPoints(it.pts)}
+            style={{ '--ra': tint(it.pts) }}
             onPointerEnter={() => onHover?.(it.id)} onPointerLeave={() => onHover?.(null)}>
             <title>{it.title}</title>
           </polygon>
