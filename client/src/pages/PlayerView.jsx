@@ -6,7 +6,7 @@ import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
-import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors, latestSession } from '../utils/moment'
 import { CATS, MARKABLE, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -342,7 +342,7 @@ function PlayerView() {
               {shownPlacements.filter((p) => !p.shape || p.node.category === 'party').map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0) } : {}) }}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0, latestSession(world.eras)) } : {}) }}
                   title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}

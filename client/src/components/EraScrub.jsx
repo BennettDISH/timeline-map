@@ -1,4 +1,4 @@
-import { momentLabel } from '../utils/moment'
+import { momentLabel, sessionNum } from '../utils/moment'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 
 // The player's window into the past: a scrubber whose reachable range is the union of the
@@ -79,11 +79,15 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   return (
     <div className="erabar">
       <div className="etrack">
-        {segs.map((g, i) => (
-          <span key={i} className="eseg" style={{ left: pct(g.s), width: `${((g.en - g.s) / span) * 100}%` }}>
-            <em>{g.name}</em>
-          </span>
-        ))}
+        {segs.map((g, i) => {
+          // a crowded bar prints the short form (S12) so every session stays named
+          const n = sessionNum(g); const compact = segs.length > 12 && n != null
+          return (
+            <span key={i} className="eseg" title={g.name} style={{ left: pct(g.s), width: `${((g.en - g.s) / span) * 100}%` }}>
+              <em>{compact ? `S${n}` : g.name}</em>
+            </span>
+          )
+        })}
         <input
           type="range" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}

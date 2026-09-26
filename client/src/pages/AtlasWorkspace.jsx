@@ -10,7 +10,7 @@ import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf, STYLE_KEYS } from '../components/Regions'
-import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessionLabel, stepTag, sessionNum } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessionLabel, stepTag, sessionNum, latestSession } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
@@ -51,6 +51,8 @@ function AtlasWorkspace() {
   const [nodeLinks, setNodeLinks] = useState({ out: [], in: [], facts: [] })
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
+  const trackRef = useRef(null)                 // the timebar's track, measured so ticks know their pitch
+  const [trackW, setTrackW] = useState(600)
   const [q, setQ] = useState('') // global node search
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState([])
@@ -154,7 +156,7 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     if (!flash) return
-    const t = setTimeout(() => setFlash(null), flash.undoId ? 9000 : 4000)
+    const t = setTimeout(() => setFlash(null), (flash.undoId || flash.undo) ? 9000 : 4000)
     return () => clearTimeout(t)
   }, [flash])
 
@@ -163,6 +165,7 @@ function AtlasWorkspace() {
     const r = await track(atlasService.undo(undoId), "Couldn't undo").catch(() => null)
     if (!r) return
     refreshMap(); refreshTree(); refreshWorldMeta() // the lantern may have come back with its node
+    if (focusIdRef.current) reloadLinks(focusIdRef.current) // a restored fact or link shows at once
     setFlash({ kind: 'ok', text: 'Put back the way it was.' })
   }
 
@@ -312,6 +315,13 @@ function AtlasWorkspace() {
     navigate(`/w/${worldId}/m/${targetMapId}`)
   }
 
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setTrackW(el.clientWidth || 600))
+    ro.observe(el); setTrackW(el.clientWidth || 600)
+    return () => ro.disconnect()
+  }, [tl?.enabled, mode]) // eslint-disable-line
   const sel = data?.placements.find((p) => p.id === selId) || null
   const map = data?.map
   const isList = map?.view === 'list'
@@ -360,8 +370,9 @@ function AtlasWorkspace() {
     reloadLinks(fid)
   }
   const removeLink = async (id) => {
-    await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => {})
+    const r = await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => null)
     if (focusIdRef.current) reloadLinks(focusIdRef.current)
+    if (r) setFlash({ kind: 'ok', text: 'Link removed.', undoId: r.undoId })
   }
   const labelLink = async (id, label) => {
     await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
@@ -468,17 +479,27 @@ function AtlasWorkspace() {
     if (pts.length < 3) { setFlash({ kind: 'info', text: 'That outline is too small to keep — trace a larger area' }); return }
     setDrawing(null)
     if (d.placementId) {
+      const cur = data?.placements.find((pp) => pp.id === d.placementId)
+      const old = cur?.shape ? { shape: cur.shape, kind: cur.shapeKind || 'area', style: cur.shapeStyle || null } : null
       const ok = await track(atlasService.patchPlacement(d.placementId, { shape: pts, shape_kind: d.kind }), "Couldn't save the outline").then(() => true).catch(() => false)
       if (!ok) return
       await refreshMap(); setSelId(d.placementId)
+      if (old) setFlash({ kind: 'ok', text: 'Outline redrawn.', undo: () => restoreOutline(d.placementId, old) })
     } else {
       const [cx, cy] = centroid(pts)
       await dropNode(cx, cy, pts, d.kind)
     }
   }
+  const restoreOutline = (placementId, old) => // the old ring, kind and style go back as they were
+    track(atlasService.patchPlacement(placementId, { shape: old.shape, shape_kind: old.kind, shape_style: old.style }), "Couldn't put the outline back")
+      .then(() => refreshMap()).catch(() => {})
   const clearOutline = async (placementId) => {
+    const cur = data?.placements.find((pp) => pp.id === placementId)
+    const old = cur?.shape ? { shape: cur.shape, kind: cur.shapeKind || 'area', style: cur.shapeStyle || null } : null
     const ok = await track(atlasService.patchPlacement(placementId, { shape: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
-    if (ok) await refreshMap()
+    if (!ok) return
+    await refreshMap()
+    if (old) setFlash({ kind: 'ok', text: 'Outline removed — back to a plain pin.', undo: () => restoreOutline(placementId, old) })
   }
   // the API speaks snake_case, the map payload camelCase: translate so a saved DM note
   // (dm_note) lands on p.node.dmNote — the key every reader and the reseeded inspector use
@@ -635,7 +656,8 @@ function AtlasWorkspace() {
   const factPatch = (nodeId, id, data) =>
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
   const factDelete = (nodeId, id) =>
-    track(atlasService.deleteFact(id), "Couldn't remove the entry").then(() => reloadLinks(nodeId)).catch(() => {})
+    track(atlasService.deleteFact(id), "Couldn't remove the entry")
+      .then((r) => { reloadLinks(nodeId); setFlash({ kind: 'ok', text: "That period's text is gone.", undoId: r?.undoId }) }).catch(() => {})
 
   const askRemoveInterior = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -674,11 +696,18 @@ function AtlasWorkspace() {
 
   // ---- images -----------------------------------------------------------------------
   const setNodeImage = (nodeId, imageId, imageUrl) => {
-    localPatchNode(nodeId, { imageUrl: imageUrl || null })
+    const cur = (data?.placements || []).find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
+    const prev = cur ? { id: cur.imageId ?? null, url: cur.imageUrl || null } : null
+    localPatchNode(nodeId, { imageUrl: imageUrl || null, imageId: imageId ?? null })
     track(atlasService.patchNode(nodeId, { image_id: imageId })).catch(() => {})
+    if (imageId == null && prev?.id != null) setFlash({ kind: 'ok', text: 'Image removed from the node — it stays in the Archive.', undo: () => setNodeImage(nodeId, prev.id, prev.url) })
   }
-  const setBackdrop = (imageId) =>
-    track(atlasService.patchMap(mapId, { image_id: imageId }), "Couldn't set the backdrop").then(refreshMap).catch(() => {})
+  const setBackdrop = (imageId) => {
+    const prev = map?.imageId ?? null // removing the base art can be undone from the toast
+    return track(atlasService.patchMap(mapId, { image_id: imageId }), "Couldn't set the backdrop")
+      .then(() => { refreshMap(); if (imageId == null && prev != null) setFlash({ kind: 'ok', text: 'Backdrop removed.', undo: () => setBackdrop(prev) }) })
+      .catch(() => {})
+  }
   const handlePick = (imageId, imageUrl) => {
     const pk = picker; setPicker(null); if (!pk) return
     if (pk.kind === 'backdrop') setBackdrop(imageId)
@@ -705,7 +734,8 @@ function AtlasWorkspace() {
   const patchBackdrop = (id, data) =>
     track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(refreshMap).catch(() => {})
   const deleteBackdrop = (id) =>
-    track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop").then(refreshMap).catch(() => {})
+    track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop")
+      .then((r) => { refreshMap(); setFlash({ kind: 'ok', text: "That period's art is gone.", undoId: r?.undoId }) }).catch(() => {})
 
   const setMapView = (view) => {
     if (!map || map.view === view) return
@@ -819,7 +849,8 @@ function AtlasWorkspace() {
   const eraAdd = () => once('era', () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era"))
     .then(refreshWorldMeta).catch(() => {})
   const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(refreshWorldMeta).catch(() => {})
-  const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era").then(refreshWorldMeta).catch(() => {})
+  const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era")
+    .then((r) => { refreshWorldMeta(); setFlash({ kind: 'ok', text: 'Era deleted — players lose that stretch of the past.', undoId: r?.undoId }) }).catch(() => {})
   // Sessions are eras of ten footsteps; the next one starts where the last ended and the
   // timeline grows to hold it — so the latest session is always the end of the clock.
   const nextSession = () => once('session', async () => {
@@ -842,16 +873,19 @@ function AtlasWorkspace() {
     // the clock survives being switched off: keep the stored range, unit and canon unless
     // this world never had one (the untouched schema defaults, and no eras)
     const t = world?.timeline
-    const legacy = !t || !(t.min < t.max) || (t.min === 0 && t.max === 100 && t.current === 50 && (!t.unit || t.unit === 'years') && !(world?.eras || []).length)
+    // never set = nothing stored (the server keeps NULLs); a clock set then switched off comes back as it was
+    const legacy = !t || t.min == null || t.max == null || !(t.min < t.max)
+      || (t.min === 0 && t.max === 100 && t.current === 50 && (!t.unit || t.unit === 'years') && !(world?.eras || []).length)
     if (!legacy) {
       setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: true } }))
       setNow(t.current ?? t.min)
       track(atlasService.patchWorld(worldId, { timeline_enabled: true })).catch(() => {})
     } else {
-      setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
+      // the table convention: footsteps, ten a session — "＋ Next session" then opens Session 1 at 10–19
+      setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 9, current: 0, unit: 'footsteps' } }))
       setNow(0)
       track(atlasService.patchWorld(worldId, {
-        timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 100, timeline_current_time: 0, timeline_time_unit: 'days',
+        timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 9, timeline_current_time: 0, timeline_time_unit: 'footsteps',
       })).catch(() => {})
     }
     setTlEdit(true)
@@ -873,10 +907,23 @@ function AtlasWorkspace() {
 
   // ---- share link ----------------------------------------------------------------------
   const shareUrl = world?.shareToken ? `${window.location.origin}/p/${world.shareToken}` : null
-  const shareOn = () => track(atlasService.createShare(worldId), "Couldn't create the link")
-    .then(({ token }) => { setWorld((w) => w && ({ ...w, shareToken: token })); setCopied(false) }).catch(() => {})
+  const shareOn = () => {
+    const rotating = !!world?.shareToken
+    return track(atlasService.createShare(worldId), "Couldn't create the link")
+      .then(({ token }) => {
+        setWorld((w) => w && ({ ...w, shareToken: token })); setCopied(false)
+        setFlash({ kind: 'ok', text: rotating ? 'New link made — the old one no longer works; send this one to your players.' : 'Share link made — copy it and send it to your players.' })
+      }).catch(() => {})
+  }
   const shareOff = () => track(atlasService.deleteShare(worldId), "Couldn't turn it off")
-    .then(() => { setWorld((w) => w && ({ ...w, shareToken: null })); setCopied(false) }).catch(() => {})
+    .then(() => { setWorld((w) => w && ({ ...w, shareToken: null })); setCopied(false); setFlash({ kind: 'info', text: "The share link is off — players' phones show it as inactive on their next refresh." }) }).catch(() => {})
+  // breaking every player's link takes two clicks: the button asks, then acts, then times out
+  const [shareAsk, setShareAsk] = useState(null) // 'regen' | 'off'
+  useEffect(() => { if (!shareAsk) return; const t = setTimeout(() => setShareAsk(null), 4000); return () => clearTimeout(t) }, [shareAsk])
+  const askShare = (what) => {
+    if (shareAsk === what) { setShareAsk(null); if (what === 'regen') shareOn(); else shareOff(); return }
+    setShareAsk(what)
+  }
   const copyShare = () => {
     navigator.clipboard?.writeText(shareUrl).then(() => {
       setCopied(true); setTimeout(() => setCopied(false), 2000)
@@ -1055,7 +1102,9 @@ function AtlasWorkspace() {
   // ---- category legend / filter -------------------------------------------------------
   const legend = useMemo(() => {
     const counts = {}
-    for (const p of data?.placements || []) counts[p.node.category] = (counts[p.node.category] || 0) + 1
+    const seen = {} // one Party, however many footsteps it left here
+    for (const p of data?.placements || []) { (seen[p.node.category] ||= new Set()).add(p.node.id) }
+    for (const k of Object.keys(seen)) counts[k] = seen[k].size
     return Object.entries(counts).sort((a, b) => b[1] - a[1])
   }, [data])
   const toggleCat = (k) => setHiddenCats((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
@@ -1239,8 +1288,9 @@ function AtlasWorkspace() {
                   <div className="surl">{shareUrl}</div>
                   <div className="srow">
                     <button className="tool on" onClick={copyShare}>{copied ? 'Copied ✓' : 'Copy link'}</button>
-                    <button className="tool" onClick={shareOn} title="Makes a new link; the old one stops working">Regenerate</button>
-                    <button className="tool danger" onClick={shareOff}>Turn off</button>
+                    <button className={`tool ${shareAsk === 'regen' ? 'danger' : ''}`} onClick={() => askShare('regen')} title="Makes a new link; the old one stops working">
+                      {shareAsk === 'regen' ? "Really? Players' current link stops working" : 'Regenerate'}</button>
+                    <button className="tool danger" onClick={() => askShare('off')}>{shareAsk === 'off' ? "Really? Every player's link dies" : 'Turn off'}</button>
                   </div>
                   <div className="muted">Players see shared nodes only, at the canon moment{tl?.enabled ? ` (${momentLabel(canon, world?.eras, tl.unit)})` : ''}. Scrubbing your timeline doesn't move them — “Set canon” does.</div>
                 </>
@@ -1328,7 +1378,7 @@ function AtlasWorkspace() {
               {(data?.placements || []).filter(visible).filter((p) => !p.shape || p.node.category === 'party').filter((p) => p.node.category !== 'party' || (tl?.enabled ? present(p) : p.id === latestParty)).map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''} ${hovId === p.id ? 'hov' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0) } : {}) }}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
                   {p.node.pin === 'image' && p.node.imageUrl ? (
@@ -1515,7 +1565,7 @@ function AtlasWorkspace() {
           {mode !== 'player' && tl?.enabled && (
             <div className="timebar">
               <span className="tlabel" title={momentLabel(dispMin, world?.eras, tl.unit)}>{dispMin}</span>
-              <div className="ttrack">
+              <div className="ttrack" ref={trackRef}>
                 {dispMax > dispMin && (() => {
                   // one tick per footstep moment; the deepest map for that moment wins the click
                   const byStart = new Map()
@@ -1524,12 +1574,33 @@ function AtlasWorkspace() {
                     const cur = byStart.get(st.start)
                     if (!cur || (st.interior && !cur.interior)) byStart.set(st.start, st)
                   }
-                  return [...byStart.values()].map((st) => {
+                  const steps = [...byStart.values()].sort((a, b) => a.start - b.start)
+                  const latest = latestSession(world?.eras)
+                  const one = tl.unit ? tl.unit.replace(/s$/i, '') : 'moment'
+                  const pitch = trackW / Math.max(1, dispMax - dispMin)
+                  if (pitch < 8 && steps.length > 1) {
+                    // too dense to aim at: one tick per SESSION (its first footstep) — a focus period
+                    // or ⤢ spreads the footsteps out again
+                    const groups = new Map()
+                    for (const st of steps) {
+                      const so = sessionOf(st.start, world?.eras)
+                      const k = so ? `e${so.era.id}` : `t${st.start}`
+                      if (!groups.has(k)) groups.set(k, { first: st, so, n: 0 })
+                      groups.get(k).n++
+                    }
+                    return [...groups.values()].map(({ first, so, n }) => (
+                      <button key={first.id} type="button" className="tstep grp"
+                        style={{ left: `${((first.start - dispMin) / (dispMax - dispMin)) * 100}%`, '--sc': sessionColor(so?.idx ?? 0, latest) }}
+                        title={`${so ? sessionLabel(so, tl.unit) : `${one} ${first.start}`} — ${first.mapTitle}${n > 1 ? ` · ${n} footsteps this session (narrow the bar to pick one)` : ''} (click to go there)`}
+                        onClick={() => goToMoment(first.start, first.mapId, first.id)} />
+                    ))
+                  }
+                  return steps.map((st) => {
                     const so = sessionOf(st.start, world?.eras)
                     return (
                       <button key={st.id} type="button" className="tstep"
-                        style={{ left: `${((st.start - dispMin) / (dispMax - dispMin)) * 100}%`, '--sc': sessionColor(so?.idx ?? 0) }}
-                        title={`${so ? sessionLabel(so, tl.unit) : `${tl.unit ? tl.unit.replace(/s$/i, '') : 'moment'} ${st.start}`} — ${st.mapTitle} (click to go there)`}
+                        style={{ left: `${((st.start - dispMin) / (dispMax - dispMin)) * 100}%`, '--sc': sessionColor(so?.idx ?? 0, latest) }}
+                        title={`${so ? sessionLabel(so, tl.unit) : `${one} ${st.start}`} — ${st.mapTitle} (click to go there)`}
                         onClick={() => goToMoment(st.start, st.mapId, st.id)} />
                     )
                   })
@@ -1540,18 +1611,22 @@ function AtlasWorkspace() {
                     .filter((er) => er.s < er.e)
                   // where eras overlap only the narrowest prints its name; the wider one keeps its band and tooltip
                   const quiet = (er) => bands.some((o) => o !== er && o.s < er.e && er.s < o.e && (o.e - o.s) < (er.e - er.s))
+                  // a crowded bar prints the short form (S12) so every session stays named
+                  const compact = bands.length > 5
+                  const label = (er) => { const n = sessionNum(er); return compact && n != null ? `S${n}` : er.name }
                   return bands.map((er) => (
                     <span key={er.id} className={`teraband${er.playerVisible ? ' pv' : ''}`} title={er.name}
                       style={{
                         left: `${((er.s - dispMin) / (dispMax - dispMin)) * 100}%`,
                         width: `${((er.e - er.s) / (dispMax - dispMin)) * 100}%`,
-                      }}>{quiet(er) ? null : <em>{er.name}</em>}</span>
+                      }}>{quiet(er) ? null : <em>{label(er)}</em>}</span>
                   ))
                 })()}
                 <input type="range" min={dispMin} max={dispMax}
                   value={Math.min(Math.max(now, dispMin), dispMax)}
                   onChange={(e) => setNow(Number(e.target.value))} />
                 {dispMax > dispMin && (data?.placements || [])
+                  .filter((p) => p.node.category !== 'party') // the party's walking is the ticks above, not presence marks
                   .flatMap((p) => [p.start, p.end])
                   .filter((t) => t != null && t >= dispMin && t <= dispMax)
                   .map((t, i) => (
@@ -1747,7 +1822,7 @@ function AtlasWorkspace() {
                   <div className="vrow">
                     <button className="btn" onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>🔊 Make it</button>
                     {map?.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
-                    {map?.ambienceUrl && <button className="lx" title="Remove the ambience" onClick={clearAmbience}>✕</button>}
+                    {map?.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
                   </div>
                 </>
               )}
@@ -1758,7 +1833,11 @@ function AtlasWorkspace() {
             <Inspector key={`${sel ? `p${sel.id}` : `n${stray.id}`}:${refreshVer}`}
               p={sel || { id: null, node: stray, start: null, end: null, shape: null, shapeKind: 'area', shapeStyle: null }} stray={!sel}
               onSave={saveNode}
-              onCat={(c) => saveNode(fn.id, { category: c })}
+              onCat={(c) => {
+                if (fn.category === 'party' && c !== 'party' && !window.confirm("This is the Party. Changing its category drops its whole trail from the timebar and from players' phones. Change it?")) return
+                saveNode(fn.id, { category: c })
+              }}
+              partyExists={trail.some((st) => st.nodeId !== fn.id) || (data?.placements || []).some((pp) => pp.node.category === 'party' && pp.node.id !== fn.id)}
               onOpen={() => openInterior(fn)} onCreate={(v) => createInteriorAs(fn, v)}
               onRemoveInterior={() => askRemoveInterior(fn)}
               onImage={() => setPicker({ kind: 'node', nodeId: fn.id, hasCurrent: !!fn.imageUrl })}
@@ -1867,7 +1946,12 @@ function AtlasWorkspace() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head"><h4>Delete “{confirmDel.node.title}”?</h4>
               <button onClick={() => setConfirmDel(null)}>✕</button></div>
-            <DeleteImpact impact={confirmDel.impact} spotlit={world?.spotlightNodeId === confirmDel.node.id} />
+            <DeleteImpact impact={confirmDel.impact} spotlit={world?.spotlightNodeId === confirmDel.node.id}
+              party={confirmDel.node.category === 'party' ? (() => {
+                const steps = trail.filter((st) => st.nodeId === confirmDel.node.id)
+                const nums = steps.map((st) => sessionOf(st.start ?? 0, world?.eras)?.num).filter((n) => n != null)
+                return { steps: steps.length, maps: new Set(steps.map((st) => st.mapId)).size, first: nums.length ? Math.min(...nums) : null, last: nums.length ? Math.max(...nums) : null }
+              })() : null} />
             <div className="mrow">
               <button className="tool" onClick={() => setConfirmDel(null)}>Keep it</button>
               <button className="tool danger" onClick={doDeleteNode}>Delete everywhere</button>
@@ -1957,7 +2041,7 @@ function AtlasWorkspace() {
       {flash && (
         <div className={`aflash ${flash.kind}`}>
           {flash.text}
-          {flash.undoId && <button className="aundo" onClick={() => doUndo(flash.undoId)}>↩ Undo</button>}
+          {(flash.undoId || flash.undo) && <button className="aundo" onClick={() => { if (flash.undo) { const u = flash.undo; setFlash(null); u() } else doUndo(flash.undoId) }}>↩ Undo</button>}
         </div>
       )}
     </div>
@@ -2038,11 +2122,13 @@ function MapTree({ tree, rootId, mapId, onGo, worldId }) {
   )
 }
 
-function DeleteImpact({ impact, spotlit }) {
+function DeleteImpact({ impact, spotlit, party }) {
   if (!impact) return <p className="muted">This removes the node from every map, along with its links.{spotlit ? ' The lantern pointing at it goes out.' : ''}</p>
   const bits = []
+  if (party) bits.push(`This erases the party's trail: ${party.steps} ${party.steps === 1 ? 'footstep' : 'footsteps'} across ${party.maps} ${party.maps === 1 ? 'map' : 'maps'}${party.first != null ? (party.first === party.last ? `, session ${party.first}` : `, sessions ${party.first}–${party.last}`) : ''} — the timebar ticks and the players' From / Then on to links with it.`)
   if (spotlit) bits.push('The lantern points at it — the trail goes out (Undo relights it).')
-  if (impact.placements > 1) bits.push(`It sits on ${impact.placements} maps — it disappears from all of them.`)
+  const maps = impact.maps ?? impact.placements
+  if (!party && maps > 1) bits.push(`It sits on ${maps} maps — it disappears from all of them.`)
   if (impact.interiorMaps > 0) {
     bits.push('Its interior is deleted too.')
     if (impact.nodesInside > 0) {
@@ -2072,7 +2158,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
     <div className="tlcfg">
       <label>From <input type="number" value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
       <label>To <input type="number" value={max} onChange={(e) => setMax(e.target.value === '' ? '' : Number(e.target.value))} /></label>
-      <label>Unit <input type="text" value={unit} placeholder="days, years, sessions…" onChange={(e) => setUnit(e.target.value)} /></label>
+      <label>Unit <input type="text" value={unit} placeholder="footsteps (ten a session), days, years…" onChange={(e) => setUnit(e.target.value)} /></label>
       <div className="tlrow">
         <button className="tool on" disabled={bad} title={bad ? 'Start must be before end' : ''}
           onClick={() => onSave(Number(min), Number(max), unit.trim() || 'days')}>Save</button>
@@ -2080,6 +2166,11 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
       </div>
       <div className="isect">Eras</div>
       <div className="muted esmall">Name the ages of your world. 🎭 opens that era to players — they can scrub the revealed past, never beyond canon.</div>
+      {(tl.unit === 'footsteps' || (eras || []).some((e) => sessionNum(e) != null)) && (eras || []).length > 3 && (
+        <div className="tlrow">
+          <button className="tool" onClick={onNextSession} title={`Adds the next session as an era of ten ${tl.unit} after the last session, and grows the timeline to hold it`}>＋ Next session</button>
+        </div>
+      )}
       {(eras || []).map((e) => (
         <div key={e.id} className="erarow">
           <input key={`n${e.name}`} className="ename" defaultValue={e.name} title="Era name"
@@ -2114,7 +2205,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+function Inspector({ p, stray, partyExists, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
   const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
@@ -2125,6 +2216,7 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
   const [start, setStart] = useState(p.start ?? '')
   const [end, setEnd] = useState(p.end ?? '')
   const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
+  const [factsOpen, setFactsOpen] = useState(false) // every period shown, not just the one at the lens
   const labelCancel = useRef(false) // Esc must beat the blur the unmount fires
   const seeded = useRef(seedOf(p))
   // The server's copy changed under the inspector (a Forge turn, an Allow, another tab, a
@@ -2142,6 +2234,23 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
     }
   }, [p.node.title, p.node.body, p.node.dmNote, p.node.voiceLine, p.node.voiceStyle, p.start, p.end]) // eslint-disable-line
   const n = p.node
+  const timeBlock = timeline?.enabled && !stray ? (
+    <>
+      <div className="isect">{n.category === 'party' ? 'This footstep' : 'Time'}</div>
+      <div className="fld"><label>{n.category === 'party' ? 'Footstep — when the party stands here' : "Lifespan — when it's present"}</label>
+        <div className="span">
+          <input data-fld="start" type="number" placeholder="from" value={start}
+            onChange={(e) => { const v = e.target.value; setStart(v); onLifespan('start', v === '' ? null : Number(v)) }} />
+          <span>→</span>
+          <input data-fld="end" type="number" placeholder="to" value={end}
+            onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan('end', v === '' ? null : Number(v)) }} />
+        </div>
+        <div className="muted">{start === '' && end === ''
+          ? 'Blank = always present. Scrub the timeline to see it appear / disappear.'
+          : `= ${spanLabel(start === '' ? null : Number(start), end === '' ? null : Number(end), eras, timeline?.unit)}`}</div>
+      </div>
+    </>
+  ) : null
   return (
     <>
       {stray && <div className="muted esmall strayhint">○ Not on any map — edit it here, place it on this map, or delete it.</div>}
@@ -2152,8 +2261,8 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
         <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>✍ A player placed this{n.author ? `, signed “${n.author}”` : ''} — a self-typed name, not verified. Set “Who can see it” to claim it into canon or hide it.</div>
       )}
       <div className="catrow">
-        {Object.entries(CATS).map(([k, v]) => (
-          <button key={k} className={`cdot ${n.category === k ? 'on' : ''}`} title={v.label}
+        {Object.entries(CATS).filter(([k]) => k !== 'party' || n.category === 'party' || !partyExists).map(([k, v]) => (
+          <button key={k} className={`cdot ${n.category === k ? 'on' : ''}`} title={k === 'party' ? 'The party — one per world' : v.label}
             style={{ background: v.c }} onClick={() => onCat(k)}>{v.i}</button>
         ))}
         <span className="catname">{cat(n.category).label}</span>
@@ -2196,6 +2305,7 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
         ))}
       </div>
       )}
+      {n.category === 'party' && timeBlock}
       <div className="isect">Story</div>
       <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <textarea data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
@@ -2256,7 +2366,16 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
       )}
       {timeline?.enabled && (
         <div className="fld"><label>The story by period — what this reads as at different times</label>
-          {(facts || []).map((f) => (
+          {(() => {
+            // the period at the lens stays open; the rest fold behind a count (a Party carries one per footstep)
+            const all = facts || []
+            const live = all.filter((f) => (f.start == null || f.start <= nowT) && (f.end == null || f.end >= nowT))
+            const shown = factsOpen || all.length <= 4 ? all : (live.length ? live : all.slice(-1))
+            const hidden = all.length - shown.length
+            return (
+              <>
+                {hidden > 0 && <button className="btn block" onClick={() => setFactsOpen(true)}>Show {hidden} other {hidden === 1 ? 'period' : 'periods'}</button>}
+                {shown.map((f) => (
             <div key={f.id} className="factrow">
               <div className="factspan">
                 <input key={`s${f.start ?? ''}`} type="number" defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
@@ -2269,7 +2388,10 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
               <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
                 onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
             </div>
-          ))}
+                ))}
+              </>
+            )
+          })()}
           <button className="btn block" onClick={onFactAdd}>＋ Story for a period (from {nowLabel || nowT})</button>
           <div className="muted">The latest-starting period covering the moment wins; players get only their moment's text.</div>
         </div>
@@ -2299,23 +2421,7 @@ function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior
           <button className="btn block" onClick={onImage}>＋ Add image</button>
         )}
       </div>
-      {timeline?.enabled && !stray && (
-        <>
-        <div className="isect">Time</div>
-        <div className="fld"><label>Lifespan — when it's present</label>
-          <div className="span">
-            <input data-fld="start" type="number" placeholder="from" value={start}
-              onChange={(e) => { const v = e.target.value; setStart(v); onLifespan('start', v === '' ? null : Number(v)) }} />
-            <span>→</span>
-            <input data-fld="end" type="number" placeholder="to" value={end}
-              onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan('end', v === '' ? null : Number(v)) }} />
-          </div>
-          <div className="muted">{start === '' && end === ''
-            ? 'Blank = always present. Scrub the timeline to see it appear / disappear.'
-            : `= ${spanLabel(start === '' ? null : Number(start), end === '' ? null : Number(end), eras, timeline?.unit)}`}</div>
-        </div>
-        </>
-      )}
+      {n.category !== 'party' && timeBlock}
       <div className="isect">Connections</div>
       <div className="fld"><label>Links — references to other nodes</label>
         <div className="links">

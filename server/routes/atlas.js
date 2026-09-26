@@ -183,8 +183,10 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
     const min = req.body.timeline_min_time ?? stored.timeline_min_time;
     const max = req.body.timeline_max_time ?? stored.timeline_max_time;
     const cur = req.body.timeline_current_time ?? stored.timeline_current_time ?? min;
-    if (!(min < max)) return res.status(400).json({ message: 'Timeline start must be before its end' });
-    if (cur < min || cur > max) req.body.timeline_current_time = Math.min(Math.max(cur, min), max);
+    if (min != null && max != null) { // a never-set clock stores NULLs: nothing to hold to yet
+      if (!(min < max)) return res.status(400).json({ message: 'Timeline start must be before its end' });
+      if (cur != null && (cur < min || cur > max)) req.body.timeline_current_time = Math.min(Math.max(cur, min), max);
+    }
   }
   const cols = {
     name: 'name', description: 'description',
@@ -372,7 +374,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
     SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape, p.shape_kind, p.shape_style,
-           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size,
+           n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size, n.image_id,
            n.voice_id, n.voice_name, n.voice_line, n.voice_url, n.voice_style,
            ni.file_path AS node_image_path, im.view AS interior_view
     FROM placements p
@@ -385,7 +387,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
             voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
             pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
-            imageUrl: resolveImageUrl(req, r.node_image_path) },
+            imageId: r.image_id, imageUrl: resolveImageUrl(req, r.node_image_path) },
   }));
   const nodeIds = placements.map((p) => p.node.id);
   let links = [];
@@ -400,7 +402,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
      FROM map_backdrops b JOIN images i ON i.id = b.image_id
      WHERE b.map_id = $1 ORDER BY b.start_time NULLS FIRST, b.id`, [req.params.mapId])).rows;
   res.json({
-    map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id,
+    map: { id: map.id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, imageId: map.image_id,
            focusStart: map.focus_start, focusEnd: map.focus_end, dmNote: map.dm_note,
            ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
@@ -447,14 +449,18 @@ router.patch('/backdrops/:id', wrap(async (req, res) => {
 router.delete('/backdrops/:id', wrap(async (req, res) => {
   const wid = await worldIdOfBackdrop(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
+  const row = (await pool.query('SELECT * FROM map_backdrops WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM map_backdrops WHERE id=$1', [req.params.id]);
-  res.json({ ok: true });
+  const undoId = await tombstone(wid, req.user.id, 'backdrop', { backdrop: row });
+  res.json({ ok: true, undoId });
 }));
 
 // POST /maps/:mapId/nodes — drop a NEW node on this map (create node + placement).
 router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
+  if (req.body?.category === 'party' && (await pool.query(`SELECT 1 FROM nodes WHERE world_id=$1 AND category='party'`, [wid])).rows.length)
+    return res.status(409).json({ message: 'This world already has a Party — there is one per world' });
   const { title = 'New node', category = 'note', x = 50, y = 50, body = null, shape = null, shape_kind = null } = req.body;
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
@@ -533,8 +539,10 @@ router.patch('/facts/:id', wrap(async (req, res) => {
 router.delete('/facts/:id', wrap(async (req, res) => {
   const wid = await worldIdOfFact(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Fact not found' });
+  const row = (await pool.query('SELECT * FROM node_facts WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM node_facts WHERE id=$1', [req.params.id]);
-  res.json({ ok: true });
+  const undoId = await tombstone(wid, req.user.id, 'fact', { fact: row });
+  res.json({ ok: true, undoId });
 }));
 
 // GET /nodes/:id/locate — where to jump to this node: its interior, else a map it's placed on.
@@ -568,6 +576,7 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
     ), direct AS (SELECT interior_map_id AS map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL)
     SELECT
       (SELECT COUNT(*) FROM placements WHERE node_id = $1) AS placements,
+      (SELECT COUNT(DISTINCT map_id) FROM placements WHERE node_id = $1) AS maps,
       (SELECT COUNT(*) FROM direct) AS interior_maps,
       GREATEST((SELECT COUNT(*) FROM tree) - (SELECT COUNT(*) FROM direct), 0) AS nested_maps,
       (SELECT COUNT(*) FROM nodes n WHERE n.id != $1
@@ -576,6 +585,7 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
     [req.params.id])).rows[0];
   res.json({
     placements: parseInt(r.placements),
+    maps: parseInt(r.maps),
     interiorMaps: parseInt(r.interior_maps),
     nestedMaps: parseInt(r.nested_maps),
     nodesInside: parseInt(r.nodes_inside),
@@ -586,6 +596,9 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  // one Party per world: a second 'party' node would merge its footsteps into the one trail
+  if (req.body?.category === 'party' && (await pool.query(`SELECT 1 FROM nodes WHERE world_id=$1 AND category='party' AND id<>$2`, [wid, req.params.id])).rows.length)
+    return res.status(409).json({ message: 'This world already has a Party — there is one per world' });
   if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
   if (req.body.reveal) {
     // Reveal merges the secret into the CURRENT description here, so a stale tab can never
@@ -744,6 +757,28 @@ router.post('/undo/:id', wrap(async (req, res) => {
       await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.map.id, p.ownerNodeId]);
       for (const pl of p.placements || []) await insertPlacement(pl);
       for (const b of p.backdrops || []) await insertBackdrop(b);
+    } else if (t.kind === 'fact') {
+      const f = p.fact;
+      if (!(await exists('nodes', f.node_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The node is gone' }); }
+      await client.query(
+        'INSERT INTO node_facts (id, node_id, body, start_time, end_time, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
+        [f.id, f.node_id, f.body, f.start_time, f.end_time, f.created_at]);
+    } else if (t.kind === 'link') {
+      const l = p.link;
+      if (!(await exists('nodes', l.from_node_id)) || !(await exists('nodes', l.to_node_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'One end of the link is gone' }); }
+      await client.query(
+        'INSERT INTO links (id, world_id, from_node_id, to_node_id, kind, label, time_context, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING',
+        [l.id, l.world_id, l.from_node_id, l.to_node_id, l.kind, l.label, l.time_context, l.created_at]);
+    } else if (t.kind === 'era') {
+      const e = p.era;
+      await client.query(
+        'INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
+        [e.id, e.world_id, e.name, e.start_time, e.end_time, e.player_visible]);
+    } else if (t.kind === 'backdrop') {
+      const b = p.backdrop;
+      if (!(await exists('maps', b.map_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The map is gone' }); }
+      if (!(await exists('images', b.image_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'That image has been deleted since' }); }
+      await insertBackdrop(b);
     } else {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Unknown tombstone' });
@@ -823,8 +858,10 @@ router.patch('/eras/:id', wrap(async (req, res) => {
 router.delete('/eras/:id', wrap(async (req, res) => {
   const wid = await worldIdOfEra(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Era not found' });
+  const row = (await pool.query('SELECT * FROM eras WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM eras WHERE id=$1', [req.params.id]);
-  res.json({ ok: true });
+  const undoId = await tombstone(wid, req.user.id, 'era', { era: row });
+  res.json({ ok: true, undoId });
 }));
 
 // POST /links — connect two nodes in the same world; DELETE /links/:id.
@@ -851,8 +888,10 @@ router.patch('/links/:id', wrap(async (req, res) => {
 router.delete('/links/:id', wrap(async (req, res) => {
   const r = (await pool.query('SELECT world_id FROM links WHERE id=$1', [req.params.id])).rows[0];
   if (!r || !(await ownsWorld(r.world_id, req.user.id))) return res.status(404).json({ message: 'Link not found' });
+  const row = (await pool.query('SELECT * FROM links WHERE id=$1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM links WHERE id=$1', [req.params.id]);
-  res.json({ ok: true });
+  const undoId = await tombstone(r.world_id, req.user.id, 'link', { link: row });
+  res.json({ ok: true, undoId });
 }));
 
 module.exports = router;

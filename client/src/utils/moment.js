@@ -1,9 +1,16 @@
 // A moment on the world clock, read the way a table reads it: "Session 3 · footstep 7"
 // when the moment falls inside a named era (the era's short name, before any dash, and
 // the position within it), the raw number otherwise.
-// One hue per session, in era order, so a footstep's age reads at a glance.
+// One hue per session for the most recent eight; older sessions go quiet grey, so the
+// colours keep telling recent sessions apart at campaign length instead of repeating.
 export const SESSION_COLORS = ['#38b6a3', '#d9a441', '#b07bd0', '#5b9bd5', '#d05b5b', '#4f9f6f', '#e0968f', '#c9c3ae']
-export const sessionColor = (idx) => SESSION_COLORS[((idx % SESSION_COLORS.length) + SESSION_COLORS.length) % SESSION_COLORS.length]
+export const OLD_SESSION_COLOR = '#8b909a'
+export const sessionColor = (idx, latest = null) => {
+  if (latest != null && latest - idx >= SESSION_COLORS.length) return OLD_SESSION_COLOR
+  return SESSION_COLORS[((idx % SESSION_COLORS.length) + SESSION_COLORS.length) % SESSION_COLORS.length]
+}
+// the newest session's colour index (null when no era is a session)
+export const latestSession = (eras) => { let m = -1; for (const e of eras || []) { const n = sessionNum(e); if (n != null && n - 1 > m) m = n - 1 } return m < 0 ? null : m }
 
 // A session era is one NAMED "Session N": its number is read from the name, never from its
 // position among the eras (DM-only lore eras and overlaps would shift it).

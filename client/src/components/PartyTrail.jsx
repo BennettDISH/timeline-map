@@ -1,5 +1,5 @@
 import React from 'react'
-import { sessionOf, sessionColor, sessionLabel } from '../utils/moment'
+import { sessionOf, sessionColor, sessionLabel, latestSession } from '../utils/moment'
 
 // Where the party has BEEN on this map, up to the moment shown: every past footstep as a
 // ghost print (older = fainter, colored by session), joined in order by a dotted path. A
@@ -33,12 +33,23 @@ export default function PartyTrail({ placements, t, eras, unit, onStep }) {
     const ring = Math.floor((k - 1) / 6), dy = 27 + 18 * ring, dx = 30 + 18 * ring
     return [[0, dy], [0, -dy], [dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy]][(k - 1) % 6]
   }
-  const pts = steps.map((p) => `${p.x},${p.y}`).join(' ')
+  // one dotted path per VISIT: a gap in time between two prints on this map means the party
+  // was elsewhere, so the path breaks there instead of drawing a march they never made
+  const runs = []; let run = []
+  for (const p of steps) {
+    const prev = run[run.length - 1]
+    if (prev && prev.end != null && p.start != null && p.start > prev.end + 1) { runs.push(run); run = [] }
+    run.push(p)
+  }
+  if (run.length) runs.push(run)
+  const latest = latestSession(eras)
   return (
     <>
-      {steps.length > 1 && (
+      {runs.some((r) => r.length > 1) && (
         <svg className="ftrail" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points={pts} fill="none" stroke="#ffffff66" strokeWidth="1.5" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
+          {runs.filter((r) => r.length > 1).map((r, i) => (
+            <polyline key={i} points={r.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#ffffff66" strokeWidth="1.5" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
+          ))}
         </svg>
       )}
       {prints.map((p, i) => {
@@ -47,7 +58,7 @@ export default function PartyTrail({ placements, t, eras, unit, onStep }) {
         const [ox, oy] = offset(p)
         return (
           <button key={p.id} type="button" className="fstep"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, '--ox': `${ox}px`, '--oy': `${oy}px`, '--sc': sessionColor(s ? s.idx : 0), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
+            style={{ left: `${p.x}%`, top: `${p.y}%`, '--ox': `${ox}px`, '--oy': `${oy}px`, '--sc': sessionColor(s ? s.idx : 0, latest), opacity: 0.4 + 0.5 * ((i + 1) / prints.length) }}
             title={onStep ? `${label} — click to look at this moment` : label}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); if (onStep && p.start != null) onStep(p.start) }} />

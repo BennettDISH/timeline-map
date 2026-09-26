@@ -25,6 +25,14 @@ if (nodeId) {
   const born = await api('POST', `/maps/${cfg.root}/placements`, { node_id: nodeId, x: 6, y: 6, start_time: 3, end_time: 7 });
   const bornRow = (await api('GET', `/maps/${cfg.root}`)).body.placements?.find((p) => p.id === born.body?.placementId);
   step('a placement can be born with its lifespan', born.status === 201 && bornRow?.start === 3 && bornRow?.end === 7, `${born.status} ${JSON.stringify(bornRow && [bornRow.start, bornRow.end])}`);
+  // a period's text deleted by its ✕ is one Undo away, like everything else
+  const fact = await api('POST', `/nodes/${nodeId}/facts`, { body: 'PERIOD-TEXT', start_time: 1, end_time: 2 });
+  const factId = fact.body?.id ?? fact.body?.fact?.id ?? fact.body?.factId;
+  const factDel = await api('DELETE', `/facts/${factId}`);
+  step('deleting a period text returns an undo id', factDel.status === 200 && !!factDel.body?.undoId, JSON.stringify(factDel.body));
+  const factUndo = await api('POST', `/undo/${factDel.body?.undoId}`);
+  const factsAfter = (await api('GET', `/nodes/${nodeId}`)).body?.facts || [];
+  step('undo brings the period text back', factUndo.status === 200 && factsAfter.some((f) => f.body === 'PERIOD-TEXT'), `${factUndo.status} ${JSON.stringify(factsAfter.map((f) => f.body))}`);
   const interior = await api('POST', `/nodes/${nodeId}/interior`, { view: 'map' });
   const mapId = interior.body.mapId;
   await api('PATCH', `/maps/${mapId}`, { dm_note: 'INTERIOR-NOTE', focus_start: 1, focus_end: 5 });

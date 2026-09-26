@@ -233,6 +233,16 @@ ALTER TABLE worlds ADD COLUMN IF NOT EXISTS share_token VARCHAR(64) UNIQUE;
 -- New worlds start with the timeline OFF: the workspace's "Enable timeline" flow opens the
 -- range editor, instead of every world silently being born at year 50 of 0-100.
 ALTER TABLE worlds ALTER COLUMN timeline_enabled SET DEFAULT false;
+-- A clock that was never set stores NOTHING, so "never configured" can be told from "set, then
+-- switched off": the legacy 0-100 years defaults go, and worlds still carrying them untouched
+-- (clock off, no eras) are cleared once.
+ALTER TABLE worlds ALTER COLUMN timeline_min_time DROP DEFAULT;
+ALTER TABLE worlds ALTER COLUMN timeline_max_time DROP DEFAULT;
+ALTER TABLE worlds ALTER COLUMN timeline_current_time DROP DEFAULT;
+ALTER TABLE worlds ALTER COLUMN timeline_time_unit DROP DEFAULT;
+UPDATE worlds SET timeline_min_time = NULL, timeline_max_time = NULL, timeline_current_time = NULL, timeline_time_unit = NULL
+  WHERE timeline_enabled = false AND timeline_min_time = 0 AND timeline_max_time = 100 AND timeline_current_time = 50 AND timeline_time_unit = 'years'
+  AND NOT EXISTS (SELECT 1 FROM eras e WHERE e.world_id = worlds.id);
 
 -- A named period of the world's history. player_visible eras are scrubbable in the
 -- Player View — but never past the canon moment; share.js enforces that server-side.
