@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
+const { refreshIfStale } = require('../utils/token');
 
 // Middleware to verify JWT token
 const authenticateToken = async (req, res, next) => {
@@ -36,6 +37,8 @@ const authenticateToken = async (req, res, next) => {
     req.user = user;
     req.tokenVersion = tokenVersion;
     req.tokenPayload = decoded;
+    // sliding session: an actively used browser never meets the expiry mid-edit
+    try { const fresh = refreshIfStale(decoded, tokenVersion); if (fresh) res.setHeader('X-Refreshed-Token', fresh); } catch (e) { /* JWT_SECRET missing: nothing to slide */ }
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

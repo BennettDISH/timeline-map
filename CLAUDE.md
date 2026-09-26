@@ -55,6 +55,19 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path
+- **Autosave contract** (`AtlasWorkspace.jsx`): every write goes through `track()` so the
+  header chip is honest. Node fields, lifespans and map notes each have their OWN debounce
+  clock and pending payload (`flushSave`/`flushLife`/`flushNote`, `flushAll` on unmount and
+  before navigation). A refused node save is never dropped: it waits in `failedPatches`
+  under anything typed since and is retried every 5 s, and the chip stays on "Not saved"
+  until it lands. `pagehide` flushes what is pending with keepalive fetches. A dead session
+  (`atlas:auth-expired` from `http.js`) stashes pending edits in `localStorage.atlas_unsaved`
+  and the next visit to that world re-applies them; `authenticateToken` slides the session
+  with an `X-Refreshed-Token` header that `http.js` stores. Local node state is camelCase
+  (`localPatchNode` translates API keys), so a saved `dm_note` is what the reseeded inspector
+  shows. Reveal (`PATCH /nodes/:id {reveal:true}`) merges note into body ON THE SERVER. Map
+  loads carry a sequence number; a stale reply never lands. Create buttons ignore re-entry
+  (`once`), and `POST /nodes/:id/interior` claims the interior atomically.
 
 ## Sharing (Player View)
 - The DM mints a share link in the Atlas Share popover → `/p/:token` (public route, no account).

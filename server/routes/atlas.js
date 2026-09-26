@@ -515,6 +515,17 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
+  if (req.body.reveal) {
+    // Reveal merges the secret into the CURRENT description here, so a stale tab can never
+    // paste an old body over a newer one; the note is emptied in the same statement
+    const r = await pool.query(
+      `UPDATE nodes SET body = CASE WHEN btrim(COALESCE(dm_note, '')) = '' THEN body
+                                    WHEN btrim(COALESCE(body, '')) = '' THEN btrim(dm_note)
+                                    ELSE btrim(body) || E'\n\n' || btrim(dm_note) END,
+                        dm_note = '', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 RETURNING body`, [req.params.id]);
+    return res.json({ ok: true, body: r.rows[0]?.body ?? null });
+  }
   const cols = { title: 'title', body: 'body', dm_note: 'dm_note', stance: 'stance', category: 'category', visibility: 'visibility', image_id: 'image_id', pin: 'pin', pin_size: 'pin_size' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
@@ -537,7 +548,13 @@ router.post('/nodes/:id/interior', wrap(async (req, res) => {
   const m = (await pool.query(
     'INSERT INTO maps (title, world_id, view, owner_node_id, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [node.title, wid, view, req.params.id, req.user.id])).rows[0];
-  await pool.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [m.id, req.params.id]);
+  // exactly one interior per node, even under a double click: the claim is atomic
+  const claimed = await pool.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2 AND interior_map_id IS NULL RETURNING id', [m.id, req.params.id]);
+  if (!claimed.rows.length) {
+    await pool.query('DELETE FROM maps WHERE id=$1', [m.id]);
+    const cur = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+    return res.json({ mapId: cur.interior_map_id });
+  }
   res.status(201).json({ mapId: m.id });
 }));
 

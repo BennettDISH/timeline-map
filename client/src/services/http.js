@@ -4,7 +4,9 @@ import axios from 'axios'
 // request, and when the server says the token itself is bad (expired / invalid / user gone)
 // it clears the session and returns to login — instead of every page silently failing
 // forever behind a stale token. Public services (shareService) stay on their own instance.
-const http = axios.create({ headers: { 'Content-Type': 'application/json' } })
+// 20 s: a save that never answers surfaces as a failure (and a retry) instead of a chip
+// stuck on Saving… forever. Long calls (Forge, voice) pass their own timeouts per request.
+const http = axios.create({ headers: { 'Content-Type': 'application/json' }, timeout: 20000 })
 
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token')
@@ -23,13 +25,21 @@ const CREDENTIAL_URL = /\/auth\/(login|logout|register|guest|sso)/
 const TOKEN_MSG = /token|access token|user not found/i
 
 http.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // sliding session: the server hands back a fresh token past the halfway mark
+    const fresh = response.headers?.['x-refreshed-token']
+    if (fresh) { try { localStorage.setItem('auth_token', fresh) } catch (e) { /* ignore */ } }
+    return response
+  },
   (error) => {
     const status = error.response?.status
     const message = error.response?.data?.message || ''
     const url = error.config?.url || ''
     const tokenDead = status === 401 || (status === 403 && TOKEN_MSG.test(message))
     if (tokenDead && !CREDENTIAL_URL.test(url)) {
+      // let the workspace stash unsaved edits first (synchronous listeners), then say why
+      try { window.dispatchEvent(new CustomEvent('atlas:auth-expired')) } catch (e) { /* ignore */ }
+      try { sessionStorage.setItem('atlas_session_ended', '1') } catch (e) { /* ignore */ }
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user')
       window.location.href = '/login'

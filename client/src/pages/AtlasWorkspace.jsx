@@ -34,6 +34,7 @@ function AtlasWorkspace() {
   const [hovId, setHovId] = useState(null) // the placement whose region is hovered — its pin shows its name
   const [loading, setLoading] = useState(true)
   const [save, setSave] = useState('idle') // idle | saving | saved | err
+  const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop', nodeId?, hasCurrent }
   const [now, setNow] = useState(0) // the DM's viewing moment (local lens — NOT what players see)
@@ -104,6 +105,14 @@ function AtlasWorkspace() {
   const [previewT, setPreviewT] = useState(null) // player-posture era scrubbing (null = canon)
 
   const saveTimer = useRef(null)
+  const lifeTimer = useRef(null)          // lifespan edits keep their own clock (they used to cancel node saves)
+  const pendingLife = useRef(null)        // { placementId, start, end }
+  const failedPatches = useRef(new Map()) // node patches the server refused — retried, never dropped
+  const retryTimer = useRef(0)
+  const loadSeq = useRef(0)               // the newest map request wins; a slower older reply is dropped
+  const noteTimer = useRef(null)          // map notes: debounced and tracked like node fields
+  const pendingNote = useRef(null)        // { mapId, note }
+  const busy = useRef(new Set())          // one click does one thing: create buttons ignore re-entry
   const pendingPatch = useRef({ nodeId: null, patch: {} })
   const inflight = useRef(0)
   const worldRef = useRef(null)
@@ -128,7 +137,7 @@ function AtlasWorkspace() {
     inflight.current += 1
     setSave('saving')
     return promise
-      .then((r) => { if ((inflight.current -= 1) === 0) setSave('saved'); return r })
+      .then((r) => { if ((inflight.current -= 1) === 0) setSave(failedPatches.current.size ? 'err' : 'saved'); return r })
       .catch((e) => {
         inflight.current -= 1
         setSave('err')
@@ -155,14 +164,18 @@ function AtlasWorkspace() {
   const refreshTree = () => atlasService.getMaps(worldId).then(setTree).catch(() => {})
   const loadMap = useCallback((blank) => {
     if (!mapId) return Promise.resolve()
+    const seq = ++loadSeq.current
     if (blank) { setData(null); setLoadState('loading') }
     return atlasService.getMap(mapId)
       .then((d) => {
+        if (seq !== loadSeq.current) return // a newer map was asked for since: this reply is stale
         setData(d)
         setLoadState('ok')
+        setTrailTick((t) => t + 1)
         worldService.setLastLocation(worldId, mapId) // "/" resumes here next visit
       })
       .catch((e) => {
+        if (seq !== loadSeq.current) return
         if (blank) setLoadState('err')
         else setFlash({ kind: 'err', text: errText(e, "Couldn't refresh the map") })
       })
@@ -176,26 +189,27 @@ function AtlasWorkspace() {
       if (m?.enabled) voiceService.voices().then(setVoices).catch(() => {})
     })
   }, [])
+  // every write goes through track(): the header chip and the error toast stay honest
   const setNodeVoice = (nodeId, voiceId, voiceName, voiceStyle) =>
-    voiceService.setVoice(nodeId, voiceId, voiceName, voiceStyle)
+    track(voiceService.setVoice(nodeId, voiceId, voiceName, voiceStyle), "Couldn't set the voice")
       .then(() => localPatchNode(nodeId, { voiceId, voiceName, ...(voiceStyle !== undefined ? { voiceStyle } : {}) }))
-      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't set the voice") }))
+      .catch(() => {})
   const sayLine = (nodeId, text) =>
-    voiceService.sayLine(nodeId, text)
+    track(voiceService.sayLine(nodeId, text), 'No voice came back')
       .then((r) => { localPatchNode(nodeId, { voiceLine: r.line, voiceUrl: r.url }); setFlash({ kind: 'ok', text: 'They spoke — players hear it on their sheet' }) })
-      .catch((e) => setFlash({ kind: 'err', text: errText(e, 'No voice came back') }))
+      .catch(() => {})
   const clearLine = (nodeId) =>
-    voiceService.clearLine(nodeId)
+    track(voiceService.clearLine(nodeId), "Couldn't remove the line")
       .then(() => localPatchNode(nodeId, { voiceLine: null, voiceUrl: null }))
-      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't remove the line") }))
+      .catch(() => {})
   const setAmbience = (prompt) =>
-    voiceService.setAmbience(map.id, prompt)
+    track(voiceService.setAmbience(map.id, prompt), 'No sound came back')
       .then((r) => { setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
-      .catch((e) => setFlash({ kind: 'err', text: errText(e, 'No sound came back') }))
+      .catch(() => {})
   const clearAmbience = () =>
-    voiceService.clearAmbience(map.id)
+    track(voiceService.clearAmbience(map.id), "Couldn't remove the ambience")
       .then(() => setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
-      .catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't remove the ambience") }))
+      .catch(() => {})
   const toggleForge = () => setForgeOpen((v) => {
     const nv = !v
     try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
@@ -207,19 +221,19 @@ function AtlasWorkspace() {
   // trail (pruned at the first hidden step); here we just flip the pointer.
   const toggleSpotlight = (node) => {
     const on = world?.spotlightNodeId === node.id
-    const call = on ? atlasService.clearSpotlight(worldId) : atlasService.setSpotlight(worldId, node.id)
+    const call = track(on ? atlasService.clearSpotlight(worldId) : atlasService.setSpotlight(worldId, node.id), "Couldn't light the trail")
     call.then(() => {
       setWorld((w) => ({ ...w, spotlightNodeId: on ? null : node.id }))
       if (on) setFlash({ kind: 'info', text: 'The trail is out.' })
       else if (node.visibility === 'dm') setFlash({ kind: 'info', text: `Players see the trail toward “${node.title}” — but it stops early while this node is hidden.` })
       else setFlash({ kind: 'ok', text: `Players now see the golden trail to “${node.title}”.` })
-    }).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't light the trail") }))
+    }).catch(() => {})
   }
 
   useEffect(() => {
     if (!worldId) return
     atlasService.getTrail(worldId).then(setTrail).catch(() => {})
-  }, [worldId, data]) // eslint-disable-line
+  }, [worldId, trailTick]) // eslint-disable-line
   const forgeRefresh = useCallback(() => {
     atlasService.getWorld(worldId).then(setWorld).catch(() => {})
     atlasService.getMaps(worldId).then(setTree).catch(() => {})
@@ -302,18 +316,19 @@ function AtlasWorkspace() {
   }
 
   // ---- node & placement actions ----------------------------------------------------
-  const dropNode = async (x, y, shape = null, kind = 'area') => {
+  const dropNode = (x, y, shape = null, kind = 'area') => once('drop', async () => {
+    setPlacing(null) // one drop per click, even on a slow network
     const r = await track(atlasService.addNode(mapId, { x, y, ...(shape ? { shape, shape_kind: kind } : {}) }), "Couldn't add the node").catch(() => null)
     if (!r) return
-    await refreshMap(); refreshTree(); setSelId(r.placementId); setPlacing(null)
-  }
-  const placeExisting = async (node, x, y) => {
-    const r = await track(atlasService.placeNode(mapId, { node_id: node.id, x, y }), "Couldn't place it").catch(() => null)
+    await refreshMap(); refreshTree(); setSelId(r.placementId)
+  })
+  const placeExisting = (node, x, y) => once('drop', async () => {
     setPlacing(null)
+    const r = await track(atlasService.placeNode(mapId, { node_id: node.id, x, y }), "Couldn't place it").catch(() => null)
     if (!r) return
     await refreshMap(); setSelId(r.placementId)
     setFlash({ kind: 'ok', text: `"${node.title}" placed here — same node, new spot.` })
-  }
+  })
   // ---- outlines: trace a region of the art so the feature itself becomes the button ----
   // placementId null = outline first, then a new place is born from it (anchor at the centroid)
   const startOutline = (placementId, firstPt) => {
@@ -351,45 +366,152 @@ function AtlasWorkspace() {
     const ok = await track(atlasService.patchPlacement(placementId, { shape: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
     if (ok) await refreshMap()
   }
-  const localPatchNode = (nodeId, patch) => setData((d) => d && ({
-    ...d, placements: d.placements.map((p) => (p.node.id === nodeId ? { ...p, node: { ...p.node, ...patch } } : p)),
-  }))
+  // the API speaks snake_case, the map payload camelCase: translate so a saved DM note
+  // (dm_note) lands on p.node.dmNote — the key every reader and the reseeded inspector use
+  const CAMEL = { dm_note: 'dmNote', pin_size: 'pinSize', image_id: 'imageId', voice_id: 'voiceId', voice_name: 'voiceName', voice_style: 'voiceStyle', voice_line: 'voiceLine', voice_url: 'voiceUrl' }
+  const localPatchNode = (nodeId, patch) => {
+    const local = {}
+    for (const [k, v] of Object.entries(patch)) if (k !== 'reveal') local[CAMEL[k] || k] = v
+    setData((d) => d && ({
+      ...d, placements: d.placements.map((p) => (p.node.id === nodeId ? { ...p, node: { ...p.node, ...local } } : p)),
+    }))
+  }
 
   // Debounced autosave with a MERGED pending patch: rapid edits to two fields used to
   // overwrite each other's timer payload, silently dropping the first field's save.
+  // A save the server refuses is never dropped either: it waits under anything typed since
+  // and is retried, and the chip stays on "Not saved" until it lands.
+  const scheduleRetry = useCallback(() => {
+    clearTimeout(retryTimer.current)
+    retryTimer.current = setTimeout(() => {
+      for (const [nodeId, patch] of [...failedPatches.current]) {
+        failedPatches.current.delete(nodeId)
+        track(atlasService.patchNode(nodeId, patch), "Still couldn't save — will keep trying")
+          .catch(() => { failedPatches.current.set(nodeId, { ...patch, ...(failedPatches.current.get(nodeId) || {}) }); scheduleRetry() })
+      }
+    }, 5000)
+  }, [track])
   const flushSave = useCallback(() => {
     const { nodeId, patch } = pendingPatch.current
-    if (nodeId == null) return
+    if (nodeId == null) return Promise.resolve()
     pendingPatch.current = { nodeId: null, patch: {} }
-    track(atlasService.patchNode(nodeId, patch)).catch(() => {})
-  }, [track])
+    return track(atlasService.patchNode(nodeId, patch), "Couldn't save — will retry").catch(() => {
+      failedPatches.current.set(nodeId, { ...(failedPatches.current.get(nodeId) || {}), ...patch })
+      scheduleRetry()
+    })
+  }, [track, scheduleRetry])
   const saveNode = (nodeId, patch) => {
     localPatchNode(nodeId, patch)
+    const f = failedPatches.current.get(nodeId) // a newer edit of a field beats its refused older value
+    if (f) { for (const k of Object.keys(patch)) delete f[k]; if (!Object.keys(f).length) failedPatches.current.delete(nodeId) }
     if (pendingPatch.current.nodeId != null && pendingPatch.current.nodeId !== nodeId) flushSave()
     pendingPatch.current = { nodeId, patch: { ...pendingPatch.current.patch, ...patch } }
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(flushSave, 500)
   }
-  useEffect(() => () => { clearTimeout(saveTimer.current); flushSave() }, [flushSave]) // flush on unmount
+  // lifespans and map notes have their own clocks and their own pending payloads
+  const flushLife = useCallback(() => {
+    const pl = pendingLife.current
+    if (!pl) return Promise.resolve()
+    pendingLife.current = null
+    return track(atlasService.patchPlacement(pl.placementId, { start_time: pl.start, end_time: pl.end }), "Couldn't save the lifespan — will retry")
+      .then(() => setTrailTick((t) => t + 1))
+      .catch(() => { pendingLife.current = pendingLife.current || pl; clearTimeout(lifeTimer.current); lifeTimer.current = setTimeout(flushLife, 5000) })
+  }, [track])
+  const flushNote = useCallback(() => {
+    const pn = pendingNote.current
+    if (!pn) return Promise.resolve()
+    pendingNote.current = null
+    return track(atlasService.patchMap(pn.mapId, { dm_note: pn.note }), "Couldn't save the map notes — will retry")
+      .then(() => setData((d) => (d && d.map?.id === pn.mapId) ? { ...d, map: { ...d.map, dmNote: pn.note } } : d))
+      .catch(() => { pendingNote.current = pendingNote.current || pn; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(flushNote, 5000) })
+  }, [track])
+  const saveMapNote = (mapIdNow, note) => {
+    if (mapIdNow == null) return
+    pendingNote.current = { mapId: mapIdNow, note }
+    clearTimeout(noteTimer.current)
+    noteTimer.current = setTimeout(flushNote, 600)
+  }
+  const flushAll = useCallback(() => { flushSave(); flushLife(); flushNote() }, [flushSave, flushLife, flushNote])
+  useEffect(() => () => { clearTimeout(saveTimer.current); clearTimeout(lifeTimer.current); clearTimeout(noteTimer.current); flushAll() }, [flushAll]) // flush on unmount
+  // leaving the page (reload, Back, tab close) flushes what is pending with keepalive fetches
+  useEffect(() => {
+    const flushBeacon = () => {
+      const token = localStorage.getItem('auth_token')
+      const send = (url, body) => { try { fetch(url, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }) } catch (e) { /* best effort */ } }
+      const p = pendingPatch.current
+      if (p.nodeId != null) { send(`/api/atlas/nodes/${p.nodeId}`, p.patch); pendingPatch.current = { nodeId: null, patch: {} } }
+      for (const [nodeId, patch] of failedPatches.current) send(`/api/atlas/nodes/${nodeId}`, patch)
+      const pl = pendingLife.current
+      if (pl) { send(`/api/atlas/placements/${pl.placementId}`, { start_time: pl.start, end_time: pl.end }); pendingLife.current = null }
+      const pn = pendingNote.current
+      if (pn) { send(`/api/atlas/maps/${pn.mapId}`, { dm_note: pn.note }); pendingNote.current = null }
+    }
+    window.addEventListener('pagehide', flushBeacon)
+    return () => window.removeEventListener('pagehide', flushBeacon)
+  }, [])
+  // a session that dies mid-edit: stash what is pending, and re-apply it on the next visit
+  useEffect(() => {
+    const stash = () => {
+      const items = []
+      const p = pendingPatch.current
+      if (p.nodeId != null) items.push({ nodeId: p.nodeId, patch: p.patch })
+      for (const [nodeId, patch] of failedPatches.current) items.push({ nodeId, patch })
+      const pl = pendingLife.current; if (pl) items.push({ placementId: pl.placementId, patch: { start_time: pl.start, end_time: pl.end } })
+      const pn = pendingNote.current; if (pn) items.push({ mapId: pn.mapId, patch: { dm_note: pn.note } })
+      if (items.length) { try { localStorage.setItem('atlas_unsaved', JSON.stringify({ worldId, items, at: Date.now() })) } catch (e) { /* ignore */ } }
+    }
+    window.addEventListener('atlas:auth-expired', stash)
+    return () => window.removeEventListener('atlas:auth-expired', stash)
+  }, [worldId])
+  useEffect(() => {
+    let raw = null
+    try { raw = localStorage.getItem('atlas_unsaved') } catch (e) { return }
+    if (!raw) return
+    let s
+    try { s = JSON.parse(raw) } catch (e) { localStorage.removeItem('atlas_unsaved'); return }
+    if (String(s.worldId) !== String(worldId)) return
+    localStorage.removeItem('atlas_unsaved')
+    const calls = s.items.map((it) => (it.nodeId != null ? atlasService.patchNode(it.nodeId, it.patch)
+      : it.placementId != null ? atlasService.patchPlacement(it.placementId, it.patch)
+        : atlasService.patchMap(it.mapId, it.patch)))
+    track(Promise.all(calls), "Couldn't restore your unsaved edits")
+      .then(() => { setFlash({ kind: 'ok', text: `Restored ${s.items.length} unsaved ${s.items.length === 1 ? 'edit' : 'edits'} from your last session` }); refreshMap() })
+      .catch(() => {})
+  }, [worldId]) // eslint-disable-line
+  // Reveal happens on the server against the CURRENT text, so a stale tab can never wipe
+  // a description typed elsewhere; the pending note is flushed first
+  const revealNote = async (nodeId) => {
+    await flushSave().catch(() => {})
+    const r = await track(atlasService.patchNode(nodeId, { reveal: true }), "Couldn't reveal the note").catch(() => null)
+    if (!r) return null
+    localPatchNode(nodeId, { body: r.body, dm_note: '' })
+    return r.body
+  }
+  const once = (key, fn) => { // one click does one thing
+    if (busy.current.has(key)) return Promise.resolve()
+    busy.current.add(key)
+    return Promise.resolve().then(fn).finally(() => busy.current.delete(key))
+  }
 
   const openInterior = async (node) => {
-    flushSave()
+    flushAll()
     if (node.interiorMapId) return navigate(`/w/${worldId}/m/${node.interiorMapId}`)
     // no interior: never invent one on a double-click — that is an explicit act in the inspector
     setFlash({ kind: 'info', text: `“${node.title}” has no interior — give it one from the inspector (＋ Interior map)` })
   }
-  const createInteriorAs = async (node, view) => {
+  const createInteriorAs = (node, view) => once(`interior:${node.id}`, async () => {
     const r = await track(atlasService.createInterior(node.id, view), "Couldn't create the interior").catch(() => null)
     if (!r) return
     refreshTree(); navigate(`/w/${worldId}/m/${r.mapId}`)
-  }
+  })
 
-  const factAdd = (nodeId) => {
+  const factAdd = (nodeId) => once(`fact:${nodeId}`, () => {
     const cur = data?.placements.find((p) => p.node.id === nodeId)?.node
     const body = resolveFact(nodeLinks.facts, Math.round(now)) ?? cur?.body ?? ''
     return track(atlasService.addFact(nodeId, { body, start_time: Math.round(now), end_time: null }), "Couldn't add the entry")
       .then(() => reloadLinks(nodeId)).catch(() => {})
-  }
+  })
   const factPatch = (nodeId, id, data) =>
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
   const factDelete = (nodeId, id) =>
@@ -572,24 +694,24 @@ function AtlasWorkspace() {
       }).catch(() => {})
   }
   const refreshWorldMeta = () => atlasService.getWorld(worldId).then(setWorld).catch(() => {})
-  const eraAdd = () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era")
+  const eraAdd = () => once('era', () => track(atlasService.addEra(worldId, { name: 'A remembered age', start_time: tl.min, end_time: canon }), "Couldn't add the era"))
     .then(refreshWorldMeta).catch(() => {})
   const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(refreshWorldMeta).catch(() => {})
   const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era").then(refreshWorldMeta).catch(() => {})
   // Sessions are eras of ten footsteps; the next one starts where the last ended and the
   // timeline grows to hold it — so the latest session is always the end of the clock.
-  const nextSession = async () => {
+  const nextSession = () => once('session', async () => {
     const eras = world?.eras || []
     const last = eras.length ? Math.max(...eras.map((e) => e.end)) : (tl?.max ?? 0)
-    const n = eras.filter((e) => /^session\s+\d+/i.test(e.name)).length + 1
+    const n = Math.max(0, ...eras.map((e) => { const m = /^session\s+(\d+)/i.exec(e.name); return m ? Number(m[1]) : 0 })) + 1
     const start = last + 1, end = last + 10
     try {
-      await atlasService.addEra(worldId, { name: `Session ${n}`, start_time: start, end_time: end, player_visible: true })
-      if ((tl?.max ?? 0) < end) await atlasService.patchWorld(worldId, { timeline_max_time: end })
+      await track(atlasService.addEra(worldId, { name: `Session ${n}`, start_time: start, end_time: end, player_visible: true }), "Couldn't start the next session")
+      if ((tl?.max ?? 0) < end) await track(atlasService.patchWorld(worldId, { timeline_max_time: end }), "Couldn't grow the clock")
       await refreshWorldMeta()
       setFlash({ kind: 'ok', text: `Session ${n} begins at footstep ${start} — set canon as the party moves` })
-    } catch (e) { setFlash({ kind: 'err', text: errText(e, "Couldn't start the next session") }) }
-  }
+    } catch (e) { /* track already told the DM */ }
+  })
 
   const enableTimeline = () => {
     // the clock survives being switched off: keep the stored range, unit and canon unless
@@ -644,9 +766,10 @@ function AtlasWorkspace() {
 
   const setLifespan = (placementId, start, end) => {
     setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, start, end } : pp)) }))
-    clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() =>
-      track(atlasService.patchPlacement(placementId, { start_time: start, end_time: end })).catch(() => {}), 500)
+    if (pendingLife.current && pendingLife.current.placementId !== placementId) flushLife()
+    pendingLife.current = { placementId, start, end }
+    clearTimeout(lifeTimer.current)
+    lifeTimer.current = setTimeout(flushLife, 500)
   }
 
   // ---- drag to reposition (math is against the world PLANE rect, which includes zoom).
@@ -1465,15 +1588,12 @@ function AtlasWorkspace() {
                 </button>
               )}
               <div className="isect">🔒 Map notes — players never see this</div>
-              <textarea key={map?.id} className="mapnotes" rows={7} defaultValue={map?.dmNote || ''}
-                placeholder="What's going on in this space — beats, schedules, who's where, the plan."
-                onBlur={(e) => {
-                  const v = e.target.value
-                  if ((map?.dmNote || '') === v) return
-                  atlasService.patchMap(map.id, { dm_note: v })
-                    .then(() => setData((d) => d ? { ...d, map: { ...d.map, dmNote: v } } : d))
-                    .catch(() => setFlash({ kind: 'err', text: "Couldn't save the map notes" }))
-                }} />
+              {map ? (
+                <textarea key={map.id} className="mapnotes" rows={7} defaultValue={map.dmNote || ''}
+                  placeholder="What's going on in this space — beats, schedules, who's where, the plan."
+                  onChange={(e) => saveMapNote(map.id, e.target.value)}
+                  onBlur={flushNote} />
+              ) : <div className="muted esmall">Opening…</div>}
               {voiceOn && voiceMeta.ambience && !isList && (
                 <>
                   <div className="isect">Ambience — players can play it here</div>
@@ -1510,6 +1630,7 @@ function AtlasWorkspace() {
               voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
               onVoice={(id, name, style) => setNodeVoice(sel.node.id, id, name, style)}
               onSay={(t) => sayLine(sel.node.id, t)}
+              onReveal={() => revealNote(sel.node.id)}
               hasOutline={!!sel.shape} onOutline={() => startOutline(sel.id)} onClearOutline={() => clearOutline(sel.id)}
               outlineKind={sel.shapeKind || 'area'} onOutlineKind={(k) => setOutlineKind(sel.id, k)}
               outlineStyle={styleOf(sel)} onOutlineStyle={(k, v) => setOutlineStyle(sel.id, { ...styleOf(sel), [k]: v })}
@@ -1834,7 +1955,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
@@ -1903,10 +2024,9 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         {note.trim() && (
           <button className="btn block" style={{ marginTop: 5 }}
             title="Moves the note into the public description — this is how a secret becomes known"
-            onClick={() => {
-              const merged = body.trim() ? `${body.trim()}\n\n${note.trim()}` : note.trim()
-              setBody(merged); setNote('')
-              onSave(n.id, { body: merged, dm_note: '' })
+            onClick={async () => {
+              const merged = await onReveal() // merged on the server against the current text
+              if (merged != null) { setBody(merged); setNote('') }
             }}>
             👁 Reveal — move into the description
           </button>
@@ -1987,7 +2107,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
                 Size on the map
                 {/* pinSize rides along so localPatchNode resizes the pin live; the PATCH whitelist drops it */}
                 <input type="range" min="32" max="144" step="8" value={n.pinSize || 64} style={{ flex: 1 }}
-                  onChange={(e) => { const v = Number(e.target.value); onSave(n.id, { pin_size: v, pinSize: v }) }} />
+                  onChange={(e) => { const v = Number(e.target.value); onSave(n.id, { pin_size: v }) }} />
               </label>
             )}
           </div>

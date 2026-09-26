@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 
 function Login() {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
+  // why the DM is back here: the workspace's dead-session bounce sets this flag once
+  const [sessionEnded] = useState(() => { try { const v = sessionStorage.getItem('atlas_session_ended'); sessionStorage.removeItem('atlas_session_ended'); return !!v } catch (e) { return false } })
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
   const [ssoEnabled, setSsoEnabled] = useState(false)
@@ -83,6 +85,9 @@ function Login() {
     <div className="login-page">
       <div className="login-container">
         <h1>Fantasy Map Timeline</h1>
+        {sessionEnded && (
+          <p className="session-ended" style={{ color: '#c9a35f', margin: '0 0 12px' }}>Your session ended. Sign in to pick up where you left off — unsaved edits from the workspace were kept and will be restored.</p>
+        )}
         <p className="login-subtitle">
           {isRegistering ? 'Create your account' : 'Sign in to your account'}
         </p>
