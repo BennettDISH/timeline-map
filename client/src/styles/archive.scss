@@ -71,7 +71,7 @@
     &:hover { background: #ffffff0d; }
     &.on { background: var(--gold-soft); color: var(--gold); font-weight: 600; }
     .fico { color: var(--gold); opacity: .75; width: 15px; text-align: center; flex: none; }
-    .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .foldername { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fcount { color: var(--muted); font-size: 11px; }
     .caret {
       width: 13px; flex: none; color: var(--muted); font-size: 10px; text-align: center;

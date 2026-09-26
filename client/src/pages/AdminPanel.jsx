@@ -55,7 +55,7 @@ function AdminPanel() {
               <div className="admin-section">
                 <h2>Database</h2>
                 {loading ? <p>Loading…</p> : dbStatus ? (
-                  <div className="env-status">
+                  <div className="db-status">
                     <p><strong>Status:</strong> {dbStatus.message}</p>
                     <p><strong>Tables:</strong> {dbStatus.details?.tablesFound?.join(', ')}</p>
                     {dbStatus.details?.missingTables?.length > 0 && (

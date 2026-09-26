@@ -209,7 +209,7 @@ function Dashboard() {
               {featured.description && <p className="fdesc">{featured.description}</p>}
               <WorldMeta w={featured} />
               <WorldBadges w={featured} />
-              <div className="factions" onClick={(e) => e.stopPropagation()}>
+              <div className="fcta" onClick={(e) => e.stopPropagation()}>
                 <button className="sbtn primary" onClick={() => open(featured)}>Open the Atlas ▸</button>
                 <Link className="sbtn" to={`/worlds/${featured.id}/images`}>The Archive</Link>
               </div>

@@ -81,7 +81,7 @@
     }
     .wmeta { color: var(--muted); font-size: 13px; }
     .wbadges { display: flex; gap: 6px; flex-wrap: wrap; }
-    .factions { display: flex; gap: 9px; margin-top: 10px; flex-wrap: wrap; }
+    .fcta { display: flex; gap: 9px; margin-top: 10px; flex-wrap: wrap; } // the featured card's own buttons
   }
 
   // ---- the shelf ---------------------------------------------------------------

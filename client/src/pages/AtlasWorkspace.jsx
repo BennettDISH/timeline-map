@@ -376,7 +376,7 @@ function AtlasWorkspace() {
   focusIdRef.current = fn?.id ?? null
   useEffect(() => { if (selId != null) setStray(null) }, [selId])
   useEffect(() => { document.title = `${map?.title ? `${map.title} · ` : ''}${world?.name || 'Fantasy Map Timeline'}`; return () => { document.title = 'Fantasy Map Timeline' } }, [map?.title, world?.name])
-  useDismiss(tlEdit, [], () => setTlEdit(false), { keep: '.tlcfg, .tgear' })
+  useDismiss(tlEdit, [], () => setTlEdit(false), { keep: '.tlcfg, .tcfg' })
   // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
   // is not typing in takes the new text, so a bare click in and out never writes old text back
   useEffect(() => {
@@ -1685,7 +1685,7 @@ function AtlasWorkspace() {
               </div>
               <span className="tlabel" title={momentLabel(dispMax, world?.eras, tl.unit)}>{dispMax}</span>
               {focusOk && (
-                <button className="tgear fexp" title={focusExpand ? `Back to this map's focus period (${fMin}–${fMax})` : 'Show the whole timeline'}
+                <button className="tbtn fexp" title={focusExpand ? `Back to this map's focus period (${fMin}–${fMax})` : 'Show the whole timeline'}
                   onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
               )}
               {momentEdit != null ? (
@@ -1701,17 +1701,17 @@ function AtlasWorkspace() {
                 {canon !== now ? (
                   <>
                     <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
-                    <button className="tgear" title={`Back to the canon moment (${momentLabel(canon, world?.eras, tl.unit)})`} onClick={() => setNow(canon)}>↩</button>
+                    <button className="tbtn tback" title={`Back to the canon moment (${momentLabel(canon, world?.eras, tl.unit)})`} onClick={() => setNow(canon)}>↩</button>
                   </>
                 ) : (
                   <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
                 )}
               </div>
-              <button className={`tgear${ghostsOn ? '' : ' off'}`}
+              <button className={`tbtn tghosts${ghostsOn ? '' : ' off'}`}
                 title={ghostsOn ? 'Hide things not present at this moment' : 'Show things not present at this moment (dashed purple)'}
                 aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
                 onClick={() => setGhostsOn((v) => !v)}>⏳</button>
-              <button className="tgear" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
+              <button className="tbtn tcfg" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
           {tl?.enabled && tlEdit && (

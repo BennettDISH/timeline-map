@@ -552,7 +552,7 @@ function FolderRow({ folder, depth, sel, onSel, collapsed, onToggle, menu, onMen
               onClick={(e) => { e.stopPropagation(); onToggle(folder.id) }}>{isOpen ? '▾' : '▸'}</button>
           : <span className="caret blank" />}
         <span className="fico">▤</span>
-        <span className="fname">{folder.name}</span>
+        <span className="foldername">{folder.name}</span>
         <span className="fcount">{folder.imageCount ?? 0}</span>
         <span className="fmenu" onPointerDown={(e) => e.stopPropagation()}>
           <button className="fdots" aria-label={`Options for ${folder.name}`} title="Folder options" aria-haspopup="menu" aria-expanded={menu === folder.id} onClick={(e) => { e.stopPropagation(); onMenu(menu === folder.id ? null : folder.id) }}>⋯</button>
