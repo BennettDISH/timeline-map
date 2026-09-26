@@ -19,13 +19,29 @@ try {
   await page.waitForSelector('.pview .pin', { timeout: 30000 });
   const pins = await page.locator('.pview .pin').count();
   step('world map renders pins', pins > 0, `${pins} pins`);
-  // a regular (non-party) pin opens the sheet
+  // a regular (non-party) pin — or, on a map where every place is outlined, a region — opens the sheet
   const regular = page.locator('.pview .pin:not(.party)').first();
-  const title = (await regular.getAttribute('title')) || (await regular.locator('.lbl, .ilbl').first().textContent().catch(() => ''));
-  await regular.click({ force: true });
+  let title = '';
+  if (await regular.count()) {
+    title = (await regular.getAttribute('title')) || (await regular.locator('.lbl, .ilbl').first().textContent().catch(() => ''));
+    await regular.click({ force: true });
+  } else {
+    // tap the centroid of the first region (an outlined place has no pin)
+    const c = await page.evaluate(() => {
+      const poly = document.querySelector('.pview polygon.region'); if (!poly) return null;
+      const pts = poly.getAttribute('points').trim().split(/\s+/).map((s) => s.split(',').map(Number));
+      const w = document.querySelector('.pview .mp-world').getBoundingClientRect();
+      let a = 0, cx = 0, cy = 0;
+      for (let i = 0; i < pts.length; i++) { const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length]; const f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+      a *= 0.5; cx /= 6 * a; cy /= 6 * a;
+      return { x: w.x + w.width * cx / 100, y: w.y + w.height * cy / 100, title: poly.querySelector('title')?.textContent || '' };
+    });
+    title = c ? c.title : '';
+    if (c) await page.mouse.click(c.x, c.y);
+  }
   const sheet = page.locator('.pview .sheet');
   const opened = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
-  step('tapping a pin opens its sheet', opened, opened ? `"${(await sheet.locator('h3').first().textContent()).trim()}"` : `no sheet for pin "${(title || '').trim()}"`);
+  step('tapping a pin or an outlined place opens its sheet', opened, opened ? `"${(await sheet.locator('h3').first().textContent()).trim()}"` : `no sheet for "${(title || '').trim()}"`);
   if (opened) await page.locator('.pview .sclose').click();
   // the party pin reads its footstep text and the from/to trail
   const party = page.locator('.pview .pin.party').first();

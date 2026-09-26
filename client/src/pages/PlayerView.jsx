@@ -28,6 +28,7 @@ function PlayerView() {
   const [flash, setFlash] = useState(null) // transient error text when a node tap fails
   const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
   const [marking, setMarking] = useState(false) // armed: next map tap drops a marker
+  const [hovId, setHovId] = useState(null) // the outlined place under the pointer (its name floats up)
   const [markForm, setMarkForm] = useState(null) // { x, y } while the little form is open
   const [markBusy, setMarkBusy] = useState(false)
   const viewTRef = useRef(null); viewTRef.current = viewT
@@ -224,7 +225,7 @@ function PlayerView() {
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
-              <Regions inert={marking}
+              <Regions inert={marking} hoverId={hovId} onHover={setHovId}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, kind: p.shapeKind, x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
