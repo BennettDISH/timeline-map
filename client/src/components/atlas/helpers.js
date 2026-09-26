@@ -2,7 +2,7 @@ import { pickCovering } from '../../utils/timeline'
 
 // Small helpers shared by the workspace and its panels (no React in here).
 
-export const clamp = (v) => Math.max(0, Math.min(100, v))
+export const clampPct = (v) => Math.max(0, Math.min(100, v))
 // a moment typed into a number input: '' = open (null), a decimal rounds, a non-number is undefined (not sent)
 export const wholeOr = (v) => { if (v === '' || v == null) return null; const n = Math.round(Number(v)); return Number.isFinite(n) ? n : undefined }
 // Both bounds of a period are read together when either input blurs (the two number inputs

@@ -6,6 +6,8 @@ import { Compass } from '../components/TopBar'
 import { useDialog } from '../components/Modal'
 // Enter or Space on a link-like control acts like a click
 const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
+// a moment at or past canon is simply now (viewT null); only the past is a scrubbed moment
+const toViewT = (t, tl) => (t >= (tl?.current ?? t) ? null : t)
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
@@ -271,14 +273,14 @@ function PlayerView() {
   const tl = world.timeline
   const map = data.map
   const isList = map?.view === 'list'
-  const tEff = viewT != null ? viewT : (tl?.current ?? 0)
-  const present = (p) => !tl?.enabled || isPresent(p, tEff)
+  const shownAt = viewT != null ? viewT : (tl?.current ?? 0) // the moment on screen: a scrubbed past moment, else now
+  const present = (p) => !tl?.enabled || isPresent(p, shownAt)
   const shownPlacements = (data.placements || []).filter(present)
   const trail = data.spotlight || [] // the DM's lantern: root -> ... -> the node they mean
   const trailIds = new Set(trail.map((t) => t.nodeId))
   // the server's `rank` (latest start, then newest, judged before the starts were snapped)
   // decides between paintings, exactly as the DM's lens does
-  const backdropUrl = (tl?.enabled && pickCovering(data.backdrops, tEff)?.url) || map?.backdropUrl
+  const backdropUrl = (tl?.enabled && pickCovering(data.backdrops, shownAt)?.url) || map?.backdropUrl
   const hasParty = (data.placements || []).some((p) => p.node.category === 'party')
 
   return (
@@ -342,8 +344,8 @@ function PlayerView() {
               onWorldDoubleClick={(e) => { if (marking) return false; const p = regionAt(e); if (!p) return false; enter(p.node); return true }}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={tEff} eras={world.eras} unit={tl?.unit}
-                onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
+              <PartyTrail placements={data.placements} t={shownAt} eras={world.eras} unit={tl?.unit}
+                onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(toViewT(st, tl)) }} />
               <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)} onSelect={(it) => openNode(it.node.id)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior, selected: detail?.node?.id === p.node.id,
@@ -353,8 +355,8 @@ function PlayerView() {
               {shownPlacements.filter((p) => !p.shape || p.node.category === 'party').map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0, latestSession(world.eras)) } : {}) }}
-                  title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? shownAt, world.eras)?.idx ?? 0, latestSession(world.eras)) } : {}) }}
+                  title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? shownAt, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
                   role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNode(p.node.id) } }}
                   onPointerDown={(e) => e.stopPropagation()}
@@ -378,7 +380,7 @@ function PlayerView() {
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); enter(p.node) }}>◎</button>
                   )}
-                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? <span className="stag">{stepTag(so)}</span> : null })()}
+                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? shownAt, world.eras); return so ? <span className="stag">{stepTag(so)}</span> : null })()}
                 </div>
               ))}
             </MapPlane>
@@ -465,13 +467,13 @@ function PlayerView() {
                 </div>
               )}
               {detail.node.category === 'party' && tl?.enabled && (() => {
-                const { prev, next } = partyNeighbors(data.partyTrail, tEff)
-                const lab = (st) => { const so = sessionOf(st.start ?? tEff, world.eras); return so ? ` · ${stepTag(so)}` : '' }
+                const { prev, next } = partyNeighbors(data.partyTrail, shownAt)
+                const lab = (st) => { const so = sessionOf(st.start ?? shownAt, world.eras); return so ? ` · ${stepTag(so)}` : '' }
                 if (!prev && !next) return null
                 return (
                   <div className="rtrail">
-                    {prev && <a role="button" tabIndex={0} onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) }} onKeyDown={keyAct(() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) })}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                    {next && <a role="button" tabIndex={0} onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) }} onKeyDown={keyAct(() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) })}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                    {prev && <a role="button" tabIndex={0} onClick={() => { if (prev.start != null) setViewT(toViewT(prev.start, tl)); goMap(prev.mapId) }} onKeyDown={keyAct(() => { if (prev.start != null) setViewT(toViewT(prev.start, tl)); goMap(prev.mapId) })}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                    {next && <a role="button" tabIndex={0} onClick={() => { if (next.start != null) setViewT(toViewT(next.start, tl)); goMap(next.mapId) }} onKeyDown={keyAct(() => { if (next.start != null) setViewT(toViewT(next.start, tl)); goMap(next.mapId) })}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                   </div>
                 )
               })()}

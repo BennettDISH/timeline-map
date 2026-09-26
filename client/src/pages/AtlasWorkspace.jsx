@@ -21,7 +21,7 @@ import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
 import { ImagePicker, NodePicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
-import { clamp, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
+import { clampPct, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
 import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
 import '../styles/atlas.scss'
 
@@ -34,7 +34,7 @@ function AtlasWorkspace() {
   const [pendingWorld, setPendingWorld] = useState(null) // a world browsed to with the arrow keys, not yet chosen
   const viaKeys = useRef(false) // null until the switcher is first opened
   const [tree, setTree] = useState([])
-  const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
+  const [mapData, setMapData] = useState(null) // the current map's payload: { map, placements, breadcrumb, backdrops, worldId }
   const [loadState, setLoadState] = useState('loading') // loading | ok | err | missing (the space is gone)
   const [worldErr, setWorldErr] = useState(null) // the world did not load (not a 404: those go to the dashboard)
   const [worldTick, setWorldTick] = useState(0) // bumped by ⟳ Try again
@@ -44,13 +44,13 @@ function AtlasWorkspace() {
   const [placing, setPlacing] = useState(null) // null | {kind:'new'} | {kind:'existing', node}
   const [drawing, setDrawing] = useState(null) // an outline in progress: { placementId|null, pts:[[x,y]], kind }
   const [hovId, setHovId] = useState(null) // the placement whose region is hovered — its name label lights
-  const [loading, setLoading] = useState(true)
+  const [worldLoading, setWorldLoading] = useState(true)
   const [save, setSave] = useState('idle') // idle | saving | saved | err
   const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
   const [flashHold, setFlashHold] = useState(false) // the toast is hovered or focused: its timer waits
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop'|'backdrop-timed'|'backdrop-row', nodeId?, rowId?, hasCurrent }
-  const [now, setNow] = useState(0) // the DM's viewing moment (local lens — NOT what players see)
+  const [lens, setLens] = useState(0) // the DM's viewing moment — a local lens, never what players see (that is canon: tl.current)
   const [tlEdit, setTlEdit] = useState(false)
   const [sharePop, setSharePop] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -63,14 +63,14 @@ function AtlasWorkspace() {
     return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
   })
   const [spaceOpen, setSpaceOpen] = useState(false) // phones: the space reader opens on request, not over the map
-  const [nodeLinks, setNodeLinks] = useState({ out: [], in: [], facts: [] })
+  const [nodeDetail, setNodeDetail] = useState({ out: [], in: [], facts: [] }) // the selected node's threads (out/in) and period texts
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place' | 'place-here'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
   const trackRef = useRef(null)                 // the timebar's track, measured so ticks know their pitch
   const [trackW, setTrackW] = useState(600)
   const [q, setQ] = useState('') // global node search
   const [searchOpen, setSearchOpen] = useState(false)
-  const [searchIndex, setSearchIndex] = useState([])
+  const [nodeIndex, setNodeIndex] = useState([]) // every node of the world, for the search box
   const [sfilter, setSfilter] = useState('all') // 'all' | 'unplaced' — the search dropdown's chip filter
   const [confirmDel, setConfirmDel] = useState(null) // { node, impact }
   const [confirmInterior, setConfirmInterior] = useState(null) // { node, impact }
@@ -145,7 +145,7 @@ function AtlasWorkspace() {
   const inspEl = useRef(null) // the editor panel: it opens at the top for each newly selected thing
   const frameNext = useRef(null) // a placement selected from afar (search, a thread, a tick): the camera brings it into view
   const [frameReq, setFrameReq] = useState(null) // { x, y, key } handed to the plane
-  const frame = (placementId) => { const p = data?.placements.find((pp) => pp.id === placementId); if (p) setFrameReq({ x: p.x, y: p.y, key: Date.now() }) }
+  const frame = (placementId) => { const p = mapData?.placements.find((pp) => pp.id === placementId); if (p) setFrameReq({ x: p.x, y: p.y, key: Date.now() }) }
 
   // ---- save tracking: every write goes through track(), so the header chip is honest
   // and failures surface as a toast instead of vanishing into an empty catch.
@@ -174,7 +174,7 @@ function AtlasWorkspace() {
     const r = await track(atlasService.undo(undoId), "Couldn't undo").catch(() => null)
     if (!r) return
     refreshMap(); refreshTree(); refreshWorldMeta() // the lantern may have come back with its node
-    if (focusIdRef.current) reloadLinks(focusIdRef.current) // a restored fact or link shows at once
+    if (focusIdRef.current) reloadNodeDetail(focusIdRef.current) // a restored fact or link shows at once
     setFlash({ kind: 'ok', text: 'Put back the way it was' })
   }
 
@@ -183,14 +183,14 @@ function AtlasWorkspace() {
   const loadMap = useCallback((blank) => {
     if (!mapId) return Promise.resolve()
     const seq = ++loadSeq.current
-    if (blank) { setData(null); setLoadState('loading') }
+    if (blank) { setMapData(null); setLoadState('loading') }
     return atlasService.getMap(mapId)
       .then((d) => {
         if (seq !== loadSeq.current) return // a newer map was asked for since: this reply is stale
         // a map opened under the wrong world goes to its own: one world's clock, tree and
         // eras must never dress another's map (and edits would split across two worlds)
         if (d.map?.worldId != null && String(d.map.worldId) !== String(worldId)) { navigate(`/w/${d.map.worldId}/m/${mapId}`, { replace: true }); return }
-        setData((prev) => {
+        setMapData((prev) => {
           // a background refresh that brings a new player marker says so — the DM's tab is not a wall
           if (prev && prev.map?.id === d.map?.id) {
             const had = new Set(prev.placements.map((p) => p.node.id))
@@ -209,7 +209,7 @@ function AtlasWorkspace() {
           // the space is gone (removed on another tab, or unmade): say so, offer the way
           // out, and never resume here
           worldService.clearLastLocation(worldId)
-          setData(null); setLoadState('missing')
+          setMapData(null); setLoadState('missing')
           return
         }
         if (blank) setLoadState('err')
@@ -244,14 +244,14 @@ function AtlasWorkspace() {
     const id = map.id // the reply lands on the map it was sent for, not whichever is open by then
     setAmbBusy(true)
     return track(voiceService.setAmbience(id, prompt), 'No sound came back')
-      .then((r) => { setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'Ambience ready' }) })
+      .then((r) => { setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'Ambience ready' }) })
       .catch(() => {})
       .finally(() => setAmbBusy(false))
   }
   const clearAmbience = () => {
     const id = map.id
     return track(voiceService.clearAmbience(id), "Couldn't remove the ambience")
-      .then(() => setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
+      .then(() => setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
       .catch(() => {})
   }
   const toggleForge = () => {
@@ -297,17 +297,17 @@ function AtlasWorkspace() {
     flushAll()
     atlasService.getWorld(worldId).then(setWorld).catch(() => {})
     atlasService.getMaps(worldId).then(setTree).catch(() => {})
-    loadMap(false).then(() => { setRefreshVer((v) => v + 1); if (focusIdRef.current) reloadLinks(focusIdRef.current) })
+    loadMap(false).then(() => { setRefreshVer((v) => v + 1); if (focusIdRef.current) reloadNodeDetail(focusIdRef.current) })
   }, [worldId, loadMap]) // eslint-disable-line
 
   useEffect(() => {
     let live = true
-    setLoading(true); setWorldErr(null)
+    setWorldLoading(true); setWorldErr(null)
     atlasService.getWorld(worldId)
       .then(async (w) => {
         if (!live) return
         setWorld(w)
-        setNow(w.timeline?.current ?? 0)
+        setLens(w.timeline?.current ?? 0)
         const maps = await atlasService.getMaps(worldId).catch(() => [])
         if (live) setTree(maps)
         if (!mapId && w.rootMapId) navigate(`/w/${worldId}/m/${w.rootMapId}`, { replace: true })
@@ -323,7 +323,7 @@ function AtlasWorkspace() {
         }
         setWorldErr(errText(e, "Couldn't load this world"))
       })
-      .finally(() => { if (live) setLoading(false) })
+      .finally(() => { if (live) setWorldLoading(false) })
     return () => { live = false }
   }, [worldId, worldTick]) // eslint-disable-line
 
@@ -339,23 +339,23 @@ function AtlasWorkspace() {
     loadMap(true).then(() => {
       if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
       // a footstep jump moves the lens only once the destination map is in hand
-      if (pendingNow.current != null) { setNow(pendingNow.current); pendingNow.current = null }
+      if (pendingNow.current != null) { setLens(pendingNow.current); pendingNow.current = null }
     })
   }, [mapId]) // eslint-disable-line
   useEffect(() => { if (inspEl.current) inspEl.current.scrollTop = 0 }, [selId, stray?.id])
   // a selection made from afar is framed once its placement is in hand
   useEffect(() => {
     if (frameNext.current == null || selId !== frameNext.current) return
-    const p = data?.placements.find((pp) => pp.id === selId)
+    const p = mapData?.placements.find((pp) => pp.id === selId)
     if (!p) return
     frameNext.current = null
     setFrameReq({ x: p.x, y: p.y, key: Date.now() })
-  }, [selId, data])
+  }, [selId, mapData])
   const pendingNow = useRef(null)
   // Go to a moment on a map: same map → move the lens; another map → travel first, then
   // set the lens after it loads, so no render ever mixes the old map with the new moment.
   const goToMoment = (t, targetMapId, placementId = null) => {
-    if (targetMapId == null || String(targetMapId) === String(mapId)) { setNow(t); if (placementId != null) { setSelId(placementId); frame(placementId) } return }
+    if (targetMapId == null || String(targetMapId) === String(mapId)) { setLens(t); if (placementId != null) { setSelId(placementId); frame(placementId) } return }
     pendingNow.current = t
     if (placementId != null) { pendingSelect.current = placementId; frameNext.current = placementId } // the footstep stays open on the other map, in view
     navigate(`/w/${worldId}/m/${targetMapId}`)
@@ -368,8 +368,10 @@ function AtlasWorkspace() {
     ro.observe(el); setTrackW(el.clientWidth || 600)
     return () => ro.disconnect()
   }, [world?.timeline?.enabled, mode]) // eslint-disable-line — `tl` is derived further down; read the world directly
-  const sel = data?.placements.find((p) => p.id === selId) || null
-  const map = data?.map
+  const sel = mapData?.placements.find((p) => p.id === selId) || null
+  const map = mapData?.map
+  const [ambText, setAmbText] = useState('') // the ambience prompt box, seeded from the map
+  useEffect(() => { setAmbText(map?.ambiencePrompt || '') }, [map?.id, map?.ambiencePrompt]) // eslint-disable-line
   const isList = map?.view === 'list'
   // the node the inspector is about: a placement's node, or a stray opened on its own
   const fn = sel ? sel.node : stray
@@ -401,13 +403,13 @@ function AtlasWorkspace() {
   }, [mapId]) // eslint-disable-line
 
   // ---- links ---------------------------------------------------------------------
-  const reloadLinks = (nodeId) =>
-    atlasService.getNode(nodeId).then((d) => setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] })).catch(() => {})
+  const reloadNodeDetail = (nodeId) =>
+    atlasService.getNode(nodeId).then((d) => setNodeDetail({ out: d.links, in: d.backlinks, facts: d.facts || [] })).catch(() => {})
   useEffect(() => {
     const fid = sel?.node.id ?? stray?.id
-    if (!fid) { setNodeLinks({ out: [], in: [], facts: [] }); return }
+    if (!fid) { setNodeDetail({ out: [], in: [], facts: [] }); return }
     let live = true
-    atlasService.getNode(fid).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
+    atlasService.getNode(fid).then((d) => { if (live) setNodeDetail({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
     return () => { live = false }
   }, [selId, stray?.id]) // eslint-disable-line
   const addLink = async (toId) => {
@@ -415,16 +417,16 @@ function AtlasWorkspace() {
     const fid = focusIdRef.current
     if (!fid) return
     await track(atlasService.addLink({ from_node_id: fid, to_node_id: toId }), "Couldn't link").catch(() => {})
-    reloadLinks(fid)
+    reloadNodeDetail(fid)
   }
   const removeLink = async (id) => {
     const r = await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => null)
-    if (focusIdRef.current) reloadLinks(focusIdRef.current)
+    if (focusIdRef.current) reloadNodeDetail(focusIdRef.current)
     if (r) setFlash({ kind: 'ok', text: 'Thread removed', undoId: r.undoId })
   }
   const labelLink = async (id, label) => {
     await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
-    if (focusIdRef.current) reloadLinks(focusIdRef.current)
+    if (focusIdRef.current) reloadNodeDetail(focusIdRef.current)
   }
   // A node with no placement (or an orphaned interior's owner) opens in the inspector on its
   // own — editable, placeable here, deletable — instead of a dead-end flash.
@@ -483,7 +485,7 @@ function AtlasWorkspace() {
       partyId = (all || []).find((n) => n.category === 'party')?.id
     }
     if (!partyId) { setFlash({ kind: 'info', text: 'There is no Party entry yet — make one with the ⚑ The party category, then place it' }); return }
-    const t = Math.round(now)
+    const t = Math.round(lens)
     const at = (v) => (v == null ? -Infinity : v)
     const live = trail.filter((st) => st.nodeId === partyId && isPresent(st, t)).sort((a, b) => at(b.start) - at(a.start))[0]
     const startAt = live && at(live.start) === t ? t + 1 : t
@@ -494,7 +496,7 @@ function AtlasWorkspace() {
       setTrailTick((v) => v + 1)
       await refreshWorldMeta()
       await refreshMap()
-      setNow(startAt); setSelId(r.placementId)
+      setLens(startAt); setSelId(r.placementId)
       const so = sessionOf(startAt, world?.eras)
       setFlash({ kind: 'ok', text: `The party moves here — ${so ? sessionLabel(so, tl.unit) : `${tl.unit} ${startAt}`}` })
     } catch (e) { /* track already told the DM */ }
@@ -502,25 +504,25 @@ function AtlasWorkspace() {
   // a placement of a shared node can be hidden on ONE map (the Forge's extra placements are born so)
   const setPlacementVis = (placementId, hidden) => {
     const v = hidden ? 'dm' : 'shared'
-    setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, visibility: v } : pp)) }))
+    setMapData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, visibility: v } : pp)) }))
     track(atlasService.patchPlacement(placementId, { visibility: v }), "Couldn't change who sees it here").catch(() => {})
   }
   // ---- outlines: trace a region of the art so the feature itself becomes the button ----
   // placementId null = outline first, then a new place is born from it (anchor at the centroid)
   const startOutline = (placementId, firstPt) => {
     setPlacing(null); setCtx(null)
-    const cur = data?.placements.find((p) => p.id === placementId)
+    const cur = mapData?.placements.find((p) => p.id === placementId)
     // one rule: the outline's own kind when it already has one, else the remembered choice
     const kind = (cur?.shape && cur.shapeKind) || readPref('atlas_outline_kind') || 'button'
     setDrawing({ placementId, pts: firstPt ? [firstPt] : [], kind })
   }
   const setDrawKind = (kind) => { writePref('atlas_outline_kind', kind); setDrawing((d) => d && ({ ...d, kind })) }
   const setOutlineKind = async (placementId, kind) => { // a preset: sets the kind and clears the toggles
-    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeKind: kind, shapeStyle: null } : pp)) }))
+    setMapData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeKind: kind, shapeStyle: null } : pp)) }))
     await track(atlasService.patchPlacement(placementId, { shape_kind: kind, shape_style: null }), "Couldn't change the outline's kind").catch(() => {})
   }
   const setOutlineStyle = async (placementId, style) => {
-    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeStyle: style } : pp)) }))
+    setMapData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeStyle: style } : pp)) }))
     await track(atlasService.patchPlacement(placementId, { shape_style: style }), "Couldn't change the outline's style").catch(() => {})
   }
   const finishOutline = async () => {
@@ -531,7 +533,7 @@ function AtlasWorkspace() {
     if (pts.length < 3) { setFlash({ kind: 'info', text: 'That outline is too small to keep — trace a larger area' }); return }
     setDrawing(null)
     if (d.placementId) {
-      const cur = data?.placements.find((pp) => pp.id === d.placementId)
+      const cur = mapData?.placements.find((pp) => pp.id === d.placementId)
       const old = cur?.shape ? { shape: cur.shape, kind: cur.shapeKind || 'area', style: cur.shapeStyle || null, x: cur.x, y: cur.y } : null
       // the name anchor moves onto the shape; a new kind starts from its preset (the old toggles were for the old kind)
       const [ax, ay] = centroid(pts)
@@ -549,7 +551,7 @@ function AtlasWorkspace() {
     track(atlasService.patchPlacement(placementId, { shape: old.shape, shape_kind: old.kind, shape_style: old.style, ...(old.x != null ? { x: old.x, y: old.y } : {}) }), "Couldn't put the outline back")
       .then(() => refreshMap()).catch(() => {})
   const clearOutline = async (placementId) => {
-    const cur = data?.placements.find((pp) => pp.id === placementId)
+    const cur = mapData?.placements.find((pp) => pp.id === placementId)
     const old = cur?.shape ? { shape: cur.shape, kind: cur.shapeKind || 'area', style: cur.shapeStyle || null } : null
     const ok = await track(atlasService.patchPlacement(placementId, { shape: null, shape_kind: null, shape_style: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
     if (!ok) return
@@ -562,7 +564,7 @@ function AtlasWorkspace() {
   const localPatchNode = (nodeId, patch) => {
     const local = {}
     for (const [k, v] of Object.entries(patch)) if (k !== 'reveal') local[CAMEL[k] || k] = v
-    setData((d) => d && ({
+    setMapData((d) => d && ({
       ...d, placements: d.placements.map((p) => (p.node.id === nodeId ? { ...p, node: { ...p.node, ...local } } : p)),
     }))
     setStray((s) => (s && s.id === nodeId ? { ...s, ...local } : s))
@@ -598,11 +600,11 @@ function AtlasWorkspace() {
   // an interior still named after its node follows a rename (the server applies the same
   // rule): the tree row and the crumb change with the pin instead of on the next load
   const renameInteriorLocally = (nodeId, title) => {
-    const node = data?.placements.find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
+    const node = mapData?.placements.find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
     if (!node?.interiorMapId || !node.title || node.title === title) return
     const { interiorMapId, title: old } = node
     setTree((t) => t.map((m) => (m.id === interiorMapId && m.title === old ? { ...m, title } : m)))
-    setData((d) => d && ({ ...d, breadcrumb: (d.breadcrumb || []).map((b) => (b.mapId === interiorMapId && b.title === old ? { ...b, title } : b)) }))
+    setMapData((d) => d && ({ ...d, breadcrumb: (d.breadcrumb || []).map((b) => (b.mapId === interiorMapId && b.title === old ? { ...b, title } : b)) }))
   }
   const saveNode = (nodeId, patch) => {
     if (typeof patch.title === 'string') renameInteriorLocally(nodeId, patch.title)
@@ -634,7 +636,7 @@ function AtlasWorkspace() {
     if (!pn) return Promise.resolve()
     pendingNote.current = null
     return track(atlasService.patchMap(pn.mapId, { dm_note: pn.note }), "Couldn't save the map notes — will retry")
-      .then(() => setData((d) => (d && d.map?.id === pn.mapId) ? { ...d, map: { ...d.map, dmNote: pn.note } } : d))
+      .then(() => setMapData((d) => (d && d.map?.id === pn.mapId) ? { ...d, map: { ...d.map, dmNote: pn.note } } : d))
       .catch((e) => { if (refused(e)) return; pendingNote.current = pendingNote.current || pn; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(flushNote, 5000) })
   }, [track])
   const saveMapNote = (mapIdNow, note) => {
@@ -697,7 +699,7 @@ function AtlasWorkspace() {
     const r = await track(atlasService.patchNode(nodeId, { reveal: true }), "Couldn't reveal the note").catch(() => null)
     if (!r) return null
     localPatchNode(nodeId, { body: r.body, dm_note: '' })
-    if (r.factId) { reloadLinks(nodeId); setFlash({ kind: 'ok', text: 'Revealed into the period text players read at canon.' }) }
+    if (r.factId) { reloadNodeDetail(nodeId); setFlash({ kind: 'ok', text: 'Revealed into the period text players read at canon.' }) }
     else setFlash({ kind: 'ok', text: 'Revealed into the description — players read it now.' })
     return r
   }
@@ -720,16 +722,16 @@ function AtlasWorkspace() {
   })
 
   const factAdd = (nodeId) => once(`fact:${nodeId}`, () => {
-    const cur = data?.placements.find((p) => p.node.id === nodeId)?.node
-    const body = resolveFact(nodeLinks.facts, Math.round(now)) ?? cur?.body ?? ''
-    return track(atlasService.addFact(nodeId, { body, start_time: Math.round(now), end_time: null }), "Couldn't add the entry")
-      .then(() => reloadLinks(nodeId)).catch(() => {})
+    const cur = mapData?.placements.find((p) => p.node.id === nodeId)?.node
+    const body = resolveFact(nodeDetail.facts, Math.round(lens)) ?? cur?.body ?? ''
+    return track(atlasService.addFact(nodeId, { body, start_time: Math.round(lens), end_time: null }), "Couldn't add the entry")
+      .then(() => reloadNodeDetail(nodeId)).catch(() => {})
   })
   const factPatch = (nodeId, id, data) =>
-    track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => { reloadLinks(nodeId); return true }).catch(() => false)
+    track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => { reloadNodeDetail(nodeId); return true }).catch(() => false)
   const factDelete = (nodeId, id) =>
     track(atlasService.deleteFact(id), "Couldn't remove the entry")
-      .then((r) => { reloadLinks(nodeId); setFlash({ kind: 'ok', text: 'Period text removed', undoId: r?.undoId }) }).catch(() => {})
+      .then((r) => { reloadNodeDetail(nodeId); setFlash({ kind: 'ok', text: 'Period text removed', undoId: r?.undoId }) }).catch(() => {})
 
   const askRemoveInterior = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -742,7 +744,7 @@ function AtlasWorkspace() {
     if (!r) return
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
-    if (data?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
+    if (mapData?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
     setFlash({ kind: 'ok', text: `“${node.title}” no longer has an interior map — the entry itself is untouched`, undoId: r.undoId })
   }
 
@@ -768,7 +770,7 @@ function AtlasWorkspace() {
 
   // ---- images -----------------------------------------------------------------------
   const setNodeImage = (nodeId, imageId, imageUrl) => {
-    const cur = (data?.placements || []).find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
+    const cur = (mapData?.placements || []).find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
     const prev = cur ? { id: cur.imageId ?? null, url: cur.imageUrl || null } : null
     localPatchNode(nodeId, { imageUrl: imageUrl || null, imageId: imageId ?? null })
     track(atlasService.patchNode(nodeId, { image_id: imageId })).catch(() => {})
@@ -794,7 +796,7 @@ function AtlasWorkspace() {
   // Timed backdrops: history can redraw the map. The active art at moment t is the timed
   // row covering t with the LATEST start (ties: newest row); none covering t = the base.
   const addTimedBackdrop = (imageId) =>
-    track(atlasService.addBackdrop(mapId, { image_id: imageId, start_time: Math.round(now), end_time: null }),
+    track(atlasService.addBackdrop(mapId, { image_id: imageId, start_time: Math.round(lens), end_time: null }),
       "Couldn't add the backdrop").then(refreshMap).catch(() => {})
   const patchBackdrop = (id, data) => // resolves false when refused, so the row can go back to the stored bounds
     track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(() => { refreshMap(); return true }).catch(() => false)
@@ -804,7 +806,7 @@ function AtlasWorkspace() {
 
   const setMapView = (view) => {
     if (!map || map.view === view) return
-    setData((d) => d && ({ ...d, map: { ...d.map, view } }))
+    setMapData((d) => d && ({ ...d, map: { ...d.map, view } }))
     track(atlasService.patchMap(mapId, { view }), "Couldn't switch the view").catch(() => refreshMap())
   }
 
@@ -838,12 +840,12 @@ function AtlasWorkspace() {
 
   // presence is judged by the DM's lens (players' presence is the server's business)
   const presentAt = (p, t) => !tl?.enabled || isPresent(p, t)
-  const present = (p) => presentAt(p, now)
+  const present = (p) => presentAt(p, lens)
   const setCanonHere = () => {
-    track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
+    track(atlasService.patchWorld(worldId, { timeline_current_time: lens }), "Couldn't set the canon moment")
       .then(() => {
-        setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, current: now } }))
-        setFlash({ kind: 'ok', text: `Canon moment set to ${momentLabel(now, world?.eras, tl.unit)} — that's what players now see.` })
+        setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, current: lens } }))
+        setFlash({ kind: 'ok', text: `Canon moment set to ${momentLabel(lens, world?.eras, tl.unit)} — that's what players now see.` })
       }).catch(() => {})
   }
   const refreshWorldMeta = () => atlasService.getWorld(worldId).then(setWorld).catch(() => {})
@@ -879,12 +881,12 @@ function AtlasWorkspace() {
       || (t.min === 0 && t.max === 100 && t.current === 50 && (!t.unit || t.unit === 'years') && !(world?.eras || []).length)
     if (!legacy) {
       setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: true } }))
-      setNow(t.current ?? t.min)
+      setLens(t.current ?? t.min)
       track(atlasService.patchWorld(worldId, { timeline_enabled: true })).catch(() => {})
     } else {
       // the table convention: footsteps, ten a session — "＋ Next session" then opens Session 1 at 10–19
       setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 9, current: 0, unit: 'footsteps' } }))
-      setNow(0)
+      setLens(0)
       track(atlasService.patchWorld(worldId, {
         timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 9, timeline_current_time: 0, timeline_time_unit: 'footsteps',
       })).catch(() => {})
@@ -896,7 +898,7 @@ function AtlasWorkspace() {
     // the lens is local and canon moves only through "Set canon": the server clamps canon
     // into the new range itself, so the lens is clamped here and never sent
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: Math.min(Math.max(w.timeline.current ?? min, min), max) } }))
-    setNow((v) => Math.min(Math.max(v, min), max))
+    setLens((v) => Math.min(Math.max(v, min), max))
     setTlEdit(false)
     track(atlasService.patchWorld(worldId, { timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit })).catch(() => refreshWorldMeta())
   }
@@ -936,9 +938,9 @@ function AtlasWorkspace() {
     // only the bound that changed is sent, merged per placement: a second tab's stale copy
     // of the OTHER bound never travels, and a quick from-then-to keeps both
     const key = which === 'start' ? 'start_time' : 'end_time'
-    const cur = data?.placements.find((pp) => pp.id === placementId)
+    const cur = mapData?.placements.find((pp) => pp.id === placementId)
     const st = which === 'start' ? v : cur?.start ?? null, en = which === 'end' ? v : cur?.end ?? null
-    setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, [which]: v } : pp)) }))
+    setMapData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, [which]: v } : pp)) }))
     if (pendingLife.current && pendingLife.current.placementId !== placementId) flushLife()
     const prev = pendingLife.current && pendingLife.current.placementId === placementId ? pendingLife.current.patch : {}
     pendingLife.current = { placementId, patch: { ...prev, [key]: v } }
@@ -954,16 +956,16 @@ function AtlasWorkspace() {
   const dragRaf = useRef(0)
   const onDragMove = useCallback((e) => {
     const d = dragRef.current; if (!d) return
-    d.lastX = clamp(d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)
-    d.lastY = clamp(d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)
+    d.lastX = clampPct(d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)
+    d.lastY = clampPct(d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)
     if (Math.abs(e.clientX - d.sx) > 3 || Math.abs(e.clientY - d.sy) > 3) d.moved = true
     if (!dragRaf.current) {
       dragRaf.current = requestAnimationFrame(() => {
         dragRaf.current = 0
         const dd = dragRef.current
         if (!dd) return
-        const shift = dd.shape ? dd.shape.map(([x, y]) => [clamp(x + dd.lastX - dd.ox), clamp(y + dd.lastY - dd.oy)]) : null
-        setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === dd.id ? { ...pp, x: dd.lastX, y: dd.lastY, ...(shift ? { shape: shift } : {}) } : pp)) }))
+        const shift = dd.shape ? dd.shape.map(([x, y]) => [clampPct(x + dd.lastX - dd.ox), clampPct(y + dd.lastY - dd.oy)]) : null
+        setMapData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === dd.id ? { ...pp, x: dd.lastX, y: dd.lastY, ...(shift ? { shape: shift } : {}) } : pp)) }))
       })
     }
   }, [])
@@ -976,8 +978,8 @@ function AtlasWorkspace() {
       // the queued frame no-ops once dragRef is null, so commit the final position here;
       // an outline rides along with its anchor
       const dx = d.lastX - d.ox, dy = d.lastY - d.oy
-      const shape = d.shape ? d.shape.map(([x, y]) => [Math.round(clamp(x + dx) * 100) / 100, Math.round(clamp(y + dy) * 100) / 100]) : null
-      setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: d.lastX, y: d.lastY, ...(shape ? { shape } : {}) } : pp)) }))
+      const shape = d.shape ? d.shape.map(([x, y]) => [Math.round(clampPct(x + dx) * 100) / 100, Math.round(clampPct(y + dy) * 100) / 100]) : null
+      setMapData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === d.id ? { ...pp, x: d.lastX, y: d.lastY, ...(shape ? { shape } : {}) } : pp)) }))
       track(atlasService.patchPlacement(d.id, { x: d.lastX, y: d.lastY, ...(shape ? { shape } : {}) })).catch(() => {})
     } else setSelId(d.id)
   }, [onDragMove, track])
@@ -996,7 +998,7 @@ function AtlasWorkspace() {
   // ---- global node search -----------------------------------------------------------
   const openSearch = () => {
     setSearchOpen(true)
-    atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
+    atlasService.getNodes(worldId).then(setNodeIndex).catch(() => {})
   }
   const closeSearch = () => { setSearchOpen(false); setQ(''); setSfilter('all') }
   useDismiss(searchOpen, [searchRef], closeSearch, { escape: false }) // Escape is the keyboard effect's
@@ -1022,7 +1024,7 @@ function AtlasWorkspace() {
       px = (Math.max(r.left, vp.left) + Math.min(r.right, vp.right)) / 2
       py = (Math.max(r.top, vp.top) + Math.min(r.bottom, vp.bottom)) / 2
     }
-    return { x: clamp(((px - r.left) / r.width) * 100), y: clamp(((py - r.top) / r.height) * 100) }
+    return { x: clampPct(((px - r.left) / r.width) * 100), y: clampPct(((py - r.top) / r.height) * 100) }
   }
 
   useEffect(() => {
@@ -1066,22 +1068,22 @@ function AtlasWorkspace() {
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
   }, [drawing]) // eslint-disable-line
-  const unplacedCount = useMemo(() => searchIndex.filter((n) => n.placed === false).length, [searchIndex])
+  const unplacedCount = useMemo(() => nodeIndex.filter((n) => n.placed === false).length, [nodeIndex])
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    const pool = sfilter === 'unplaced' ? searchIndex.filter((n) => n.placed === false) : searchIndex
+    const pool = sfilter === 'unplaced' ? nodeIndex.filter((n) => n.placed === false) : nodeIndex
     // The Unplaced chip is a roster, not a search: it lists every stranded node even with no query.
     if (!needle) return sfilter === 'unplaced' ? pool : []
     return pool.filter((n) => (n.title || '').toLowerCase().includes(needle)).slice(0, 12)
-  }, [q, searchIndex, sfilter])
+  }, [q, nodeIndex, sfilter])
 
-  const readerLinks = useMemo(() => [...(nodeLinks.out || []), ...(nodeLinks.in || [])], [nodeLinks])
+  const readerLinks = useMemo(() => [...(nodeDetail.out || []), ...(nodeDetail.in || [])], [nodeDetail])
 
   const renameMap = () => {
     const t = (renaming || '').trim().slice(0, 255)
     setRenaming(null)
     if (!t || !map || t === map.title) return
-    setData((d) => d && ({ ...d, map: { ...d.map, title: t } }))
+    setMapData((d) => d && ({ ...d, map: { ...d.map, title: t } }))
     track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => refreshMap())
   }
 
@@ -1092,10 +1094,10 @@ function AtlasWorkspace() {
   const legend = useMemo(() => {
     const counts = {}
     const seen = {} // one Party, however many footsteps it left here
-    for (const p of data?.placements || []) { (seen[p.node.category] ||= new Set()).add(p.node.id) }
+    for (const p of mapData?.placements || []) { (seen[p.node.category] ||= new Set()).add(p.node.id) }
     for (const k of Object.keys(seen)) counts[k] = seen[k].size
     return Object.entries(counts).sort((a, b) => b[1] - a[1])
-  }, [data])
+  }, [mapData])
   const toggleCat = (k) => setHiddenCats((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   // ---- world-plane interactions ---------------------------------------------------------
@@ -1114,7 +1116,7 @@ function AtlasWorkspace() {
     if (st === undefined || en === undefined) { setFlash({ kind: 'err', text: 'A focus period is whole numbers on the clock' }); return }
     if (st != null && en != null && st > en) { setFlash({ kind: 'err', text: 'A focus period ends after it starts — swap the two' }); return }
     setFocusEdit(null)
-    setData((d) => d && ({ ...d, map: { ...d.map, focusStart: st, focusEnd: en } }))
+    setMapData((d) => d && ({ ...d, map: { ...d.map, focusStart: st, focusEnd: en } }))
     track(atlasService.patchMap(mapId, { focus_start: st, focus_end: en }), "Couldn't save the focus period").catch(() => refreshMap())
   }
 
@@ -1124,24 +1126,23 @@ function AtlasWorkspace() {
     setMomentEdit(null)
     if (raw === '' || !Number.isFinite(v) || !tl) return
     const t = Math.min(Math.max(Math.round(v), tl.min), tl.max)
-    setNow(t)
+    setLens(t)
     if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
   }
 
-  const bdMoment = now
   // the timed period whose art is on screen at the viewed moment (the latest-starting one
   // covering it wins), or null when the base art shows
-  const activeBackdropRow = useMemo(() => (map && tl?.enabled ? pickCovering(data?.backdrops, bdMoment) : null), [data, map, bdMoment, tl?.enabled])
+  const activeBackdropRow = useMemo(() => (map && tl?.enabled ? pickCovering(mapData?.backdrops, lens) : null), [mapData, map, lens, tl?.enabled])
   const activeBackdropUrl = map ? (activeBackdropRow ? activeBackdropRow.url : map.backdropUrl) : null
 
-  const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : (data?.placements.find((p) => p.id === id) || null) }
+  const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : (mapData?.placements.find((p) => p.id === id) || null) }
   const onWorldClick = (e, inside = true) => {
     if (drawing) return // the outline layer owns its own presses
     if (!placing) { const p = inside ? regionAt(e) : null; setSelId(p ? p.id : null); return } // a clean tap: a region selects, empty space (the letterbox too) deselects — a pan keeps the selection
     if (!inside || !worldRef.current) return // a drop needs the plane
     const rect = worldRef.current.getBoundingClientRect()
-    const x = clamp(((e.clientX - rect.left) / rect.width) * 100)
-    const y = clamp(((e.clientY - rect.top) / rect.height) * 100)
+    const x = clampPct(((e.clientX - rect.left) / rect.width) * 100)
+    const y = clampPct(((e.clientY - rect.top) / rect.height) * 100)
     if (placing.kind === 'new') dropNode(x, y)
     else placeExisting(placing.node, x, y)
   }
@@ -1157,8 +1158,8 @@ function AtlasWorkspace() {
     const rect = worldRef.current.getBoundingClientRect()
     setCtx({
       sx: Math.min(e.clientX, window.innerWidth - 230), sy: Math.min(e.clientY, window.innerHeight - 110),
-      px: clamp(((e.clientX - rect.left) / rect.width) * 100),
-      py: clamp(((e.clientY - rect.top) / rect.height) * 100),
+      px: clampPct(((e.clientX - rect.left) / rect.width) * 100),
+      py: clampPct(((e.clientY - rect.top) / rect.height) * 100),
     })
   }
 
@@ -1167,14 +1168,14 @@ function AtlasWorkspace() {
   const readerOpen = mode === 'view' && (wide || !!sel || spaceOpen) // a phone shows the map; the map's notes open on request
   const resolveFact = (facts, t) => coveringFact(facts, t)?.body ?? null // a blank period is no story yet — the base text stands
   // with the clock off there is no history: one party pin, the latest footstep on this map
-  const latestParty = (() => { const at = (v) => (v == null ? -Infinity : v); let best = null; for (const p of (data?.placements || [])) if (p.node.category === 'party' && (!best || at(p.start) > at(best.start) || (at(p.start) === at(best.start) && p.id > best.id))) best = p; return best?.id ?? null })()
+  const latestParty = (() => { const at = (v) => (v == null ? -Infinity : v); let best = null; for (const p of (mapData?.placements || [])) if (p.node.category === 'party' && (!best || at(p.start) > at(best.start) || (at(p.start) === at(best.start) && p.id > best.id))) best = p; return best?.id ?? null })()
   const legendOn = !isList && legend.length > 1 // the category filter lives with its chips: a list or a one-kind map shows everything
   const visible = (p) =>
     (!legendOn || !hiddenCats.has(p.node.category)) &&
     (ghostsOn || !tl?.enabled || present(p))
 
   // ============================================================================= render ==
-  if (loading && !world) {
+  if (worldLoading && !world) {
     return <div className="atlas"><div className="loading" style={{ gridRow: '1 / 3' }}>Loading…</div></div>
   }
   if (!world) {
@@ -1229,7 +1230,7 @@ function AtlasWorkspace() {
             </span>
         {mode !== 'player' && (
         <div className="crumbs">
-          {(data?.breadcrumb || []).map((b, i, arr) => (
+          {(mapData?.breadcrumb || []).map((b, i, arr) => (
             <React.Fragment key={b.mapId}>
               {i > 0 && <span className="sep">▸</span>}
               {i === arr.length - 1
@@ -1388,7 +1389,7 @@ function AtlasWorkspace() {
               grid={gridOn}
             >
               <Regions backdropUrl={activeBackdropUrl} onEnter={(it) => openInterior(it.node)}
-                items={(data?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
+                items={(mapData?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, selected: selId === p.id,
                   secret: p.visibility === 'dm' || p.node.visibility === 'dm', hasInterior: p.node.hasInterior,
                   cls: `${selId === p.id ? 'sel' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`,
@@ -1397,19 +1398,19 @@ function AtlasWorkspace() {
                 inert={!!placing}
                 drawing={drawing}
                 onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline }}
-                onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = data?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined}
+                onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = mapData?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined}
                 onSelect={(it) => setSelId(it.id)} />
               {printsOn && tl?.enabled && !hiddenCats.has('party') && (
-                <PartyTrail placements={data?.placements} t={now} eras={world?.eras} unit={tl?.unit}
-                  onStep={(st) => setNow(st)} />
+                <PartyTrail placements={mapData?.placements} t={lens} eras={world?.eras} unit={tl?.unit}
+                  onStep={(st) => setLens(st)} />
               )}
               {(() => {
-                const pins = (data?.placements || []).filter(visible).filter((p) => !p.shape || p.node.category === 'party').filter((p) => p.node.category !== 'party' || (tl?.enabled ? present(p) : p.id === latestParty))
+                const pins = (mapData?.placements || []).filter(visible).filter((p) => !p.shape || p.node.category === 'party').filter((p) => p.node.category !== 'party' || (tl?.enabled ? present(p) : p.id === latestParty))
                 const off = stackOffsets(pins)
                 return pins.map((p) => (
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
-                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(off.get(p.id) ? { '--ox': `${off.get(p.id)[0]}px`, '--oy': `${off.get(p.id)[1]}px` } : {}), ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, ...(off.get(p.id) ? { '--ox': `${off.get(p.id)[0]}px`, '--oy': `${off.get(p.id)[1]}px` } : {}), ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? lens, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
                   role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(p.id) } }}
                   onPointerDown={(e) => onPinDown(e, p)}
@@ -1430,7 +1431,7 @@ function AtlasWorkspace() {
                   {(p.node.visibility === 'dm' || p.visibility === 'dm') && <span className="lock" title={p.node.visibility === 'dm' ? 'DM only' : 'Hidden on this map — the node itself is shared'}>🔒</span>}
                   {p.node.hasInterior && <span className="open" aria-hidden="true">◎</span>}
                   {p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
-                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? now, world?.eras); return so ? <span className="stag" title={sessionLabel(so, tl.unit)}>{stepTag(so)}</span> : null })()}
+                  {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? lens, world?.eras); return so ? <span className="stag" title={sessionLabel(so, tl.unit)}>{stepTag(so)}</span> : null })()}
                 </div>
                 ))
               })()}
@@ -1440,7 +1441,7 @@ function AtlasWorkspace() {
           {loadState === 'ok' && isList && (
             <div className="listview">
               {mode === 'edit' && <div className="listhead muted">A list map: rows instead of pins.</div>}
-              {(data?.placements || []).filter(visible).map((p) => (
+              {(mapData?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
                   className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''}`}
                   role="button" tabIndex={0} aria-label={p.node.title} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(p.id) } }}
@@ -1456,7 +1457,7 @@ function AtlasWorkspace() {
                   {p.node.hasInterior && <span className="open" title="Has an interior" aria-hidden="true">◎</span>}
                 </div>
               ))}
-              {data && data.placements.length === 0 && (
+              {mapData && mapData.placements.length === 0 && (
                 <div className="empty-map static">
                   <div style={{ fontSize: '2rem' }}>📜</div>
                   {mode === 'edit'
@@ -1555,7 +1556,7 @@ function AtlasWorkspace() {
             </div>
           )}
 
-          {data && !isList && data.placements.length === 0 && !placing && loadState === 'ok' && !activeBackdropUrl && (
+          {mapData && !isList && mapData.placements.length === 0 && !placing && loadState === 'ok' && !activeBackdropUrl && (
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🗺️</div>
               {mode === 'edit' ? (
@@ -1571,7 +1572,7 @@ function AtlasWorkspace() {
 
           {drawing && (
             <div className="drawhud">
-              <span className="dhtext">◌ Outlining <b>{drawing.placementId ? (data?.placements.find((p) => p.id === drawing.placementId)?.node.title || 'this place') : 'a new place'}</b>
+              <span className="dhtext">◌ Outlining <b>{drawing.placementId ? (mapData?.placements.find((p) => p.id === drawing.placementId)?.node.title || 'this place') : 'a new place'}</b>
                 {' — click corners or drag to trace · '}<b>Enter</b>{' or double-click closes · Backspace or right-click undoes · Esc cancels · hold Space to pan'}</span>
               <span className="kindsel" title="Button: a house or landmark — grows on hover. Area: a district — a faint wash.">
                 <button type="button" className={drawing.kind === 'button' ? 'on' : ''} aria-pressed={drawing.kind === 'button'} onClick={() => setDrawKind('button')}>Button</button>
@@ -1669,16 +1670,16 @@ function AtlasWorkspace() {
                   ))
                 })()}
                 <input type="range" aria-label="Viewing moment" min={dispMin} max={dispMax}
-                  value={Math.min(Math.max(now, dispMin), dispMax)}
-                  onChange={(e) => setNow(Number(e.target.value))} />
-                {dispMax > dispMin && (data?.placements || [])
+                  value={Math.min(Math.max(lens, dispMin), dispMax)}
+                  onChange={(e) => setLens(Number(e.target.value))} />
+                {dispMax > dispMin && (mapData?.placements || [])
                   .filter((p) => p.node.category !== 'party') // the party's walking is the ticks above, not presence marks
                   .flatMap((p) => [p.start, p.end])
                   .filter((t) => t != null && t >= dispMin && t <= dispMax)
                   .map((t, i) => (
                     <span key={i} className="ttick" style={{ left: `${((t - dispMin) / (dispMax - dispMin)) * 100}%` }} />
                   ))}
-                {canon !== now && canon >= dispMin && canon <= dispMax && dispMax > dispMin && (
+                {canon !== lens && canon >= dispMin && canon <= dispMax && dispMax > dispMin && (
                   <span className="canonmark" style={{ left: `${((canon - dispMin) / (dispMax - dispMin)) * 100}%` }}
                     title={`Canon moment (what players see): ${momentLabel(canon, world?.eras, tl.unit)}`} />
                 )}
@@ -1695,13 +1696,13 @@ function AtlasWorkspace() {
                   onBlur={commitMoment} />
               ) : (
                 <button className="tnow tnowbtn" title="Click to type an exact moment"
-                  onClick={() => setMomentEdit(String(now))}>{momentLabel(now, world?.eras, tl.unit)}</button>
+                  onClick={() => setMomentEdit(String(lens))}>{momentLabel(lens, world?.eras, tl.unit)}</button>
               )}
               <div className="tzone">
-                {canon !== now ? (
+                {canon !== lens ? (
                   <>
                     <button className="tool tcanon" title="Make this the moment players see" onClick={setCanonHere}>📍 Set canon</button>
-                    <button className="tbtn tback" title={`Back to the canon moment (${momentLabel(canon, world?.eras, tl.unit)})`} onClick={() => setNow(canon)}>↩</button>
+                    <button className="tbtn tback" title={`Back to the canon moment (${momentLabel(canon, world?.eras, tl.unit)})`} onClick={() => setLens(canon)}>↩</button>
                   </>
                 ) : (
                   <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
@@ -1732,7 +1733,7 @@ function AtlasWorkspace() {
                   <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
                   <h3>{map?.title}</h3>
                 </div>
-                <span className="rcat">This map{(data?.breadcrumb?.length || 0) > 1 ? ` · inside “${data.breadcrumb[data.breadcrumb.length - 2].title}”` : ''}</span>
+                <span className="rcat">This map{(mapData?.breadcrumb?.length || 0) > 1 ? ` · inside “${mapData.breadcrumb[mapData.breadcrumb.length - 2].title}”` : ''}</span>
                 {map?.dmNote
                   ? <div className="dmnote"><div className="dmnl">🔒 Map notes</div>{map.dmNote}</div>
                   : <p className="rbody muted">No map notes yet — write them in ✏ Edit with nothing selected.</p>}
@@ -1749,7 +1750,7 @@ function AtlasWorkspace() {
                   <span className="ic" style={{ background: cat(sel.node.category).c }}>{cat(sel.node.category).i}</span>
                   <h3>{sel.node.title}</h3>
                 </div>
-                <p className="rnote">Nothing is known of this at {momentLabel(bdMoment, world?.eras, tl?.unit)}.</p>
+                <p className="rnote">Nothing is known of this at {momentLabel(lens, world?.eras, tl?.unit)}.</p>
                 {mode === 'view' && (sel.start != null || sel.end != null) && (
                   <p className="rwhen">🕓 Its story runs {spanLabel(sel.start, sel.end, world?.eras, tl?.unit)}.</p>
                 )}
@@ -1773,7 +1774,7 @@ function AtlasWorkspace() {
                   <div className="rwhen">🕓 {spanLabel(sel.start, sel.end, world?.eras, tl.unit)}</div>
                 )}
                 {(() => {
-                  const story = tl?.enabled ? (resolveFact(nodeLinks.facts, bdMoment) ?? sel.node.body) : sel.node.body
+                  const story = tl?.enabled ? (resolveFact(nodeDetail.facts, lens) ?? sel.node.body) : sel.node.body
                   return story ? <p className="rbody">{story}</p> : null
                 })()}
                 {sel.node.dmNote && (
@@ -1781,7 +1782,7 @@ function AtlasWorkspace() {
                 )}
                 {sel.node.voiceUrl && <AudioClip className="rvoice" src={sel.node.voiceUrl} caption={sel.node.voiceLine ? `“${sel.node.voiceLine}”` : 'In their own voice'} />}
                 {sel.node.category === 'party' && tl?.enabled && (() => {
-                  const t = now
+                  const t = lens
                   const { prev, next } = partyNeighbors(trail, t)
                   const lab = (st) => { const so = sessionOf(st.start ?? t, world?.eras); return so ? ` · ${stepTag(so)}` : '' }
                   if (!prev && !next) return null
@@ -1824,10 +1825,10 @@ function AtlasWorkspace() {
               <h3 className="sptitle">{map?.title}
                 <button className="lx" title="Rename this map" aria-label="Rename this map" onClick={() => setRenaming(map?.title || '')}>✎</button>
               </h3>
-              {(data?.breadcrumb?.length || 0) > 1 && (
-                <div className="muted spup">Inside “{data.breadcrumb[data.breadcrumb.length - 2].title}”</div>
+              {(mapData?.breadcrumb?.length || 0) > 1 && (
+                <div className="muted spup">Inside “{mapData.breadcrumb[mapData.breadcrumb.length - 2].title}”</div>
               )}
-              {(data?.breadcrumb?.length || 0) <= 1 && map?.ownerNodeId && (
+              {(mapData?.breadcrumb?.length || 0) <= 1 && map?.ownerNodeId && (
                 <div className="orphan">
                   <div className="muted spup">This map belongs to an entry that isn't placed on any map — it lives under “Unplaced” in the tree.</div>
                   <div className="onmaprow">
@@ -1876,12 +1877,12 @@ function AtlasWorkspace() {
               {voiceOn && voiceMeta.ambience && (
                 <>
                   <div className="isect">Ambience — players can play it here</div>
-                  <input key={`amb${map?.id}`} className="ambin" maxLength={400} defaultValue={map?.ambiencePrompt || ''}
+                  <input className="ambin" maxLength={400} value={ambText} onChange={(e) => setAmbText(e.target.value)}
                     placeholder="the sound of this place — “cold surf on slate, wind through rigging, a far bell”"
                     disabled={ambBusy}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.repeat && !ambBusy && e.target.value.trim()) setAmbience(e.target.value.trim()) }} />
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.repeat && !ambBusy && ambText.trim()) setAmbience(ambText.trim()) }} />
                   <div className="vrow">
-                    <button className="btn" disabled={ambBusy} onClick={(e) => { const v = e.currentTarget.parentElement.previousSibling.value.trim(); if (v) setAmbience(v) }}>{ambBusy ? 'Making…' : '🔊 Make it'}</button>
+                    <button className="btn" disabled={ambBusy} onClick={() => { const v = ambText.trim(); if (v) setAmbience(v) }}>{ambBusy ? 'Making…' : '🔊 Make it'}</button>
                     {map?.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
                     {map?.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
                   </div>
@@ -1898,19 +1899,19 @@ function AtlasWorkspace() {
                 if (fn.category === 'party' && c !== 'party' && !window.confirm("This is the Party. Changing its category drops its whole trail from the timebar and from players' phones. Change it?")) return
                 saveNode(fn.id, { category: c })
               }}
-              partyExists={trail.some((st) => st.nodeId !== fn.id) || (data?.placements || []).some((pp) => pp.node.category === 'party' && pp.node.id !== fn.id)}
+              partyExists={trail.some((st) => st.nodeId !== fn.id) || (mapData?.placements || []).some((pp) => pp.node.category === 'party' && pp.node.id !== fn.id)}
               onOpen={() => openInterior(fn)} onCreate={(v) => createInteriorAs(fn, v)}
               onRemoveInterior={() => askRemoveInterior(fn)}
               onImage={() => setPicker({ kind: 'node', nodeId: fn.id, hasCurrent: !!fn.imageUrl })}
               onRemoveImage={() => setNodeImage(fn.id, null, null)}
               timeline={tl} onLifespan={sel ? (which, v) => setLifespan(sel.id, which, v) : undefined}
-              facts={nodeLinks.facts} nowT={Math.round(now)} nowLabel={momentLabel(Math.round(now), world?.eras, tl?.unit)} eras={world?.eras || []}
+              facts={nodeDetail.facts} nowT={Math.round(lens)} nowLabel={momentLabel(Math.round(lens), world?.eras, tl?.unit)} eras={world?.eras || []}
               hiddenHere={sel ? sel.visibility === 'dm' : false} onHideHere={sel ? (h) => setPlacementVis(sel.id, h) : undefined}
               onFootstep={sel && fn.category === 'party' && tl?.enabled ? () => partyMoveHere(sel.x, sel.y) : undefined}
               onFactAdd={() => factAdd(fn.id)}
               onFactPatch={(id, d) => factPatch(fn.id, id, d)}
               onFactDelete={(id) => factDelete(fn.id, id)}
-              links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onLabel={labelLink} onJump={jump}
+              links={nodeDetail} onLink={() => setNodePicker('link')} onUnlink={removeLink} onLabel={labelLink} onJump={jump}
               onVis={(v) => saveNode(fn.id, { visibility: v })}
               onClaim={(v) => {
                 saveNode(fn.id, { visibility: v })
@@ -1959,8 +1960,8 @@ function AtlasWorkspace() {
       )}
 
       {picker && (() => {
-        const pkNode = picker.kind === 'node' ? ((data?.placements || []).find((pp) => pp.node.id === picker.nodeId)?.node || (stray?.id === picker.nodeId ? stray : null)) : null
-        const periodAt = momentLabel(Math.round(now), world?.eras, tl?.unit)
+        const pkNode = picker.kind === 'node' ? ((mapData?.placements || []).find((pp) => pp.node.id === picker.nodeId)?.node || (stray?.id === picker.nodeId ? stray : null)) : null
+        const periodAt = momentLabel(Math.round(lens), world?.eras, tl?.unit)
         const title = picker.kind === 'node' ? `Art for “${trunc(pkNode?.title || 'this entry')}”`
           : picker.kind === 'backdrop-timed' ? `Art for “${trunc(map?.title || 'this map')}” from ${periodAt}`
           : picker.kind === 'backdrop-row' ? `Art for the period from ${momentLabel(picker.start ?? 0, world?.eras, tl?.unit)} on “${trunc(map?.title || 'this map')}”`
@@ -1968,7 +1969,7 @@ function AtlasWorkspace() {
         const currentId = picker.kind === 'node' ? (pkNode?.imageId ?? null) : picker.kind === 'backdrop' ? (map?.imageId ?? null) : picker.kind === 'backdrop-row' ? (picker.imageId ?? null) : null
         const generate = !forgeOn ? null
           : picker.kind === 'node' ? { label: `Paint art for “${trunc(pkNode?.title || 'this entry')}”`, run: (g) => forgeService.nodeArt(picker.nodeId, g) }
-          : picker.kind === 'backdrop-timed' ? { label: `Paint art for the period from ${periodAt}`, run: (g) => forgeService.mapBackdrop(map.id, g, Math.round(now)) }
+          : picker.kind === 'backdrop-timed' ? { label: `Paint art for the period from ${periodAt}`, run: (g) => forgeService.mapBackdrop(map.id, g, Math.round(lens)) }
           : picker.kind === 'backdrop' ? { label: activeBackdropRow ? 'Paint this map new base art' : 'Paint this map a backdrop', run: (g) => forgeService.mapBackdrop(map.id, g) }
           : null
         return (
@@ -1981,12 +1982,12 @@ function AtlasWorkspace() {
       })()}
       {nodePicker === 'link' && sel && (
         <NodePicker worldId={worldId} excludeId={sel.node.id} title="Thread to…" excludedNote="Already threaded"
-          excludeIds={[...(nodeLinks.out || []), ...(nodeLinks.in || [])].map((l) => l.otherId)}
+          excludeIds={[...(nodeDetail.out || []), ...(nodeDetail.in || [])].map((l) => l.otherId)}
           onPick={addLink} onClose={() => setNodePicker(null)} />
       )}
       {nodePicker === 'place-here' && (
         <NodePicker worldId={worldId} title="Place which node here?" unplacedFirst excludedNote="Already on this map"
-          excludeIds={(data?.placements || []).filter((p) => p.node.category !== 'party').map((p) => p.node.id)}
+          excludeIds={(mapData?.placements || []).filter((p) => p.node.category !== 'party').map((p) => p.node.id)}
           onPickNode={(nn) => {
             setNodePicker(null)
             const pt = placePoint.current || { x: 50, y: 50 }
@@ -1996,7 +1997,7 @@ function AtlasWorkspace() {
       )}
       {nodePicker === 'place' && (
         <NodePicker worldId={worldId} title="Place which node?" unplacedFirst excludedNote="Already on this map"
-          excludeIds={(data?.placements || []).filter((p) => p.node.category !== 'party').map((p) => p.node.id)}
+          excludeIds={(mapData?.placements || []).filter((p) => p.node.category !== 'party').map((p) => p.node.id)}
           onPickNode={(n) => {
             setNodePicker(null)
             if (isList) placeExisting(n, 50, 50)
@@ -2043,7 +2044,7 @@ function AtlasWorkspace() {
       )}
 
       {ctx && ctx.placementId && (() => {
-        const p = data?.placements.find((pp) => pp.id === ctx.placementId)
+        const p = mapData?.placements.find((pp) => pp.id === ctx.placementId)
         if (!p) return null
         return (
           <div ref={ctxRef} className="apop ctxmenu" style={{ left: ctx.sx, top: ctx.sy }} onPointerDown={(e) => e.stopPropagation()}>
@@ -2077,7 +2078,7 @@ function AtlasWorkspace() {
                 {map.backdropUrl ? 'Change…' : 'Set…'}
               </button>
             </div>
-            {(data?.backdrops || []).map((b) => (
+            {(mapData?.backdrops || []).map((b) => (
               <React.Fragment key={b.id}>
               <div className="bdrow">
                 <img className="bdthumb" src={b.url} alt="" />
@@ -2093,7 +2094,7 @@ function AtlasWorkspace() {
               </React.Fragment>
             ))}
             <button className="tool" onClick={() => setPicker({ kind: 'backdrop-timed', hasCurrent: false })}>
-              ＋ Add art for a period (starts at {momentLabel(Math.round(now), world?.eras, tl?.unit)})
+              ＋ Add art for a period (starts at {momentLabel(Math.round(lens), world?.eras, tl?.unit)})
             </button>
         </Modal>
       )}
