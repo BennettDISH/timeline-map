@@ -10,18 +10,18 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B037** · medium · s · Dashboard: pressing Enter on ⋯ World options, 'Edit details' or the featured card's 'The Archive' opens the world instead
-- [ ] **P027** · medium · m · Modals have no dialog behaviour: Escape ignored in 9 of them, focus not moved in or trapped, and dropped to <body> on close
-- [ ] **P032** · medium · m · Keyboard users can't reach the map tree, breadcrumbs, pins, outlined places, list rows or thread links (DM and Player View)
-- [ ] **P033** · medium · s · Icon-only buttons are announced by their glyph ('✕', '◂', '⏳', '⚙', '▲'…), and several have no label at all
-- [ ] **P042** · low · s · Image upload and bible upload can't be reached by keyboard: the file inputs are hidden inside <label>s
-- [ ] **P051** · low · s · World switcher: pressing an arrow key on the focused select jumps to another world immediately
-- [ ] **P085** · low · s · Form fields and both time sliders have no accessible name (axe 'label' critical in every posture)
-- [ ] **P086** · low · s · Toggle buttons don't expose their on/off state
-- [ ] **P091** · low · s · No landmarks or h1 on the workspace, Player View, Archive or 404
-- [ ] **P095** · low · s · Popovers and menus ignore Escape and expose no open state; Escape doesn't close the Player sheet or the DM reader either
-- [ ] **P097** · low · xs · Keyboard focus and motion: world switchers drop the focus ring, Archive folder ⋯ is invisible when focused, no prefers-reduced-motion anywhere
-- [ ] **P098** · low · s · Toasts are silent to screen readers, and Undo lives only in a 9-second toast with no keyboard route
+- [x] **B037** · medium · s · Dashboard: pressing Enter on ⋯ World options, 'Edit details' or the featured card's 'The Archive' opens the world instead — done 6b5ab8e
+- [x] **P027** · medium · m · Modals have no dialog behaviour: Escape ignored in 9 of them, focus not moved in or trapped, and dropped to <body> on close — done 6b5ab8e (focus returns to the opener fixed in d76717c: the dialog reads its opener at first render, before autoFocus)
+- [x] **P032** · medium · m · Keyboard users can't reach the map tree, breadcrumbs, pins, outlined places, list rows or thread links (DM and Player View) — done 6b5ab8e
+- [x] **P033** · medium · s · Icon-only buttons are announced by their glyph ('✕', '◂', '⏳', '⚙', '▲'…), and several have no label at all — done 6b5ab8e
+- [x] **P042** · low · s · Image upload and bible upload can't be reached by keyboard: the file inputs are hidden inside <label>s — done 6b5ab8e
+- [x] **P051** · low · s · World switcher: pressing an arrow key on the focused select jumps to another world immediately — done 6b5ab8e
+- [x] **P085** · low · s · Form fields and both time sliders have no accessible name (axe 'label' critical in every posture) — done 6b5ab8e
+- [x] **P086** · low · s · Toggle buttons don't expose their on/off state — done 6b5ab8e
+- [x] **P091** · low · s · No landmarks or h1 on the workspace, Player View, Archive or 404 — done 6b5ab8e
+- [x] **P095** · low · s · Popovers and menus ignore Escape and expose no open state; Escape doesn't close the Player sheet or the DM reader either — done 6b5ab8e
+- [x] **P097** · low · xs · Keyboard focus and motion: world switchers drop the focus ring, Archive folder ⋯ is invisible when focused, no prefers-reduced-motion anywhere — done 6b5ab8e
+- [x] **P098** · low · s · Toasts are silent to screen readers, and Undo lives only in a 9-second toast with no keyboard route — done 6b5ab8e
 
 ## Items
 

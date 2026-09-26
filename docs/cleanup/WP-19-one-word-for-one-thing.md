@@ -6,26 +6,26 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 **Do after:** [WP-10](WP-10-sessions-clock-labels-and-the-party.md), [WP-11](WP-11-the-inspector.md)
 
-**Notes:** Agree the words with Bennett first and write them into CLAUDE.md, then make the sweep. His copy rule applies: short and factual, with no metaphors or scene-setting. Do this after the packages that change the UI, so strings are not rewritten twice. Rename code identifiers (spotlight vs lantern) in WP-20, not here — never invite* to share*: those names dodge ad-blocker social filters (1224c84, C101).
+**Notes:** The words are chosen and written into CLAUDE.md (Vocabulary) — Bennett vetoes there.  His copy rule applies: short and factual, with no metaphors or scene-setting. Do this after the packages that change the UI, so strings are not rewritten twice. Rename code identifiers (spotlight vs lantern) in WP-20, not here — never invite* to share*: those names dodge ad-blocker social filters (1224c84, C101).
 
 ## Checklist
 
-- [ ] **P028** · medium · m · Written-for-effect prose replaces plain labels on the Dashboard, Archive, 404, workspace flashes and Forge
-- [ ] **C035** · low · m · UI vocabulary drifts: 'node', map vs space, editor vs inspector, lantern vs two kinds of 'trail'
-- [ ] **C048** · low · xs · One share link, three names: 'share link', 'party link live', and invite* in code
-- [ ] **C054** · low · s · The lantern has five names, and ‘trail’ means both the lantern and the party's footprints
-- [ ] **C056** · low · xs · Inspector copy: 'The painter' jargon in the DM-notes placeholder and an ambiguous 'The trail is out.' flash
-- [ ] **C057** · low · xs · 'Outline' names two different things: the whole feature and the stroke toggle; code also calls it shape and region
-- [ ] **C059** · low · s · Several other things have 3–5 names: links, descriptions, images, and the players' moment
-- [ ] **C074** · low · xs · Map UI text is wrong in list spaces, mislabels the base art, and uses flavour prose where it should say what a control does
-- [ ] **C076** · low · xs · Share popover tells a DM with the clock off to use a scrubber and 'Set canon' that don't exist
-- [ ] **C080** · low · s · One thing, many names: 'Archive' / images / art / pieces, an 'imageServiceBase64' that isn't base64, and scene-setting copy
-- [ ] **C086** · low · xs · Some tooltips mislead or bury what the control does
-- [ ] **C088** · low · xs · The 'Always show names' tooltip reads as the opposite of what it does
-- [ ] **C091** · low · xs · A map is called map, space, place, interior, plane, list and world map
-- [ ] **P058** · low · xs · Legend chip tooltips build plurals by appending 's' ('Hide the partys', 'Hide lores')
-- [ ] **P088** · low · xs · Player-facing copy reads as scene-setting rather than saying what the control does
-- [ ] **P092** · low · s · Punctuation and casing drift: straight vs curly quotes, trailing periods, ‘...’ vs ‘…’, lowercase labels, ＋ vs +, ‘Hide the partys’
+- [x] **P028** · medium · m · Written-for-effect prose replaces plain labels on the Dashboard, Archive, 404, workspace flashes and Forge — done d76717c
+- [x] **C035** · low · m · UI vocabulary drifts: 'node', map vs space, editor vs inspector, lantern vs two kinds of 'trail' — done d76717c
+- [x] **C048** · low · xs · One share link, three names: 'share link', 'party link live', and invite* in code — done d76717c (the Dashboard badge only; the invite* class names stay on purpose)
+- [x] **C054** · low · s · The lantern has five names, and ‘trail’ means both the lantern and the party's footprints — done d76717c (UI copy; the PlayerView trail→lanternPath identifier rename belongs to WP-20)
+- [x] **C056** · low · xs · Inspector copy: 'The painter' jargon in the DM-notes placeholder and an ambiguous 'The trail is out.' flash — done d76717c
+- [x] **C057** · low · xs · 'Outline' names two different things: the whole feature and the stroke toggle; code also calls it shape and region — done d76717c
+- [x] **C059** · low · s · Several other things have 3–5 names: links, descriptions, images, and the players' moment — done d76717c (“thread” chosen over “Links”: the editor and the Player sheet already said Threads)
+- [x] **C074** · low · xs · Map UI text is wrong in list spaces, mislabels the base art, and uses flavour prose where it should say what a control does — done d76717c
+- [x] **C076** · low · xs · Share popover tells a DM with the clock off to use a scrubber and 'Set canon' that don't exist — done d76717c
+- [x] **C080** · low · s · One thing, many names: 'Archive' / images / art / pieces, an 'imageServiceBase64' that isn't base64, and scene-setting copy — done d76717c (copy; the imageServiceBase64 rename and an /api/images/upload alias belong to WP-20)
+- [x] **C086** · low · xs · Some tooltips mislead or bury what the control does — done d76717c
+- [x] **C088** · low · xs · The 'Always show names' tooltip reads as the opposite of what it does — done d76717c
+- [x] **C091** · low · xs · A map is called map, space, place, interior, plane, list and world map — done d76717c
+- [x] **P058** · low · xs · Legend chip tooltips build plurals by appending 's' ('Hide the partys', 'Hide lores') — done d76717c
+- [x] **P088** · low · xs · Player-facing copy reads as scene-setting rather than saying what the control does — done d76717c
+- [x] **P092** · low · s · Punctuation and casing drift: straight vs curly quotes, trailing periods, ‘...’ vs ‘…’, lowercase labels, ＋ vs +, ‘Hide the partys’ — done d76717c
 
 ## Items
 
