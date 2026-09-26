@@ -384,9 +384,12 @@ function AtlasWorkspace() {
     refreshTree(); navigate(`/w/${worldId}/m/${r.mapId}`)
   }
 
-  const factAdd = (nodeId) =>
-    track(atlasService.addFact(nodeId, { body: '', start_time: Math.round(now), end_time: null }), "Couldn't add the entry")
+  const factAdd = (nodeId) => {
+    const cur = data?.placements.find((p) => p.node.id === nodeId)?.node
+    const body = resolveFact(nodeLinks.facts, Math.round(now)) ?? cur?.body ?? ''
+    return track(atlasService.addFact(nodeId, { body, start_time: Math.round(now), end_time: null }), "Couldn't add the entry")
       .then(() => reloadLinks(nodeId)).catch(() => {})
+  }
   const factPatch = (nodeId, id, data) =>
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => reloadLinks(nodeId)).catch(() => {})
   const factDelete = (nodeId, id) =>
@@ -589,22 +592,31 @@ function AtlasWorkspace() {
   }
 
   const enableTimeline = () => {
-    setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
-    setNow(0)
-    track(atlasService.patchWorld(worldId, {
-      timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 100, timeline_current_time: 0, timeline_time_unit: 'days',
-    })).catch(() => {})
+    // the clock survives being switched off: keep the stored range, unit and canon unless
+    // this world never had one (the untouched schema defaults, and no eras)
+    const t = world?.timeline
+    const legacy = !t || !(t.min < t.max) || (t.min === 0 && t.max === 100 && t.current === 50 && (!t.unit || t.unit === 'years') && !(world?.eras || []).length)
+    if (!legacy) {
+      setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: true } }))
+      setNow(t.current ?? t.min)
+      track(atlasService.patchWorld(worldId, { timeline_enabled: true })).catch(() => {})
+    } else {
+      setWorld((w) => w && ({ ...w, timeline: { enabled: true, min: 0, max: 100, current: 0, unit: 'days' } }))
+      setNow(0)
+      track(atlasService.patchWorld(worldId, {
+        timeline_enabled: true, timeline_min_time: 0, timeline_max_time: 100, timeline_current_time: 0, timeline_time_unit: 'days',
+      })).catch(() => {})
+    }
     setTlEdit(true)
   }
   const saveTimeline = (min, max, unit) => {
     if (!(min < max)) return
-    const cur = Math.min(Math.max(now, min), max)
-    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: cur } }))
-    setNow(cur)
+    // the lens is local and canon moves only through "Set canon": the server clamps canon
+    // into the new range itself, so the lens is clamped here and never sent
+    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: Math.min(Math.max(w.timeline.current ?? min, min), max) } }))
+    setNow((v) => Math.min(Math.max(v, min), max))
     setTlEdit(false)
-    track(atlasService.patchWorld(worldId, {
-      timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit, timeline_current_time: cur,
-    })).catch(() => {})
+    track(atlasService.patchWorld(worldId, { timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit })).catch(() => {})
   }
   const disableTimeline = () => {
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
@@ -759,8 +771,8 @@ function AtlasWorkspace() {
   const readerLinks = useMemo(() => {
     const all = [...(nodeLinks.out || []), ...(nodeLinks.in || [])]
     if (mode !== 'player') return all
-    const vis = new Map(searchIndex.map((n) => [n.id, n.visibility]))
-    return all.filter((l) => vis.get(l.otherId) !== 'dm')
+    const idx = new Map(searchIndex.map((n) => [n.id, n]))
+    return all.filter((l) => { const o = idx.get(l.otherId); return o && o.visibility !== 'dm' && o.placed !== false })
   }, [nodeLinks, mode, searchIndex])
 
   const renameMap = () => {
@@ -815,9 +827,10 @@ function AtlasWorkspace() {
   }
 
   const commitYear = () => {
-    const v = Number(yearEdit)
+    const raw = String(yearEdit ?? '').trim()
+    const v = Number(raw)
     setYearEdit(null)
-    if (!Number.isFinite(v) || !tl) return
+    if (raw === '' || !Number.isFinite(v) || !tl) return
     const t = Math.min(Math.max(Math.round(v), tl.min), tl.max)
     setNow(t)
     if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
@@ -861,8 +874,8 @@ function AtlasWorkspace() {
   const readerOpen = mode === 'view' ? true
     : mode === 'player' ? (!!sel && sel.node.visibility !== 'dm' && sel.visibility !== 'dm')
     : false
-  const resolveFact = (facts, t) => {
-    const rows = (facts || []).filter((f) => (f.start == null || f.start <= t) && (f.end == null || f.end >= t))
+  const resolveFact = (facts, t) => { // a blank period is no story yet — the base text stands
+    const rows = (facts || []).filter((f) => f.body?.trim() && (f.start == null || f.start <= t) && (f.end == null || f.end >= t))
     if (!rows.length) return null
     rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
     return rows[0].body
@@ -1322,7 +1335,7 @@ function AtlasWorkspace() {
             </div>
           )}
           {mode !== 'player' && tl?.enabled && tlEdit && (
-            <TimelineConfig tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline} onNextSession={nextSession}
+            <TimelineConfig key={`${tl.min}:${tl.max}:${tl.unit}`} tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline} onNextSession={nextSession}
               onClose={() => setTlEdit(false)} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
           )}
           {mode === 'player' && tl?.enabled && (
@@ -1774,8 +1787,9 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   const [min, setMin] = useState(tl.min)
   const [max, setMax] = useState(tl.max)
   const [unit, setUnit] = useState(tl.unit || 'days')
-  const bad = !(Number(min) < Number(max))
-  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null)
+  const [confirmOff, setConfirmOff] = useState(false)
+  const bad = min === '' || max === '' || !(Number(min) < Number(max))
+  const num = (v) => (v == null || String(v).trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v)) // blank = no change
   return (
     <div className="tlcfg">
       <label>From <input type="number" value={min} onChange={(e) => setMin(e.target.value === '' ? '' : Number(e.target.value))} /></label>
@@ -1793,10 +1807,10 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
           <input className="ename" defaultValue={e.name} title="Era name"
             onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== e.name) onEraPatch(e.id, { name: v }) }} />
           <input className="enum" type="number" defaultValue={e.start} title="From"
-            onBlur={(ev) => { const v = num(ev.target.value); if (v != null && v !== e.start) onEraPatch(e.id, { start_time: v }) }} />
+            onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.start; return } if (v !== e.start) onEraPatch(e.id, { start_time: v }) }} />
           <span className="edash">–</span>
           <input className="enum" type="number" defaultValue={e.end} title="To"
-            onBlur={(ev) => { const v = num(ev.target.value); if (v != null && v !== e.end) onEraPatch(e.id, { end_time: v }) }} />
+            onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.end; return } if (v !== e.end) onEraPatch(e.id, { end_time: v }) }} />
           <button className={`etoggle ${e.playerVisible ? 'on' : ''}`}
             title={e.playerVisible ? 'Players can scrub this era — click to hide' : 'Hidden from players — click to reveal'}
             onClick={() => onEraPatch(e.id, { player_visible: !e.playerVisible })}>🎭</button>
@@ -1807,7 +1821,15 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
         <button className="tool on" onClick={onNextSession} title="Adds the next session as an era of ten footsteps after the last, and grows the timeline to hold it">＋ Next session</button>
         <button className="tool" onClick={onEraAdd}>＋ Add an era</button>
       </div>
-      <button className="tool danger" onClick={onDisable}>Disable timeline</button>
+      {confirmOff ? (
+        <div className="tlrow tloff">
+          <span className="muted esmall">Players will see every moment at once — including the future and everything that has ended.</span>
+          <button className="tool danger" onClick={() => { setConfirmOff(false); onDisable() }}>Yes, disable</button>
+          <button className="tool" onClick={() => setConfirmOff(false)}>Keep it</button>
+        </div>
+      ) : (
+        <button className="tool danger" onClick={() => setConfirmOff(true)}>Disable timeline…</button>
+      )}
     </div>
   )
 }

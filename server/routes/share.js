@@ -26,9 +26,11 @@ async function worldOf(token) {
 // The moment players see. Default: the canon moment (the world clock). A ?t= request is
 // honored ONLY when it is ≤ canon AND falls inside a player_visible era — the DM decides
 // which stretches of the past are open; the future never leaves the database.
+const NEVER = -2147483648; // a clock with no canon shows nothing timed: fail closed, never open
 async function allowedTime(w, tRaw) {
   if (!w.timeline_enabled) return null;
   const canon = w.timeline_current_time;
+  if (canon == null) return NEVER;
   const t = parseInt(tRaw, 10);
   if (!Number.isFinite(t) || t >= canon) return canon;
   const r = await pool.query(
@@ -41,6 +43,66 @@ async function allowedTime(w, tRaw) {
 // ($N::int IS NULL collapses the whole clause when the timeline is off.)
 const PRESENT = (n) =>
   `($${n}::int IS NULL OR ((p.start_time IS NULL OR p.start_time <= $${n}) AND (p.end_time IS NULL OR p.end_time >= $${n})))`;
+
+// The allowed envelope: every moment a player may stand at — the player-visible eras clipped
+// to canon, plus canon itself. null when the clock is off (everything is present).
+async function allowedIntervals(w) {
+  if (!w.timeline_enabled) return null;
+  const canon = w.timeline_current_time ?? NEVER;
+  const rows = (await pool.query(
+    'SELECT start_time s, end_time e FROM eras WHERE world_id=$1 AND player_visible AND start_time <= $2',
+    [w.id, canon])).rows;
+  const ivs = rows.map((r) => [r.s, Math.min(r.e, canon)]).filter(([a, b]) => a <= b);
+  ivs.push([canon, canon]);
+  ivs.sort((a, b) => a[0] - b[0]);
+  return ivs;
+}
+// SQL: a placement's lifespan meets ANY allowed interval ([s,e] meets [a,b] iff s<=b AND e>=a);
+// the params go at $from, two per interval (b, a). TRUE when the clock is off.
+const MEETS = (ivs, from) => (ivs
+  ? ivs.map((_, i) => `((p.start_time IS NULL OR p.start_time <= $${from + i * 2}) AND (p.end_time IS NULL OR p.end_time >= $${from + i * 2 + 1}))`).join(' OR ')
+  : 'TRUE');
+const meetsArgs = (ivs) => (ivs ? ivs.flatMap(([a, b]) => [b, a]) : []);
+// Snap a lifespan onto the envelope so no moment inside a hidden stretch leaves the server:
+// a start moves up to the first allowed moment at or after it, an end down to the last
+// allowed moment at or before it; anything before the first open moment or after canon is null.
+const snapStart = (s, ivs) => {
+  if (s == null || s < ivs[0][0]) return null;
+  for (const [a, b] of ivs) { if (s < a) return a; if (s <= b) return s; }
+  return null;
+};
+const snapEnd = (e, ivs) => {
+  const canon = ivs[ivs.length - 1][1];
+  if (e == null || e > canon) return null;
+  let out = null;
+  for (const [a, b] of ivs) { if (e >= a) out = Math.min(e, b); }
+  return out;
+};
+
+// Which of these nodes may a player know exist? One that is placed (not DM-only) somewhere
+// alive inside the allowed envelope on a map the player can walk to, or that owns an
+// interior the player can walk to. Ids are sequential and guessable — this is the rule that
+// keeps the future, DM-placed things and hidden branches out of node detail and Threads.
+async function reachableIds(nodeIds, w, t) {
+  const ok = new Set();
+  if (!nodeIds.length) return ok;
+  const ivs = await allowedIntervals(w);
+  const rows = (await pool.query(
+    `SELECT DISTINCT p.node_id, p.map_id FROM placements p
+     WHERE p.node_id = ANY($1::int[]) AND p.visibility != 'dm' AND (${MEETS(ivs, 2)})`,
+    [nodeIds, ...meetsArgs(ivs)])).rows;
+  const mapOk = new Map();
+  const walk = async (mapId) => {
+    if (!mapOk.has(mapId)) mapOk.set(mapId, !!(await walkUp(mapId, w, t)));
+    return mapOk.get(mapId);
+  };
+  for (const r of rows) if (!ok.has(r.node_id) && (await walk(r.map_id))) ok.add(r.node_id);
+  const interiors = (await pool.query(
+    'SELECT id, interior_map_id FROM nodes WHERE id = ANY($1::int[]) AND interior_map_id IS NOT NULL', [nodeIds])).rows;
+  for (const r of interiors) if (!ok.has(r.id) && (await walk(r.interior_map_id))) ok.add(r.id);
+  return ok;
+}
+const intId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null; };
 
 // Walk a map up its owner chain to the world root. Returns the breadcrumb (root → here) when
 // every step is player-visible RIGHT NOW, else null. This is what makes deep links safe: a map
@@ -134,13 +196,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const windowed = req.query.window === '1' && w.timeline_enabled;
   let ivs = null; let lo = null;
   if (windowed) {
-    const canon = w.timeline_current_time;
-    const eraRows = (await pool.query(
-      'SELECT start_time s, end_time e FROM eras WHERE world_id=$1 AND player_visible AND start_time <= $2',
-      [w.id, canon])).rows;
-    ivs = eraRows.map((r) => [r.s, Math.min(r.e, canon)]).filter(([a, b]) => a <= b);
-    ivs.push([canon, canon]);
-    lo = Math.min(...ivs.map((i) => i[0]));
+    ivs = await allowedIntervals(w);
+    lo = ivs[0][0];
   }
 
   const map = (await pool.query(
@@ -185,14 +242,11 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
        ORDER BY p.id`, [req.params.mapId, t])).rows;
   }
 
-  const canonT = w.timeline_current_time;
+  const canonT = w.timeline_current_time ?? NEVER;
   const placements = rows.map((r) => ({
     id: r.placement_id, x: Number(r.x), y: Number(r.y), shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
-    // clamped to the revealed envelope: nothing before the first open era or past canon leaks
-    ...(windowed ? {
-      start: (r.start_time == null || r.start_time < lo) ? null : r.start_time,
-      end: (r.end_time == null || r.end_time > canonT) ? null : r.end_time,
-    } : {}),
+    // snapped onto the revealed envelope: no moment inside a hidden stretch or past canon leaks
+    ...(windowed ? { start: snapStart(r.start_time, ivs), end: snapEnd(r.end_time, ivs) } : {}),
     node: { id: r.node_id, title: r.title, category: r.category, pin: r.pin, pinSize: r.pin_size,
             player: r.nvis === 'player', author: r.author,
             hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
@@ -211,8 +265,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
        WHERE b.map_id = $1 AND (${conds}) ORDER BY b.start_time NULLS FIRST, b.id`, args)).rows
       .map((b) => ({
         id: b.id,
-        start: (b.start_time == null || b.start_time < lo) ? null : b.start_time,
-        end: (b.end_time == null || b.end_time > canonT) ? null : b.end_time,
+        start: snapStart(b.start_time, ivs), end: snapEnd(b.end_time, ivs),
         url: resolveImageUrl(req, b.file_path),
       }));
   }
@@ -247,15 +300,16 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
       if (!reachable.get(r.map_id)) continue;
       partyTrail.push({
         id: r.id, mapId: r.map_id, mapTitle: r.title, interior: !!r.owner_node_id,
-        start: (r.start_time == null || r.start_time < lo) ? null : r.start_time,
-        end: (r.end_time == null || r.end_time > canonT) ? null : r.end_time,
+        start: snapStart(r.start_time, ivs), end: snapEnd(r.end_time, ivs),
       });
     }
   }
 
+  // a focus window is a DM tool; players only get the part of it they may stand in
+  const clampT = (v) => (v == null || !w.timeline_enabled ? v : Math.min(Math.max(v, lo ?? v), canonT));
   res.json({
     map: { id: map.id, title: map.title, view: map.view,
-           focusStart: map.focus_start, focusEnd: map.focus_end,
+           focusStart: clampT(map.focus_start), focusEnd: clampT(map.focus_end),
            ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops, partyTrail } : {}),
@@ -298,17 +352,23 @@ router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req,
 router.get('/:token/nodes/:id', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const id = intId(req.params.id);
+  if (!id) return notFound(res);
   const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
     `SELECT n.id, n.title, n.body, n.category, n.interior_map_id, n.author, n.visibility AS nvis, n.voice_line, n.voice_url, i.file_path AS img
      FROM nodes n LEFT JOIN images i ON n.image_id = i.id
-     WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`, [req.params.id, w.id])).rows[0];
+     WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`, [id, w.id])).rows[0];
   if (!n) return notFound(res);
+  // being 'shared' is not enough: the node must stand somewhere the player can reach at an
+  // allowed moment (or own such a place) — the future, DM-placed things and hidden branches 404
+  if (!(await reachableIds([n.id], w, t)).has(n.id)) return notFound(res);
   if (w.timeline_enabled) {
-    // the story as it reads AT the allowed moment; other eras' text stays home
+    // the story as it reads AT the allowed moment; other eras' text stays home (a blank
+    // period is no story yet — the base text stands until the DM writes it)
     const fact = (await pool.query(
       `SELECT body FROM node_facts
-       WHERE node_id = $1 AND (start_time IS NULL OR start_time <= $2)
+       WHERE node_id = $1 AND body <> '' AND (start_time IS NULL OR start_time <= $2)
          AND (end_time IS NULL OR end_time >= $2)
        ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [n.id, t])).rows[0];
     if (fact) n.body = fact.body;
@@ -318,8 +378,12 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
     SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
     FROM links l JOIN nodes n2 ON l.${dir === 'out' ? 'to' : 'from'}_node_id = n2.id
     WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm'`;
-  const out = (await pool.query(linkSql('out'), [n.id])).rows;
-  const back = (await pool.query(linkSql('in'), [n.id])).rows;
+  let out = (await pool.query(linkSql('out'), [n.id])).rows;
+  let back = (await pool.query(linkSql('in'), [n.id])).rows;
+  // Threads name only what the player may know exists — same rule as the node itself
+  const known = await reachableIds([...new Set([...out, ...back].map((l) => l.other))], w, t);
+  out = out.filter((l) => known.has(l.other));
+  back = back.filter((l) => known.has(l.other));
   const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
 
   res.json({
@@ -337,16 +401,18 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
 router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
+  const id = intId(req.params.id);
+  if (!id) return notFound(res);
   const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
     `SELECT interior_map_id FROM nodes WHERE id = $1 AND world_id = $2 AND visibility != 'dm'`,
-    [req.params.id, w.id])).rows[0];
+    [id, w.id])).rows[0];
   if (!n) return notFound(res);
   if (n.interior_map_id && (await walkUp(n.interior_map_id, w, t))) return res.json({ mapId: n.interior_map_id });
   const p = (await pool.query(
     `SELECT p.map_id FROM placements p
      WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
-     ORDER BY p.id LIMIT 1`, [req.params.id, t])).rows[0];
+     ORDER BY p.id LIMIT 1`, [id, t])).rows[0];
   if (p && (await walkUp(p.map_id, w, t))) return res.json({ mapId: p.map_id });
   return notFound(res);
 }));

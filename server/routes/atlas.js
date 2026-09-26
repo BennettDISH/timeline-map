@@ -33,6 +33,13 @@ async function tombstone(worldId, userId, kind, payload) {
   return r.rows[0].id;
 }
 const rowsOf = async (sql, args) => (await pool.query(sql, args)).rows;
+// an image may only be used inside its own world (ids are sequential and R2 URLs are public)
+async function imageInWorld(imageId, wid) {
+  const id = Number(imageId);
+  if (!Number.isInteger(id)) return false;
+  return (await pool.query('SELECT 1 FROM images WHERE id=$1 AND world_id=$2', [id, wid])).rows.length > 0;
+}
+const badImage = (res) => res.status(400).json({ message: 'Image is not in this world' });
 // An outline is 3..200 [x,y] points in % of the plane (null clears it); undefined = bad input.
 function cleanShape(raw) {
   if (raw == null) return null;
@@ -133,13 +140,22 @@ router.delete('/worlds/:worldId/spotlight', wrap(async (req, res) => {
 router.patch('/worlds/:worldId', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   // Keep the timeline invariant (min < max, current within range) against partial updates.
+  // Every clock field must be a whole number — a null or a word would switch off the time
+  // secrecy the share API builds on.
+  for (const k of ['timeline_min_time', 'timeline_max_time', 'timeline_current_time']) {
+    if (k in req.body) {
+      const v = Number(req.body[k]);
+      if (req.body[k] == null || !Number.isInteger(v)) return res.status(400).json({ message: 'Timeline moments must be whole numbers' });
+      req.body[k] = v;
+    }
+  }
   if ('timeline_min_time' in req.body || 'timeline_max_time' in req.body || 'timeline_current_time' in req.body) {
     const stored = (await pool.query(
       'SELECT timeline_min_time, timeline_max_time, timeline_current_time FROM worlds WHERE id=$1', [req.params.worldId])).rows[0];
     const min = req.body.timeline_min_time ?? stored.timeline_min_time;
     const max = req.body.timeline_max_time ?? stored.timeline_max_time;
-    const cur = req.body.timeline_current_time ?? stored.timeline_current_time;
-    if (min >= max) return res.status(400).json({ message: 'Timeline start must be before its end' });
+    const cur = req.body.timeline_current_time ?? stored.timeline_current_time ?? min;
+    if (!(min < max)) return res.status(400).json({ message: 'Timeline start must be before its end' });
     if (cur < min || cur > max) req.body.timeline_current_time = Math.min(Math.max(cur, min), max);
   }
   const cols = {
@@ -338,6 +354,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
 router.patch('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
+  if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
   const cols = { title: 'title', view: 'view', image_id: 'image_id', focus_start: 'focus_start', focus_end: 'focus_end', dm_note: 'dm_note' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
@@ -350,8 +367,7 @@ router.post('/maps/:mapId/backdrops', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   const { image_id, start_time = null, end_time = null } = req.body;
-  const img = (await pool.query('SELECT world_id FROM images WHERE id=$1', [image_id])).rows[0];
-  if (!img || img.world_id !== wid) return res.status(400).json({ message: 'Image is not in this world' });
+  if (!(await imageInWorld(image_id, wid))) return badImage(res);
   const r = (await pool.query(
     'INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
     [req.params.mapId, image_id, start_time, end_time])).rows[0];
@@ -362,6 +378,7 @@ const worldIdOfBackdrop = async (id) =>
 router.patch('/backdrops/:id', wrap(async (req, res) => {
   const wid = await worldIdOfBackdrop(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Backdrop not found' });
+  if ('image_id' in req.body && !(await imageInWorld(req.body.image_id, wid))) return badImage(res); // a backdrop always has art
   const cols = { start_time: 'start_time', end_time: 'end_time', image_id: 'image_id' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
@@ -495,6 +512,7 @@ router.get('/nodes/:id/impact', wrap(async (req, res) => {
 router.patch('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  if (req.body.image_id != null && !(await imageInWorld(req.body.image_id, wid))) return badImage(res);
   const cols = { title: 'title', body: 'body', dm_note: 'dm_note', stance: 'stance', category: 'category', visibility: 'visibility', image_id: 'image_id', pin: 'pin', pin_size: 'pin_size' };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }

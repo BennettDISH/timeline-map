@@ -25,6 +25,9 @@ const IDS = {
   openLandmark: Number(process.env.FX_A || 97),
   hiddenPerson: Number(process.env.FX_B || 98),
   innerLoot: Number(process.env.FX_D || 103),
+  ghostSpot: Number(process.env.FX_GHOST || 99),      // shared node, DM-only placement
+  futureThing: Number(process.env.FX_FUTURE || 101),  // placed from 80, canon is 50
+  interludeGhost: Number(process.env.FX_INTERLUDE || 114), // alive 32–38: hidden history only
 };
 
 const get = async (path) => {
@@ -84,6 +87,34 @@ test('a DM-only node 404s directly', async () => {
   assert.equal(status, 404);
 });
 
+// Node ids are sequential and guessable: being 'shared' is not enough to read a node. It must
+// stand somewhere the player can reach at an allowed moment (the same rule as maps).
+test('node detail: a shared node whose only placement is DM-only 404s', async () => {
+  assert.equal((await get(`/nodes/${IDS.ghostSpot}`)).status, 404);
+});
+test('node detail: a node that only exists in the future 404s', async () => {
+  assert.equal((await get(`/nodes/${IDS.futureThing}`)).status, 404);
+  assert.equal((await get(`/nodes/${IDS.futureThing}?t=99`)).status, 404);
+});
+test('node detail: a node inside a hidden branch 404s', async () => {
+  assert.equal((await get(`/nodes/${IDS.innerLoot}`)).status, 404);
+});
+test('node detail: a node alive only in hidden history 404s', async () => {
+  assert.equal((await get(`/nodes/${IDS.interludeGhost}`)).status, 404);
+  assert.equal((await get(`/nodes/${IDS.interludeGhost}?t=35`)).status, 404);
+});
+test('node detail: a node alive in the revealed past is readable from canon', async () => {
+  const { status, body } = await get(`/nodes/100`); // Brief Fair, 20–40, Open Era 10–30
+  assert.equal(status, 200);
+  assert.equal(body.node.title, 'Brief Fair');
+});
+test('malformed node ids 404 rather than 500', async () => {
+  for (const id of ['abc', '1.5', '99999999999', '-1']) {
+    assert.equal((await fetch(`${BASE}/api/share/${TOKEN}/nodes/${id}`)).status, 404, `nodes/${id}`);
+    assert.equal((await fetch(`${BASE}/api/share/${TOKEN}/nodes/${id}/locate`)).status, 404, `nodes/${id}/locate`);
+  }
+});
+
 test('deep link into a hidden branch 404s (owner-chain walk)', async () => {
   const { status } = await get(`/maps/${IDS.hiddenMap}`);
   assert.equal(status, 404);
@@ -108,11 +139,11 @@ test('windowed map: everything visible at ANY allowed moment, nothing else', asy
   for (const t of titles(body)) assert.ok(!bad.includes(t));
 });
 
-test('windowed lifespans are clamped to the revealed envelope', async () => {
+test('windowed lifespans are snapped onto the revealed envelope (no hidden moment leaks)', async () => {
   const { body } = await get(`/maps/${IDS.root}?window=1`);
   const fair = body.placements.find((p) => p.node.title === 'Brief Fair');
   assert.equal(fair.start, 20);
-  assert.equal(fair.end, 40);
+  assert.equal(fair.end, 30, 'the fair really ends at 40, inside hidden history — players get the last open moment');
   const landmark = body.placements.find((p) => p.node.title === 'Open Landmark');
   assert.equal(landmark.start, null);
   assert.equal(landmark.end, null);
@@ -122,7 +153,7 @@ test('windowed backdrops list the allowed timed art; the base stays base', async
   const { body } = await get(`/maps/${IDS.root}?window=1`);
   assert.equal(body.map.backdropUrl, null, 'window mode returns the BASE art un-resolved');
   assert.equal(body.backdrops.length, 1);
-  assert.equal(body.backdrops[0].start, 40);
+  assert.equal(body.backdrops[0].start, 50, 'the art really starts at 40, inside hidden history — players get canon');
   assert.ok(body.backdrops[0].url.endsWith('fixture-a.svg'));
 });
 

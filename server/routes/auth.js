@@ -24,6 +24,13 @@ const authLimiter = rateLimit({
   max: 20,
   message: { message: 'Too many attempts. Please try again in a few minutes.' }
 });
+// Guest sign-in mints a central Waypoint user AND a local row per call, and Waypoint caps the
+// whole app at 500 guests an hour — one IP must not be able to spend that for everyone.
+const guestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many guest sign-ins from here. Please try again in an hour.' }
+});
 
 // Find or create a local user from central auth data, sync profile on login
 async function findOrCreateLocalUser(centralUser) {
@@ -270,7 +277,7 @@ router.post('/sso-callback', async (req, res) => {
 });
 
 // POST /api/auth/guest — one-click guest: mint a central guest account and sign in as it.
-router.post('/guest', async (req, res) => {
+router.post('/guest', guestLimiter, async (req, res) => {
   if (!SSO_ENABLED) return res.status(503).json({ message: 'Guest sign-in is not available' });
   try {
     const result = await centralGuest();

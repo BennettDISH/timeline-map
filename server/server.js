@@ -72,11 +72,14 @@ app.set('trust proxy', 1);
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300, // limit each IP to 300 requests per windowMs
-  skip: (req) => req.path.startsWith('/share') || req.path.startsWith('/atlas'),
+  skip: (req) => req.path.startsWith('/share') || req.path.startsWith('/atlas') || req.path.startsWith('/images-base64/serve'),
 });
 app.use('/api/', limiter);
 app.use('/api/share', rateLimit({ windowMs: 15 * 60 * 1000, max: 2400 }));
 app.use('/api/atlas', rateLimit({ windowMs: 15 * 60 * 1000, max: 6000 }));
+// public art loads (every phone at the table, through one venue IP) never count against the
+// DM's own bucket
+app.use('/api/images-base64/serve', rateLimit({ windowMs: 15 * 60 * 1000, max: 4000 }));
 
 // CORS configuration
 app.use(cors({

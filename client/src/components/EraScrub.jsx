@@ -77,14 +77,14 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                const v = Number(typed); setTyped(null)
-                if (Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
+                const raw = String(typed ?? '').trim(); const v = Number(raw); setTyped(null)
+                if (raw !== '' && Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) } // blank = no change
               } else if (e.key === 'Escape') setTyped(null)
             }}
             onBlur={() => {
               if (typed == null) return
-              const v = Number(typed); setTyped(null)
-              if (Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
+              const raw = String(typed ?? '').trim(); const v = Number(raw); setTyped(null)
+              if (raw !== '' && Number.isFinite(v)) { const t = snap(Math.round(v)); setDv(t); commit(t) }
             }} />
         ) : (
           <button className="einfo einfobtn" title="Click to type a year — it snaps into the revealed past"

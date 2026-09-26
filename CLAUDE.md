@@ -63,12 +63,25 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   server-side**: DM-only nodes/placements and out-of-time placements never leave the DB; links
   are pruned when either end is hidden; deep links into hidden/future branches 404 via the
   owner-chain walk (`walkUp`). The DM-side "Player" toggle is only a preview of these rules.
+- **Node detail follows the same rule as maps** (`reachableIds`): `/nodes/:id` and its
+  Threads name a node only when it (or an interior it owns) stands on a map that passes
+  `walkUp`, through a non-DM placement alive inside the allowed envelope (the player-visible
+  eras clipped to canon, plus canon). Being 'shared' alone is not enough — ids are guessable.
+  Windowed lifespans, backdrops, the party trail and a map's focus window are SNAPPED onto
+  that envelope (`snapStart`/`snapEnd`), so no moment inside hidden history leaves the
+  server. A clock with no canon fails closed (`NEVER`). Malformed ids 404.
+- Image ids are checked to belong to the world on every write (`imageInWorld` in
+  `atlas.js`); R2 URLs are public, so this is what keeps one account's art out of another's.
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
 
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
-  (`timeline_current_time`), which moves only via the explicit "Set canon" button.
+  (`timeline_current_time`), which moves only via the explicit "Set canon" button. Saving the
+  timeline range/unit never sends canon (the server clamps it into the new range); switching
+  the clock back on keeps the world's stored range, unit and canon unless it never had one;
+  disabling it asks first (players would see every moment). A blank moment box anywhere
+  means "no change", never 0. The world PATCH rejects null/non-integer clock fields (400).
 - Maps may declare a FOCUS PERIOD (`maps.focus_start/focus_end`): inside that map the DM
   scrubber's track zooms to that window (⤢ expands). It is a magnifier on the ONE world
   clock — never a second clock; `now` and canon stay world-level.
@@ -96,7 +109,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   write secrets there and to keep image prompts to the innocent surface.
 - `node_facts` are timed description overrides (same resolution rule as backdrops): the
   Colosseum reads as gladiators in 200, tourists in 2026. Resolved client-side in the
-  reader, server-side in `share.js` (`?t=` on the node endpoint) for players.
+  reader, server-side in `share.js` (`?t=` on the node endpoint) for players. A blank
+  period never overrides the base text, and "＋ Story for a period" starts as the text
+  players read at that moment.
 - `map_backdrops` are timed art overrides: the active backdrop at moment t is the row
   covering t with the latest start (base `maps.image_id` otherwise). Resolved client-side
   for the DM lens, server-side in `share.js` for players.

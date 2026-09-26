@@ -4,10 +4,10 @@ import App from './App.jsx'
 import './styles/main.scss'
 
 // Internal bug-tracker widget. Injected here instead of index.html so the public
-// Player View (/p/*) never loads it — anonymous players shouldn't get an internal
-// reporting tool (or its API key) alongside the shared map. The widget reads its
-// key via document.currentScript, which is set for dynamically inserted classic
-// scripts, so injection is equivalent to the old inline tag.
+// Player View (/p/*) never loads the reporting UI. (The ingest key below still ships in
+// the shared bundle — it is a public write-only key, the same one /login serves.) The
+// widget reads its key via document.currentScript, which is set for dynamically
+// inserted classic scripts, so injection is equivalent to the old inline tag.
 const path = window.location.pathname
 if (!(path === '/p' || path.startsWith('/p/'))) {
   const widget = document.createElement('script')

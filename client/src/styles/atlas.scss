@@ -384,6 +384,7 @@
 .atlas {
   .tlcfg{width:320px;max-height:70vh;overflow-y:auto}
   .tlrow{display:flex;gap:6px}
+  .tlrow.tloff{flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
   .esmall{font-size:11px;font-style:normal;line-height:1.45}
   .erarow{display:flex;align-items:center;gap:4px;
     .ename{flex:1;min-width:0;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 7px;font-size:12px}

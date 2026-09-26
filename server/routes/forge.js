@@ -49,9 +49,9 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     if (a.map != null) mids.add(a.map);
     if (a.to_map != null) mids.add(a.to_map);
   }
-  const nameOf = async (table, ids, col) => {
+  const nameOf = async (table, ids, col) => { // never a name from another world, whatever id the mind emits
     if (!ids.size) return new Map();
-    const r = await pool.query(`SELECT id, ${col} AS t FROM ${table} WHERE id = ANY($1)`, [[...ids]]);
+    const r = await pool.query(`SELECT id, ${col} AS t FROM ${table} WHERE id = ANY($1) AND world_id = $2`, [[...ids], req.params.worldId]);
     return new Map(r.rows.map((x) => [x.id, x.t]));
   };
   const nT = await nameOf('nodes', nids, 'title'), eT = await nameOf('eras', eids, 'name'), mT = await nameOf('maps', mids, 'title');
