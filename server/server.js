@@ -102,7 +102,8 @@ app.use('/api/voice', require('./routes/voice')); // voices and ambience — ine
 
 // Health check endpoint (before the SPA fallback so it isn't swallowed)
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  // the deploy signal the live suites wait for: Railway's commit sha (null elsewhere)
+  res.json({ status: 'ok', commit: process.env.RAILWAY_GIT_COMMIT_SHA || null, timestamp: new Date().toISOString() });
 });
 
 // Serve the built React app whenever it exists — independent of NODE_ENV, so a missing
