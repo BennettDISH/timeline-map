@@ -265,7 +265,7 @@ try {
       const top = await page.evaluate(() => document.querySelector('.insp')?.scrollTop);
       step('the editor opens at the top for a newly selected thing', top === 0, `scrollTop ${top}`);
     }
-    const addBtn = page.locator('.toolbar button', { hasText: 'Add node' });
+    const addBtn = page.locator('.toolbar button', { hasText: 'Add entry' });
     if (await addBtn.count()) {
       await addBtn.click(); await page.waitForTimeout(300);
       const wb = await page.locator('.mp-world').boundingBox(); const vb = await page.locator('.mp-viewport').boundingBox();
@@ -282,9 +282,9 @@ try {
       step('typing replaces the placeholder name', titleNow === 'Probe Drop', titleNow);
       const m = await (await fetch(`${BASE}/api/atlas/maps/${page.url().split('/m/')[1]}`, H2)).json().catch(() => ({}));
       let removed = 0;
-      for (const pl of (m.placements || []).filter((x) => /^(Probe Drop|New node)$/.test(x.node.title))) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...H2, method: 'DELETE' }); if (r.ok) removed++; }
+      for (const pl of (m.placements || []).filter((x) => /^(Probe Drop|New node|New entry)$/.test(x.node.title))) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...H2, method: 'DELETE' }); if (r.ok) removed++; }
       step('the dropped probe node is removed again', removed >= 1, `${removed} removed`);
-    } else step('the toolbar offers ＋ Add node', false);
+    } else step('the toolbar offers ＋ Add entry', false);
   }
   // laptop widths: the workspace fits the window, the scrubber keeps a track, the Forge folds the editor
   {

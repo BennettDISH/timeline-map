@@ -533,7 +533,7 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   });
   if (c.bad) return bad(res, c.bad);
   const { shape = null, shape_kind = null } = req.body;
-  const title = c.vals.title || 'New node', category = c.vals.category || 'note', body = c.vals.body ?? null, x = c.vals.x ?? 50, y = c.vals.y ?? 50;
+  const title = c.vals.title || 'New entry', category = c.vals.category || 'note', body = c.vals.body ?? null, x = c.vals.x ?? 50, y = c.vals.y ?? 50;
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
