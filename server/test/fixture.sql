@@ -31,3 +31,8 @@
 --   Players must see: no ◎ on Open Landmark, 404 on the pending map and its node, no art or
 --   base backdrop on the root, 'era text' (not 'PENDING FACT') at t=20, fixture-a.svg (not the
 --   pending art) at canon, no 'pending thread' link, an empty body on Brief Fair.
+--
+-- Added 2026-09-26 (WP-23 B102): 'Twice Placed', a shared node with an interior ('Twice Interior'),
+-- placed FIRST inside 'Hidden Interior' (the DM-only branch) and THEN on the root. Players must
+-- reach its interior through the root placement (◎ offered, 200, breadcrumb root → interior).
+-- Every root roster in the tests now includes it.

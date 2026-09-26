@@ -1681,7 +1681,7 @@ function AtlasWorkspace() {
                   onChange={(e) => saveMapNote(map.id, e.target.value)}
                   onBlur={flushNote} />
               ) : <div className="muted esmall">Opening…</div>}
-              {voiceOn && voiceMeta.ambience && !isList && (
+              {voiceOn && voiceMeta.ambience && (
                 <>
                   <div className="isect">Ambience — players can play it here</div>
                   <input key={`amb${map?.id}`} className="ambin" maxLength={400} defaultValue={map?.ambiencePrompt || ''}

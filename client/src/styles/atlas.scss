@@ -785,3 +785,10 @@
 .atlas .strayhint{margin-bottom:8px}
 .atlas .orphan .onmaprow{margin:6px 0 10px}
 .atlas .crumbs a.here{color:var(--fg);cursor:pointer}
+// the Player View: while marking the whole map takes the drop; sheet thread directions; the marker form
+.atlas.pview .stage.marking .pin{pointer-events:none}
+.atlas.pview .deadlink .tool{margin-top:12px}
+.atlas.pview .lrow .ldir{color:var(--muted);margin-right:4px;font-size:11px}
+.atlas .mrow .placebtn{min-width:230px}
+.atlas .mform .merr{color:#e66;font-size:12px;margin-top:8px}
+.atlas.pview .helpwrap .tool.round{width:30px;height:30px;border-radius:999px;padding:0}

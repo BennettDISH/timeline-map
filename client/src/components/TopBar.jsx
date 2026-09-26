@@ -43,17 +43,21 @@ function TopBar({ crumb }) {
       </Link>
       {crumb && <span className="shellcrumb"><span className="sep">▸</span>{crumb}</span>}
       <div className="spacer" />
-      <div className="usermenu" ref={ref}>
-        <button className="userbtn" onClick={() => setOpen((v) => !v)}>
-          {user?.username || 'Account'} <span className="chev">▾</span>
-        </button>
-        {open && (
-          <div className="menupop">
-            {user?.role === 'admin' && <Link to="/admin" onClick={() => setOpen(false)}>Admin panel</Link>}
-            <button onClick={signOut}>Sign out</button>
-          </div>
-        )}
-      </div>
+      {user ? (
+        <div className="usermenu" ref={ref}>
+          <button className="userbtn" onClick={() => setOpen((v) => !v)}>
+            {user.username || 'Account'} <span className="chev">▾</span>
+          </button>
+          {open && (
+            <div className="menupop">
+              {user.role === 'admin' && <Link to="/admin" onClick={() => setOpen(false)}>Admin panel</Link>}
+              <button onClick={signOut}>Sign out</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Link to="/login" className="userbtn">Sign in</Link>
+      )}
     </header>
   )
 }

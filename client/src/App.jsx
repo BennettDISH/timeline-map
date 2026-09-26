@@ -10,7 +10,7 @@ import AuthCallback from './pages/AuthCallback'
 import EnvSetup from './pages/EnvSetup'
 import ImageManager from './pages/ImageManager'
 import AtlasWorkspace from './pages/AtlasWorkspace'
-import PlayerView from './pages/PlayerView'
+import PlayerView, { DeadLink } from './pages/PlayerView'
 import NotFound from './pages/NotFound'
 import worldService from './services/worldService'
 
@@ -105,6 +105,8 @@ function AppRoutes() {
         {/* Public Player View — the share link. No auth on purpose. */}
         <Route path="/p/:token" element={<PlayerView />} />
         <Route path="/p/:token/m/:mapId" element={<PlayerView />} />
+        <Route path="/p/*" element={<DeadLink />} />
+        <Route path="/p" element={<DeadLink />} />
         <Route path="/" element={<Home />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

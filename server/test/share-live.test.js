@@ -30,6 +30,8 @@ const IDS = {
   interludeGhost: Number(process.env.FX_INTERLUDE || 114), // alive 32–38: hidden history only
   pendingMap: Number(process.env.FX_PENDING_MAP || 748),   // built by a PENDING Forge batch on Open Landmark
   pendingInner: Number(process.env.FX_PENDING_INNER || 2728), // a shared node placed inside it
+  twicePlaced: Number(process.env.FX_TWICE || 2739),        // placed in the hidden branch FIRST, then on the root; has an interior
+  twiceInterior: Number(process.env.FX_TWICE_MAP || 751),
 };
 
 const get = async (path) => {
@@ -48,25 +50,25 @@ test('world payload: only player-visible eras, canon moment', async () => {
 
 test('canon moment: secrets, dm placements, out-of-time and future all absent', async () => {
   const { body } = await get(`/maps/${IDS.root}`);
-  assert.deepEqual(titles(body), ['Open Landmark']);
+  assert.deepEqual(titles(body), ['Open Landmark', 'Twice Placed']);
   // the timed backdrop (start 40) is active at canon 50
   assert.ok((body.map.backdropUrl || '').endsWith('fixture-a.svg'), 'timed backdrop should be active at canon');
 });
 
 test('revealed past (t=20): the fair exists, the backdrop is the older art', async () => {
   const { body } = await get(`/maps/${IDS.root}?t=20`);
-  assert.deepEqual(titles(body), ['Brief Fair', 'Open Landmark']);
+  assert.deepEqual(titles(body), ['Brief Fair', 'Open Landmark', 'Twice Placed']);
   assert.equal(body.map.backdropUrl, null, 'pre-40 there is no backdrop');
 });
 
 test('a moment outside every revealed era silently resolves to canon', async () => {
   const { body } = await get(`/maps/${IDS.root}?t=45`); // inside the HIDDEN era
-  assert.deepEqual(titles(body), ['Open Landmark']);
+  assert.deepEqual(titles(body), ['Open Landmark', 'Twice Placed']);
 });
 
 test('the future silently resolves to canon', async () => {
   const { body } = await get(`/maps/${IDS.root}?t=99`);
-  assert.deepEqual(titles(body), ['Open Landmark']);
+  assert.deepEqual(titles(body), ['Open Landmark', 'Twice Placed']);
   assert.ok(!titles(body).includes('Future Thing'));
 });
 
@@ -136,7 +138,7 @@ test('a bad token gets nothing', async () => {
 
 test('windowed map: everything visible at ANY allowed moment, nothing else', async () => {
   const { body } = await get(`/maps/${IDS.root}?window=1`);
-  assert.deepEqual(titles(body), ['Brief Fair', 'Open Landmark']);
+  assert.deepEqual(titles(body), ['Brief Fair', 'Open Landmark', 'Twice Placed']);
   const bad = ['Hidden Person', 'Ghost Spot', 'Future Thing', 'Interlude Ghost'];
   for (const t of titles(body)) assert.ok(!bad.includes(t));
 });
@@ -235,4 +237,33 @@ test('pending Forge output: its link, fact and timed backdrop are absent', async
   assert.equal(map.body.backdrops.length, 1, 'the pending timed backdrop is not listed');
   const canon = await get(`/maps/${IDS.root}`);
   assert.ok((canon.body.map.backdropUrl || '').endsWith('fixture-a.svg'), 'the pending timed backdrop (from 45) must not replace the real one');
+});
+
+
+// ---- a pin the player can see leads somewhere: any reachable placement counts ----
+
+test('an owner placed in a hidden branch first and on the root second is reachable through the root', async () => {
+  const { body } = await get(`/maps/${IDS.root}`);
+  const tp = body.placements.find((p) => p.node.title === 'Twice Placed');
+  assert.ok(tp, 'the root placement shows');
+  assert.equal(tp.node.hasInterior, true, 'its interior is offered because the player can reach it');
+  assert.equal(tp.node.interiorMapId, IDS.twiceInterior);
+  const inside = await get(`/maps/${IDS.twiceInterior}`);
+  assert.equal(inside.status, 200, 'the interior opens (the owner chain goes through the root placement)');
+  assert.deepEqual(inside.body.breadcrumb.map((b) => b.mapId), [IDS.root, IDS.twiceInterior]);
+  assert.deepEqual((await get(`/nodes/${IDS.twicePlaced}/locate`)).body, { mapId: IDS.twiceInterior });
+});
+
+test('go there on something that only stood in the revealed past answers with that moment', async () => {
+  // Brief Fair lives 20–40; the revealed era is 10–30 and canon is 50: at canon it is nowhere,
+  // so locate points at the root AND the last open moment it was there
+  const { status, body } = await get('/nodes/100/locate');
+  assert.equal(status, 200);
+  assert.deepEqual(body, { mapId: IDS.root, t: 30 });
+  assert.deepEqual((await get('/nodes/100/locate?t=20')).body, { mapId: IDS.root }, 'at a moment it is present, no jump in time');
+});
+
+test('windowed backdrops carry the DM rule as a rank', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  assert.equal(body.backdrops[0].rank, 1);
 });

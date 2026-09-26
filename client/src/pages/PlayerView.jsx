@@ -7,15 +7,30 @@ import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyNeighbors } from '../utils/moment'
-import { CATS, cat } from '../utils/categories'
+import { CATS, MARKABLE, cat } from '../utils/categories'
 import '../styles/atlas.scss'
+
+// The dead-link screen: ONLY when the token itself is unknown (or a mangled /p/ URL). A map
+// that is hidden, gone or not built yet is a different thing — the link still works.
+export function DeadLink() {
+  return (
+    <div className="atlas pview">
+      <div className="deadlink">
+        <div style={{ fontSize: '2rem' }}>🗺️</div>
+        <h3>This link isn't active</h3>
+        <p>Ask your DM for a fresh share link.</p>
+      </div>
+    </div>
+  )
+}
 
 // The read-only Player View behind a share link (/p/:token). Everything secret or
 // not-yet-happened is already filtered by the server; this page just draws what it's given.
 // Mobile-first: players hold phones at the table — the map plane pans and pinch-zooms, and
 // pins sit on the same point of the map art as on the DM's screen. It re-fetches on a slow
 // poll and on tab focus so the world updates when the DM advances the clock or reveals
-// something. Only a real 404 kills the link; a flaky network keeps the last good view.
+// something. Only the reply for the map the player is looking at NOW is ever painted; a
+// flaky network keeps the last good view of the SAME map and says so.
 function PlayerView() {
   const { token, mapId } = useParams()
   const navigate = useNavigate()
@@ -23,43 +38,93 @@ function PlayerView() {
   const [world, setWorld] = useState(null)
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
   const [detail, setDetail] = useState(null) // opened node { node, links, backlinks }
-  const [gone, setGone] = useState(false)
+  const [dead, setDead] = useState(false) // the token is unknown: the link really is dead
+  const [lost, setLost] = useState(null) // { mapId }: this map is not on the player's map (hidden, gone, not built yet)
+  const [loadErr, setLoadErr] = useState(null) // { target }: the last fetch for that map failed (network, 500)
   const [stale, setStale] = useState(false) // last refresh failed (network hiccup)
-  const [flash, setFlash] = useState(null) // transient error text when a node tap fails
+  const [flash, setFlash] = useState(null) // { kind, text }: a brief word about what just happened
   const [viewT, setViewT] = useState(null) // a moment in the revealed past (null = now/canon)
   const [marking, setMarking] = useState(false) // armed: next map tap drops a marker
   const [hovId, setHovId] = useState(null) // the outlined place under the pointer (its name floats up)
   const [markForm, setMarkForm] = useState(null) // { x, y } while the little form is open
   const [markBusy, setMarkBusy] = useState(false)
+  const [markErr, setMarkErr] = useState('')
+  const [help, setHelp] = useState(false)
   const viewTRef = useRef(null); viewTRef.current = viewT
+  const detailRef = useRef(null); detailRef.current = detail
   const worldRef = useRef(null)
   const ambRef = useRef(null)
+  const helpRef = useRef(null)
+  const loadSeq = useRef(0) // only the reply for the map the player is looking at now is painted
+  const nodeSeq = useRef(0) // the last pin tapped owns the sheet
   const [ambOn, setAmbOn] = useState(false) // the space's ambience loop, started by a tap
-  useEffect(() => { const a = ambRef.current; if (a) { a.pause(); a.currentTime = 0 } setAmbOn(false) }, [mapId])
+  const ambienceUrl = data?.map?.ambienceUrl || null
+  // a new map, or an ambience the DM changed or removed: the loop stops and the toggle resets
+  useEffect(() => { const a = ambRef.current; if (a) { a.pause(); a.currentTime = 0 } setAmbOn(false) }, [mapId, ambienceUrl])
   const toggleAmb = () => {
     const a = ambRef.current
     if (!a) return
     if (ambOn) { a.pause(); setAmbOn(false) } else { a.play().then(() => setAmbOn(true)).catch(() => {}) }
   }
+  const say = (text, kind = 'err') => setFlash({ kind, text })
+
+  // The sheet: one request counter, so a reply that lands after a navigation, a close or a
+  // later tap can never reopen an older sheet over the one the player asked for.
+  const fetchSheet = useCallback((nodeId, t, onFail) => {
+    const seq = ++nodeSeq.current
+    return shareService.getNode(token, nodeId, t)
+      .then((d) => { if (seq === nodeSeq.current) setDetail(d) })
+      .catch((e) => { if (seq === nodeSeq.current) onFail?.(e) })
+  }, [token])
 
   // ONE windowed fetch per map: the payload carries everything visible at any revealed
   // moment (lifespans clamped server-side), so scrubbing filters locally with zero
-  // round trips. viewT rides a ref — moving the era bar never refetches the map.
+  // round trips. The map is fetched at canon whatever the era bar says — the envelope
+  // already covers every allowed moment, so looking at the past never walks a map that
+  // did not exist yet.
   const load = useCallback(() => {
-    shareService.getWorld(token)
+    const seq = ++loadSeq.current
+    return shareService.getWorld(token)
       .then((w) => {
-        setWorld(w)
-        return shareService.getMap(token, mapId || w.rootMapId, viewTRef.current, true)
-          .then((d) => { setData(d); setStale(false) })
+        if (seq !== loadSeq.current) return
+        setWorld(w); setDead(false)
+        // a remembered past moment the world no longer allows (its era hidden, canon pulled
+        // back) drops to now — the server already resolves it there silently
+        const vt = viewTRef.current
+        if (vt != null) {
+          const tl = w.timeline
+          const ok = tl?.enabled && tl.current != null && vt < tl.current && (w.eras || []).some((e) => vt >= e.start && vt <= e.end)
+          if (!ok) { setViewT(null); say("Back to now — that stretch of the past isn't open any more", 'info') }
+        }
+        const target = mapId || w.rootMapId
+        return shareService.getMap(token, target, null, true)
+          .then((d) => {
+            if (seq !== loadSeq.current) return
+            if (String(d?.map?.id) !== String(target)) return // never another map under this URL
+            setData(d); setStale(false); setLost(null); setLoadErr(null)
+            // an open sheet keeps up with the DM (a reveal, a rewrite); one hidden again closes
+            const open = detailRef.current?.node?.id
+            if (open) fetchSheet(open, viewTRef.current, (e) => { if (e?.response?.status === 404) { setDetail(null); say('That is no longer on your map', 'info') } })
+          })
+          .catch((e) => {
+            if (seq !== loadSeq.current) return
+            if (e?.response?.status === 404) { setLost({ mapId: target }); return } // this place, not the link
+            setStale(true); setLoadErr({ target })
+          })
       })
       .catch((e) => {
+        if (seq !== loadSeq.current) return
         const s = e?.response?.status
-        if (s === 404 || s === 410) setGone(true) // the link (or this map) really is dead
-        else setStale(true) // transient failure: keep showing what we have
+        if (s === 404 || s === 410) { setDead(true); return } // the link itself is dead
+        setStale(true); setLoadErr({ target: mapId || null })
       })
-  }, [token, mapId])
+  }, [token, mapId, fetchSheet])
 
-  useEffect(() => { setDetail(null); load() }, [load])
+  useEffect(() => {
+    nodeSeq.current++ // a sheet asked for on the previous map never opens on this one
+    setDetail(null); setLost(null); setLoadErr(null); setMarking(false); setMarkForm(null); setHelp(false)
+    load()
+  }, [load])
 
   // Keep the view current without the player doing anything.
   useEffect(() => {
@@ -69,39 +134,51 @@ function PlayerView() {
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
   }, [load])
 
-  // Node taps can fail too (flaky network, node hidden again) — say so briefly instead
-  // of doing nothing, using the same flash surface as the workspace.
   useEffect(() => {
     if (!flash) return
     const t = setTimeout(() => setFlash(null), 4000)
     return () => clearTimeout(t)
   }, [flash])
+  useEffect(() => { document.title = world?.name ? `${world.name} — map` : 'Fantasy Map Timeline' }, [world?.name])
+  useEffect(() => {
+    if (!help) return
+    const close = (e) => { if (helpRef.current && !helpRef.current.contains(e.target)) setHelp(false) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [help])
 
-  const openNode = (nodeId) =>
-    shareService.getNode(token, nodeId, viewT).then(setDetail)
-      .catch(() => setFlash("Couldn't load that — tap it again."))
+  const openNode = (nodeId) => fetchSheet(nodeId, viewT, () => say("Couldn't load that — tap it again."))
   // an open sheet keeps up with the era bar — debounced, since live scrubbing streams moments
   useEffect(() => {
     if (!detail?.node?.id) return
     const id = detail.node.id
-    const timer = setTimeout(() => {
-      shareService.getNode(token, id, viewT).then(setDetail)
-        .catch(() => setFlash("Couldn't refresh — showing the last thing we saw."))
-    }, 300)
+    const timer = setTimeout(() => fetchSheet(id, viewT, () => say("Couldn't refresh — showing the last thing we saw.")), 300)
     return () => clearTimeout(timer)
   }, [viewT]) // eslint-disable-line
+  const here = (id) => String(id) === String(mapId || world?.rootMapId)
+  const goMap = (id) => { if (here(id)) load(); else navigate(`/p/${token}/m/${id}`) } // the URL already open refetches instead of a no-op
+  // ⌖ "go there": where it stands now — or, if it only stood somewhere in the revealed past,
+  // the era bar moves to that moment (the server says which) and the map follows
   const goTo = (nodeId) =>
     shareService.locateNode(token, nodeId, viewT)
-      .then(({ mapId: target }) => { if (target) navigate(`/p/${token}/m/${target}`) })
-      .catch(() => setFlash("Couldn't find where that is — try again."))
-  const enter = (node) => { if (node.hasInterior) navigate(`/p/${token}/m/${node.interiorMapId}`) }
+      .then(({ mapId: target, t }) => {
+        if (t != null && t !== viewT) {
+          setViewT(t)
+          say(`Looking back to ${momentLabel(t, world?.eras || [], world?.timeline?.unit)} — that is when it was there`, 'info')
+        }
+        if (target) goMap(target)
+      })
+      .catch((e) => say(e?.response?.status === 404 ? 'Not on any map at this moment' : "Couldn't find where that is — try again."))
+  const enter = (node) => { if (node.hasInterior) goMap(node.interiorMapId) }
   // a tap on an outlined region (resolved under the pointer — see Regions.jsx)
   const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : ((data?.placements || []).find((p) => p.id === id) || null) }
-  const onRegionTap = (e) => { const p = regionAt(e); if (p) openNode(p.node.id) }
+  // a clean tap on the map: a region opens its sheet, empty map closes the open one — a drag never does
+  const onRegionTap = (e) => { const p = regionAt(e); if (p) openNode(p.node.id); else setDetail(null) }
 
   const onMarkClick = (e) => {
     if (!marking || !worldRef.current) return
     const rect = worldRef.current.getBoundingClientRect()
+    setMarkErr('')
     setMarkForm({
       x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
@@ -109,31 +186,67 @@ function PlayerView() {
     setMarking(false)
   }
   const submitMarker = async (title, body, category, author) => {
-    setMarkBusy(true)
+    setMarkBusy(true); setMarkErr('')
     try {
       try { localStorage.setItem('atlas_marker_name', author || '') } catch (err) { /* ignore */ }
       await shareService.addMarker(token, mapId || world.rootMapId, {
         title, body, category, author, x: markForm.x, y: markForm.y,
       })
       setMarkForm(null)
+      say('Placed — everyone at the table sees it', 'ok')
       load() // live for everyone; the rest of the table catches it on their next poll
-    } catch (err) { /* the form stays open to retry */ }
+    } catch (err) {
+      // the form stays open with the words, and says why it did not land
+      const s = err?.response?.status
+      setMarkErr(s === 429 ? 'Too many markers from this table for now — try again in a while'
+        : (err?.response?.data?.message || "Couldn't place it — check your connection and try again"))
+    }
     setMarkBusy(false)
   }
 
-  if (gone) {
+  if (dead) return <DeadLink />
+  if (lost) {
     return (
       <div className="atlas pview">
         <div className="deadlink">
-          <div style={{ fontSize: '2rem' }}>🗺️</div>
-          <h3>This link isn't active</h3>
-          <p>Ask your DM for a fresh share link.</p>
+          <div style={{ fontSize: '2rem' }}>🌫️</div>
+          <h3>This place isn't on your map</h3>
+          <p>It may be hidden, not built yet, or gone.{world?.name ? ` Your link to ${world.name} still works.` : ''}</p>
+          <button className="tool on" onClick={() => navigate(`/p/${token}`)}>⬆ Back to the map</button>
         </div>
       </div>
     )
   }
   if (!world || !data) {
-    return <div className="atlas pview"><div className="loading" style={{ gridRow: '1 / 3' }}>Opening the world…</div></div>
+    return (
+      <div className="atlas pview">
+        {loadErr ? (
+          <div className="deadlink">
+            <div style={{ fontSize: '2rem' }}>📡</div>
+            <h3>Couldn't reach the map</h3>
+            <p>Check your connection, then try again.</p>
+            <button className="tool on" onClick={() => load()}>Try again</button>
+          </div>
+        ) : <div className="loading" style={{ gridRow: '1 / 3' }}>Opening the world…</div>}
+      </div>
+    )
+  }
+  const target = mapId || world.rootMapId
+  if (loadErr && String(data.map?.id) !== String(target)) {
+    // a navigation whose fetch failed: the previous map is never shown under the new URL
+    return (
+      <div className="atlas pview">
+        <div className="deadlink">
+          <div style={{ fontSize: '2rem' }}>📡</div>
+          <h3>Couldn't open that place</h3>
+          <p>Check your connection, then try again.</p>
+          <div className="mrow" style={{ justifyContent: 'center' }}>
+            <button className="tool" onClick={() => navigate(`/p/${token}/m/${data.map.id}`)}>⬆ Back to {data.map.title}</button>
+            <button className="tool on" onClick={() => load()}>Try again</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const tl = world.timeline
@@ -150,9 +263,14 @@ function PlayerView() {
     const rows = data.backdrops.filter((b) =>
       (b.start == null || b.start <= tEff) && (b.end == null || b.end >= tEff))
     if (!rows.length) return map?.backdropUrl
-    rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
+    // the server ranks rows the way the DM's lens does (latest start, then newest); the
+    // snapped starts alone could tie two paintings and pick the wrong one
+    rows.sort((a, b) => (a.rank != null && b.rank != null)
+      ? a.rank - b.rank
+      : (((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id)))
     return rows[0].url
   })()
+  const hasParty = (data.placements || []).some((p) => p.node.category === 'party')
 
   return (
     <div className="atlas pview">
@@ -174,12 +292,12 @@ function PlayerView() {
             🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
           </span>
         )}
-        {map?.ambienceUrl && (
+        {ambienceUrl && (
           <button className={`ambbtn ${ambOn ? 'on' : ''}`} onClick={toggleAmb} title={ambOn ? 'Quiet the ambience' : 'Hear this place'}>
             {ambOn ? '🔊 Playing' : '🔈 Ambience'}
           </button>
         )}
-        <audio ref={ambRef} loop preload="none" src={map?.ambienceUrl || undefined} />
+        {ambienceUrl && <audio ref={ambRef} loop preload="none" src={ambienceUrl} />}
       </div>
 
       <div className="main">
@@ -191,12 +309,13 @@ function PlayerView() {
               <React.Fragment key={s.nodeId}>
                 {i > 0 && <span className="sep">▸</span>}
                 <a className={`${s.mapId === map?.id ? 'here' : ''} ${i === trail.length - 1 ? 'last' : ''}`}
-                  onClick={() => { if (s.mapId !== map?.id) navigate(`/p/${token}/m/${s.mapId}`) }}>{s.title}</a>
+                  title={s.mapId === map?.id ? 'Read about it' : 'Go to that map'}
+                  onClick={() => { if (s.mapId !== map?.id) navigate(`/p/${token}/m/${s.mapId}`); else openNode(s.nodeId) }}>{s.title}</a>
               </React.Fragment>
             ))}
           </div>
         )}
-        <div className="stage">
+        <div className={`stage ${marking ? 'marking' : ''}`}>
           {(data.breadcrumb || []).length > 1 && (
             <button className="tool backbtn" title="Back up one level"
               onClick={() => navigate(`/p/${token}/m/${data.breadcrumb[data.breadcrumb.length - 2].mapId}`)}>
@@ -208,7 +327,6 @@ function PlayerView() {
               mapKey={mapId || 'root'}
               backdropUrl={backdropUrl}
               worldRef={worldRef}
-              onEmptyPointerDown={(e) => { if (!e?.target?.closest?.('.region')) setDetail(null) }}
               onWorldClick={marking ? onMarkClick : onRegionTap}
               onWorldDoubleClick={(e) => { if (marking) return false; const p = regionAt(e); if (!p) return false; enter(p.node); return true }}
               dblZoom={!marking}
@@ -287,6 +405,19 @@ function PlayerView() {
             </button>
           )}
           {marking && <div className="markhint">Tap the map where you want your marker.</div>}
+          <div className="helpwrap" ref={helpRef}>
+            <button className="tool round" title="What the map's marks mean" onClick={() => setHelp((v) => !v)}>?</button>
+            {help && (
+              <div className="apop helppop">
+                <div><b>Tap a pin</b> or an outlined place to read about it · <b>drag</b> to look around · <b>pinch or scroll</b> to zoom</div>
+                <div><b>◎</b> goes inside that place · <b>⬆</b> at the top goes back out</div>
+                {hasParty && <div><b>⚑ The party</b> is you · <b>S3·7</b> means session 3, footstep 7 · the faint prints are where you have been — tap one to look back at that moment</div>}
+                {tl?.enabled && <div><b>The bar at the bottom</b> looks back through the parts of the past your DM has opened · <b>⦿ Now</b> returns to the present</div>}
+                <div><b>🔦 Gold glow</b> = your DM is pointing the way · <b>✍ dashed green</b> = a marker someone at the table left</div>
+                <div><b>✍ Mark the map</b> leaves your own marker — everyone sees it at once</div>
+              </div>
+            )}
+          </div>
         </div>
         {tl?.enabled && (
           <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} live
@@ -295,7 +426,7 @@ function PlayerView() {
         </div>
 
         {markForm && (
-          <MarkerForm busy={markBusy} onClose={() => setMarkForm(null)} onSubmit={submitMarker} />
+          <MarkerForm busy={markBusy} err={markErr} onClose={() => setMarkForm(null)} onSubmit={submitMarker} />
         )}
 
         {detail && (
@@ -325,23 +456,39 @@ function PlayerView() {
                 if (!prev && !next) return null
                 return (
                   <div className="rtrail">
-                    {prev && <a onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); navigate(`/p/${token}/m/${prev.mapId}`) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                    {next && <a onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); navigate(`/p/${token}/m/${next.mapId}`) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                    {prev && <a onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                    {next && <a onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                   </div>
                 )
               })()}
               {detail.node.hasInterior && (
                 <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Look inside</button>
               )}
-              {(detail.links.length > 0 || detail.backlinks.length > 0) && (
+              {detail.links.length > 0 && (
                 <>
                   <div className="rk">Threads</div>
                   <div className="links">
-                    {[...detail.links, ...detail.backlinks].map((l) => (
-                      <div key={`${l.dir}${l.id}`} className={`lrow ${l.dir}`}>
+                    {detail.links.map((l) => (
+                      <div key={`out${l.id}`} className="lrow out">
                         <span className="ic sic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
                         <span className="lgo" onClick={() => openNode(l.otherId)}>
                           {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
+                        </span>
+                        <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {detail.backlinks.length > 0 && (
+                <>
+                  <div className="rk">Mentioned by</div>
+                  <div className="links">
+                    {detail.backlinks.map((l) => (
+                      <div key={`in${l.id}`} className="lrow in">
+                        <span className="ic sic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
+                        <span className="lgo" onClick={() => openNode(l.otherId)} title={`“${l.otherTitle}” refers here${l.label ? `: ${l.label}` : ''}`}>
+                          <span className="ldir">←</span>{l.otherTitle}{l.label ? ` — ${l.label}` : ''}
                         </span>
                         <button className="tool" onClick={() => goTo(l.otherId)} title="Go there">⌖</button>
                       </div>
@@ -353,48 +500,56 @@ function PlayerView() {
           </div>
         )}
 
-        {flash && <div className="aflash err">{flash}</div>}
+        {flash && <div className={`aflash ${flash.kind}`}>{flash.text}</div>}
       </div>
     </div>
   )
 }
 
-// The little form a marker is born from: name it, note it, sign it.
-function MarkerForm({ busy, onClose, onSubmit }) {
+// The little form a marker is born from: name it, note it, sign it. Return places it; a
+// failure says why and keeps the words; a double-click can never cancel it.
+function MarkerForm({ busy, err, onClose, onSubmit }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [category, setCategory] = useState('note')
   const [author, setAuthor] = useState(() => {
     try { return localStorage.getItem('atlas_marker_name') || '' } catch (e) { return '' }
   })
+  const openedAt = useRef(Date.now())
+  const downOnBack = useRef(false)
   const submit = (e) => {
     e.preventDefault()
+    if (busy) return
     if (title.trim()) onSubmit(title.trim(), body.trim(), category, author.trim())
   }
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>Mark the map</h4><button onClick={onClose}>✕</button></div>
+    <div className="modal-back"
+      onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget }}
+      onClick={(e) => { if (e.target === e.currentTarget && downOnBack.current && Date.now() - openedAt.current > 400) onClose() }}>
+      <form className="modal mform" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div className="modal-head"><h4>Mark the map</h4><button type="button" onClick={onClose}>✕</button></div>
         <input className="nsearch" autoFocus maxLength={80} placeholder="What is here?"
           value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="mcats">
-          {Object.entries(CATS).map(([k, v]) => (
-            <button key={k} type="button" className={`cdot ${category === k ? 'on' : ''}`} title={v.label}
-              style={{ background: v.c }} onClick={() => setCategory(k)}>{v.i}</button>
+          {MARKABLE.map((k) => (
+            <button key={k} type="button" className={`cdot ${category === k ? 'on' : ''}`} title={CATS[k].label}
+              style={{ background: CATS[k].c }} onClick={() => setCategory(k)}>{CATS[k].i}</button>
           ))}
           <span className="mcatname">{cat(category).label}</span>
         </div>
         <textarea className="mnotearea" rows="3" maxLength={500} placeholder="What do you know about it? (optional)"
-          value={body} onChange={(e) => setBody(e.target.value)} />
+          value={body} onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(e) } }} />
         <input className="nsearch" maxLength={40} placeholder="Sign your name (optional)"
           value={author} onChange={(e) => setAuthor(e.target.value)} />
+        {err && <div className="merr">⚠ {err}</div>}
         <div className="mrow">
-          <button className="tool" onClick={onClose}>Cancel</button>
-          <button className="tool on" disabled={busy || !title.trim()} onClick={submit}>
-            {busy ? 'Placing…' : 'Place it — everyone sees it'}
+          <button type="button" className="tool" onClick={onClose}>Cancel</button>
+          <button type="submit" className="tool on placebtn" disabled={busy || !title.trim()}>
+            {busy ? 'Placing it…' : 'Place it — everyone sees it'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   )
 }

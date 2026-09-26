@@ -32,7 +32,19 @@ export default function EraScrub({ tl, eras, value, onChange, live = false, win 
   const debRef = useRef(0)
   useEffect(() => () => clearTimeout(debRef.current), [])
 
-  if (!tl?.enabled || segs.length === 0 || hi <= lo) return null
+  if (!tl?.enabled) return null
+  if (segs.length === 0 || hi <= lo) {
+    // nothing left to scrub — but a view still in the past always has a way back to now
+    if (value == null) return null
+    return (
+      <div className="erabar">
+        <div className="ezone">
+          <span className="einfo">that stretch of the past isn't open any more</span>
+          <button className="tool enow" title="Back to the present" onClick={() => onChange(null)}>⦿ Now</button>
+        </div>
+      </div>
+    )
+  }
 
   const snap = (t) => {
     if (t >= canon) return canon

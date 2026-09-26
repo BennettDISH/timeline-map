@@ -11,4 +11,8 @@ export const CATS = {
   party: { c: 'var(--party)', i: '⚑', label: 'The party' },
 }
 
+// what a player's marker may be: the same six the server accepts (server/lib/vocab.js) —
+// never the Party, which is one node per world that only the table's footsteps move
+export const MARKABLE = ['note', 'place', 'person', 'item', 'lore', 'event']
+
 export const cat = (k) => CATS[k] || CATS.note

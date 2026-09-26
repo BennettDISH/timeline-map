@@ -276,6 +276,19 @@ below is a wish-shelf, not a gap list.
   refuses to load R2 audio.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
   visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
+- **The Player View never strands a player**: only an unknown TOKEN shows "This link isn't
+  active" (`DeadLink`, also the `/p/*` route); a hidden/missing/unbuilt map shows "This
+  place isn't on your map" with ⬆ back; a failed first load or failed navigation shows a
+  retry, never the previous map under the new URL. Every load and sheet fetch carries a
+  request counter, so late replies never repaint an older map or reopen an older sheet.
+  The map is always fetched at canon with `window=1`; a remembered past moment the world
+  no longer allows drops back to now. The open sheet refetches on every poll. `/p/` pages
+  never call `/auth/me` and `http.js` never redirects off them. `walkUp` tries EVERY
+  visible present placement of an owner, `hasInterior` is sent only when the interior is
+  enterable, and `/locate` falls back to the latest revealed moment the node stood
+  somewhere (`{mapId, t}` — the era bar moves there). Windowed backdrops carry `rank`
+  (the DM's latest-start-then-newest rule on unclamped starts). Node categories come from
+  one list: `server/lib/vocab.js` (mirrored by `MARKABLE` in `utils/categories.js`).
 
 ## Open cleanup list
 A whole-app audit on 2026-09-26 (every control clicked on the live site, all code read) left a

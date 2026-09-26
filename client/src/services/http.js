@@ -36,7 +36,7 @@ http.interceptors.response.use(
     const message = error.response?.data?.message || ''
     const url = error.config?.url || ''
     const tokenDead = status === 401 || (status === 403 && TOKEN_MSG.test(message))
-    if (tokenDead && !CREDENTIAL_URL.test(url)) {
+    if (tokenDead && !CREDENTIAL_URL.test(url) && !/^\/p(\/|$)/.test(window.location.pathname)) { // never off a player's page
       // let the workspace stash unsaved edits first (synchronous listeners), then say why
       try { window.dispatchEvent(new CustomEvent('atlas:auth-expired')) } catch (e) { /* ignore */ }
       try { sessionStorage.setItem('atlas_session_ended', '1') } catch (e) { /* ignore */ }

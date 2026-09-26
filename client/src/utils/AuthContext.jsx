@@ -51,6 +51,9 @@ export const AuthProvider = ({ children }) => {
   // Check for existing authentication on app load
   useEffect(() => {
     const checkAuth = async () => {
+      // the Player View is public: it never asks who the visitor is, so a stale DM token in
+      // this browser can neither bounce a player to the login page nor spend a request
+      if (/^\/p(\/|$)/.test(window.location.pathname)) { dispatch({ type: 'LOGOUT' }); return }
       if (authService.isAuthenticated()) {
         try {
           const user = await authService.getCurrentUser()

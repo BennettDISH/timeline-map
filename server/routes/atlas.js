@@ -235,7 +235,10 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   for (const f of folders) if (f.parent_id && folderMap.has(f.parent_id)) {
     await client.query('UPDATE image_folders SET parent_id=$1 WHERE id=$2', [folderMap.get(f.parent_id), folderMap.get(f.id)]);
   }
-  for (const im of await rowsOfC('SELECT * FROM images WHERE world_id=$1', [src.id])) {
+  // every copy runs in id order: the copy's serials keep the source's relative order, so the
+  // same placement stays each node's home, the same fact or backdrop wins ties, and players
+  // can reach exactly what they could in the source
+  for (const im of await rowsOfC('SELECT * FROM images WHERE world_id=$1 ORDER BY id', [src.id])) {
     const ext = im.filename.includes('.') ? im.filename.split('.').pop() : 'png';
     const fname = `clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
     let filePath = im.file_path, storageKey = null, base64 = im.base64_data;
@@ -249,19 +252,19 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       }
     } else if (im.base64_data) filePath = `/api/images-base64/serve/${fname}`;
     const r = (await client.query(
-      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key, folder_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, tags, base64_data, storage_key, folder_id, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, CURRENT_TIMESTAMP)) RETURNING id`,
       [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, im.tags, base64, storageKey,
-       im.folder_id ? (folderMap.get(im.folder_id) || null) : null])).rows[0];
+       im.folder_id ? (folderMap.get(im.folder_id) || null) : null, im.created_at || null])).rows[0];
     imgMap.set(im.id, r.id);
   }
-  const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 AND is_active=true', [src.id]);
+  const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 AND is_active=true ORDER BY id', [src.id]);
   for (const m of maps) {
     const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'parent_map_id', 'owner_node_id'), m,
       { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null });
     mapMap.set(m.id, r.id);
   }
-  const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1', [src.id]);
+  const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const n of nodes) {
     const r = await insertRow(client, 'nodes', without(NODE_COLS, 'id', 'created_at', 'updated_at'), n,
       { world_id: w.id, created_by: req.user.id, interior_map_id: null, image_id: n.image_id ? (imgMap.get(n.image_id) || null) : null,
@@ -274,26 +277,26 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   for (const n of nodes) if (n.interior_map_id && mapMap.has(n.interior_map_id)) {
     await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [mapMap.get(n.interior_map_id), nodeMap.get(n.id)]);
   }
-  for (const pl of await rowsOfC('SELECT p.* FROM placements p JOIN maps m ON m.id=p.map_id WHERE m.world_id=$1', [src.id])) {
+  for (const pl of await rowsOfC('SELECT p.* FROM placements p JOIN maps m ON m.id=p.map_id WHERE m.world_id=$1 ORDER BY p.id', [src.id])) {
     if (!nodeMap.has(pl.node_id) || !mapMap.has(pl.map_id)) continue;
     await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape, shape_kind, shape_style) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape), pl.shape_kind || 'area', styleParam(pl.shape_style)]);
   }
-  for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1', [src.id])) {
+  for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1 ORDER BY id', [src.id])) {
     if (!nodeMap.has(l.from_node_id) || !nodeMap.has(l.to_node_id)) continue;
     await client.query('INSERT INTO links (world_id, from_node_id, to_node_id, kind, label, time_context) VALUES ($1,$2,$3,$4,$5,$6)',
       [w.id, nodeMap.get(l.from_node_id), nodeMap.get(l.to_node_id), l.kind, l.label, l.time_context]);
   }
-  for (const e of await rowsOfC('SELECT * FROM eras WHERE world_id=$1', [src.id])) {
+  for (const e of await rowsOfC('SELECT * FROM eras WHERE world_id=$1 ORDER BY id', [src.id])) {
     await client.query('INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5)',
       [w.id, e.name, e.start_time, e.end_time, e.player_visible]);
   }
-  for (const b of await rowsOfC('SELECT b.* FROM map_backdrops b JOIN maps m ON m.id=b.map_id WHERE m.world_id=$1', [src.id])) {
+  for (const b of await rowsOfC('SELECT b.* FROM map_backdrops b JOIN maps m ON m.id=b.map_id WHERE m.world_id=$1 ORDER BY b.id', [src.id])) {
     if (!mapMap.has(b.map_id) || !imgMap.has(b.image_id)) continue;
     await client.query('INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4)',
       [mapMap.get(b.map_id), imgMap.get(b.image_id), b.start_time, b.end_time]);
   }
-  for (const f of await rowsOfC('SELECT f.* FROM node_facts f JOIN nodes n ON n.id=f.node_id WHERE n.world_id=$1', [src.id])) {
+  for (const f of await rowsOfC('SELECT f.* FROM node_facts f JOIN nodes n ON n.id=f.node_id WHERE n.world_id=$1 ORDER BY f.id', [src.id])) {
     if (!nodeMap.has(f.node_id)) continue;
     await client.query('INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4)',
       [nodeMap.get(f.node_id), f.body, f.start_time, f.end_time]);
