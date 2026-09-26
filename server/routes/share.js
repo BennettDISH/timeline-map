@@ -385,8 +385,10 @@ router.post('/:token/maps/:mapId/nodes', markLimiter, markBody, wrap(async (req,
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 50); // 0 is a valid edge coord
   const x = Math.max(0, Math.min(100, num(req.body.x)));
   const y = Math.max(0, Math.min(100, num(req.body.y)));
+  // only markers still on a map count toward the cap: ones the DM took off a map are not "on the map"
   const count = (await pool.query(
-    `SELECT COUNT(*) FROM nodes WHERE world_id=$1 AND visibility='player'`, [w.id])).rows[0];
+    `SELECT COUNT(*) FROM nodes n WHERE n.world_id=$1 AND n.visibility='player'
+       AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id = n.id)`, [w.id])).rows[0];
   if (parseInt(count.count) >= 200) return res.status(400).json({ message: 'The map is full of markers — ask your DM to tidy up' });
   // one statement: the node and its placement land together or not at all
   const n = (await pool.query(

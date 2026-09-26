@@ -17,6 +17,10 @@ step('a node is created', made.status === 201, made.status !== 201 ? JSON.string
 const nodeId = made.body.nodeId;
 if (nodeId) {
   await api('PATCH', `/nodes/${nodeId}`, { dm_note: 'SECRET-NOTE', stance: 'foe', body: 'BODY' });
+  // the lantern points at the probe: deleting the node puts it out, undo must relight it
+  await api('POST', `/worlds/${cfg.worldId}/spotlight`, { nodeId });
+  const lit = (await api('GET', `/worlds/${cfg.worldId}`)).body.world?.spotlightNodeId;
+  step('the lantern points at the probe before the delete', lit === nodeId, String(lit));
   const interior = await api('POST', `/nodes/${nodeId}/interior`, { view: 'map' });
   const mapId = interior.body.mapId;
   await api('PATCH', `/maps/${mapId}`, { dm_note: 'INTERIOR-NOTE', focus_start: 1, focus_end: 5 });
@@ -27,6 +31,9 @@ if (nodeId) {
   const del = await api('DELETE', `/nodes/${nodeId}`);
   step('delete returns an undo id', del.status === 200 && del.body.undoId != null);
   const undo = await api('POST', `/undo/${del.body.undoId}`);
+  const relit = (await api('GET', `/worlds/${cfg.worldId}`)).body.world?.spotlightNodeId;
+  step('after undo the lantern is lit again on the restored node', relit === nodeId, String(relit));
+  await api('DELETE', `/worlds/${cfg.worldId}/spotlight`);
   step('undo succeeds', undo.status === 200, undo.status === 200 ? '' : JSON.stringify(undo.body).slice(0, 100));
   const after = (await api('GET', `/maps/${cfg.root}`)).body.placements?.find((p) => p.node.id === nodeId);
   step('after undo the DM note, stance and body are all back',

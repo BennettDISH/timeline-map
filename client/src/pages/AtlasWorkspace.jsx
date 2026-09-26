@@ -75,6 +75,12 @@ function AtlasWorkspace() {
   const [yearEdit, setYearEdit] = useState(null) // string while typing an exact year
   const [railOpen, setRailOpen] = useState(() => localStorage.getItem('atlas_rail') !== 'closed')
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
+  const [stray, setStray] = useState(null)      // a node opened WITHOUT a placement (unplaced, or an orphaned interior's owner)
+  const [refreshVer, setRefreshVer] = useState(0) // bumps after a Forge turn / Allow / Unmake: the inspector reseeds from the server
+  const [noteVer, setNoteVer] = useState(0)     // bumps when the server's map notes changed under an idle box
+  const noteRef = useRef(null)
+  const quietRef = useRef(true)                  // nothing being dragged, drawn, typed or confirmed: safe to refresh
+  const focusIdRef = useRef(null)
   // The Forge: this world's AI mind. forgeOn = the server has it switched on at all
   // (GEMINI_API_KEY set); without it the button never renders. Edit-posture chrome only.
   const [trail, setTrail] = useState([]) // every party footstep in the world (timebar ticks)
@@ -156,7 +162,7 @@ function AtlasWorkspace() {
     setFlash(null)
     const r = await track(atlasService.undo(undoId), "Couldn't undo").catch(() => null)
     if (!r) return
-    refreshMap(); refreshTree()
+    refreshMap(); refreshTree(); refreshWorldMeta() // the lantern may have come back with its node
     setFlash({ kind: 'ok', text: 'Put back the way it was.' })
   }
 
@@ -169,7 +175,15 @@ function AtlasWorkspace() {
     return atlasService.getMap(mapId)
       .then((d) => {
         if (seq !== loadSeq.current) return // a newer map was asked for since: this reply is stale
-        setData(d)
+        setData((prev) => {
+          // a background refresh that brings a new player marker says so — the DM's tab is not a wall
+          if (prev && prev.map?.id === d.map?.id) {
+            const had = new Set(prev.placements.map((p) => p.node.id))
+            const marks = d.placements.filter((p) => p.node.visibility === 'player' && !had.has(p.node.id))
+            if (marks.length) setTimeout(() => setFlash({ kind: 'info', text: `A player marked the map: ${marks.map((p) => `“${p.node.title}”`).join(', ')}` }), 0)
+          }
+          return d
+        })
         setLoadState('ok')
         setTrailTick((t) => t + 1)
         worldService.setLastLocation(worldId, mapId) // "/" resumes here next visit
@@ -202,14 +216,18 @@ function AtlasWorkspace() {
     track(voiceService.clearLine(nodeId), "Couldn't remove the line")
       .then(() => localPatchNode(nodeId, { voiceLine: null, voiceUrl: null }))
       .catch(() => {})
-  const setAmbience = (prompt) =>
-    track(voiceService.setAmbience(map.id, prompt), 'No sound came back')
-      .then((r) => { setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
+  const setAmbience = (prompt) => {
+    const id = map.id // the reply lands on the map it was sent for, not whichever is open by then
+    return track(voiceService.setAmbience(id, prompt), 'No sound came back')
+      .then((r) => { setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'The place has a sound now' }) })
       .catch(() => {})
-  const clearAmbience = () =>
-    track(voiceService.clearAmbience(map.id), "Couldn't remove the ambience")
-      .then(() => setData((d) => d ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
+  }
+  const clearAmbience = () => {
+    const id = map.id
+    return track(voiceService.clearAmbience(id), "Couldn't remove the ambience")
+      .then(() => setData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
       .catch(() => {})
+  }
   const toggleForge = () => setForgeOpen((v) => {
     const nv = !v
     try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
@@ -235,10 +253,13 @@ function AtlasWorkspace() {
     atlasService.getTrail(worldId).then(setTrail).catch(() => {})
   }, [worldId, trailTick]) // eslint-disable-line
   const forgeRefresh = useCallback(() => {
+    // the mind (or an Allow / Unmake) may have changed the very node the DM has open: push
+    // pending edits first, then reseed the inspector and its threads from the server's copy
+    flushAll()
     atlasService.getWorld(worldId).then(setWorld).catch(() => {})
     atlasService.getMaps(worldId).then(setTree).catch(() => {})
-    loadMap(false)
-  }, [worldId, loadMap])
+    loadMap(false).then(() => { setRefreshVer((v) => v + 1); if (focusIdRef.current) reloadLinks(focusIdRef.current) })
+  }, [worldId, loadMap]) // eslint-disable-line
 
   useEffect(() => {
     let live = true
@@ -259,6 +280,7 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     setSelId(null)
+    setStray(null)
     setPlacing(null)
     setCtx(null)
     setFocusExpand(false)
@@ -280,39 +302,83 @@ function AtlasWorkspace() {
   const sel = data?.placements.find((p) => p.id === selId) || null
   const map = data?.map
   const isList = map?.view === 'list'
+  // the node the inspector is about: a placement's node, or a stray opened on its own
+  const fn = sel ? sel.node : stray
+  focusIdRef.current = fn?.id ?? null
+  useEffect(() => { if (selId != null) setStray(null) }, [selId])
+  // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
+  // is not typing in takes the new text, so a bare click in and out never writes old text back
+  useEffect(() => {
+    const el = noteRef.current
+    if (!el || !map) return
+    if (pendingNote.current || document.activeElement === el) return
+    if (el.value !== (map.dmNote || '')) setNoteVer((v) => v + 1)
+  }, [map?.id, map?.dmNote]) // eslint-disable-line
+  // The table moves while the DM's tab sits still: players drop markers, the Forge lands
+  // things, another tab edits. Every 45 s (players poll at the same pace) a visible, quiet
+  // tab refreshes the map and the world — never while something is being dragged, drawn,
+  // typed or confirmed, so no box goes stale under the DM's hands.
+  quietRef.current = !drawing && !placing && !ctx && !confirmDel && !confirmInterior && !picker && !nodePicker && renaming == null && !focusEdit && !bdsOpen && !tlEdit
+  useEffect(() => {
+    if (!mapId) return
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible' || !quietRef.current || dragRef.current) return
+      if (pendingPatch.current.nodeId != null || pendingLife.current || pendingNote.current || inflight.current > 0) return
+      refreshMap(); refreshWorldMeta()
+    }, 45000)
+    return () => clearInterval(id)
+  }, [mapId]) // eslint-disable-line
 
   // ---- links ---------------------------------------------------------------------
   const reloadLinks = (nodeId) =>
     atlasService.getNode(nodeId).then((d) => setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] })).catch(() => {})
   useEffect(() => {
-    if (!sel) { setNodeLinks({ out: [], in: [], facts: [] }); return }
+    const fid = sel?.node.id ?? stray?.id
+    if (!fid) { setNodeLinks({ out: [], in: [], facts: [] }); return }
     let live = true
-    atlasService.getNode(sel.node.id).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
+    atlasService.getNode(fid).then((d) => { if (live) setNodeLinks({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
     return () => { live = false }
-  }, [selId]) // eslint-disable-line
+  }, [selId, stray?.id]) // eslint-disable-line
   const addLink = async (toId) => {
     setNodePicker(null)
-    if (!sel) return
-    await track(atlasService.addLink({ from_node_id: sel.node.id, to_node_id: toId }), "Couldn't link").catch(() => {})
-    reloadLinks(sel.node.id)
+    const fid = focusIdRef.current
+    if (!fid) return
+    await track(atlasService.addLink({ from_node_id: fid, to_node_id: toId }), "Couldn't link").catch(() => {})
+    reloadLinks(fid)
   }
   const removeLink = async (id) => {
     await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => {})
-    if (sel) reloadLinks(sel.node.id)
+    if (focusIdRef.current) reloadLinks(focusIdRef.current)
   }
   const labelLink = async (id, label) => {
     await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
-    if (sel) reloadLinks(sel.node.id)
+    if (focusIdRef.current) reloadLinks(focusIdRef.current)
+  }
+  // A node with no placement (or an orphaned interior's owner) opens in the inspector on its
+  // own — editable, placeable here, deletable — instead of a dead-end flash.
+  const openStray = async (nodeId) => {
+    const d = await atlasService.getNode(nodeId).catch(() => null)
+    if (!d?.node) { setFlash({ kind: 'err', text: "Couldn't open that node." }); return }
+    setSelId(null); setStray(d.node); setInspOpen(true)
+    if (mode !== 'edit') setMode('edit')
   }
   const jump = async (nodeId) => {
-    const loc = await atlasService.locateNode(nodeId).catch(() => null)
-    if (!loc || !loc.mapId) {
-      setFlash({ kind: 'info', text: "That node isn't placed on any map — use ⤓ Place existing to put it somewhere." })
+    let loc
+    try { loc = await atlasService.locateNode(nodeId) } catch (e) {
+      // a failed lookup is a failure, not "unplaced" — never invite a second placement
+      setFlash({ kind: 'err', text: e?.response?.status === 404 ? 'That node no longer exists.' : "Couldn't find where that is — try again." })
       return
     }
+    if (!loc || !loc.mapId) { openStray(nodeId); return }
     if (String(loc.mapId) === String(mapId)) { if (loc.placementId) setSelId(loc.placementId); return }
     if (loc.placementId) pendingSelect.current = loc.placementId
     navigate(`/w/${worldId}/m/${loc.mapId}`)
+  }
+  const placeStrayHere = (node) => placeExisting(node, 50, 50)
+  const removeOrphanSpace = async (ownerId) => {
+    const d = await atlasService.getNode(ownerId).catch(() => null)
+    if (!d?.node) { setFlash({ kind: 'err', text: "Couldn't find this space's owner." }); return }
+    askRemoveInterior(d.node)
   }
 
   // ---- node & placement actions ----------------------------------------------------
@@ -375,6 +441,7 @@ function AtlasWorkspace() {
     setData((d) => d && ({
       ...d, placements: d.placements.map((p) => (p.node.id === nodeId ? { ...p, node: { ...p.node, ...local } } : p)),
     }))
+    setStray((s) => (s && s.id === nodeId ? { ...s, ...local } : s))
   }
 
   // Debounced autosave with a MERGED pending patch: rapid edits to two fields used to
@@ -414,9 +481,14 @@ function AtlasWorkspace() {
     const pl = pendingLife.current
     if (!pl) return Promise.resolve()
     pendingLife.current = null
-    return track(atlasService.patchPlacement(pl.placementId, { start_time: pl.start, end_time: pl.end }), "Couldn't save the lifespan — will retry")
+    return track(atlasService.patchPlacement(pl.placementId, pl.patch), "Couldn't save the lifespan — will retry")
       .then(() => setTrailTick((t) => t + 1))
-      .catch(() => { pendingLife.current = pendingLife.current || pl; clearTimeout(lifeTimer.current); lifeTimer.current = setTimeout(flushLife, 5000) })
+      .catch(() => {
+        // the refused bounds wait under anything typed since, and are retried
+        const cur = pendingLife.current
+        pendingLife.current = cur && cur.placementId === pl.placementId ? { placementId: pl.placementId, patch: { ...pl.patch, ...cur.patch } } : (cur || pl)
+        clearTimeout(lifeTimer.current); lifeTimer.current = setTimeout(flushLife, 5000)
+      })
   }, [track])
   const flushNote = useCallback(() => {
     const pn = pendingNote.current
@@ -443,7 +515,7 @@ function AtlasWorkspace() {
       if (p.nodeId != null) { send(`/api/atlas/nodes/${p.nodeId}`, p.patch); pendingPatch.current = { nodeId: null, patch: {} } }
       for (const [nodeId, patch] of failedPatches.current) send(`/api/atlas/nodes/${nodeId}`, patch)
       const pl = pendingLife.current
-      if (pl) { send(`/api/atlas/placements/${pl.placementId}`, { start_time: pl.start, end_time: pl.end }); pendingLife.current = null }
+      if (pl) { send(`/api/atlas/placements/${pl.placementId}`, pl.patch); pendingLife.current = null }
       const pn = pendingNote.current
       if (pn) { send(`/api/atlas/maps/${pn.mapId}`, { dm_note: pn.note }); pendingNote.current = null }
     }
@@ -528,6 +600,7 @@ function AtlasWorkspace() {
     if (!r) return
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
+    if (data?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
     setFlash({ kind: 'ok', text: `"${node.title}" no longer has an interior — the node itself is untouched.`, undoId: r.undoId })
   }
 
@@ -540,7 +613,8 @@ function AtlasWorkspace() {
     setConfirmDel(null)
     const r = await track(atlasService.deleteNode(node.id), "Couldn't delete the node").catch(() => null)
     if (!r) return
-    setSelId(null); refreshMap(); refreshTree()
+    setSelId(null); setStray((s) => (s && s.id === node.id ? null : s)); refreshMap(); refreshTree()
+    if (world?.spotlightNodeId === node.id) setWorld((w) => ({ ...w, spotlightNodeId: null })) // the lantern went out with it
     setFlash({ kind: 'ok', text: `"${node.title}" is gone.`, undoId: r.undoId })
   }
   const removeFromMap = async (p) => {
@@ -764,10 +838,14 @@ function AtlasWorkspace() {
     return () => document.removeEventListener('pointerdown', close)
   }, [sharePop])
 
-  const setLifespan = (placementId, start, end) => {
-    setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, start, end } : pp)) }))
+  const setLifespan = (placementId, which, v) => {
+    // only the bound that changed is sent, merged per placement: a second tab's stale copy
+    // of the OTHER bound never travels, and a quick from-then-to keeps both
+    const key = which === 'start' ? 'start_time' : 'end_time'
+    setData((d) => d && ({ ...d, placements: d.placements.map((pp) => (pp.id === placementId ? { ...pp, [which]: v } : pp)) }))
     if (pendingLife.current && pendingLife.current.placementId !== placementId) flushLife()
-    pendingLife.current = { placementId, start, end }
+    const prev = pendingLife.current && pendingLife.current.placementId === placementId ? pendingLife.current.patch : {}
+    pendingLife.current = { placementId, patch: { ...prev, [key]: v } }
     clearTimeout(lifeTimer.current)
     lifeTimer.current = setTimeout(flushLife, 500)
   }
@@ -1050,7 +1128,7 @@ function AtlasWorkspace() {
             <React.Fragment key={b.mapId}>
               {i > 0 && <span className="sep">▸</span>}
               {i === arr.length - 1
-                ? <span className="here">{b.title}</span>
+                ? <a className="here" title="Refresh this map" onClick={() => refreshMap()}>{b.title}</a>
                 : <a onClick={() => navigate(`/w/${worldId}/m/${b.mapId}`)}>{b.title}</a>}
             </React.Fragment>
           ))}
@@ -1145,7 +1223,7 @@ function AtlasWorkspace() {
           <div className="rail">
             <h4>Maps</h4>
             <MapTree tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
-              onGo={(id) => navigate(`/w/${worldId}/m/${id}`)} />
+              onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))} />
           </div>
         )}
 
@@ -1557,7 +1635,7 @@ function AtlasWorkspace() {
 
         {mode === 'edit' && inspOpen && (
         <div className="insp">
-          {!sel ? (
+          {!sel && !stray ? (
             <div className="spacepanel">
               <div className="isect">This space</div>
               <h3 className="sptitle">{map?.title}
@@ -1565,6 +1643,15 @@ function AtlasWorkspace() {
               </h3>
               {(data?.breadcrumb?.length || 0) > 1 && (
                 <div className="muted spup">Inside “{data.breadcrumb[data.breadcrumb.length - 2].title}”</div>
+              )}
+              {(data?.breadcrumb?.length || 0) <= 1 && map?.ownerNodeId && (
+                <div className="orphan">
+                  <div className="muted spup">This space belongs to a node that isn't placed on any map — it lives under “Unplaced” in the tree.</div>
+                  <div className="onmaprow">
+                    <button className="btn" title="Open the node this space is the interior of" onClick={() => openStray(map.ownerNodeId)}>Open its owner</button>
+                    <button className="btn danger" title="Delete this space — its owner node stays" onClick={() => removeOrphanSpace(map.ownerNodeId)}>✕ Remove this space</button>
+                  </div>
+                </div>
               )}
               {!isList && (
                 <>
@@ -1589,7 +1676,7 @@ function AtlasWorkspace() {
               )}
               <div className="isect">🔒 Map notes — players never see this</div>
               {map ? (
-                <textarea key={map.id} className="mapnotes" rows={7} defaultValue={map.dmNote || ''}
+                <textarea key={`${map.id}:${noteVer}`} ref={noteRef} className="mapnotes" rows={7} defaultValue={map.dmNote || ''}
                   placeholder="What's going on in this space — beats, schedules, who's where, the plan."
                   onChange={(e) => saveMapNote(map.id, e.target.value)}
                   onBlur={flushNote} />
@@ -1611,32 +1698,35 @@ function AtlasWorkspace() {
               <div className="empty sphint">Click a node to edit it — or use <b>+ Add node</b>, then click the map.</div>
             </div>
           ) : (
-            <Inspector key={sel.id} p={sel} onSave={saveNode}
-              onCat={(c) => saveNode(sel.node.id, { category: c })}
-              onOpen={() => openInterior(sel.node)} onCreate={(v) => createInteriorAs(sel.node, v)}
-              onRemoveInterior={() => askRemoveInterior(sel.node)}
-              onImage={() => setPicker({ kind: 'node', nodeId: sel.node.id, hasCurrent: !!sel.node.imageUrl })}
-              onRemoveImage={() => setNodeImage(sel.node.id, null, null)}
-              timeline={tl} onLifespan={(s, e) => setLifespan(sel.id, s, e)}
+            <Inspector key={`${sel ? `p${sel.id}` : `n${stray.id}`}:${refreshVer}`}
+              p={sel || { id: null, node: stray, start: null, end: null, shape: null, shapeKind: 'area', shapeStyle: null }} stray={!sel}
+              onSave={saveNode}
+              onCat={(c) => saveNode(fn.id, { category: c })}
+              onOpen={() => openInterior(fn)} onCreate={(v) => createInteriorAs(fn, v)}
+              onRemoveInterior={() => askRemoveInterior(fn)}
+              onImage={() => setPicker({ kind: 'node', nodeId: fn.id, hasCurrent: !!fn.imageUrl })}
+              onRemoveImage={() => setNodeImage(fn.id, null, null)}
+              timeline={tl} onLifespan={sel ? (which, v) => setLifespan(sel.id, which, v) : undefined}
               facts={nodeLinks.facts} nowT={Math.round(now)}
-              onFactAdd={() => factAdd(sel.node.id)}
-              onFactPatch={(id, d) => factPatch(sel.node.id, id, d)}
-              onFactDelete={(id) => factDelete(sel.node.id, id)}
+              onFactAdd={() => factAdd(fn.id)}
+              onFactPatch={(id, d) => factPatch(fn.id, id, d)}
+              onFactDelete={(id) => factDelete(fn.id, id)}
               links={nodeLinks} onLink={() => setNodePicker('link')} onUnlink={removeLink} onLabel={labelLink} onJump={jump}
-              onVis={(v) => saveNode(sel.node.id, { visibility: v })}
-              spotlit={world?.spotlightNodeId === sel.node.id}
-              onSpotlight={() => toggleSpotlight(sel.node)}
-              onStance={(v) => saveNode(sel.node.id, { stance: v })}
+              onVis={(v) => saveNode(fn.id, { visibility: v })}
+              spotlit={world?.spotlightNodeId === fn.id}
+              onSpotlight={sel ? () => toggleSpotlight(fn) : undefined}
+              onStance={(v) => saveNode(fn.id, { stance: v })}
               voiceOn={voiceOn} voices={voices} voiceMeta={voiceMeta}
-              onVoice={(id, name, style) => setNodeVoice(sel.node.id, id, name, style)}
-              onSay={(t, style) => sayLine(sel.node.id, t, style)}
-              onReveal={() => revealNote(sel.node.id)}
-              hasOutline={!!sel.shape} onOutline={() => startOutline(sel.id)} onClearOutline={() => clearOutline(sel.id)}
-              outlineKind={sel.shapeKind || 'area'} onOutlineKind={(k) => setOutlineKind(sel.id, k)}
-              outlineStyle={styleOf(sel)} onOutlineStyle={(k, v) => setOutlineStyle(sel.id, { ...styleOf(sel), [k]: v })}
-              onClearLine={() => clearLine(sel.node.id)}
-              onRemoveHere={() => removeFromMap(sel)}
-              onDelete={() => askDeleteNode(sel.node)} />
+              onVoice={(id, name, style) => setNodeVoice(fn.id, id, name, style)}
+              onSay={(t, style) => sayLine(fn.id, t, style)}
+              onReveal={() => revealNote(fn.id)}
+              hasOutline={!!sel?.shape} onOutline={sel ? () => startOutline(sel.id) : undefined} onClearOutline={sel ? () => clearOutline(sel.id) : undefined}
+              outlineKind={sel?.shapeKind || 'area'} onOutlineKind={sel ? (k) => setOutlineKind(sel.id, k) : undefined}
+              outlineStyle={sel ? styleOf(sel) : null} onOutlineStyle={sel ? (k, v) => setOutlineStyle(sel.id, { ...styleOf(sel), [k]: v }) : undefined}
+              onClearLine={() => clearLine(fn.id)}
+              onRemoveHere={sel ? () => removeFromMap(sel) : undefined}
+              onPlaceHere={sel ? undefined : () => placeStrayHere(fn)}
+              onDelete={() => askDeleteNode(fn)} />
           )}
         </div>
         )}
@@ -1718,7 +1808,7 @@ function AtlasWorkspace() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head"><h4>Delete “{confirmDel.node.title}”?</h4>
               <button onClick={() => setConfirmDel(null)}>✕</button></div>
-            <DeleteImpact impact={confirmDel.impact} />
+            <DeleteImpact impact={confirmDel.impact} spotlit={world?.spotlightNodeId === confirmDel.node.id} />
             <div className="mrow">
               <button className="tool" onClick={() => setConfirmDel(null)}>Keep it</button>
               <button className="tool danger" onClick={doDeleteNode}>Delete everywhere</button>
@@ -1754,10 +1844,10 @@ function AtlasWorkspace() {
               <div key={b.id} className="bdrow">
                 <img className="bdthumb" src={b.url} alt="" />
                 <span className="bdfrom">from</span>
-                <input className="enum" type="number" defaultValue={b.start ?? ''} placeholder="start"
+                <input key={`s${b.start ?? ''}`} className="enum" type="number" defaultValue={b.start ?? ''} placeholder="start"
                   onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.start) patchBackdrop(b.id, { start_time: v }) }} />
                 <span className="edash">–</span>
-                <input className="enum" type="number" defaultValue={b.end ?? ''} placeholder="∞"
+                <input key={`e${b.end ?? ''}`} className="enum" type="number" defaultValue={b.end ?? ''} placeholder="∞"
                   onBlur={(ev) => { const v = ev.target.value === '' ? null : Number(ev.target.value); if (v !== b.end) patchBackdrop(b.id, { end_time: v }) }} />
                 <button className="ex" title="Remove this period's art" onClick={() => deleteBackdrop(b.id)}>✕</button>
               </div>
@@ -1888,9 +1978,10 @@ function MapTree({ tree, rootId, mapId, onGo, worldId }) {
   )
 }
 
-function DeleteImpact({ impact }) {
-  if (!impact) return <p className="muted">This removes the node from every map, along with its links.</p>
+function DeleteImpact({ impact, spotlit }) {
+  if (!impact) return <p className="muted">This removes the node from every map, along with its links.{spotlit ? ' The lantern pointing at it goes out.' : ''}</p>
   const bits = []
+  if (spotlit) bits.push('The lantern points at it — the trail goes out (Undo relights it).')
   if (impact.placements > 1) bits.push(`It sits on ${impact.placements} maps — it disappears from all of them.`)
   if (impact.interiorMaps > 0) {
     bits.push('Its interior is deleted too.')
@@ -1931,12 +2022,12 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
       <div className="muted esmall">Name the ages of your world. 🎭 opens that era to players — they can scrub the revealed past, never beyond canon.</div>
       {(eras || []).map((e) => (
         <div key={e.id} className="erarow">
-          <input className="ename" defaultValue={e.name} title="Era name"
+          <input key={`n${e.name}`} className="ename" defaultValue={e.name} title="Era name"
             onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== e.name) onEraPatch(e.id, { name: v }) }} />
-          <input className="enum" type="number" defaultValue={e.start} title="From"
+          <input key={`s${e.start}`} className="enum" type="number" defaultValue={e.start} title="From"
             onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.start; return } if (v !== e.start) onEraPatch(e.id, { start_time: v }) }} />
           <span className="edash">–</span>
-          <input className="enum" type="number" defaultValue={e.end} title="To"
+          <input key={`e${e.end}`} className="enum" type="number" defaultValue={e.end} title="To"
             onBlur={(ev) => { const v = num(ev.target.value); if (v == null) { ev.target.value = e.end; return } if (v !== e.end) onEraPatch(e.id, { end_time: v }) }} />
           <button className={`etoggle ${e.playerVisible ? 'on' : ''}`}
             title={e.playerVisible ? 'Players can scrub this era — click to hide' : 'Hidden from players — click to reveal'}
@@ -1961,7 +2052,8 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+function Inspector({ p, stray, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+  const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
@@ -1972,11 +2064,27 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
   const [end, setEnd] = useState(p.end ?? '')
   const [labelEdit, setLabelEdit] = useState(null) // link id whose label is being edited
   const labelCancel = useRef(false) // Esc must beat the blur the unmount fires
+  const seeded = useRef(seedOf(p))
+  // The server's copy changed under the inspector (a Forge turn, an Allow, another tab, a
+  // background refresh): every box the DM is not typing in takes the new value; the one in
+  // focus keeps their keystrokes. Whatever is typed next builds on current text, never on
+  // what the box showed when it opened.
+  useEffect(() => {
+    const fresh = seedOf(p)
+    const setters = { title: setTitle, body: setBody, note: setNote, line: setLine, vstyle: setVstyle, start: setStart, end: setEnd }
+    const focused = document.activeElement?.dataset?.fld
+    for (const k of Object.keys(fresh)) {
+      if (fresh[k] === seeded.current[k]) continue
+      seeded.current[k] = fresh[k]
+      if (focused !== k) setters[k](fresh[k])
+    }
+  }, [p.node.title, p.node.body, p.node.dmNote, p.node.voiceLine, p.node.voiceStyle, p.start, p.end]) // eslint-disable-line
   const n = p.node
   return (
     <>
+      {stray && <div className="muted esmall strayhint">○ Not on any map — edit it here, place it on this map, or delete it.</div>}
       <div className="fld"><label>Title</label>
-        <input value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
+        <input data-fld="title" value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
       </div>
       {n.visibility === 'player' && (
         <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>✍ A player placed this{n.author ? `, signed “${n.author}”` : ''} — a self-typed name, not verified. Set “Who can see it” to claim it into canon or hide it.</div>
@@ -2008,12 +2116,12 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           <button className={n.visibility === 'dm' ? 'on' : ''} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒</button>
         </div>
       </div>
-      <button className={`btn block ${spotlit ? 'lit' : ''}`}
+      {onSpotlight && <button className={`btn block ${spotlit ? 'lit' : ''}`}
         title={spotlit ? 'Players see a golden trail leading here — click to put it out'
           : 'Light a golden trail for players: on each map along the way, the next step glows'}
         onClick={onSpotlight}>
         {spotlit ? '🔦 Stop showing the way' : '🔦 Show players the way here'}
-      </button>
+      </button>}
       <div className="strow" title="How they stand toward the party — your eyes only, never shown to players">
         {[['friend', '🟢 Friend'], ['neutral', '⚪ Neutral'], ['foe', '🔴 Foe']].map(([v, l]) => (
           <button key={v} className={n.stance === v ? 'on' : ''}
@@ -2022,10 +2130,10 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
       </div>
       <div className="isect">Story</div>
       <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
-        <textarea rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+        <textarea data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
       <div className="fld dmnotes"><label>🔒 DM notes — players never see this</label>
-        <textarea rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
+        <textarea data-fld="note" rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
           onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
         {note.trim() && (
           <button className="btn block" style={{ marginTop: 5 }}
@@ -2054,14 +2162,14 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           </div>
           {voiceMeta?.steerable && (
             <div className="fld"><label>How they sound — shapes every line</label>
-              <input className="vstyle" maxLength={400} value={vstyle}
+              <input data-fld="vstyle" className="vstyle" maxLength={400} value={vstyle}
                 placeholder="hoarse and exhausted, pipe-smoke rasp, talks like he's already lost the argument"
                 onChange={(e) => setVstyle(e.target.value)}
                 onBlur={() => { if ((n.voiceStyle || '') !== vstyle.trim()) onVoice(n.voiceId || null, n.voiceName || null, vstyle.trim()) }} />
             </div>
           )}
           <div className="fld"><label>A line in their voice — players hear it on their sheet</label>
-            <textarea rows={2} maxLength={400} value={line} readOnly={!!n.voiceUrl}
+            <textarea data-fld="line" rows={2} maxLength={400} value={line} readOnly={!!n.voiceUrl}
               placeholder="“Thirty gold a head, and not a copper more. The light comes first.”"
               onChange={(e) => setLine(e.target.value)} />
             {n.voiceUrl && <div className="muted esmall">This line is recorded. Remove it (✕) to write and record a new one.</div>}
@@ -2083,14 +2191,14 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           {(facts || []).map((f) => (
             <div key={f.id} className="factrow">
               <div className="factspan">
-                <input type="number" defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
+                <input key={`s${f.start ?? ''}`} type="number" defaultValue={f.start ?? ''} placeholder={String(timeline.min)} title="From"
                   onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.start) onFactPatch(f.id, { start_time: v }) }} />
                 <span>–</span>
-                <input type="number" defaultValue={f.end ?? ''} placeholder="…" title="To"
+                <input key={`e${f.end ?? ''}`} type="number" defaultValue={f.end ?? ''} placeholder="…" title="To"
                   onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== f.end) onFactPatch(f.id, { end_time: v }) }} />
                 <button className="lx" title="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
               </div>
-              <textarea rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
+              <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
                 onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
             </div>
           ))}
@@ -2123,16 +2231,16 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
           <button className="btn block" onClick={onImage}>＋ Add image</button>
         )}
       </div>
-      {timeline?.enabled && (
+      {timeline?.enabled && !stray && (
         <>
         <div className="isect">Time</div>
         <div className="fld"><label>Lifespan — when it's present</label>
           <div className="span">
-            <input type="number" placeholder="from" value={start}
-              onChange={(e) => { const v = e.target.value; setStart(v); onLifespan(v === '' ? null : Number(v), end === '' ? null : Number(end)) }} />
+            <input data-fld="start" type="number" placeholder="from" value={start}
+              onChange={(e) => { const v = e.target.value; setStart(v); onLifespan('start', v === '' ? null : Number(v)) }} />
             <span>→</span>
-            <input type="number" placeholder="to" value={end}
-              onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan(start === '' ? null : Number(start), v === '' ? null : Number(v)) }} />
+            <input data-fld="end" type="number" placeholder="to" value={end}
+              onChange={(e) => { const v = e.target.value; setEnd(v); onLifespan('end', v === '' ? null : Number(v)) }} />
           </div>
           <div className="muted">Blank = always present. Scrub the timeline to see it appear / disappear.</div>
         </div>
@@ -2175,7 +2283,7 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         </div>
         <button className="btn block" onClick={onLink}>＋ Link to another node</button>
       </div>
-      <div className="isect">On this map</div>
+      <div className="isect">{stray ? 'Not on any map' : 'On this map'}</div>
       {onOutline && (
         <div className="onmaprow">
           <button className="btn" title="Trace this place on the art — the outline becomes its button on the map" onClick={onOutline}>
@@ -2200,7 +2308,9 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         </div>
       )}
       <div className="onmaprow">
-        <button className="btn" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>
+        {stray
+          ? <button className="btn" title="Give it a spot on the map you are looking at" onClick={onPlaceHere}>⤓ Place on this map</button>
+          : <button className="btn" title="Take it off this map only — the node itself survives" onClick={onRemoveHere}>⤒ Remove from map</button>}
         <button className="btn danger" onClick={onDelete}>🗑 Delete…</button>
       </div>
     </>

@@ -488,6 +488,8 @@ router.get('/nodes/:id', wrap(async (req, res) => {
     [req.params.id])).rows.map((f) => ({ id: f.id, body: f.body, start: f.start_time, end: f.end_time }));
   res.json({
     node: { id: n.id, title: n.title, body: n.body, category: n.category, visibility: n.visibility,
+            dmNote: n.dm_note, stance: n.stance, author: n.author, pin: n.pin || 'chip', pinSize: n.pin_size || 64, imageId: n.image_id,
+            voiceId: n.voice_id, voiceName: n.voice_name, voiceStyle: n.voice_style, voiceLine: n.voice_line, voiceUrl: n.voice_url,
             hasInterior: !!n.interior_map_id, interiorMapId: n.interior_map_id, imageUrl: resolveImageUrl(req, n.img) },
     links: out.map((l) => shape(l, 'out')), backlinks: back.map((l) => shape(l, 'in')),
     facts,
@@ -645,6 +647,8 @@ router.delete('/nodes/:id', wrap(async (req, res) => {
     links: await rowsOf('SELECT * FROM links WHERE from_node_id=$1 OR to_node_id=$1', [node.id]),
     facts: await rowsOf('SELECT * FROM node_facts WHERE node_id=$1', [node.id]),
     interior: null,
+    // the lantern goes out with its node (ON DELETE SET NULL) — undo relights it
+    spotlit: (await pool.query('SELECT 1 FROM worlds WHERE id=$1 AND spotlight_node_id=$2', [wid, node.id])).rows.length > 0,
   };
   if (node.interior_map_id) {
     snapshot.interior = {
@@ -696,6 +700,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
       const n = p.node;
       const imageId = (await exists('images', n.image_id)) ? n.image_id : null;
       await insertRow(client, 'nodes', NODE_COLS, n, { interior_map_id: null, image_id: imageId, pin: n.pin || 'chip', pin_size: n.pin_size || 64 });
+      if (p.spotlit) await client.query('UPDATE worlds SET spotlight_node_id=$1 WHERE id=$2 AND spotlight_node_id IS NULL', [n.id, t.world_id]);
       if (p.interior && p.interior.map) {
         await insertMap(p.interior.map, n.id);
         await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.interior.map.id, n.id]);
