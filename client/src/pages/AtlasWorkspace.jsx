@@ -14,6 +14,7 @@ import Regions, { regionIdAt, styleOf, STYLE_KEYS, OUTLINE_PRESETS } from '../co
 import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessionLabel, stepTag, sessionNum, latestSession } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { cat } from '../utils/categories'
+import { isPresent, pickCovering } from '../utils/timeline'
 import MapTree from '../components/atlas/MapTree'
 import DeleteImpact from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
@@ -507,7 +508,7 @@ function AtlasWorkspace() {
     if (!partyId) { setFlash({ kind: 'info', text: 'There is no Party entry yet — make one with the ⚑ The party category, then place it' }); return }
     const t = Math.round(now)
     const at = (v) => (v == null ? -Infinity : v)
-    const live = trail.filter((st) => st.nodeId === partyId && at(st.start) <= t && (st.end == null || st.end >= t)).sort((a, b) => at(b.start) - at(a.start))[0]
+    const live = trail.filter((st) => st.nodeId === partyId && isPresent(st, t)).sort((a, b) => at(b.start) - at(a.start))[0]
     const startAt = live && at(live.start) === t ? t + 1 : t
     try {
       if (live && (live.end == null || live.end >= startAt)) await track(atlasService.patchPlacement(live.id, { end_time: startAt - 1 }), "Couldn't close the last footstep")
@@ -944,7 +945,7 @@ function AtlasWorkspace() {
   )
 
   // presence is judged by the DM's lens (players' presence is the server's business)
-  const presentAt = (p, t) => (!tl?.enabled ? true : (p.start == null || t >= p.start) && (p.end == null || t <= p.end))
+  const presentAt = (p, t) => !tl?.enabled || isPresent(p, t)
   const present = (p) => presentAt(p, now)
   const setCanonHere = () => {
     track(atlasService.patchWorld(worldId, { timeline_current_time: now }), "Couldn't set the canon moment")
@@ -1265,14 +1266,7 @@ function AtlasWorkspace() {
   const bdMoment = now
   // the timed period whose art is on screen at the viewed moment (the latest-starting one
   // covering it wins), or null when the base art shows
-  const activeBackdropRow = useMemo(() => {
-    if (!map || !tl?.enabled) return null
-    const rows = (data?.backdrops || []).filter((b) =>
-      (b.start == null || b.start <= bdMoment) && (b.end == null || b.end >= bdMoment))
-    if (!rows.length) return null
-    rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
-    return rows[0]
-  }, [data, map, bdMoment, tl?.enabled])
+  const activeBackdropRow = useMemo(() => (map && tl?.enabled ? pickCovering(data?.backdrops, bdMoment) : null), [data, map, bdMoment, tl?.enabled])
   const activeBackdropUrl = map ? (activeBackdropRow ? activeBackdropRow.url : map.backdropUrl) : null
 
   const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : (data?.placements.find((p) => p.id === id) || null) }

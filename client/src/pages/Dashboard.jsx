@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { plural, entries } from '../utils/format'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { errText } from '../services/http'
 import Modal from '../components/Modal'
@@ -8,8 +9,6 @@ import atlasService from '../services/atlasService'
 import '../styles/shell.scss'
 import '../styles/dashboard.scss'
 
-const plural = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`
-const entries = (c) => `${c} ${c === 1 ? 'entry' : 'entries'}`
 // golden-angle hue spread: every world without art gets its own stable tint
 const hue = (id) => Math.floor((id * 137.508) % 360)
 

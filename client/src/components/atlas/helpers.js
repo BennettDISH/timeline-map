@@ -1,3 +1,5 @@
+import { pickCovering } from '../../utils/timeline'
+
 // Small helpers shared by the workspace and its panels (no React in here).
 
 export const clamp = (v) => Math.max(0, Math.min(100, v))
@@ -34,14 +36,8 @@ export const stackOffsets = (pins) => {
   })
   return out
 }
-// the period text that covers moment t (the latest-starting one wins, then the newest):
-// the same rule share.js applies for players. A blank period is no story yet.
-export const coveringFact = (facts, t) => {
-  const rows = (facts || []).filter((f) => f.body?.trim() && (f.start == null || f.start <= t) && (f.end == null || f.end >= t))
-  if (!rows.length) return null
-  rows.sort((a, b) => ((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id))
-  return rows[0]
-}
+// the period text that covers moment t (utils/timeline's rule). A blank period is no story yet.
+export const coveringFact = (facts, t) => pickCovering((facts || []).filter((f) => f.body?.trim()), t)
 export const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
 // a phone: narrow, or a touch-first pointer — editing happens on a PC (CLAUDE.md), so it lands in View

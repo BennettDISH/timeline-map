@@ -1,4 +1,5 @@
 import React from 'react'
+import { isPresent } from '../utils/timeline'
 import { sessionOf, sessionColor, sessionLabel, latestSession } from '../utils/moment'
 
 // Where the party has BEEN on this map, up to the moment shown: every past footstep as a
@@ -13,7 +14,7 @@ export default function PartyTrail({ placements, t, eras, unit, onStep }) {
     .sort((a, b) => at(a.start) - at(b.start) || a.id - b.id)
   if (!steps.length) return null
   const last = steps[steps.length - 1]
-  const lastAlive = at(last.start) <= t && (last.end == null || t <= last.end)
+  const lastAlive = isPresent(last, t)
   const prints = lastAlive ? steps.slice(0, -1) : steps
   // the party comes back to the same places: footsteps sharing a spot fan out in a small
   // ring so each stays clickable. The live pin (or, failing that, the oldest print) keeps

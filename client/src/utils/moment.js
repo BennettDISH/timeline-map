@@ -1,3 +1,4 @@
+import { isPresent } from './timeline'
 // One hue per session for the most recent eight; older sessions go quiet grey, so the
 // colours keep telling recent sessions apart at campaign length instead of repeating.
 const SESSION_COLORS = ['#38b6a3', '#d9a441', '#b07bd0', '#5b9bd5', '#d05b5b', '#4f9f6f', '#e0968f', '#c9c3ae']
@@ -41,7 +42,7 @@ export const sessionLabel = (so, unit) => {
 // The party's live footstep at a moment, across the whole world (deepest map wins).
 function partyWhere(trail, t) {
   const at = (v) => (v == null ? -Infinity : v)
-  const alive = (trail || []).filter((s) => at(s.start) <= t && (s.end == null || t <= s.end))
+  const alive = (trail || []).filter((s) => isPresent(s, t))
   if (!alive.length) return null
   alive.sort((a, b) => (b.interior ? 1 : 0) - (a.interior ? 1 : 0) || at(b.start) - at(a.start))
   return alive[0]

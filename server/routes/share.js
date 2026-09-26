@@ -89,8 +89,8 @@ async function allowedIntervals(w) {
 }
 // SQL: a placement's lifespan meets ANY allowed interval ([s,e] meets [a,b] iff s<=b AND e>=a);
 // the params go at $from, two per interval (b, a). TRUE when the clock is off.
-const MEETS = (ivs, from) => (ivs
-  ? ivs.map((_, i) => `((p.start_time IS NULL OR p.start_time <= $${from + i * 2}) AND (p.end_time IS NULL OR p.end_time >= $${from + i * 2 + 1}))`).join(' OR ')
+const MEETS = (ivs, from, a = 'p') => (ivs
+  ? ivs.map((_, i) => `((${a}.start_time IS NULL OR ${a}.start_time <= $${from + i * 2}) AND (${a}.end_time IS NULL OR ${a}.end_time >= $${from + i * 2 + 1}))`).join(' OR ')
   : 'TRUE');
 const meetsArgs = (ivs) => (ivs ? ivs.flatMap(([a, b]) => [b, a]) : []);
 // Snap a lifespan onto the envelope so no moment inside a hidden stretch leaves the server:
@@ -260,11 +260,9 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   let rows;
   if (windowed) {
-    // alive during ANY allowed interval: lifespan [s,e] meets [a,b] iff s<=b AND e>=a
-    const conds = ivs.map((_, i) =>
-      `((p.start_time IS NULL OR p.start_time <= $${i * 2 + 2}) AND (p.end_time IS NULL OR p.end_time >= $${i * 2 + 3}))`).join(' OR ');
-    const args = [mapId];
-    for (const [a, b] of ivs) { args.push(b, a); }
+    // alive during ANY allowed interval (MEETS)
+    const conds = MEETS(ivs, 2);
+    const args = [mapId, ...meetsArgs(ivs)];
     rows = (await pool.query(
       `SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.shape, p.shape_kind, p.shape_style,
               n.id AS node_id, n.title, n.category, n.interior_map_id, n.pin, n.pin_size, n.author, n.visibility AS nvis,
@@ -309,11 +307,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 
   let backdrops;
   if (windowed) {
-    const conds = ivs.map((_, i) =>
-      `((b.start_time IS NULL OR b.start_time <= $${i * 2 + 2}) AND (b.end_time IS NULL OR b.end_time >= $${i * 2 + 3}))`).join(' OR ');
-    const args = [mapId];
-    for (const [a, b] of ivs) { args.push(b, a); }
-    args.push([...pend.backdrops]);
+    const conds = MEETS(ivs, 2, 'b');
+    const args = [mapId, ...meetsArgs(ivs), [...pend.backdrops]];
     // `rank` is the DM's tie-break (latest start wins, then the newest row) computed on the
     // UNCLAMPED starts — snapping several early starts onto the same moment must not let
     // the client pick a different painting than the DM sees
@@ -335,10 +330,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   // envelope as everything else; only maps the player may reach are included.
   let partyTrail;
   if (windowed) {
-    const conds = ivs.map((_, i) =>
-      `((p.start_time IS NULL OR p.start_time <= $${i * 2 + 2}) AND (p.end_time IS NULL OR p.end_time >= $${i * 2 + 3}))`).join(' OR ');
-    const args = [w.id];
-    for (const [a, b] of ivs) { args.push(b, a); }
+    const conds = MEETS(ivs, 2);
+    const args = [w.id, ...meetsArgs(ivs)];
     const rows = (await pool.query(
       `SELECT p.id, p.map_id, m.title, m.owner_node_id, p.start_time, p.end_time
        FROM placements p JOIN nodes n ON n.id = p.node_id JOIN maps m ON m.id = p.map_id

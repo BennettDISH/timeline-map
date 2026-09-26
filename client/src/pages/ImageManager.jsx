@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { plural } from '../utils/format'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
@@ -11,7 +12,6 @@ import '../styles/shell.scss'
 import '../styles/archive.scss'
 
 const PAGE = 60
-const plural = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`
 
 // The Archive: one world's art — maps, portraits, handouts. Scoped to a single world
 // (switchable in the header); upload by button, by dragging anywhere, or by pasting.

@@ -11,6 +11,7 @@ import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors, latestSession } from '../utils/moment'
+import { isPresent, pickCovering } from '../utils/timeline'
 import { CATS, MARKABLE, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -271,23 +272,13 @@ function PlayerView() {
   const map = data.map
   const isList = map?.view === 'list'
   const tEff = viewT != null ? viewT : (tl?.current ?? 0)
-  const present = (p) => !tl?.enabled ||
-    ((p.start == null || tEff >= p.start) && (p.end == null || tEff <= p.end))
+  const present = (p) => !tl?.enabled || isPresent(p, tEff)
   const shownPlacements = (data.placements || []).filter(present)
   const trail = data.spotlight || [] // the DM's lantern: root -> ... -> the node they mean
   const trailIds = new Set(trail.map((t) => t.nodeId))
-  const backdropUrl = (() => {
-    if (!tl?.enabled || !data.backdrops || !data.backdrops.length) return map?.backdropUrl
-    const rows = data.backdrops.filter((b) =>
-      (b.start == null || b.start <= tEff) && (b.end == null || b.end >= tEff))
-    if (!rows.length) return map?.backdropUrl
-    // the server ranks rows the way the DM's lens does (latest start, then newest); the
-    // snapped starts alone could tie two paintings and pick the wrong one
-    rows.sort((a, b) => (a.rank != null && b.rank != null)
-      ? a.rank - b.rank
-      : (((b.start ?? -Infinity) - (a.start ?? -Infinity)) || (b.id - a.id)))
-    return rows[0].url
-  })()
+  // the server's `rank` (latest start, then newest, judged before the starts were snapped)
+  // decides between paintings, exactly as the DM's lens does
+  const backdropUrl = (tl?.enabled && pickCovering(data.backdrops, tEff)?.url) || map?.backdropUrl
   const hasParty = (data.placements || []).some((p) => p.node.category === 'party')
 
   return (
