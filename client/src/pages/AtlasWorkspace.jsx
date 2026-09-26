@@ -1298,8 +1298,7 @@ function AtlasWorkspace() {
           <button className={mode === 'view' ? 'on' : ''} onClick={() => switchMode('view')}>👁 View</button>
           <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>🎭 Player</button>
         </div>
-        {mode === 'edit' && (
-        {/* invite*, not share*: ad-blocker social filters hide share-named elements (1224c84) */}
+        {mode === 'edit' && ( // invite*, not share*: ad-blocker social filters hide share-named elements (1224c84)
         <div ref={shareRef} className="invitewrap">
           <button className={`invitebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
             🔗 Share
