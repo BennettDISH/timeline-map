@@ -5,7 +5,7 @@ import MapPlane from '../components/MapPlane'
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import Regions, { regionIdAt } from '../components/Regions'
+import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
@@ -225,9 +225,9 @@ function PlayerView() {
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
-              <Regions inert={marking} hoverId={hovId} onHover={setHovId}
+              <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
-                  id: p.id, pts: p.shape, kind: p.shapeKind, x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior,
+                  id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
                 }))}
  />

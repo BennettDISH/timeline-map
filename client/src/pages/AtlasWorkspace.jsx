@@ -9,7 +9,7 @@ import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
-import Regions, { regionIdAt } from '../components/Regions'
+import Regions, { regionIdAt, styleOf, STYLE_KEYS } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
@@ -62,6 +62,7 @@ function AtlasWorkspace() {
   const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
   const [labelsOn, setLabelsOn] = useState(() => localStorage.getItem('atlas_labels') === 'on')
   const [printsOn, setPrintsOn] = useState(() => localStorage.getItem('atlas_prints') !== 'off')
+  const [ghostsOn, setGhostsOn] = useState(() => localStorage.getItem('atlas_ghosts') !== 'off') // show things not present at the lens moment
   const togglePrints = () => setPrintsOn((v) => {
     const nv = !v
     try { localStorage.setItem('atlas_prints', nv ? 'on' : 'off') } catch (err) { /* ignore */ }
@@ -310,9 +311,13 @@ function AtlasWorkspace() {
     setDrawing({ placementId, pts: firstPt ? [firstPt] : [], kind })
   }
   const setDrawKind = (kind) => { localStorage.setItem('atlas_outline_kind', kind); setDrawing((d) => d && ({ ...d, kind })) }
-  const setOutlineKind = async (placementId, kind) => {
-    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeKind: kind } : pp)) }))
-    await track(atlasService.patchPlacement(placementId, { shape_kind: kind }), "Couldn't change the outline's kind").catch(() => {})
+  const setOutlineKind = async (placementId, kind) => { // a preset: sets the kind and clears the toggles
+    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeKind: kind, shapeStyle: null } : pp)) }))
+    await track(atlasService.patchPlacement(placementId, { shape_kind: kind, shape_style: null }), "Couldn't change the outline's kind").catch(() => {})
+  }
+  const setOutlineStyle = async (placementId, style) => {
+    setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeStyle: style } : pp)) }))
+    await track(atlasService.patchPlacement(placementId, { shape_style: style }), "Couldn't change the outline's style").catch(() => {})
   }
   const finishOutline = async () => {
     const d = drawing
@@ -827,7 +832,8 @@ function AtlasWorkspace() {
   }
   const visible = (p) =>
     (mode !== 'player' || (p.node.visibility !== 'dm' && p.visibility !== 'dm' && present(p))) &&
-    (mode === 'player' || !hiddenCats.has(p.node.category))
+    (mode === 'player' || !hiddenCats.has(p.node.category)) &&
+    (mode === 'player' || ghostsOn || !tl?.enabled || present(p))
 
   // ============================================================================= render ==
   if (loading && !world) {
@@ -1001,9 +1007,9 @@ function AtlasWorkspace() {
               dblZoom={!placing && !drawing}
               grid={gridOn}
             >
-              <Regions
+              <Regions backdropUrl={activeBackdropUrl}
                 items={(data?.placements || []).filter(visible).filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
-                  id: p.id, pts: p.shape, kind: p.shapeKind, x: p.x, y: p.y, title: p.node.title, node: p.node,
+                  id: p.id, pts: p.shape, kind: p.shapeKind, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node,
                   secret: p.node.visibility === 'dm', hasInterior: p.node.hasInterior,
                   cls: `${selId === p.id ? 'sel' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${p.node.visibility === 'dm' ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}`,
                 }))}
@@ -1208,7 +1214,7 @@ function AtlasWorkspace() {
                 {mode === 'edit' && <div><b>N</b> starts a new node · <b>Enter</b> drops it at the cursor</div>}
                 {mode !== 'player' && <div><b>/</b> finds a node · <b>Esc</b> cancels</div>}
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
-                <div className="legend"><b>Colours:</b> purple = DM-only (players never see it) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
+                <div className="legend"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
               </div>
             )}
@@ -1285,6 +1291,9 @@ function AtlasWorkspace() {
                   <span className="canonchip" title="You're looking at the canon moment — what players see">canon</span>
                 )}
               </div>
+              <button className={`tgear${ghostsOn ? '' : ' off'}`}
+                title={ghostsOn ? 'Things not present at this moment are shown with a dashed purple edge — click to hide them' : 'Things not present at this moment are hidden — click to show them'}
+                onClick={() => setGhostsOn((v) => { localStorage.setItem('atlas_ghosts', v ? 'off' : 'on'); return !v })}>⏳</button>
               <button className="tgear" title="Timeline range, unit & eras" onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
@@ -1463,6 +1472,7 @@ function AtlasWorkspace() {
               onSay={(t) => sayLine(sel.node.id, t)}
               hasOutline={!!sel.shape} onOutline={() => startOutline(sel.id)} onClearOutline={() => clearOutline(sel.id)}
               outlineKind={sel.shapeKind || 'area'} onOutlineKind={(k) => setOutlineKind(sel.id, k)}
+              outlineStyle={styleOf(sel)} onOutlineStyle={(k, v) => setOutlineStyle(sel.id, { ...styleOf(sel), [k]: v })}
               onClearLine={() => clearLine(sel.node.id)}
               onRemoveHere={() => removeFromMap(sel)}
               onDelete={() => askDeleteNode(sel.node)} />
@@ -1775,7 +1785,7 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
   )
 }
 
-function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind }) {
+function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, onLifespan, facts, nowT, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
   const [note, setNote] = useState(p.node.dmNote || '')
@@ -1998,11 +2008,18 @@ function Inspector({ p, onSave, onCat, onOpen, onCreate, onRemoveInterior, onIma
         </div>
       )}
       {onOutline && hasOutline && (
-        <div className="fld"><label>Outline kind</label>
-          <span className="kindsel">
-            <button type="button" className={outlineKind === 'button' ? 'on' : ''} title="A house or landmark — grows and glows on hover, like a button" onClick={() => onOutlineKind('button')}>Button</button>
-            <button type="button" className={outlineKind === 'area' ? 'on' : ''} title="A district — a faint wash that fades with size" onClick={() => onOutlineKind('area')}>Area</button>
-          </span>
+        <div className="fld"><label>Outline style</label>
+          <div className="stylerow">
+            <span className="kindsel" title="Presets — they reset the toggles">
+              <button type="button" className={outlineKind === 'button' ? 'on' : ''} title="A house or landmark: outline, grow, glow, and the art pops" onClick={() => onOutlineKind('button')}>Button</button>
+              <button type="button" className={outlineKind === 'area' ? 'on' : ''} title="A district: a faint tint that fades with size" onClick={() => onOutlineKind('area')}>Area</button>
+            </span>
+            <span className="stoggles">
+              {[['fill', 'Fill', 'A tint inside the outline (fades with size)'], ['stroke', 'Outline', 'The drawn edge'], ['grow', 'Grow', 'Scales up 5% under the pointer'], ['glow', 'Glow', 'A halo under the pointer'], ['pop', 'Pop', 'The art inside lifts out of the map under the pointer']].map(([k, label, tip]) => (
+                <button key={k} type="button" className={outlineStyle?.[k] ? 'on' : ''} title={tip} onClick={() => onOutlineStyle(k, !outlineStyle?.[k])}>{label}</button>
+              ))}
+            </span>
+          </div>
         </div>
       )}
       <div className="onmaprow">

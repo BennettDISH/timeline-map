@@ -184,6 +184,8 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS dm_note TEXT;
 ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape JSONB;
 -- how an outline behaves: 'area' (a faint district wash) or 'button' (a house that grows on hover)
 ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape_kind VARCHAR(10) NOT NULL DEFAULT 'area';
+-- per-outline style toggles overriding the preset: {fill, stroke, grow, glow, pop} booleans
+ALTER TABLE placements ADD COLUMN IF NOT EXISTS shape_style JSONB;
 
 -- Voice (ElevenLabs, inert without ELEVENLABS_API_KEY): a person's chosen voice and one
 -- spoken line (MP3 in R2), heard by players on the sheet when the node is visible. Maps

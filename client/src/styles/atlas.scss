@@ -78,7 +78,7 @@
   .pin .open{color:var(--muted)}
   .pin.sel{outline:2px solid var(--accent);outline-offset:1px}
   .pin.open2{border-style:double;border-width:3px}
-  .pin.secret{border-color:#b07bd0}
+  .pin.secret{opacity:.45} // DM-only: faint, almost transparent — players never see it
   .pin .lock{font-size:10px}
 
   .insp{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:12px}
@@ -181,7 +181,7 @@
   .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
   .tlcfg input[type=text]{width:140px}
   .tlcfg .danger{color:#e66}
-  .pin.ghost{opacity:.28;filter:grayscale(.6)}
+  .pin.ghost{border-style:dashed;border-color:#b07bd0} // not present at the lens moment: a dashed purple edge (⏳ on the timebar hides them)
   .span{display:flex;align-items:center;gap:8px}
   .span input{width:80px}
 
@@ -713,21 +713,27 @@
 // non-scaling-stroke and counter-scale with --pinscale; corner dots are HTML so they stay round.
 .atlas .regions{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;pointer-events:none} // under prints (2) and pins (3)
 .atlas .regions.drawing{pointer-events:auto;cursor:crosshair;z-index:5}
-.atlas .region{pointer-events:auto;fill:#c9a35f;fill-opacity:var(--ra,.10);stroke:rgba(201,163,95,.55);stroke-linejoin:round;
-  stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;transition:fill-opacity .15s ease}
-.atlas .region:hover,.atlas .region.hov{fill-opacity:calc(var(--ra,.10) * 2.2);stroke:rgba(233,205,140,.9)}
-.atlas .region.sel{fill-opacity:calc(var(--ra,.10) * 2.6);stroke:var(--accent);stroke-width:calc(2.5px * var(--pinscale,1))}
-.atlas .region.secret{stroke:#b07bd0;stroke-dasharray:6 4}
-.atlas .region.ghost{opacity:.25}
+// style toggles per outline (s-fill / s-stroke / s-grow / s-glow; 'pop' lifts a clipped copy of the art)
+.atlas .region{pointer-events:auto;fill:#c9a35f;fill-opacity:0;stroke:transparent;stroke-linejoin:round;
+  stroke-width:calc(1.5px * var(--pinscale,1));vector-effect:non-scaling-stroke;cursor:pointer;
+  transition:fill-opacity .15s ease,transform .15s ease,filter .15s ease;transform-box:fill-box;transform-origin:center}
+.atlas .region.s-fill{fill-opacity:var(--ra,.10)}
+.atlas .region.s-fill:hover,.atlas .region.s-fill.hov{fill-opacity:calc(var(--ra,.10) * 2.2)}
+.atlas .region.s-fill.sel{fill-opacity:calc(var(--ra,.10) * 2.6)}
+.atlas .region.s-stroke{stroke:rgba(201,163,95,.55)}
+.atlas .region.s-stroke:hover,.atlas .region.s-stroke.hov{stroke:rgba(233,205,140,.9)}
+.atlas .region.sel,.atlas .region.sel:hover{stroke:var(--accent);stroke-width:calc(2.5px * var(--pinscale,1))}
+.atlas .region.s-grow:hover,.atlas .region.s-grow.hov{transform:scale(1.05)}
+.atlas .region.s-grow.sel{transform:scale(1.03)}
+.atlas .region.s-glow:hover,.atlas .region.s-glow.hov{filter:drop-shadow(0 0 5px rgba(233,205,140,.55))}
+.atlas .region.secret{opacity:.45} // DM-only: faint
+.atlas .region.ghost,.atlas .region.ghost:hover{stroke:#b07bd0;stroke-dasharray:6 4} // not here at this moment
 .atlas .region.spot{stroke:#d9b64e;fill:#d9b64e;animation:regionglow 2s ease-in-out infinite}
 @keyframes regionglow{0%,100%{fill-opacity:calc(var(--ra,.10) * 1.6)}50%{fill-opacity:calc(var(--ra,.10) * 3.4)}}
+// the pop: the art inside the outline, clipped from the same backdrop and lifted 5% with a shadow
+.atlas .rpop{pointer-events:none;animation:rpop .18s ease forwards;filter:brightness(1.08) drop-shadow(0 6px 10px rgba(0,0,0,.7))}
+@keyframes rpop{from{transform:scale(1)}to{transform:scale(1.05)}}
 .atlas .regions.drawing .region,.atlas .regions.inert .region{pointer-events:none}
-// a BUTTON outline: a house or landmark that grows and glows under the pointer
-.atlas .region.k-button{fill-opacity:calc(var(--ra,.10) * 1.4);stroke:rgba(233,205,140,.75);transform-box:fill-box;transform-origin:center;
-  transition:fill-opacity .15s ease,transform .15s ease,filter .15s ease}
-.atlas .region.k-button:hover,.atlas .region.k-button.hov{transform:scale(1.05);fill-opacity:calc(var(--ra,.10) * 3);stroke:#f1dfae;
-  filter:drop-shadow(0 0 5px rgba(233,205,140,.55))}
-.atlas .region.k-button.sel{transform:scale(1.03);fill-opacity:calc(var(--ra,.10) * 3.2)}
 // the name of an outlined place floats at its anchor: on hover, when labels are always on,
 // when selected — and always on touch screens, which have no hover
 .atlas .rlabel{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-50%) scale(var(--pinscale,1));
@@ -737,8 +743,9 @@
   .open{color:var(--muted);margin-left:5px}
   .lock{font-size:10px;margin-right:4px}}
 .atlas .rlabel.on{opacity:1}
-.atlas .rlabel.ghost{opacity:0}
-@media (hover: none){.atlas .rlabel{opacity:1}.atlas .rlabel.ghost{opacity:.35}}
+.atlas .rlabel.secret{opacity:.45}
+.atlas .rlabel.secret.on{opacity:.7}
+@media (hover: none){.atlas .rlabel{opacity:1}}
 .atlas .labelson .rlabel{opacity:1}
 // the kind switch (drawing HUD + inspector)
 .atlas .kindsel{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;
@@ -748,6 +755,11 @@
   button{color:#cfe9e4}
   button.on{background:#38b6a3;color:#0d0f13}}
 .atlas .helppop .legend{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
+.atlas .stylerow{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.atlas .stoggles{display:flex;flex-wrap:wrap;gap:5px;
+  button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:2px 9px;cursor:pointer;font:inherit;font-size:11.5px}
+  button.on{border-color:var(--accent);color:var(--ink);background:color-mix(in srgb,var(--accent) 22%,var(--panel2))}}
+.atlas .tgear.off{opacity:.4}
 .atlas .odraw{fill:none;stroke:#38b6a3;stroke-width:calc(2px * var(--pinscale,1));vector-effect:non-scaling-stroke;
   stroke-dasharray:6 4;stroke-linejoin:round;pointer-events:none}
 .atlas .odraw.fill{fill:rgba(56,182,163,.14);stroke:none}

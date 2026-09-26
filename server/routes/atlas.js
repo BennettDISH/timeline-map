@@ -48,6 +48,16 @@ function cleanShape(raw) {
 const shapeParam = (sh) => (sh ? JSON.stringify(sh) : null); // pg would send a JS array as a Postgres array, not JSON
 const SHAPE_KINDS = new Set(['area', 'button']);
 const shapeKind = (k) => (k == null ? 'area' : (SHAPE_KINDS.has(k) ? k : undefined));
+// style toggles: an object of known boolean keys (null clears — the preset applies); undefined = bad input
+const STYLE_KEYS = ['fill', 'stroke', 'grow', 'glow', 'pop'];
+function cleanStyle(raw) {
+  if (raw == null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out = {};
+  for (const k of STYLE_KEYS) if (k in raw) out[k] = !!raw[k];
+  return out;
+}
+const styleParam = (st) => (st ? JSON.stringify(st) : null);
 // Build the breadcrumb from a map up to its world root, following owner_node -> a placement's map.
 async function breadcrumb(mapId) {
   const chain = []; let mid = mapId; const seen = new Set();
@@ -209,8 +219,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   for (const pl of await rowsOfC('SELECT p.* FROM placements p JOIN maps m ON m.id=p.map_id WHERE m.world_id=$1', [src.id])) {
     if (!nodeMap.has(pl.node_id) || !mapMap.has(pl.map_id)) continue;
-    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape), pl.shape_kind || 'area']);
+    await client.query('INSERT INTO placements (node_id, map_id, x, y, start_time, end_time, visibility, shape, shape_kind, shape_style) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [nodeMap.get(pl.node_id), mapMap.get(pl.map_id), pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, shapeParam(pl.shape), pl.shape_kind || 'area', styleParam(pl.shape_style)]);
   }
   for (const l of await rowsOfC('SELECT * FROM links WHERE world_id=$1', [src.id])) {
     if (!nodeMap.has(l.from_node_id) || !nodeMap.has(l.to_node_id)) continue;
@@ -286,7 +296,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
   const map = (await pool.query(
     'SELECT m.*, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id=i.id WHERE m.id=$1', [req.params.mapId])).rows[0];
   const pl = (await pool.query(`
-    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape, p.shape_kind,
+    SELECT p.id AS placement_id, p.x, p.y, p.start_time, p.end_time, p.visibility AS placement_vis, p.shape, p.shape_kind, p.shape_style,
            n.id AS node_id, n.title, n.category, n.visibility AS node_vis, n.body, n.dm_note, n.stance, n.interior_map_id, n.pin, n.author, n.pin_size,
            n.voice_id, n.voice_name, n.voice_line, n.voice_url, n.voice_style,
            ni.file_path AS node_image_path, im.view AS interior_view
@@ -296,7 +306,7 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     LEFT JOIN maps im ON n.interior_map_id = im.id
     WHERE p.map_id=$1 ORDER BY p.id`, [req.params.mapId])).rows;
   const placements = pl.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area',
+    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
     node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
             voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
             pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id, interiorView: r.interior_view,
@@ -582,9 +592,9 @@ router.post('/undo/:id', wrap(async (req, res) => {
     const insertPlacement = async (pl) => {
       if (!(await exists('nodes', pl.node_id)) || !(await exists('maps', pl.map_id))) return;
       await client.query(
-        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at, shape, shape_kind)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
-        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at, shapeParam(pl.shape), pl.shape_kind || 'area']);
+        `INSERT INTO placements (id, node_id, map_id, x, y, start_time, end_time, visibility, created_at, shape, shape_kind, shape_style)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO NOTHING`,
+        [pl.id, pl.node_id, pl.map_id, pl.x, pl.y, pl.start_time, pl.end_time, pl.visibility, pl.created_at, shapeParam(pl.shape), pl.shape_kind || 'area', styleParam(pl.shape_style)]);
     };
     const insertBackdrop = async (b) => {
       if (!(await exists('images', b.image_id))) return;
@@ -667,6 +677,11 @@ router.patch('/placements/:id', wrap(async (req, res) => {
     const kind = shapeKind(req.body.shape_kind);
     if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
     sets.push(`shape_kind=$${i++}`); vals.push(kind);
+  }
+  if ('shape_style' in req.body) {
+    const st = cleanStyle(req.body.shape_style);
+    if (st === undefined) return res.status(400).json({ message: 'Outline style is a set of on/off toggles' });
+    sets.push(`shape_style=$${i++}`); vals.push(styleParam(st));
   }
   if (sets.length) { vals.push(req.params.id); await pool.query(`UPDATE placements SET ${sets.join(', ')} WHERE id=$${i}`, vals); }
   res.json({ ok: true });

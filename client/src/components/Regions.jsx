@@ -1,13 +1,16 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
-import { simplify, polyPoints } from '../utils/geometry'
+import { simplify, polyPoints, centroid } from '../utils/geometry'
 
 // Outlines: a placement may cover a REGION of the map art — a polygon in % of the plane
 // (the same space pins live in). An outlined place has NO pin: the shape is the button.
-// Two kinds: 'area' (a district — a faint wash that fades with size) and 'button' (a
-// house — it grows and glows on hover). The name floats at the anchor on hover, always on
-// touch screens (no hover there) and when the DM's "labels always" is on. Click reads it,
-// double-click steps inside. Regions stack smallest-on-top, so a house inside a district
-// is still the one you hit.
+// Each outline carries a STYLE of toggles — fill (a tint that fades with size), stroke,
+// grow (scales 5% under the pointer), glow (a halo under the pointer) and pop (the art
+// inside the outline, clipped from the same backdrop and lifted 5% with a shadow — no
+// second image). Two presets seed them: 'area' (fill + stroke) and 'button' (stroke +
+// grow + glow + pop). The name floats at the anchor on hover, always on touch screens
+// (no hover there) and when the DM's "labels always" is on. Click reads it, double-click
+// steps inside. Regions stack smallest-on-top, so a house inside a district is the one
+// you hit.
 //
 // A region never stops propagation (a press on it must still pan the map), so the plane's
 // pointer capture retargets its clicks: callers resolve taps via regionIdAt() from the
@@ -17,6 +20,14 @@ import { simplify, polyPoints } from '../utils/geometry'
 // double-click or a click on the first corner closes; Backspace undoes; Esc cancels;
 // Space held lets the map pan underneath. The stroke counter-scales with the zoom via
 // --pinscale (non-scaling-stroke alone would still be scaled by the plane's CSS transform).
+
+export const OUTLINE_PRESETS = {
+  area: { fill: true, stroke: true, pop: false, grow: false, glow: false },
+  button: { fill: false, stroke: true, pop: true, grow: true, glow: true },
+}
+export const STYLE_KEYS = ['fill', 'stroke', 'grow', 'glow', 'pop']
+// a placement's effective style: its preset, overridden by whatever the DM toggled
+export const styleOf = (p) => ({ ...OUTLINE_PRESETS[p.shapeKind === 'button' ? 'button' : 'area'], ...(p.shapeStyle || {}) })
 
 // the placement id of the region under a plane tap, or null
 export const regionIdAt = (e) => {
@@ -35,7 +46,7 @@ const areaOf = (pts) => {
 // district stays a faint wash
 const tint = (area) => Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(area, 300)))).toFixed(3)
 
-export default function Regions({ items, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw }) {
+export default function Regions({ items, backdropUrl, hoverId, onHover, labelsOn = false, inert = false, drawing, onDraw }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -81,7 +92,11 @@ export default function Regions({ items, hoverId, onHover, labelsOn = false, ine
   }
 
   // largest first, so the smallest region at any point is on top and takes the tap
-  const ordered = useMemo(() => items.map((it) => ({ ...it, area: areaOf(it.pts) })).sort((a, b) => b.area - a.area), [items])
+  const ordered = useMemo(() => items.map((it) => ({ ...it, area: areaOf(it.pts), st: it.style || OUTLINE_PRESETS.area })).sort((a, b) => b.area - a.area), [items])
+  const isSel = (it) => /\bsel\b/.test(it.cls || '')
+  // the one region whose art is lifted: under the pointer, else the selected one (touch)
+  const popped = !on && backdropUrl ? (ordered.find((it) => it.id === hoverId && it.st.pop) || ordered.find((it) => isSel(it) && it.st.pop)) : null
+  const popC = popped ? centroid(popped.pts) : null
 
   const pts = drawing?.pts || []
   const preview = on ? [...pts, ...live, ...(cur && !live.length ? [cur] : [])] : []
@@ -92,9 +107,17 @@ export default function Regions({ items, hoverId, onHover, labelsOn = false, ine
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
         onPointerCancel={() => { trace.current = null; setLive([]) }}
         onDoubleClick={on ? (e) => { e.stopPropagation(); onDraw?.finish() } : undefined}>
+        {popped && (
+          <>
+            <defs><clipPath id={`rclip-${popped.id}`}><polygon points={polyPoints(popped.pts)} /></clipPath></defs>
+            <g className="rpop" clipPath={`url(#rclip-${popped.id})`} style={{ transformOrigin: `${popC[0]}px ${popC[1]}px` }}>
+              <image href={backdropUrl} x="0" y="0" width="100" height="100" preserveAspectRatio="none" />
+            </g>
+          </>
+        )}
         {ordered.map((it) => (
           <polygon key={it.id} data-id={it.id} points={polyPoints(it.pts)}
-            className={`region k-${it.kind === 'button' ? 'button' : 'area'} ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`}
+            className={`region ${STYLE_KEYS.filter((k) => k !== 'pop' && it.st[k]).map((k) => `s-${k}`).join(' ')} ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`}
             style={{ '--ra': tint(it.area) }}
             onPointerEnter={() => onHover?.(it.id)} onPointerLeave={() => onHover?.(null)}>
             <title>{it.title}</title>
@@ -104,7 +127,7 @@ export default function Regions({ items, hoverId, onHover, labelsOn = false, ine
         {on && preview.length > 1 && <polyline className="odraw" points={polyPoints(preview)} />}
       </svg>
       {ordered.map((it) => (
-        <span key={it.id} className={`rlabel${hoverId === it.id || labelsOn || /\bsel\b/.test(it.cls || '') ? ' on' : ''}${/\bghost\b/.test(it.cls || '') ? ' ghost' : ''}`}
+        <span key={it.id} className={`rlabel${hoverId === it.id || labelsOn || isSel(it) ? ' on' : ''}${it.secret ? ' secret' : ''}`}
           style={{ left: `${it.x}%`, top: `${it.y}%` }}>
           {it.secret && <em className="lock" title="DM only">🔒</em>}
           {it.title}
