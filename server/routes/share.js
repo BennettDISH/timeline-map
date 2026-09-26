@@ -451,7 +451,8 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   const linkSql = (dir) => `
     SELECT l.id, l.kind, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat
     FROM links l JOIN nodes n2 ON l.${dir === 'out' ? 'to' : 'from'}_node_id = n2.id
-    WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm' AND NOT (l.id = ANY($2::int[]))`;
+    WHERE l.${dir === 'out' ? 'from' : 'to'}_node_id = $1 AND n2.visibility != 'dm' AND NOT (l.id = ANY($2::int[]))
+    ORDER BY l.id`;
   let out = (await pool.query(linkSql('out'), [n.id, [...pend.links]])).rows;
   let back = (await pool.query(linkSql('in'), [n.id, [...pend.links]])).rows;
   // Threads name only what the player may know exists — same rule as the node itself

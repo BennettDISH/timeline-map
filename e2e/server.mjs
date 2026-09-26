@@ -68,6 +68,59 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     const del = await dm('DELETE', `/nodes/${probe.nodeId}`);
     step('the validation probe node is removed again', del.ok, String(del.status));
   } else step('a probe node for the input rules', false, JSON.stringify(probe));
+
+  // the inspector's rules: one thread between two things, a stable thread order, renames
+  // that follow, and a Reveal that lands where players read
+  {
+    const mk = async (title) => json(await dm('POST', `/maps/${cfg.root}/nodes`, { title, x: 2, y: 2 }));
+    const a = await mk('server-probe-A'), b = await mk('server-probe-B'), c = await mk('server-probe-C');
+    if (a?.nodeId && b?.nodeId && c?.nodeId) {
+      const ab = await dm('POST', '/links', { from_node_id: a.nodeId, to_node_id: b.nodeId });
+      const abId = (await json(ab))?.id;
+      const ba = await dm('POST', '/links', { from_node_id: b.nodeId, to_node_id: a.nodeId });
+      step('a second thread between the same two things is refused', ab.status === 201 && ba.status === 409, `${ab.status} then ${ba.status}`);
+      const ac = await json(await dm('POST', '/links', { from_node_id: a.nodeId, to_node_id: c.nodeId }));
+      await dm('PATCH', `/links/${abId}`, { label: 'first-row label' });
+      const na = await json(await dm('GET', `/nodes/${a.nodeId}`));
+      step('threads keep their order after a label edit', (na?.links || []).map((l) => l.id).join(',') === `${abId},${ac?.id}`, (na?.links || []).map((l) => `${l.otherTitle}${l.label ? ' — ' + l.label : ''}`).join(' | '));
+      const inner = await json(await dm('POST', `/nodes/${a.nodeId}/interior`, { view: 'map' }));
+      await dm('PATCH', `/nodes/${a.nodeId}`, { title: 'server-probe-A2' });
+      let im = await json(await dm('GET', `/maps/${inner?.mapId}`));
+      step("an interior named after its node follows the node's rename", im?.map?.title === 'server-probe-A2', String(im?.map?.title));
+      await dm('PATCH', `/maps/${inner?.mapId}`, { title: 'Own Name' });
+      await dm('PATCH', `/nodes/${a.nodeId}`, { title: 'server-probe-A3' });
+      im = await json(await dm('GET', `/maps/${inner?.mapId}`));
+      step('a space the DM named keeps its name through a node rename', im?.map?.title === 'Own Name', String(im?.map?.title));
+      const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));
+      const canon = wj?.world?.timeline?.current;
+      if (wj?.world?.timeline?.enabled && canon != null) {
+        await dm('POST', `/nodes/${b.nodeId}/facts`, { body: 'Period text at canon.', start_time: canon, end_time: canon });
+        await dm('PATCH', `/nodes/${b.nodeId}`, { dm_note: 'THE SECRET', body: 'Base text.' });
+        const rev = await json(await dm('PATCH', `/nodes/${b.nodeId}`, { reveal: true }));
+        const nb = await json(await dm('GET', `/nodes/${b.nodeId}`));
+        const f = (nb?.facts || []).find((x) => x.id === rev?.factId);
+        step('Reveal lands in the period text players read at canon, and the note is emptied',
+          !!rev?.factId && /THE SECRET$/.test(f?.body || '') && nb?.node?.dmNote === '' && nb?.node?.body === 'Base text.',
+          `factId ${rev?.factId} · ${JSON.stringify(f?.body)} · note ${JSON.stringify(nb?.node?.dmNote)}`);
+      } else step('Reveal into the covering period (needs the clock on the throwaway world)', false, 'skipped');
+      let gone = 0; for (const id of [a.nodeId, b.nodeId, c.nodeId]) { const r = await dm('DELETE', `/nodes/${id}`); if (r.ok) gone++; }
+      step('the thread probe nodes are removed again', gone === 3, `${gone} removed`);
+    } else step('probe nodes for the thread rules', false, JSON.stringify([a, b, c]));
+  }
+  // the default root map follows a world rename while it still reads '<world> — World Map'
+  {
+    const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));
+    const maps = await json(await dm('GET', `/worlds/${cfg.worldId}/maps`));
+    const root = (maps?.maps || []).find((m) => m.id === wj?.world?.rootMapId);
+    if (wj?.world && root && root.title === `${wj.world.name} — World Map`) {
+      const newName = `${wj.world.name}~`;
+      const r1 = await dm('PATCH', `/worlds/${cfg.worldId}`, { name: newName });
+      const m2 = await json(await dm('GET', `/worlds/${cfg.worldId}/maps`));
+      const t2 = (m2?.maps || []).find((m) => m.id === root.id)?.title;
+      await dm('PATCH', `/worlds/${cfg.worldId}`, { name: wj.world.name });
+      step('the default root map follows a world rename', r1.ok && t2 === `${newName} — World Map`, String(t2));
+    } else step('the default root map follows a world rename', true, 'skipped: the root has its own name');
+  }
 } else {
   step('marker probes need dm.config.json (shareToken, token, root)', false, 'skipped');
 }

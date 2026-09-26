@@ -199,6 +199,39 @@ try {
       } else step('the inspector shows DM notes', false);
     }
   }
+  // the editor opens at the top for each newly selected thing; a just-dropped node opens with
+  // its title focused and selected, ready to be typed over
+  {
+    const H2 = { headers: { Authorization: `Bearer ${cfg.token}` } };
+    const pins = page.locator('.atlas .pin:not(.party)');
+    if (await pins.count() >= 2) {
+      await pins.nth(0).click({ force: true }); await page.waitForTimeout(400);
+      await page.evaluate(() => { const el = document.querySelector('.insp'); if (el) el.scrollTop = 400; });
+      await pins.nth(1).click({ force: true }); await page.waitForTimeout(400);
+      const top = await page.evaluate(() => document.querySelector('.insp')?.scrollTop);
+      step('the editor opens at the top for a newly selected thing', top === 0, `scrollTop ${top}`);
+    }
+    const addBtn = page.locator('.toolbar button', { hasText: 'Add node' });
+    if (await addBtn.count()) {
+      await addBtn.click(); await page.waitForTimeout(300);
+      const wb = await page.locator('.mp-world').boundingBox(); const vb = await page.locator('.mp-viewport').boundingBox();
+      const L = Math.max(wb.x, vb.x), T = Math.max(wb.y, vb.y), R = Math.min(wb.x + wb.width, vb.x + vb.width), B = Math.min(wb.y + wb.height, vb.y + vb.height);
+      const boxes = await page.evaluate(() => [...document.querySelectorAll('.atlas .pin, .atlas .region')].map((el) => { const b = el.getBoundingClientRect(); return [b.x - 16, b.y - 16, b.right + 16, b.bottom + 16]; }));
+      const spots = [[0.5, 0.9], [0.1, 0.9], [0.9, 0.9], [0.1, 0.1], [0.9, 0.1], [0.5, 0.5], [0.3, 0.7], [0.7, 0.3]];
+      const free = spots.map(([fx, fy]) => [L + (R - L) * fx, T + (B - T) * fy]).find(([x, y]) => !boxes.some(([a, b, c, d]) => x > a && x < c && y > b && y < d)) || [L + (R - L) / 2, T + (B - T) * 0.9];
+      await page.mouse.click(free[0], free[1]);
+      await page.waitForTimeout(2500);
+      const focused = await page.evaluate(() => { const el = document.activeElement; return el && el.matches('input[data-fld="title"]') ? { sel: el.selectionStart === 0 && el.selectionEnd === el.value.length, value: el.value } : null; });
+      step('a just-dropped node opens with its title focused and selected', !!focused?.sel, JSON.stringify(focused));
+      await page.keyboard.type('Probe Drop'); await page.waitForTimeout(1200);
+      const titleNow = await page.locator('.insp input[data-fld="title"]').inputValue().catch(() => '');
+      step('typing replaces the placeholder name', titleNow === 'Probe Drop', titleNow);
+      const m = await (await fetch(`${BASE}/api/atlas/maps/${page.url().split('/m/')[1]}`, H2)).json().catch(() => ({}));
+      let removed = 0;
+      for (const pl of (m.placements || []).filter((x) => /^(Probe Drop|New node)$/.test(x.node.title))) { const r = await fetch(`${BASE}/api/atlas/nodes/${pl.node.id}`, { ...H2, method: 'DELETE' }); if (r.ok) removed++; }
+      step('the dropped probe node is removed again', removed >= 1, `${removed} removed`);
+    } else step('the toolbar offers ＋ Add node', false);
+  }
   // a world that can't be opened: the dashboard says so; a space that is gone: a way out and no editor armed
   {
     await page.goto(`${BASE}/w/999999`, { timeout: 60000 });

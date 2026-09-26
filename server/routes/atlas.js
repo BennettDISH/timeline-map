@@ -237,7 +237,14 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
   };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
+  const was = 'name' in c.vals ? (await pool.query('SELECT name, root_map_id FROM worlds WHERE id=$1', [req.params.worldId])).rows[0] : null;
   if (sets.length) { vals.push(req.params.worldId); await pool.query(`UPDATE worlds SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE id=$${i}`, vals); }
+  // the root map made at first open is '<world> — World Map': it follows a rename while it
+  // still reads that way (a root the DM renamed keeps its own name)
+  if (was?.root_map_id && c.vals.name !== was.name) {
+    await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3',
+      [`${c.vals.name} — World Map`, was.root_map_id, `${was.name} — World Map`]);
+  }
   res.json({ ok: true });
 }));
 
@@ -573,8 +580,8 @@ router.get('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const n = (await pool.query('SELECT n.*, i.file_path AS img FROM nodes n LEFT JOIN images i ON n.image_id=i.id WHERE n.id=$1', [req.params.id])).rows[0];
-  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1', [req.params.id])).rows;
-  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1', [req.params.id])).rows;
+  const out = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.to_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.to_node_id=n2.id WHERE l.from_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
+  const back = (await pool.query('SELECT l.id, l.kind, l.label, l.time_context, l.from_node_id AS other, n2.title, n2.category AS other_cat FROM links l JOIN nodes n2 ON l.from_node_id=n2.id WHERE l.to_node_id=$1 ORDER BY l.id', [req.params.id])).rows;
   const shape = (l, dir) => ({ id: l.id, dir, kind: l.kind, label: l.label, timeContext: l.time_context, otherId: l.other, otherTitle: l.title, otherCategory: l.other_cat });
   const facts = (await pool.query(
     'SELECT id, body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time NULLS FIRST, id',
@@ -696,17 +703,40 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   if ('title' in c.vals && !c.vals.title) c.vals.title = 'Untitled'; // a pin always has a visible name
   if (c.vals.image_id != null && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
   if (req.body.reveal) {
-    // Reveal merges the secret into the CURRENT description here, so a stale tab can never
-    // paste an old body over a newer one; the note is emptied in the same statement
+    // Reveal merges the secret into the CURRENT text here, so a stale tab can never paste an
+    // old body over a newer one; the note is emptied in the same statement. Players read the
+    // period text covering CANON when one exists (share.js's rule: latest start wins), so
+    // that is where the secret goes — a note appended to the description alone would stay
+    // unseen behind it.
+    const w = (await pool.query('SELECT timeline_enabled, timeline_current_time FROM worlds WHERE id=$1', [wid])).rows[0];
+    const canon = w?.timeline_enabled ? w.timeline_current_time : null;
+    const fact = canon == null ? null : (await pool.query(
+      `SELECT id FROM node_facts WHERE node_id = $1 AND body <> '' AND (start_time IS NULL OR start_time <= $2)
+         AND (end_time IS NULL OR end_time >= $2) ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [req.params.id, canon])).rows[0];
+    if (fact) {
+      const r = await pool.query(
+        `WITH n AS (UPDATE nodes SET dm_note = '', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $2 AND btrim(COALESCE(dm_note, '')) <> '' RETURNING btrim(dm_note) AS note)
+         UPDATE node_facts f SET body = CASE WHEN btrim(COALESCE(f.body, '')) = '' THEN n.note ELSE btrim(f.body) || E'\n\n' || n.note END
+         FROM n WHERE f.id = $1 RETURNING f.body`, [fact.id, req.params.id]);
+      const body = (await pool.query('SELECT body FROM nodes WHERE id=$1', [req.params.id])).rows[0]?.body ?? null;
+      return res.json({ ok: true, body, factId: fact.id, factBody: r.rows[0]?.body ?? null });
+    }
     const r = await pool.query(
       `UPDATE nodes SET body = CASE WHEN btrim(COALESCE(dm_note, '')) = '' THEN body
                                     WHEN btrim(COALESCE(body, '')) = '' THEN btrim(dm_note)
                                     ELSE btrim(body) || E'\n\n' || btrim(dm_note) END,
                         dm_note = '', updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 RETURNING body`, [req.params.id]);
-    return res.json({ ok: true, body: r.rows[0]?.body ?? null });
+    return res.json({ ok: true, body: r.rows[0]?.body ?? null, factId: null });
   }
+  const before = 'title' in c.vals ? (await pool.query('SELECT title, interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0] : null;
   await updateCols('nodes', req.params.id, c.vals, true);
+  // an interior still carrying its node's old name follows the rename; a space the DM named
+  // on purpose keeps its own name
+  if (before?.interior_map_id && c.vals.title !== before.title) {
+    await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3', [c.vals.title, before.interior_map_id, before.title]);
+  }
   // Revealing a node reveals where it stands: the Forge births placements DM-only, so a
   // "revealed" node would otherwise stay invisible to players behind its hidden placement.
   if ('visibility' in c.vals && c.vals.visibility !== 'dm') {
@@ -985,6 +1015,9 @@ router.post('/links', wrap(async (req, res) => {
   const wid = await worldIdOfNode(from_node_id);
   if (!wid || wid !== (await worldIdOfNode(to_node_id)) || !(await ownsWorld(wid, req.user.id)))
     return bad(res, 'A link joins two nodes of the same world');
+  // one thread between two things, whichever end it was made from
+  if ((await pool.query('SELECT 1 FROM links WHERE (from_node_id=$1 AND to_node_id=$2) OR (from_node_id=$2 AND to_node_id=$1)', [from_node_id, to_node_id])).rows.length)
+    return res.status(409).json({ message: 'Those two are already threaded' });
   const l = (await pool.query(
     'INSERT INTO links (world_id, from_node_id, to_node_id, kind, label, time_context) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
     [wid, Number(from_node_id), Number(to_node_id), kind, label || null, time_context || null])).rows[0];

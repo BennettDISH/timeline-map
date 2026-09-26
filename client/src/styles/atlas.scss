@@ -849,3 +849,14 @@
 // a held period: the bounds are reversed, nothing is saved until they are in order
 .atlas .muted.warn{color:#d9a441}
 .atlas .empty-map.worldgone{gap:6px}
+
+// threads: rows a keyboard can reach, targets a finger can hit, a legible "refers here"
+.atlas .lrow .lgo{background:none;border:0;padding:0;font:inherit;text-align:left;color:var(--accent)}
+.atlas .lrow.in .lgo{color:var(--muted)}
+.atlas .lrow .lx{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.atlas .lrow .lref{color:var(--muted)}
+.atlas .visseg button{font-size:11px;padding:6px 7px;white-space:nowrap}
+.atlas .markerbar{margin:0 0 10px;padding:8px;border:1px dashed #7fc98f66;border-radius:8px;
+  .onmaprow{justify-content:flex-start;flex-wrap:wrap}}
+.atlas .pick .pname{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:#000a;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;pointer-events:none}

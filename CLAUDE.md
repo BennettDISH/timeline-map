@@ -364,6 +364,22 @@ see, Undo and world clone drop DM notes / stance / voice, the timeline panel can
 wipe the clock, and two autosaves share one timer. Work a package at a time and tick items off
 in its file with the commit hash.
 
+## Inspector rules
+- Links are THREADS and they are public: players see a thread (label included) between two
+  things they can both see. The editor says so; one thread per pair (a second is a 409),
+  ordered by id, manageable (label, remove) from either end.
+- Reveal lands where players read: when a period text covers CANON, the note is appended
+  to THAT period (the reply carries `factId`), else to the description. The button names its
+  target.
+- A name follows its owner while it still matches: an interior named after its node is
+  renamed with the node, and the default root map ('<world> — World Map') follows a world
+  rename. A space or root the DM named on purpose keeps its own name.
+- A player's marker (`visibility='player'`) shows a marker bar — Keep as canon / Hide /
+  Delete — and neither visibility button lit. A just-dropped node opens with its title
+  focused and selected; the editor scrolls to the top for each newly selected thing.
+- Pickers say what they left out ("Already on this map: …", "Already threaded: …") and
+  show a loading line, never an empty-state lie.
+
 ## Input rules (server-side, `server/lib/validate.js`)
 - Every write route cleans its body first: text is clamped to its column (titles 255, era
   names 120, the clock unit 50, link labels 255, bodies and notes 20k), moments are whole
