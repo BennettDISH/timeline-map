@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
+import { toPlanePct } from './MapPlane'
 import { simplify, polyPoints, centroid } from '../utils/geometry'
 
 // Outlines: a placement may cover a REGION of the map art — a polygon in % of the plane
@@ -26,6 +27,12 @@ export const OUTLINE_PRESETS = {
   button: { fill: false, stroke: true, pop: true, grow: true, glow: true },
 }
 export const STYLE_KEYS = ['fill', 'stroke', 'grow', 'glow', 'pop']
+// what each key is called in the editor, and what it does — one list for the toggles
+export const STYLE_LABELS = {
+  fill: ['Fill', 'A tint inside the outline (fades with size)'], stroke: ['Edge', 'The drawn edge'],
+  grow: ['Grow', 'Scales up 5% under the pointer'], glow: ['Glow', 'A halo under the pointer'],
+  pop: ['Pop', 'The art inside lifts out of the map under the pointer'],
+}
 // a placement's effective style: its preset, overridden by whatever the DM toggled
 export const styleOf = (p) => ({ ...OUTLINE_PRESETS[p.shapeKind === 'button' ? 'button' : 'area'], ...(p.shapeStyle || {}) })
 
@@ -52,11 +59,7 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, inert = 
   const [live, setLive] = useState([])   // the freehand segment being traced right now
   const trace = useRef(null)
   const space = useRef(false)
-  const pct = (e) => {
-    const r = svgRef.current.getBoundingClientRect()
-    return [Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)),
-      Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100))]
-  }
+  const pct = (e) => { const { x, y } = toPlanePct(e, svgRef.current); return [x, y] }
   const on = !!drawing
   useEffect(() => {
     if (!on) { setCur(null); setLive([]); trace.current = null; return }

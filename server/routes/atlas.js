@@ -7,6 +7,7 @@ const { r2Enabled, putObject, copyObject } = require('../storage');
 const { spotlightTrail, pendingForge } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
+const { MAX_CORNERS } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
@@ -69,7 +70,7 @@ async function updateCols(table, id, vals, touch = false) {
 // An outline is 3..200 [x,y] points in % of the plane (null clears it); undefined = bad input.
 function cleanShape(raw) {
   if (raw == null) return null;
-  if (!Array.isArray(raw) || raw.length < 3 || raw.length > 200) return undefined;
+  if (!Array.isArray(raw) || raw.length < 3 || raw.length > MAX_CORNERS) return undefined;
   const out = [];
   for (const pt of raw) {
     const x = Number(pt?.[0]), y = Number(pt?.[1]);
@@ -532,7 +533,7 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const { shape = null, shape_kind = null } = req.body;
   const title = c.vals.title || 'New entry', category = c.vals.category || 'note', body = c.vals.body ?? null, x = c.vals.x ?? 50, y = c.vals.y ?? 50;
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
-  if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
+  if (sh === undefined) return res.status(400).json({ message: `An outline needs 3 to ${MAX_CORNERS} corners` });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
   // born DM-only, like Forge-born nodes: session prep never reaches players until the DM
   // reveals it on purpose (the one exception is a player's own marker, in share.js)
@@ -554,7 +555,7 @@ router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const own = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [node_id])).rows[0];
   if (own?.interior_map_id === Number(req.params.mapId)) return bad(res, "A place can't stand inside its own interior");
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
-  if (sh === undefined) return bad(res, 'An outline needs 3 to 200 corners');
+  if (sh === undefined) return bad(res, `An outline needs 3 to ${MAX_CORNERS} corners`);
   if (kind === undefined) return bad(res, 'An outline is an area or a button');
   const x = pct(req.body.x), y = pct(req.body.y);
   if (x === undefined || y === undefined) return bad(res, 'A position is a % of the map');
@@ -942,7 +943,7 @@ router.patch('/placements/:id', wrap(async (req, res) => {
   for (const k of Object.keys(c.vals)) { sets.push(`${k}=$${i++}`); vals.push(c.vals[k]); }
   if ('shape' in req.body) {
     const sh = cleanShape(req.body.shape);
-    if (sh === undefined) return res.status(400).json({ message: 'An outline needs 3 to 200 corners' });
+    if (sh === undefined) return res.status(400).json({ message: `An outline needs 3 to ${MAX_CORNERS} corners` });
     sets.push(`shape=$${i++}`); vals.push(shapeParam(sh));
   }
   if ('shape_kind' in req.body) {

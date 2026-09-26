@@ -7,7 +7,8 @@
 
 const crypto = require('crypto');
 const pool = require('../config/database');
-const { r2Enabled, putObject, deleteObject } = require('./../storage');
+const { deleteObject } = require('./../storage');
+const { storeImage } = require('../lib/storeImage');
 const { generateImage } = require('./gemini');
 const { CATEGORIES: CATS } = require('../lib/vocab');
 
@@ -241,12 +242,7 @@ async function paintAndStore({ worldId, userId, kind, prompt, artStyle, name }) 
   const ext = (img.mimeType.split('/')[1] || 'png').replace('jpeg', 'jpg');
   const filename = `forge-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
   const buffer = Buffer.from(img.data, 'base64');
-  let filePath = `/api/images-base64/serve/${filename}`, storageKey = null, base64ToStore = `data:${img.mimeType};base64,${img.data}`;
-  if (r2Enabled) {
-    storageKey = `worlds/${worldId}/${filename}`;
-    filePath = await putObject(storageKey, buffer, img.mimeType);
-    base64ToStore = null;
-  }
+  const { filePath, storageKey, base64ToStore } = await storeImage({ worldId, filename, buffer, mimeType: img.mimeType, dataUrl: `data:${img.mimeType};base64,${img.data}` });
   const row = (await pool.query(
     `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, file_path`,

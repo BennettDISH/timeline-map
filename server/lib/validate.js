@@ -52,3 +52,7 @@ function cleanBody(body, spec) {
 const idParam = (req, res, next, value) => (isId(value) ? next() : res.status(404).json({ message: 'Not found' }));
 
 module.exports = { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam, INT_MAX };
+
+// an outline keeps at most this many corners (the client's utils/geometry.js simplifies a trace down to it)
+const MAX_CORNERS = 200;
+module.exports.MAX_CORNERS = MAX_CORNERS;

@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import atlasService from '../services/atlasService'
 import worldService from '../services/worldService'
 import { errText, refused } from '../services/http'
-import MapPlane from '../components/MapPlane'
+import MapPlane, { toPlanePct } from '../components/MapPlane'
+import { PinBody, pinClass } from '../components/Pin'
 import { Compass } from '../components/TopBar'
 import Modal from '../components/Modal'
 import forgeService from '../services/forgeService'
@@ -1024,7 +1025,7 @@ function AtlasWorkspace() {
       px = (Math.max(r.left, vp.left) + Math.min(r.right, vp.right)) / 2
       py = (Math.max(r.top, vp.top) + Math.min(r.bottom, vp.bottom)) / 2
     }
-    return { x: clampPct(((px - r.left) / r.width) * 100), y: clampPct(((py - r.top) / r.height) * 100) }
+    return toPlanePct({ clientX: px, clientY: py }, plane)
   }
 
   useEffect(() => {
@@ -1140,9 +1141,7 @@ function AtlasWorkspace() {
     if (drawing) return // the outline layer owns its own presses
     if (!placing) { const p = inside ? regionAt(e) : null; setSelId(p ? p.id : null); return } // a clean tap: a region selects, empty space (the letterbox too) deselects — a pan keeps the selection
     if (!inside || !worldRef.current) return // a drop needs the plane
-    const rect = worldRef.current.getBoundingClientRect()
-    const x = clampPct(((e.clientX - rect.left) / rect.width) * 100)
-    const y = clampPct(((e.clientY - rect.top) / rect.height) * 100)
+    const { x, y } = toPlanePct(e, worldRef.current)
     if (placing.kind === 'new') dropNode(x, y)
     else placeExisting(placing.node, x, y)
   }
@@ -1155,11 +1154,10 @@ function AtlasWorkspace() {
   }
   const onWorldContext = (e) => {
     if (!worldRef.current) return
-    const rect = worldRef.current.getBoundingClientRect()
+    const at = toPlanePct(e, worldRef.current)
     setCtx({
       sx: Math.min(e.clientX, window.innerWidth - 230), sy: Math.min(e.clientY, window.innerHeight - 110),
-      px: clampPct(((e.clientX - rect.left) / rect.width) * 100),
-      py: clampPct(((e.clientY - rect.top) / rect.height) * 100),
+      px: at.x, py: at.y,
     })
   }
 
@@ -1409,25 +1407,14 @@ function AtlasWorkspace() {
                 const off = stackOffsets(pins)
                 return pins.map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
+                  className={pinClass(p, { selected: selId === p.id, marker: p.node.visibility === 'player', extra: `${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''}` })}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(off.get(p.id) ? { '--ox': `${off.get(p.id)[0]}px`, '--oy': `${off.get(p.id)[1]}px` } : {}), ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? lens, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
                   role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(p.id) } }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onContextMenu={mode === 'edit' ? (e) => onPinContext(e, p) : undefined}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
-                  {p.node.pin === 'image' && p.node.imageUrl ? (
-                    <>
-                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
-                        style={{ width: p.node.pinSize || 64, height: p.node.pinSize || 64, objectFit: 'contain' }} />
-                      <span className="ilbl">{p.node.title}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
-                      <span className="lbl">{p.node.title}</span>
-                    </>
-                  )}
+                  <PinBody node={p.node} />
                   {(p.node.visibility === 'dm' || p.visibility === 'dm') && <span className="lock" title={p.node.visibility === 'dm' ? 'DM only' : 'Hidden on this map — the node itself is shared'}>🔒</span>}
                   {p.node.hasInterior && <span className="open" aria-hidden="true">◎</span>}
                   {p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}

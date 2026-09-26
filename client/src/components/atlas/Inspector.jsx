@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import AudioClip from '../AudioClip'
+import { STYLE_KEYS, STYLE_LABELS } from '../Regions'
 import { CATS, cat } from '../../utils/categories'
 import { spanLabel } from '../../utils/moment'
 import { wholeOr, REVERSED, coveringFact, periodBlur } from './helpers'
@@ -305,7 +306,7 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
               <button type="button" className={outlineKind === 'area' ? 'on' : ''} title="A district: a faint tint that fades with size" onClick={() => onOutlineKind('area')}>Area</button>
             </span>
             <span className="stoggles">
-              {[['fill', 'Fill', 'A tint inside the outline (fades with size)'], ['stroke', 'Edge', 'The drawn edge'], ['grow', 'Grow', 'Scales up 5% under the pointer'], ['glow', 'Glow', 'A halo under the pointer'], ['pop', 'Pop', 'The art inside lifts out of the map under the pointer']].map(([k, label, tip]) => (
+              {STYLE_KEYS.map((k) => [k, ...STYLE_LABELS[k]]).map(([k, label, tip]) => (
                 <button key={k} type="button" className={outlineStyle?.[k] ? 'on' : ''} aria-pressed={!!outlineStyle?.[k]} title={tip} onClick={() => onOutlineStyle(k, !outlineStyle?.[k])}>{label}</button>
               ))}
             </span>

@@ -1,7 +1,8 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { r2Enabled, putObject, deleteObject } = require('../storage');
+const { deleteObject } = require('../storage');
+const { storeImage } = require('../lib/storeImage');
 const { isId } = require('../lib/validate');
 const { ownsWorld, notFound } = require('../lib/route');
 const { resolveImageUrl } = require('../utils/imageUrl');
@@ -57,15 +58,8 @@ const upload = async (req, res) => {
     const extension = mimeType === 'jpeg' ? 'jpg' : mimeType;
     const filename = `img-${timestamp}-${randomString}.${extension}`;
 
-    // Store to R2 when configured, else fall back to base64-in-Postgres.
-    let filePathValue = `/api/images-base64/serve/${filename}`; // the Postgres fallback: served by the route below
-    let storageKey = null;
-    let base64ToStore = imageData;
-    if (r2Enabled) {
-      storageKey = `worlds/${world_id}/${filename}`;
-      filePathValue = await putObject(storageKey, buffer, `image/${mimeType}`); // absolute R2 URL
-      base64ToStore = null; // don't duplicate bytes in Postgres
-    }
+    // R2 when configured, else the Postgres fallback (lib/storeImage decides)
+    const { filePath: filePathValue, storageKey, base64ToStore } = await storeImage({ worldId: world_id, filename, buffer, mimeType: `image/${mimeType}`, dataUrl: imageData });
 
     let result;
     try {

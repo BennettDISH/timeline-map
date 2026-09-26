@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
-import MapPlane, { embedded } from '../components/MapPlane'
+import MapPlane, { embedded, toPlanePct } from '../components/MapPlane'
+import { PinBody, pinClass } from '../components/Pin'
 import { Compass } from '../components/TopBar'
 import { useDialog } from '../components/Modal'
 // Enter or Space on a link-like control acts like a click
@@ -198,12 +199,8 @@ function PlayerView() {
 
   const onMarkClick = (e) => {
     if (!marking || !worldRef.current) return
-    const rect = worldRef.current.getBoundingClientRect()
     setMarkErr('')
-    setMarkForm({
-      x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
-      y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
-    })
+    setMarkForm(toPlanePct(e, worldRef.current))
     setMarking(false)
   }
   const submitMarker = async (title, body, category, author) => {
@@ -354,7 +351,7 @@ function PlayerView() {
  />
               {shownPlacements.filter((p) => !p.shape || p.node.category === 'party').map((p) => (
                 <div key={p.id}
-                  className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
+                  className={pinClass(p, { selected: detail?.node?.id === p.node.id, marker: p.node.player, extra: trailIds.has(p.node.id) ? 'spot' : '' })}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? shownAt, world.eras)?.idx ?? 0, latestSession(world.eras)) } : {}) }}
                   title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? shownAt, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
                   role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
@@ -363,18 +360,7 @@ function PlayerView() {
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
                   {p.node.player && <span className="psig" title={p.node.author ? `A player's marker, signed “${p.node.author}”` : 'A player marked this'}>✍</span>}
-                  {p.node.pin === 'image' && p.node.imageUrl ? (
-                    <>
-                      <img className="iart" src={p.node.imageUrl} alt="" draggable={false}
-                        style={{ maxWidth: p.node.pinSize || 64, maxHeight: p.node.pinSize || 64 }} />
-                      <span className="ilbl">{p.node.title}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
-                      <span className="lbl">{p.node.title}</span>
-                    </>
-                  )}
+                  <PinBody node={p.node} />
                   {p.node.hasInterior && (
                     <button className="enter" title="Go inside" aria-label="Go inside"
                       onPointerDown={(e) => e.stopPropagation()}

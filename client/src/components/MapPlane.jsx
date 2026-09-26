@@ -321,3 +321,11 @@ export default function MapPlane({
     </div>
   )
 }
+
+// A pointer position as a percentage of the plane element (0–100 each way, clamped) — the one
+// conversion every drop, mark, outline corner and right-click uses.
+export const toPlanePct = (e, el) => {
+  const r = el.getBoundingClientRect()
+  const c = (v) => Math.max(0, Math.min(100, v))
+  return { x: c(((e.clientX - r.left) / (r.width || 1)) * 100), y: c(((e.clientY - r.top) / (r.height || 1)) * 100) }
+}
