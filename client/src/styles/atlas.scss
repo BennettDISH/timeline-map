@@ -132,6 +132,7 @@
   .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
   .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;text-align:right}
   // share link (DM popover) + Player View chrome
+  // not share*: ad-blocker "social sharing" cosmetic filters hide share-named elements, and hid this button (1224c84)
   .invitebtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit}
   .invitebtn.live{color:#7fc98f;border-color:#2e5738}
   .invitewrap{position:relative}
@@ -686,7 +687,7 @@
 .atlas .fstep:hover{opacity:1 !important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#38b6a3) 40%,transparent)}
 .atlas .timebar .tstep{position:absolute;top:2px;width:8px;height:8px;border-radius:50%;background:var(--sc,#38b6a3);border:1px solid #0d0f13;transform:translateX(-50%);padding:0;cursor:pointer;z-index:4}
 .atlas .timebar .tstep:hover{transform:translateX(-50%) scale(1.5)}
-// ---- the trail crosses maps: an exit marker on the last print, a chip saying where they are ----
+// ---- the trail crosses maps: the Party's own text says where they came from and went ----
 .atlas .rtrail{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-size:12.5px;
   a{color:#7fe0d0;cursor:pointer;text-decoration:none;border-bottom:1px dotted #38b6a3}
   a:hover{color:#cfe9e4}}

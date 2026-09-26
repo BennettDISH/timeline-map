@@ -48,16 +48,34 @@ try {
   const opened = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
   step('tapping a pin or an outlined place opens its sheet', opened, opened ? `"${(await sheet.locator('h3').first().textContent()).trim()}"` : `no sheet for "${(title || '').trim()}"`);
   if (opened) await page.locator('.pview .sclose').click();
-  // the party pin reads its footstep text and the from/to trail
+  // the party stands wherever its canon footstep is — find it in the trail and go there for the party checks
+  const worldInfo = await fetch(`${BASE}/api/share/${TOKEN}/world`).then((r) => r.json()).then((j) => j.world).catch(() => null);
+  const rootId = worldInfo?.rootMapId;
+  const canon = worldInfo?.timeline?.current;
+  const rootPayload = rootId ? await fetch(`${BASE}/api/share/${TOKEN}/maps/${rootId}?window=1`).then((r) => r.json()).catch(() => null) : null;
+  const ptrail = rootPayload?.partyTrail || [];
+  const atT = (v) => (v == null ? -Infinity : v);
+  const canonStep = ptrail.filter((s) => canon == null || (atT(s.start) <= canon && (s.end == null || canon <= s.end))).sort((a, b) => atT(b.start) - atT(a.start))[0] || null;
+  const hasNeighbour = !!canonStep && ptrail.some((s) => s !== canonStep && ((s.end != null && s.end < atT(canonStep.start)) || (canonStep.end != null && s.start != null && s.start > canonStep.end)));
+  const away = canonStep && String(canonStep.mapId) !== String(rootId);
+  if (away) {
+    await page.goto(`${BASE}/p/${TOKEN}/m/${canonStep.mapId}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await page.waitForSelector('.pview .pin', { timeout: 30000 }).catch(() => {});
+  }
   const party = page.locator('.pview .pin.party').first();
   if (await party.count()) {
     await party.click({ force: true });
     const ok = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
     const body = ok ? await sheet.locator('.sbody').first().textContent().catch(() => '') : '';
-    const trail = ok ? await sheet.locator('.rtrail').count() : 0;
-    step('the party pin opens with its footstep story', ok && body.length > 20, `${body.slice(0, 60)}… trail links: ${trail}`);
+    const trail = ok ? await sheet.locator('.rtrail a').count() : 0;
+    step('the party pin opens with its footstep story', ok && body.trim().length > 0, `${body.slice(0, 60)}… trail links: ${trail}`);
+    if (hasNeighbour) step('the Party sheet offers its From / Then on to links', trail >= 1, `${trail} link(s)`);
     if (ok) await page.locator('.pview .sclose').click();
-  } else step('a party pin is on the world map at canon', false, 'none found');
+  } else step('a party pin is on the map at canon', false, canonStep ? `expected on map ${canonStep.mapId}` : 'no canon footstep in the trail');
+  if (away) {
+    await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await page.waitForSelector('.pview .pin', { timeout: 30000 }).catch(() => {});
+  }
   // enter an interior via ◎ (a pin's button, or an outlined place's sheet) and come back via ⬆
   const enter = page.locator('.pview .pin .enter').first();
   let entered = false;
@@ -72,10 +90,15 @@ try {
     step('◎ enters an interior (back button appears)', back, back ? (await page.locator('.pview .backbtn').textContent()).trim() : '');
     if (back) {
       const inside = page.url();
+      const parentLabel = (await page.locator('.pview .backbtn').textContent()).replace(/^⬆\s*/, '').trim();
       const t0 = Date.now();
       await page.locator('.pview .backbtn').click();
       const home = await page.locator('.pview .backbtn').waitFor({ state: 'detached', timeout: 45000 }).then(() => true).catch(() => false); // (waitForFunction trips the site CSP)
-      step('⬆ returns to the parent map', home, `${page.url().split('/p/')[1]} in ${Date.now() - t0}ms (was ${inside.split('/p/')[1]})`);
+      await page.locator('.pview .crumbs .here', { hasText: parentLabel }).waitFor({ timeout: 20000 }).catch(() => {});
+      const dead = await page.locator('.pview .deadlink').count();
+      const here = (await page.locator('.pview .crumbs .here').textContent().catch(() => '')).trim();
+      // the URL alone cannot prove it: the parent must be SHOWING (crumb), not a dead-link or loading screen
+      step('⬆ returns to the parent map', home && dead === 0 && here === parentLabel, `${page.url().split('/p/')[1]} in ${Date.now() - t0}ms (was ${inside.split('/p/')[1]}) — crumb “${here}”${dead ? ' DEAD LINK SHOWN' : ''}`);
     }
   } else step('some pin or outlined place offers ◎ to enter', false, 'no ◎ found');
   // a ghost footprint is clickable (no force) and moves the lens to that moment
@@ -90,10 +113,14 @@ try {
   // the era bar scrubs into a revealed past without errors
   const range = page.locator('.pview input[type=range]').first();
   if (await range.count()) {
+    // back to now first, so the keys (not the footprint step before) are what move the lens
+    const nowBtn = page.locator('.pview .enow');
+    if (await nowBtn.isVisible().catch(() => false)) { await nowBtn.click(); await page.waitForTimeout(400); }
+    const chip0 = (await page.locator('.pview .nowchip').textContent().catch(() => '')).trim();
     await range.focus(); for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(800);
     const chip = (await page.locator('.pview .nowchip').textContent().catch(() => '')).trim();
-    step('era bar scrubs into the past', /past/.test(chip), chip);
+    step('era bar scrubs into the past', /past/.test(chip) && chip !== chip0, `${chip0} → ${chip}`);
   } else step('era bar present', false);
   // nothing on the page threw while all of the above ran
   // the map's legend is a tap away

@@ -1,0 +1,234 @@
+{
+ "_about": "The sample keep that 'Begin from the sample world' clones. Exported from production world 27 on 2026-09-26; ids are only keys for remapping. Load with: node server/scripts/seed-sample.js",
+ "world": {
+  "name": "The Sunken Keep — Sample",
+  "description": "A pocket world that shows every trick. Clone it, break it, learn it.",
+  "timeline_enabled": true,
+  "timeline_min_time": 1,
+  "timeline_max_time": 20,
+  "timeline_current_time": 12,
+  "timeline_time_unit": "days",
+  "root_map": 62
+ },
+ "images": [
+  {
+   "id": 210,
+   "filename": "sample-dry.svg",
+   "original_name": "The Keep, dry.svg",
+   "mime_type": "image/svg+xml",
+   "file_size": 776,
+   "base64_data": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDEwMDAiPjxyZWN0IHdpZHRoPSIxNjAwIiBoZWlnaHQ9IjEwMDAiIGZpbGw9IiMxMDE4MjIiLz48cGF0aCBkPSJNMCAxMDAwIEwwIDc2MCBRNDAwIDcwMCA4MDAgNzQwIFExMjAwIDc4MCAxNjAwIDczMCBMMTYwMCAxMDAwIFoiIGZpbGw9IiMwYzFiMjgiLz48cGF0aCBkPSJNMCA3NjAgUTQwMCA3MDAgODAwIDc0MCBRMTIwMCA3ODAgMTYwMCA3MzAiIHN0cm9rZT0iI2M5YTM1ZiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTY0MCA3MjAgTDY2MCAzODAgTDcwMCAzODAgTDcwMCAzMjAgTDc0MCAzMjAgTDc0MCAzODAgTDc4MCAzODAgTDc4MCAzMjAgTDgyMCAzMjAgTDgyMCAzODAgTDg2MCAzODAgTDg4MCA3MjAgWiIgZmlsbD0iIzFkMjYzNCIgc3Ryb2tlPSIjYzlhMzVmIiBzdHJva2Utd2lkdGg9IjQiLz48cmVjdCB4PSI3MzAiIHk9IjYwMCIgd2lkdGg9IjYwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzBlMTUyMiIvPjx0ZXh0IHg9IjcwIiB5PSIxMjAiIGZvbnQtZmFtaWx5PSJHZW9yZ2lhLHNlcmlmIiBmb250LXNpemU9IjQyIiBmaWxsPSIjYzlhMzVmIiBvcGFjaXR5PSIuODUiPlRoZSBTdW5rZW4gS2VlcDwvdGV4dD48dGV4dCB4PSI3MCIgeT0iMTUzIiBmb250LWZhbWlseT0iR2VvcmdpYSxzZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzlhOWE5NCI+YmVmb3JlIHRoZSBmbG9vZCAtIHBsYWNlaG9sZGVyIGFydDwvdGV4dD48L3N2Zz4="
+  },
+  {
+   "id": 211,
+   "filename": "sample-wet.svg",
+   "original_name": "The Keep, flooded.svg",
+   "mime_type": "image/svg+xml",
+   "file_size": 717,
+   "base64_data": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDEwMDAiPjxyZWN0IHdpZHRoPSIxNjAwIiBoZWlnaHQ9IjEwMDAiIGZpbGw9IiMwYjE0MWYiLz48cGF0aCBkPSJNMCAxMDAwIEwwIDUyMCBRNDAwIDQ3MCA4MDAgNTEwIFExMjAwIDU1MCAxNjAwIDUwMCBMMTYwMCAxMDAwIFoiIGZpbGw9IiMwYzIyMzMiLz48cGF0aCBkPSJNMCA1MjAgUTQwMCA0NzAgODAwIDUxMCBRMTIwMCA1NTAgMTYwMCA1MDAiIHN0cm9rZT0iIzViOWJkNSIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTY2MCA1MTAgTDY2MCAzODAgTDcwMCAzODAgTDcwMCAzMjAgTDc0MCAzMjAgTDc0MCAzODAgTDc4MCAzODAgTDc4MCAzMjAgTDgyMCAzMjAgTDgyMCAzODAgTDg2MCAzODAgTDg2MCA1MTAgWiIgZmlsbD0iIzFkMjYzNCIgc3Ryb2tlPSIjYzlhMzVmIiBzdHJva2Utd2lkdGg9IjQiLz48dGV4dCB4PSI3MCIgeT0iMTIwIiBmb250LWZhbWlseT0iR2VvcmdpYSxzZXJpZiIgZm9udC1zaXplPSI0MiIgZmlsbD0iIzViOWJkNSIgb3BhY2l0eT0iLjg1Ij5UaGUgU3Vua2VuIEtlZXA8L3RleHQ+PHRleHQgeD0iNzAiIHk9IjE1MyIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5YTlhOTQiPmFmdGVyIGRheSA5IC0gdGhlIHdhdGVyIHRvb2sgdGhlIGdhdGU8L3RleHQ+PC9zdmc+"
+  }
+ ],
+ "maps": [
+  {
+   "id": 62,
+   "title": "The Sunken Keep",
+   "view": "map",
+   "image_id": 210,
+   "owner_node_id": null
+  },
+  {
+   "id": 63,
+   "title": "The Keep — Inside",
+   "view": "map",
+   "image_id": null,
+   "owner_node_id": 104
+  },
+  {
+   "id": 64,
+   "title": "Chest contents",
+   "view": "list",
+   "image_id": null,
+   "owner_node_id": 111
+  }
+ ],
+ "nodes": [
+  {
+   "id": 104,
+   "title": "The Keep",
+   "body": "Double-click my ◎ to step inside. Every node can hold a whole map.",
+   "category": "place",
+   "visibility": "shared",
+   "interior_map_id": 63
+  },
+  {
+   "id": 105,
+   "title": "Old Gate",
+   "body": "I only exist before day 9 — scrub the timeline and watch me drown.",
+   "category": "place",
+   "visibility": "shared"
+  },
+  {
+   "id": 106,
+   "title": "The Flood",
+   "body": "I arrive on day 9 — and the map art changes with me. See Map ▾ → Backdrops over time.",
+   "category": "event",
+   "visibility": "shared"
+  },
+  {
+   "id": 107,
+   "title": "The Drowned Vault",
+   "body": "Players never see me. Flip to 🎭 Player to check, then 🔗 Share when you mean it.",
+   "category": "lore",
+   "visibility": "dm"
+  },
+  {
+   "id": 108,
+   "title": "Your first node",
+   "body": "Click ＋ Add node then click the map — or just right-click anywhere. Drag me around. Delete me; Undo has your back.",
+   "category": "note",
+   "visibility": "shared"
+  },
+  {
+   "id": 109,
+   "title": "The Great Hall",
+   "body": "Rooms inside rooms — nest as deep as your story goes.",
+   "category": "place",
+   "visibility": "shared"
+  },
+  {
+   "id": 110,
+   "title": "Warden Brakk",
+   "body": "Keeps what is left of the gate. Grumpy.",
+   "category": "person",
+   "visibility": "shared"
+  },
+  {
+   "id": 111,
+   "title": "Supply Chest",
+   "body": "Open my ◎ — interiors can be LISTS, for inventories and notes.",
+   "category": "item",
+   "visibility": "shared",
+   "interior_map_id": 64
+  },
+  {
+   "id": 112,
+   "title": "A coil of rope",
+   "body": "Lists need no coordinates.",
+   "category": "item",
+   "visibility": "shared"
+  },
+  {
+   "id": 113,
+   "title": "Three candles",
+   "body": "One is already lit.",
+   "category": "item",
+   "visibility": "shared"
+  }
+ ],
+ "placements": [
+  {
+   "node_id": 104,
+   "map_id": 62,
+   "x": 47,
+   "y": 45
+  },
+  {
+   "node_id": 106,
+   "map_id": 62,
+   "x": 30,
+   "y": 70
+  },
+  {
+   "node_id": 108,
+   "map_id": 62,
+   "x": 70,
+   "y": 30
+  },
+  {
+   "node_id": 109,
+   "map_id": 63,
+   "x": 50,
+   "y": 40
+  },
+  {
+   "node_id": 110,
+   "map_id": 63,
+   "x": 38,
+   "y": 55
+  },
+  {
+   "node_id": 111,
+   "map_id": 63,
+   "x": 62,
+   "y": 60
+  },
+  {
+   "node_id": 112,
+   "map_id": 64,
+   "x": 50,
+   "y": 30
+  },
+  {
+   "node_id": 113,
+   "map_id": 64,
+   "x": 50,
+   "y": 60
+  },
+  {
+   "node_id": 105,
+   "map_id": 62,
+   "x": 47,
+   "y": 62,
+   "end_time": 8
+  },
+  {
+   "node_id": 107,
+   "map_id": 62,
+   "x": 60,
+   "y": 75,
+   "visibility": "dm"
+  }
+ ],
+ "links": [
+  {
+   "from_node_id": 104,
+   "to_node_id": 105,
+   "label": "guarded by, once"
+  },
+  {
+   "from_node_id": 107,
+   "to_node_id": 106,
+   "label": "she called the water"
+  }
+ ],
+ "eras": [
+  {
+   "name": "Before the Flood",
+   "start_time": 1,
+   "end_time": 8,
+   "player_visible": true
+  },
+  {
+   "name": "Behind the Screen",
+   "start_time": 1,
+   "end_time": 20,
+   "player_visible": false
+  }
+ ],
+ "facts": [
+  {
+   "node_id": 110,
+   "body": "Keeps the gate, dry and cheerful. (My description changes with the timeline — see the Story section.)",
+   "start_time": 1,
+   "end_time": 8
+  }
+ ],
+ "backdrops": [
+  {
+   "map_id": 62,
+   "image_id": 211,
+   "start_time": 9,
+   "end_time": null
+  }
+ ]
+}

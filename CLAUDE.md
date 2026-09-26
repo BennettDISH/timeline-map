@@ -120,6 +120,15 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
 ## Sharing (Player View)
 - The DM mints a share link in the Atlas Share popover → `/p/:token` (public route, no account).
 - `worlds.share_token` is the whole capability; regenerate rotates it, delete revokes it.
+- **The lantern** (`worlds.spotlight_node_id`): `spotlightTrail` in `share.js` resolves it at
+  CANON by walking down the way players walk up (`walkUp` through visible, present
+  placements — a lit node placed both inside a hidden branch and on the root is reached
+  through the root); every step is player-visible, and a secret or out-of-time lit node
+  stops the trail one step short. `POST /worlds/:id/spotlight` returns that trail.
+- **Templates**: `worlds.is_template` (set by hand on sample worlds; no UI) makes a world
+  clonable by any signed-in user, DM-only content included; cloning is capped at 50 owned
+  worlds. The sample keep can be rebuilt from `server/test/sample-world.json` with
+  `node server/scripts/seed-sample.js`.
 - `server/routes/share.js` is the public read-only API. **All secrecy is enforced there,
   server-side**: DM-only nodes/placements and out-of-time placements never leave the DB; links
   are pruned when either end is hidden; deep links into hidden/future branches 404 via the
@@ -179,7 +188,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   toggle hides them (local preference); a player's marker is dashed green; the lantern
   glows gold.
 - `nodes.dm_note` is the SECRET half of a node: never selected by `share.js`, never fed to
-  the Forge painter, shown only in the inspector + view-posture reader. The body is the
+  the Forge painter, shown only in the inspector + view-posture reader. **`maps.dm_note` and
+  `nodes.stance` follow the same rule** — never selected by `share.js` (the API suite asserts
+  all three stay home). The body is the
   public face; the inspector's "Reveal" button merges note → body. The mind is ordered to
   write secrets there and to keep image prompts to the innocent surface.
 - `node_facts` are timed description overrides (same resolution rule as backdrops): the

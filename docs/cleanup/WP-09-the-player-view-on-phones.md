@@ -10,22 +10,22 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B038** · medium · xs · On a touch screen the Edit posture is live: a swipe that starts on a pin moves it and autosaves, with no undo
-- [ ] **B048** · medium · xs · A node's picture in the phone bottom sheet is squashed to a strip (109px of a 244px image; 39px on a 320px phone)
-- [ ] **B052** · medium · s · On phones the page is wider than the screen, so crumbs, the canon chip, and the DM's posture switch and Exit are off-screen and can't be reached
-- [ ] **B053** · medium · s · Player View ◎ 'go inside' button on chip pins is display:none on every hover-capable screen
-- [ ] **B055** · medium · s · Pinch-zoom fails when either finger starts on a pin: the map pans instead
-- [ ] **B056** · medium · m · The DM workspace has no phone layout: it opens in Edit with fixed side columns, and View hides the map behind a reader with no ✕
-- [ ] **P018** · medium · s · Player era bar on phones: a fixed 260px label zone shrinks the scrubber to 90px (20px on a 320px phone) and truncates era names to 'B', 'S…'
-- [ ] **P019** · medium · s · On phones, region name tags cover pins and each other (labels are z-index 4, pins 3)
-- [ ] **P020** · medium · m · On phones pins pile up and steal each other's taps: tapping Warden Brakk opens The Party
-- [ ] **P021** · medium · s · Tap targets on the phone Player View are far below 44px; '◎ go inside' is 19×15px
-- [ ] **C063** · low · s · The ◎ on an outlined place's name tag looks like the 'go inside' button but only opens the sheet
-- [ ] **P060** · low · xs · Page title never changes on the workspace, Player View, 404 or login; the players' tab never shows the world
-- [ ] **P073** · low · xs · Sheet header: the ✕ covers the category label and the category icon renders as a thin unstyled sliver
-- [ ] **P075** · low · xs · Marker form, era input and create-world inputs are 13–14px, so iOS zooms the page when they get focus
-- [ ] **P077** · low · s · Icon-only buttons rely on title=, which phones never show, and the whole client has one aria-label
-- [ ] **P078** · low · s · Fixed chrome leaves phones little map: the lantern trail wraps to 128px, and in landscape the sheet leaves about 70px
+- [ ] **B038** · medium · xs · On a touch screen the Edit posture is live: a swipe that starts on a pin moves it and autosaves, with no undo — done 84c067a (a touch on a pin selects, never drags; phones land in View)
+- [ ] **B048** · medium · xs · A node's picture in the phone bottom sheet is squashed to a strip (109px of a 244px image; 39px on a 320px phone) — done 84c067a (hero and body flex:none — the sheet scrolls)
+- [ ] **B052** · medium · s · On phones the page is wider than the screen, so crumbs, the canon chip, and the DM's posture switch and Exit are off-screen and can't be reached — done 84c067a (the grid column is minmax(0,1fr); the top bar wraps below 700px; the current crumb scrolls into view)
+- [ ] **B053** · medium · s · Player View ◎ 'go inside' button on chip pins is display:none on every hover-capable screen — done 84c067a (the button is .enter, a corner badge on collapsed chips)
+- [ ] **B055** · medium · s · Pinch-zoom fails when either finger starts on a pin: the map pans instead — done 84c067a (touch pointers are counted in the capture phase, so a pinch starting on a pin zooms)
+- [ ] **B056** · medium · m · The DM workspace has no phone layout: it opens in Edit with fixed side columns, and View hides the map behind a reader with no ✕ — done 84c067a (phones land in View with the rail closed; the space reader opens on ℹ and has ✕; the map is first)
+- [ ] **P018** · medium · s · Player era bar on phones: a fixed 260px label zone shrinks the scrubber to 90px (20px on a 320px phone) and truncates era names to 'B', 'S…' — done 84c067a (below 600px the track takes a full row and the clock sits under it)
+- [ ] **P019** · medium · s · On phones, region name tags cover pins and each other (labels are z-index 4, pins 3) — done 84c067a (name tags z-index 2, under pins)
+- [ ] **P020** · medium · m · On phones pins pile up and steal each other's taps: tapping Warden Brakk opens The Party — done 84c067a — partial: chips capped at 40vw with ellipsised names on touch; no nudging apart yet
+- [ ] **P021** · medium · s · Tap targets on the phone Player View are far below 44px; '◎ go inside' is 19×15px — done 84c067a (44px targets under pointer:coarse)
+- [ ] **C063** · low · s · The ◎ on an outlined place's name tag looks like the 'go inside' button but only opens the sheet — done 84c067a (the tag's ◎ is a button that enters)
+- [ ] **P060** · low · xs · Page title never changes on the workspace, Player View, 404 or login; the players' tab never shows the world — done 84c067a (workspace "map · world", Player View "world — map", 404, login)
+- [ ] **P073** · low · xs · Sheet header: the ✕ covers the category label and the category icon renders as a thin unstyled sliver — done 84c067a
+- [ ] **P075** · low · xs · Marker form, era input and create-world inputs are 13–14px, so iOS zooms the page when they get focus — done 84c067a (16px inputs under pointer:coarse, atlas and shell)
+- [ ] **P077** · low · s · Icon-only buttons rely on title=, which phones never show, and the whole client has one aria-label — done 84c067a (aria-labels on ◎, ⌖, ?, ✕, the zoom buttons; "offline · last update shown")
+- [ ] **P078** · low · s · Fixed chrome leaves phones little map: the lantern trail wraps to 128px, and in landscape the sheet leaves about 70px — done 84c067a (the lantern is one scrolling line; a landscape phone puts the sheet beside the map)
 
 ## Items
 

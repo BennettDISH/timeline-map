@@ -38,3 +38,16 @@
 -- Every root roster in the tests now includes it.
 -- NOTE when seeding by hand: a data-modifying CTE cannot UPDATE a row another CTE of the same
 -- statement inserted (same snapshot) — set nodes.interior_map_id in a second statement.
+--
+-- Added 2026-09-26 (WP-27): rows that make the suite go RED when a rule is removed.
+--   'Interlude Ghost' (shared, root, 32-38) lives between the eras — that alone never caught a
+--   hidden-era leak; 'Hidden Era Secret' (shared, root, 42-48) and a fact 'hidden era text'
+--   42-48 on Open Landmark live INSIDE the Hidden Era (t=45 must resolve to canon).
+--   Clamp probes inside 'Twice Interior': 'Late Runner' 25-70 (end → null), 'Early Riser' 5-25
+--   (start → null), a timed backdrop 45-70 (start → 50, end → null); era 'Future Era' 60-70
+--   player_visible (never listed: it begins after canon).
+--   Secrecy: Open Landmark dm_note 'DM-ONLY-NOTE' + stance 'foe'; root map dm_note 'MAP-ONLY-NOTE'.
+--   'The Party' (category party): footsteps on Twice Interior 10-15 (the only reachable one),
+--   Hidden Interior 16-20 (hidden branch) and Twice Interior 21-25 DM-only.
+--   The lantern: worlds.spotlight_node_id = 'Lantern Target' (DM-only, placed on Twice
+--   Interior) → the trail is [Twice Placed on the root] and stops there.

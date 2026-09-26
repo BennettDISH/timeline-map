@@ -6,7 +6,7 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 **Do after:** [WP-10](WP-10-sessions-clock-labels-and-the-party.md), [WP-11](WP-11-the-inspector.md)
 
-**Notes:** Agree the words with Bennett first and write them into CLAUDE.md, then make the sweep. His copy rule applies: short and factual, with no metaphors or scene-setting. Do this after the packages that change the UI, so strings are not rewritten twice. Rename code identifiers (spotlight vs lantern, invite vs share) in WP-20, not here.
+**Notes:** Agree the words with Bennett first and write them into CLAUDE.md, then make the sweep. His copy rule applies: short and factual, with no metaphors or scene-setting. Do this after the packages that change the UI, so strings are not rewritten twice. Rename code identifiers (spotlight vs lantern) in WP-20, not here — never invite* to share*: those names dodge ad-blocker social filters (1224c84, C101).
 
 ## Checklist
 

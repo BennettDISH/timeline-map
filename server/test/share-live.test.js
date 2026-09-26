@@ -280,3 +280,62 @@ test('the Player View may be framed by Spellforge; the DM app may not be framed 
   assert.match(dm.headers.get('content-security-policy') || '', /frame-ancestors 'self'(;|$)/, 'the DM app keeps frame-ancestors self');
   assert.equal((dm.headers.get('x-frame-options') || '').toUpperCase(), 'SAMEORIGIN');
 });
+
+
+// ---- the hidden past stays hidden: a row that lives ONLY inside the Hidden Era (42–48) ----
+
+test('a moment inside a hidden era resolves to canon: the hidden-era node and text never show', async () => {
+  const { body } = await get(`/maps/${IDS.root}?t=45`);
+  assert.deepEqual(titles(body), ['Open Landmark', 'Twice Placed'], 'Hidden Era Secret (42–48) must not appear at t=45');
+  assert.equal((await get(`/nodes/${IDS.openLandmark}?t=45`)).body.node.body, 'base text', 'the 42–48 fact must not win at t=45');
+  const win = await get(`/maps/${IDS.root}?window=1`);
+  assert.ok(!titles(win.body).includes('Hidden Era Secret'), 'the window envelope excludes hidden eras');
+});
+
+// ---- clamps that actually clamp: probes inside Twice Interior (reachable through the root) ----
+
+test('windowed lifespans and backdrops never carry a hidden or future moment', async () => {
+  const { body } = await get(`/maps/${IDS.twiceInterior}?window=1`);
+  const late = body.placements.find((p) => p.node.title === 'Late Runner');   // 25–70
+  const early = body.placements.find((p) => p.node.title === 'Early Riser');  // 5–25
+  assert.ok(late && early, 'the probes are placed');
+  assert.equal(late.start, 25);
+  assert.equal(late.end, null, '70 is the future: the end must be dropped');
+  assert.equal(early.start, null, '5 precedes the first open era: the start must be dropped');
+  assert.equal(early.end, 25);
+  const bd = body.backdrops.find((b) => b.end == null && b.start === 50);
+  assert.ok(bd, `a 45–70 backdrop starts at the next open moment (50) with no end; got ${JSON.stringify(body.backdrops)}`);
+  assert.ok(!body.backdrops.some((b) => b.end === 70 || b.start === 45), 'no raw hidden/future moment leaks');
+});
+
+test('a player-visible era beginning after canon is not listed', async () => {
+  const { body } = await get('/world');
+  assert.deepEqual(body.world.eras.map((e) => e.name), ['Open Era'], 'Future Era (60–70) stays home');
+});
+
+// ---- secrecy rules added since the fixture: DM notes, map notes, stance, the party trail, the lantern ----
+
+test('DM notes, stance and map notes never leave the server', async () => {
+  const node = JSON.stringify((await get(`/nodes/${IDS.openLandmark}`)).body);
+  assert.ok(!node.includes('DM-ONLY-NOTE'), 'the DM note leaked');
+  assert.ok(!/"stance"/.test(node) && !node.includes('"foe"'), 'the stance leaked');
+  const map = JSON.stringify((await get(`/maps/${IDS.root}?window=1`)).body);
+  assert.ok(!map.includes('MAP-ONLY-NOTE'), 'the map note leaked');
+  assert.ok(!map.includes('DM-ONLY-NOTE'), 'the DM note leaked through the map payload');
+});
+
+test('the party trail carries only footsteps players can reach and see', async () => {
+  const { body } = await get(`/maps/${IDS.root}?window=1`);
+  const trail = body.partyTrail.map((s) => [s.mapId, s.start, s.end]);
+  assert.deepEqual(trail, [[IDS.twiceInterior, 10, 15]], 'the hidden-branch footstep and the DM-only footstep must be absent');
+});
+
+test('the lantern lights the way through visible maps and stops short of a secret node', async () => {
+  const { body } = await get(`/maps/${IDS.root}`);
+  assert.deepEqual(body.spotlight, [{ nodeId: IDS.twicePlaced, title: 'Twice Placed', category: 'place', mapId: IDS.root }],
+    'the trail reaches Twice Placed through the root (not the hidden branch) and stops before the DM-only target');
+});
+
+test('locate finds a placed node (a locate that always 404s would fail here)', async () => {
+  assert.deepEqual((await get(`/nodes/${IDS.openLandmark}/locate`)).body, { mapId: IDS.root });
+});

@@ -49,7 +49,7 @@ try {
   await tick.click();
   await page.waitForTimeout(800);
   const labelAfter = (await page.locator('.timebar .tnowbtn').textContent()).trim();
-  step('a tick moves the lens (era-relative label)', labelAfter !== labelBefore && /footstep/.test(labelAfter), `${labelBefore} → ${labelAfter}`);
+  step('a tick moves the lens (session label)', labelAfter !== labelBefore && /^Session \d+ · footstep \d+$/.test(labelAfter), `${labelBefore} → ${labelAfter}`);
   const party = page.locator('.atlas .pin.party').first();
   step('the party pin is on the map at that moment', (await party.count()) > 0);
   await party.click({ force: true });
@@ -57,11 +57,14 @@ try {
   const link = page.locator('.reader .rtrail a', { hasText: 'Then on to' });
   step('the Party reader offers "Then on to …"', (await link.count()) > 0);
   if (await link.count()) {
+    const partyTitle = (await page.locator('.reader h3').first().textContent().catch(() => '')).trim();
     await link.click();
     await page.waitForTimeout(2500);
     const crashed = await boundary();
     step('following "Then on to" changes map WITHOUT the error boundary', !crashed && page.url().includes(`/m/${cfg.interior}`), crashed ? 'BOUNDARY SHOWN' : page.url().split('/m/')[1]);
     if (!crashed) step('the lens moved to the destination footstep', /Session 3/.test(await page.locator('.timebar .tnowbtn').textContent()), (await page.locator('.timebar .tnowbtn').textContent()).trim());
+    const readerNow = (await page.locator('.reader h3').first().textContent().catch(() => '')).trim();
+    step('the Party stays open on the other map', !crashed && readerNow === partyTitle, `reader: “${readerNow}”`);
   }
   // Edit posture: double-clicking a pin without an interior must not navigate or create one
   await page.locator('.mode button', { hasText: 'Edit' }).click();
@@ -71,7 +74,9 @@ try {
   if (await plain.count()) {
     await plain.dblclick({ force: true });
     await page.waitForTimeout(1500);
-    step('double-click on a pin without an interior stays put', page.url() === before, page.url() === before ? 'no navigation' : 'navigated!');
+    const refusal = (await page.locator('.aflash').textContent().catch(() => '')).trim();
+    // the click must have REACHED the pin and been refused, not just missed it
+    step('double-click on a pin without an interior stays put', page.url() === before && /no interior/.test(refusal), page.url() === before ? (refusal ? `refused: “${refusal.slice(0, 50)}”` : 'no navigation, but no refusal shown') : 'navigated!');
   } else step('a pin without an interior exists to test', false);
   // the outline tool: three corners, Enter closes, a region appears and the new place is selected
   if (await page.locator('.toolbar button', { hasText: 'Outline' }).count()) {
@@ -165,10 +170,14 @@ try {
     step('a freehand drag traces a loop of corners', traced >= 6 && traced <= 40, `${traced} corners after simplifying`);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(3000);
-    // the refresh drops the stale first region and shows the traced one, selected
+    // proof a NEW region exists: the drawing corners are gone, and the server holds a shaped
+    // placement this run did not have before (the stale first region cannot satisfy that)
     const after2 = await page.locator('.atlas .region').count();
     const sel2 = await page.locator('.atlas .region.sel').count();
-    step('Enter closes the traced loop into a region', after2 >= 1 && sel2 === 1, `${before2} → ${after2} region(s), ${sel2} selected`);
+    const ovtx2 = await page.locator('.atlas .ovtx').count();
+    const m2 = await (await fetch(`${BASE}/api/atlas/maps/${page.url().split('/m/')[1]}`, dmAuthH)).json().catch(() => ({}));
+    const fresh = (m2.placements || []).filter((x) => x.shape && !shapedBefore.has(x.id)).length;
+    step('Enter closes the traced loop into a region', after2 >= 1 && sel2 === 1 && ovtx2 === 0 && fresh >= 1, `${before2} → ${after2} region(s), ${sel2} selected, ${ovtx2} corners left, ${fresh} new on the server`);
     await removeNew('the traced test place is removed again');
   } else step('the toolbar offers ◌ Outline', false);
   // a DM note survives reselecting the node (it used to land under the wrong key and go stale)

@@ -166,42 +166,38 @@ async function walkUp(mapId, w, t, seen = new Set()) {
 
 // The DM's lantern: the chain of steps from the world root down to the spotlit node —
 // kingdom, village, hut, npc — each step's pin glowing on the map it sits on. Resolved at
-// CANON (a player scrubbing the past doesn't move the DM's "now") and pruned at the first
-// step a player may not see: pointing at a secret never leaks it, the trail just stops early.
+// CANON (a player scrubbing the past doesn't move the DM's "now"). The way down is found
+// the way players walk it (walkUp through visible, present placements — a lit node placed
+// both inside a hidden branch and on the root is reached through the root), so every step
+// on the way is one players may see; only the lit node itself can be secret, and then the
+// trail stops one step short of it.
 async function spotlightTrail(w) {
   if (!w.spotlight_node_id) return [];
   const canon = w.timeline_enabled ? w.timeline_current_time : null;
-  const alive = (a, b) => canon == null || ((a == null || a <= canon) && (b == null || b >= canon));
-  const steps = []; let nid = w.spotlight_node_id; const seen = new Set(); let complete = false;
-  while (nid && !seen.has(nid)) {
-    seen.add(nid);
-    const n = (await pool.query(
-      'SELECT id, title, category, visibility FROM nodes WHERE id = $1 AND world_id = $2',
-      [nid, w.id])).rows[0];
-    if (!n) return [];
-    // the step players can see: a visible placement ALIVE at canon before any other
-    const p = (await pool.query(
-      `SELECT map_id, visibility, start_time, end_time FROM placements
-       WHERE node_id = $1
-       ORDER BY (visibility = 'dm') ASC,
-         (($2::int IS NULL) OR ((start_time IS NULL OR start_time <= $2::int) AND (end_time IS NULL OR end_time >= $2::int))) DESC, id
-       LIMIT 1`, [nid, canon])).rows[0];
-    if (!p) return []; // placed nowhere — there is no way to walk to it
-    steps.unshift({ n, p });
-    const m = (await pool.query(
-      'SELECT id, owner_node_id, world_id, is_active FROM maps WHERE id = $1', [p.map_id])).rows[0];
-    if (!m || m.world_id !== w.id || !m.is_active) return [];
-    if (w.pending && w.pending.maps.has(m.id)) return [];
-    if (!m.owner_node_id) { complete = m.id === w.root_map_id; break; }
-    nid = m.owner_node_id;
+  const n = (await pool.query(
+    'SELECT id, title, category, visibility FROM nodes WHERE id = $1 AND world_id = $2', [w.spotlight_node_id, w.id])).rows[0];
+  if (!n) return [];
+  // the lit node's own spots, the ones players could stand on first: visible and alive at canon
+  const spots = (await pool.query(
+    `SELECT map_id, visibility, start_time, end_time FROM placements WHERE node_id = $1
+     ORDER BY (visibility = 'dm') ASC,
+       (($2::int IS NULL) OR ((start_time IS NULL OR start_time <= $2::int) AND (end_time IS NULL OR end_time >= $2::int))) DESC, id`,
+    [n.id, canon])).rows;
+  for (const p of spots) {
+    const chain = await walkUp(p.map_id, w, canon);
+    if (!chain) continue;
+    const out = [];
+    for (let i = 1; i < chain.length; i++) {
+      const m = (await pool.query('SELECT owner_node_id FROM maps WHERE id = $1', [chain[i].mapId])).rows[0];
+      const o = m && (await pool.query('SELECT id, title, category FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
+      if (!o) return [];
+      out.push({ nodeId: o.id, title: o.title, category: o.category, mapId: chain[i - 1].mapId });
+    }
+    const alive = canon == null || ((p.start_time == null || p.start_time <= canon) && (p.end_time == null || p.end_time >= canon));
+    if (n.visibility !== 'dm' && p.visibility !== 'dm' && alive) out.push({ nodeId: n.id, title: n.title, category: n.category, mapId: p.map_id });
+    return out;
   }
-  if (!complete) return [];
-  const out = [];
-  for (const { n, p } of steps) {
-    if (n.visibility === 'dm' || p.visibility === 'dm' || !alive(p.start_time, p.end_time)) break;
-    out.push({ nodeId: n.id, title: n.title, category: n.category, mapId: p.map_id });
-  }
-  return out;
+  return [];
 }
 
 // GET /:token/world — name, where to start, and what time it is. No min/max: players don't scrub.
