@@ -11,7 +11,7 @@ const http = axios.create({ headers: { 'Content-Type': 'application/json' }, tim
 // Forget this browser's session AND its per-account pointers (the last map, the current
 // world): the next account on this browser must never land in someone else's world.
 export const clearLocalSession = () => {
-  for (const k of ['auth_token', 'user', 'atlas_last_location', 'current_world', 'current_world_id']) {
+  for (const k of ['auth_token', 'user', 'atlas_last_location']) {
     try { localStorage.removeItem(k) } catch (e) { /* ignore */ }
   }
 }

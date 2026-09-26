@@ -40,5 +40,8 @@ export const stackOffsets = (pins) => {
 export const coveringFact = (facts, t) => pickCovering((facts || []).filter((f) => f.body?.trim()), t)
 export const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
+// the two widths the layout turns on: at or under `phone` the workspace is view-only and the
+// reader overlays the map; under `laptop` the editor folds while the Forge is open
+export const BREAKPOINTS = { phone: 700, laptop: 1400 }
 // a phone: narrow, or a touch-first pointer — editing happens on a PC (CLAUDE.md), so it lands in View
-export const isPhone = () => { try { return window.innerWidth <= 700 || window.matchMedia('(pointer:coarse)').matches } catch (e) { return false } }
+export const isPhone = () => { try { return window.innerWidth <= BREAKPOINTS.phone || window.matchMedia('(pointer:coarse)').matches } catch (e) { return false } }

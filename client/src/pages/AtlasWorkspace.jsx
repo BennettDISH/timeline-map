@@ -21,7 +21,8 @@ import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
 import { ImagePicker, NodePicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
-import { clamp, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone } from '../components/atlas/helpers'
+import { clamp, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
+import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
 import '../styles/atlas.scss'
 
 function AtlasWorkspace() {
@@ -56,7 +57,7 @@ function AtlasWorkspace() {
   // Three postures: edit (full tools) · view (DM eyes, reading chrome) · player (the real
   // Player View, framed from the share link — so it cannot drift from what players see).
   const [mode, setMode] = useState(() => {
-    const m = localStorage.getItem('atlas_mode')
+    const m = readPref('atlas_mode')
     // a phone is view-only by design: it lands in View (or Player), never in the editor
     if (isPhone()) return m === 'player' ? 'player' : 'view'
     return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
@@ -76,21 +77,19 @@ function AtlasWorkspace() {
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
-  const [gridOn, setGridOn] = useState(() => localStorage.getItem('atlas_grid') === 'on')
-  const [labelsOn, setLabelsOn] = useState(() => localStorage.getItem('atlas_labels') === 'on')
-  const [printsOn, setPrintsOn] = useState(() => localStorage.getItem('atlas_prints') !== 'off')
-  const [ghostsOn, setGhostsOn] = useState(() => localStorage.getItem('atlas_ghosts') !== 'off') // show things not present at the lens moment
-  const togglePrints = () => setPrintsOn((v) => {
-    const nv = !v
-    try { localStorage.setItem('atlas_prints', nv ? 'on' : 'off') } catch (err) { /* ignore */ }
-    return nv
-  })
+  const [gridOn, setGridOn] = useFlag('atlas_grid', false)
+  const [labelsOn, setLabelsOn] = useFlag('atlas_labels', false)
+  const [printsOn, setPrintsOn] = useFlag('atlas_prints', true)
+  const [ghostsOn, setGhostsOn] = useFlag('atlas_ghosts', true) // show things not present at the lens moment
+  const togglePrints = () => setPrintsOn((v) => !v)
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
   const [focusEdit, setFocusEdit] = useState(null) // { start, end } strings while editing
   const [focusExpand, setFocusExpand] = useState(false) // temporarily show the full timeline
   const [momentEdit, setMomentEdit] = useState(null) // string while typing an exact moment
-  const [railOpen, setRailOpen] = useState(() => !isPhone() && localStorage.getItem('atlas_rail') !== 'closed')
-  const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atlas_insp') !== 'closed')
+  const [phone] = useState(isPhone)
+  const [railPref, setRailOpen] = useFlag('atlas_rail', true)
+  const railOpen = railPref && !phone // a phone never opens the tree over the map
+  const [inspOpen, setInspOpen] = useFlag('atlas_insp', true)
   const [stray, setStray] = useState(null)      // a node opened WITHOUT a placement (unplaced, or an orphaned interior's owner)
   const [refreshVer, setRefreshVer] = useState(0) // bumps after a Forge turn / Allow / Unmake: the inspector reseeds from the server
   const [noteVer, setNoteVer] = useState(0)     // bumps when the server's map notes changed under an idle box
@@ -106,26 +105,17 @@ function AtlasWorkspace() {
   const [voicesErr, setVoicesErr] = useState(false)
   const loadVoices = () => { setVoicesErr(false); return voiceService.voices().then(setVoices).catch(() => setVoicesErr(true)) }
   const [voices, setVoices] = useState([])
-  const [forgeOpen, setForgeOpen] = useState(() => localStorage.getItem('atlas_forge') === 'open')
-  const [forgeW, setForgeW] = useState(() => { const v = Number(localStorage.getItem('atlas_forgew')); return v >= 280 && v <= 600 ? v : 340 }) // the Forge column resizes like the other panes
-  const forgeWRef = useRef(340)
-  const forgeRaf = useRef(0)
+  const [forgeOpen, setForgeOpen] = useFlag('atlas_forge', false)
+  // the four resizable columns: drag the edge, double-click resets; widths persist per browser
+  const forgeCol = useColumnResize({ key: 'atlas_forgew', min: 280, max: 600, maxFrac: 0.5, fallback: 340 })
+  const railCol = useColumnResize({ key: 'atlas_railw', min: 160, max: 420, maxFrac: 0.4, fallback: 230, edge: 'right' })
+  const inspCol = useColumnResize({ key: 'atlas_inspw', min: 280, max: 640, maxFrac: 0.55, fallback: 310 })
+  const readerPane = useColumnResize({ key: 'atlas_readerw', min: 300, max: 720, maxFrac: 0.6, fallback: null }) // null = the CSS default
+  const forgeW = forgeCol.w, railW = railCol.w, inspW = inspCol.w, readerW = readerPane.w
   const ctxRef = useRef(null) // the right-click menu measures itself and stays inside the window
-  const [railW, setRailW] = useState(() => {
-    const v = parseInt(localStorage.getItem('atlas_railw'), 10)
-    return Number.isFinite(v) ? Math.min(420, Math.max(160, v)) : 230
-  })
-  const [inspW, setInspW] = useState(() => {
-    const v = parseInt(localStorage.getItem('atlas_inspw'), 10)
-    return Number.isFinite(v) ? Math.min(640, Math.max(280, v)) : 310
-  })
-  const [readerW, setReaderW] = useState(() => { // the View reader column; null = the CSS default
-    const v = parseInt(localStorage.getItem('atlas_readerw'), 10)
-    return Number.isFinite(v) ? Math.min(720, Math.max(300, v)) : null
-  })
-  const [wide, setWide] = useState(() => window.innerWidth > 700) // below that the reader overlays the map
+  const [wide, setWide] = useState(() => window.innerWidth > BREAKPOINTS.phone) // below that the reader overlays the map
   useEffect(() => {
-    const on = () => setWide(window.innerWidth > 700)
+    const on = () => setWide(window.innerWidth > BREAKPOINTS.phone)
     window.addEventListener('resize', on)
     return () => window.removeEventListener('resize', on)
   }, [])
@@ -149,12 +139,6 @@ function AtlasWorkspace() {
   const searchRef = useRef(null)
   const mapMenuRef = useRef(null)
   const helpRef = useRef(null)
-  const inspWRef = useRef(310)
-  const inspRaf = useRef(0)
-  const readerWRef = useRef(0)
-  const readerRaf = useRef(0)
-  const railWRef = useRef(230)
-  const railRaf = useRef(0)
   const placePoint = useRef(null) // where "place existing here" should land
   const cursorRef = useRef(null) // last pointer position — keyboard placement drops there
   const justCreated = useRef(null) // the placement just dropped: its title opens focused and selected
@@ -274,9 +258,8 @@ function AtlasWorkspace() {
     const nv = !forgeOpen
     // a laptop cannot hold tree, canvas, editor and Forge at once: the editor folds while the
     // Forge opens (▸ brings it back), so the map keeps its room
-    if (nv && window.innerWidth < 1400 && inspOpen) setInspOpen(false)
+    if (nv && window.innerWidth < BREAKPOINTS.laptop && inspOpen) setInspOpen(false)
     setForgeOpen(nv)
-    try { localStorage.setItem('atlas_forge', nv ? 'open' : 'closed') } catch (err) { /* ignore */ }
   }
   useLayoutEffect(() => {
     const el = ctxRef.current
@@ -393,13 +376,7 @@ function AtlasWorkspace() {
   focusIdRef.current = fn?.id ?? null
   useEffect(() => { if (selId != null) setStray(null) }, [selId])
   useEffect(() => { document.title = `${map?.title ? `${map.title} · ` : ''}${world?.name || 'Fantasy Map Timeline'}`; return () => { document.title = 'Fantasy Map Timeline' } }, [map?.title, world?.name])
-  useEffect(() => {
-    if (!tlEdit) return
-    const close = (e) => { if (!e.target?.closest?.('.tlcfg, .tgear')) setTlEdit(false) }
-    const key = (e) => { if (e.key === 'Escape') setTlEdit(false) }
-    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
-  }, [tlEdit])
+  useDismiss(tlEdit, [], () => setTlEdit(false), { keep: '.tlcfg, .tgear' })
   // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
   // is not typing in takes the new text, so a bare click in and out never writes old text back
   useEffect(() => {
@@ -534,10 +511,10 @@ function AtlasWorkspace() {
     setPlacing(null); setCtx(null)
     const cur = data?.placements.find((p) => p.id === placementId)
     // one rule: the outline's own kind when it already has one, else the remembered choice
-    const kind = (cur?.shape && cur.shapeKind) || localStorage.getItem('atlas_outline_kind') || 'button'
+    const kind = (cur?.shape && cur.shapeKind) || readPref('atlas_outline_kind') || 'button'
     setDrawing({ placementId, pts: firstPt ? [firstPt] : [], kind })
   }
-  const setDrawKind = (kind) => { localStorage.setItem('atlas_outline_kind', kind); setDrawing((d) => d && ({ ...d, kind })) }
+  const setDrawKind = (kind) => { writePref('atlas_outline_kind', kind); setDrawing((d) => d && ({ ...d, kind })) }
   const setOutlineKind = async (placementId, kind) => { // a preset: sets the kind and clears the toggles
     setData((prev) => prev && ({ ...prev, placements: prev.placements.map((pp) => (pp.id === placementId ? { ...pp, shapeKind: kind, shapeStyle: null } : pp)) }))
     await track(atlasService.patchPlacement(placementId, { shape_kind: kind, shape_style: null }), "Couldn't change the outline's kind").catch(() => {})
@@ -811,16 +788,8 @@ function AtlasWorkspace() {
     else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
   }
 
-  const toggleLabels = () => setLabelsOn((v) => {
-    const nv = !v
-    try { localStorage.setItem('atlas_labels', nv ? 'on' : 'off') } catch (err) { /* ignore */ }
-    return nv
-  })
-  const toggleGrid = () => setGridOn((v) => {
-    const n = !v
-    try { localStorage.setItem('atlas_grid', n ? 'on' : 'off') } catch (e) { /* ignore */ }
-    return n
-  })
+  const toggleLabels = () => setLabelsOn((v) => !v)
+  const toggleGrid = () => setGridOn((v) => !v)
 
   // Timed backdrops: history can redraw the map. The active art at moment t is the timed
   // row covering t with the LATEST start (ties: newest row); none covering t = the base.
@@ -847,97 +816,20 @@ function AtlasWorkspace() {
     setMode(m)
     setPlacing(null); setPicker(null); setNodePicker(null); setTlEdit(false); setMapMenu(false)
     setDrawing(null); setCtx(null); setBdsOpen(false); setFocusEdit(null); setRenaming(null) // edit-only tools end with the posture
-    try { localStorage.setItem('atlas_mode', m) } catch (e) { /* ignore */ }
+    writePref('atlas_mode', m)
   }
-  const toggleRail = () => setRailOpen((v) => {
-    const n = !v
-    try { localStorage.setItem('atlas_rail', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
-    return n
-  })
-  const toggleInsp = () => setInspOpen((v) => {
-    const n = !v
-    try { localStorage.setItem('atlas_insp', n ? 'open' : 'closed') } catch (e) { /* ignore */ }
-    return n
-  })
+  const toggleRail = () => setRailOpen((v) => !v)
+  const toggleInsp = () => setInspOpen((v) => !v)
 
   // drag the tree's right edge, twin of the editor handle
-  const startRailResize = (e) => {
-    e.preventDefault()
-    railWRef.current = railW
-    const move = (ev) => {
-      railWRef.current = Math.min(Math.max(ev.clientX, 160), Math.min(420, Math.round(window.innerWidth * 0.4)))
-      if (!railRaf.current) {
-        railRaf.current = requestAnimationFrame(() => { railRaf.current = 0; setRailW(railWRef.current) })
-      }
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      try { localStorage.setItem('atlas_railw', String(railWRef.current)) } catch (err) { /* ignore */ }
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-  const resetRailW = () => { setRailW(230); try { localStorage.setItem('atlas_railw', '230') } catch (e) { /* ignore */ } }
-
-  // drag the inspector's left edge to give the editor room; double-click resets
-  const startInspResize = (e) => {
-    e.preventDefault()
-    inspWRef.current = inspW
-    const forgeCol = forgeOn && forgeOpen ? forgeWRef.current : 0 // the Forge column sits to the editor's right
-    const move = (ev) => {
-      inspWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX - forgeCol, 280), Math.min(640, Math.round(window.innerWidth * 0.55)))
-      if (!inspRaf.current) {
-        inspRaf.current = requestAnimationFrame(() => { inspRaf.current = 0; setInspW(inspWRef.current) })
-      }
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      try { localStorage.setItem('atlas_inspw', String(inspWRef.current)) } catch (err) { /* ignore */ }
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-  const resetInspW = () => { setInspW(310); try { localStorage.setItem('atlas_inspw', '310') } catch (e) { /* ignore */ } }
-  // the Forge column's left edge drags the same way; double-click resets
-  const startForgeResize = (e) => {
-    e.preventDefault()
-    forgeWRef.current = forgeW
-    const move = (ev) => {
-      forgeWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 280), Math.min(600, Math.round(window.innerWidth * 0.5)))
-      if (!forgeRaf.current) forgeRaf.current = requestAnimationFrame(() => { forgeRaf.current = 0; setForgeW(forgeWRef.current) })
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      try { localStorage.setItem('atlas_forgew', String(forgeWRef.current)) } catch (err) { /* ignore */ }
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-  const resetForgeW = () => { setForgeW(340); try { localStorage.setItem('atlas_forgew', '340') } catch (e) { /* ignore */ } }
-  useEffect(() => { forgeWRef.current = forgeW }, [forgeW])
-
-  // drag the reader's left edge (View posture) the same way; double-click resets
-  const startReaderResize = (e) => {
-    e.preventDefault()
-    readerWRef.current = readerW || (e.currentTarget.parentElement?.getBoundingClientRect().width ?? 400)
-    const move = (ev) => {
-      readerWRef.current = Math.min(Math.max(window.innerWidth - ev.clientX, 300), Math.min(720, Math.round(window.innerWidth * 0.6)))
-      if (!readerRaf.current) {
-        readerRaf.current = requestAnimationFrame(() => { readerRaf.current = 0; setReaderW(readerWRef.current) })
-      }
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      try { localStorage.setItem('atlas_readerw', String(readerWRef.current)) } catch (err) { /* ignore */ }
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-  const resetReaderW = () => { setReaderW(null); try { localStorage.removeItem('atlas_readerw') } catch (e) { /* ignore */ } }
+  const startRailResize = railCol.start, resetRailW = railCol.reset
+  // the Forge column sits to the editor's right: its width offsets the editor's edge
+  const startInspResize = (e) => inspCol.start(e, { offset: forgeOn && forgeOpen ? forgeW : 0 })
+  const resetInspW = inspCol.reset
+  const startForgeResize = forgeCol.start, resetForgeW = forgeCol.reset
+  // the reader has no stored width until it is dragged: the drag starts from its rendered width
+  const startReaderResize = (e) => readerPane.start(e, { from: e.currentTarget.parentElement?.getBoundingClientRect().width ?? 400 })
+  const resetReaderW = readerPane.reset
   const readerCol = readerW && wide ? `${readerW}px` : 'var(--readerw)'
   const readerGrip = (
     <div className="rgrip" title="Drag to widen the reader — double-click resets"
@@ -1038,13 +930,7 @@ function AtlasWorkspace() {
       setCopied(true); setTimeout(() => setCopied(false), 2000)
     }).catch(() => setFlash({ kind: 'err', text: "Couldn't copy — select the link text instead." }))
   }
-  useEffect(() => {
-    if (!sharePop) return
-    const close = (e) => { if (shareRef.current && !shareRef.current.contains(e.target)) setSharePop(false) }
-    const key = (e) => { if (e.key === 'Escape') setSharePop(false) }
-    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
-  }, [sharePop])
+  useDismiss(sharePop, [shareRef], () => setSharePop(false))
 
   const setLifespan = (placementId, which, v) => {
     // only the bound that changed is sent, merged per placement: a second tab's stale copy
@@ -1113,12 +999,7 @@ function AtlasWorkspace() {
     atlasService.getNodes(worldId).then(setSearchIndex).catch(() => {})
   }
   const closeSearch = () => { setSearchOpen(false); setQ(''); setSfilter('all') }
-  useEffect(() => {
-    if (!searchOpen) return
-    const close = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) closeSearch() }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [searchOpen])
+  useDismiss(searchOpen, [searchRef], closeSearch, { escape: false }) // Escape is the keyboard effect's
   // ---- keyboard placement ----------------------------------------------------------
   useEffect(() => {
     const move = (e) => { cursorRef.current = { x: e.clientX, y: e.clientY } }
@@ -1204,24 +1085,8 @@ function AtlasWorkspace() {
     track(atlasService.patchMap(mapId, { title: t }), "Couldn't rename").then(() => { refreshTree(); refreshMap() }).catch(() => refreshMap())
   }
 
-  useEffect(() => {
-    if (!ctx) return
-    const close = () => setCtx(null)
-    const key = (e) => { if (e.key === 'Escape') setCtx(null) }
-    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
-  }, [ctx])
-
-  useEffect(() => {
-    if (!mapMenu && !help) return
-    const close = (e) => {
-      if (mapMenuRef.current?.contains(e.target) || helpRef.current?.contains(e.target)) return
-      setMapMenu(false); setHelp(false)
-    }
-    const key = (e) => { if (e.key === 'Escape') { setMapMenu(false); setHelp(false) } }
-    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
-  }, [mapMenu, help])
+  useDismiss(!!ctx, [], () => setCtx(null)) // the right-click menu: any press elsewhere closes it
+  useDismiss(mapMenu || help, [mapMenuRef, helpRef], () => { setMapMenu(false); setHelp(false) })
 
   // ---- category legend / filter -------------------------------------------------------
   const legend = useMemo(() => {
@@ -1845,7 +1710,7 @@ function AtlasWorkspace() {
               <button className={`tgear${ghostsOn ? '' : ' off'}`}
                 title={ghostsOn ? 'Hide things not present at this moment' : 'Show things not present at this moment (dashed purple)'}
                 aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
-                onClick={() => setGhostsOn((v) => { localStorage.setItem('atlas_ghosts', v ? 'off' : 'on'); return !v })}>⏳</button>
+                onClick={() => setGhostsOn((v) => !v)}>⏳</button>
               <button className="tgear" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
