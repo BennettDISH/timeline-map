@@ -10,7 +10,7 @@ import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf, STYLE_KEYS } from '../components/Regions'
-import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyNeighbors } from '../utils/moment'
 import { cleanRing, centroid } from '../utils/geometry'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
@@ -1189,19 +1189,6 @@ function AtlasWorkspace() {
                 : `Click the map to place "${placing.node.title}" — Enter drops it at the cursor, Esc cancels.`}
             </div>
           )}
-
-          {tl?.enabled && (() => {
-            const lensT = mode === 'player' ? (previewT ?? canon) : now
-            const at = partyWhere(trail, lensT)
-            if (!at || String(at.mapId) === String(mapId)) return null
-            const so = sessionOf(lensT, world?.eras)
-            return (
-              <button className="partychip" onClick={() => navigate(`/w/${worldId}/m/${at.mapId}`)}
-                title="Where the party is at this moment — click to go there">
-                ⚑ The party is at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go there
-              </button>
-            )
-          })()}
 
           <div className="helpwrap" ref={helpRef}>
             <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>

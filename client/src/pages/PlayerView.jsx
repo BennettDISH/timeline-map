@@ -6,7 +6,7 @@ import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
-import { momentLabel, sessionOf, sessionColor, partyWhere, partyNeighbors } from '../utils/moment'
+import { momentLabel, sessionOf, sessionColor, partyNeighbors } from '../utils/moment'
 import { CATS, cat } from '../utils/categories'
 import '../styles/atlas.scss'
 
@@ -197,16 +197,6 @@ function PlayerView() {
           </div>
         )}
         <div className="stage">
-          {tl?.enabled && (() => {
-            const at = partyWhere(data.partyTrail, tEff)
-            if (!at || String(at.mapId) === String(map?.id)) return null
-            const so = sessionOf(tEff, world.eras)
-            return (
-              <button className="partychip" onClick={() => navigate(`/p/${token}/m/${at.mapId}`)} title="Where you are at this moment — tap to go there">
-                ⚑ You are at <b>{at.mapTitle}</b>{so ? ` · S${so.idx + 1}·${so.step}` : ''} — go
-              </button>
-            )
-          })()}
           {(data.breadcrumb || []).length > 1 && (
             <button className="tool backbtn" title="Back up one level"
               onClick={() => navigate(`/p/${token}/m/${data.breadcrumb[data.breadcrumb.length - 2].mapId}`)}>

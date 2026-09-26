@@ -111,9 +111,9 @@ whenever: `events`, `events_backup_tooltip_migration`, `map_timeline_images`, `t
   a session-colored ring and an `S3·7` tag. The DM timebar shows a clickable tick per
   footstep (`GET /worlds/:id/trail`) — click sets the lens and jumps to that footstep's map.
   The trail crosses maps in TEXT, not markers: the Party's reader/sheet says "◂ From …" and
-  "Then on to … ▸" with links (`partyNeighbors` in `utils/moment.js`), and any map the
-  party is not on shows a "⚑ The party is at …" chip with a jump (`partyWhere`); players
-  get the world-wide `partyTrail` in the windowed share payload, reachable maps only.
+  "Then on to … ▸" with links (`partyNeighbors` in `utils/moment.js`); players get the
+  world-wide `partyTrail` in the windowed share payload, reachable maps only. (The
+  "⚑ The party is at …" chip was removed on 2026-09-25 as clutter.)
   Map ▾ → 👣 Footprints toggles the ghost-print trail (local preference).
 - A spoken line is never overwritten: `POST /nodes/:id/line` refuses (409) while one exists;
   clear it first.
