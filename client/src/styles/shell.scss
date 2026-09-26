@@ -321,3 +321,8 @@
   .shell .shellcrumb { display: none; }
   .shell .userbtn { white-space: nowrap; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
 }
+
+// keyboard focus is visible everywhere; the folder options button shows when focused
+.shell .worldsel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shell .fmenu .fdots:focus-visible{opacity:1}
+@media (prefers-reduced-motion: reduce){ .shell .skel{animation:none} }

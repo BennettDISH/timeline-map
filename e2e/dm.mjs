@@ -309,6 +309,34 @@ try {
     }
     await page.setViewportSize({ width: 1400, height: 900 }); await page.waitForTimeout(500);
   }
+  // keyboard and dialogs: Escape closes the nearest thing and focus returns; a pin is reachable by Tab
+  {
+    const pinK = page.locator('.atlas .pin:not(.party)').first();
+    if (await pinK.count()) {
+      await pinK.click({ force: true }); await page.waitForTimeout(400);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+      step('Escape with nothing else open closes the editor', (await page.locator('.insp input[data-fld="title"]').count()) === 0);
+      const rename = page.locator('.spacepanel .sptitle .lx');
+      if (await rename.count()) {
+        await rename.focus(); await rename.press('Enter'); await page.waitForTimeout(300);
+        const dlg = page.locator('[role="dialog"]');
+        const inside = await page.evaluate(() => !!document.activeElement?.closest?.('[role="dialog"]'));
+        step('the rename dialog is a dialog and takes focus', (await dlg.count()) === 1 && inside);
+        await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+        const back = await page.evaluate(() => document.activeElement?.classList?.contains('lx'));
+        step('Escape closes the dialog and focus returns to the ✎ that opened it', (await dlg.count()) === 0 && !!back);
+      }
+      await pinK.click({ button: 'right', force: true }); await page.waitForTimeout(300);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      step("Escape closes the pin's menu", (await page.locator('.ctxmenu').count()) === 0);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      await page.locator('.atlas .top').click({ position: { x: 5, y: 5 } }).catch(() => {});
+      let found = false;
+      for (let i = 0; i < 60 && !found; i++) { await page.keyboard.press('Tab'); found = await page.evaluate(() => document.activeElement?.classList?.contains('pin')); }
+      step('a pin is reachable by Tab', found);
+      if (found) { await page.keyboard.press('Enter'); await page.waitForTimeout(400); step('Enter on a focused pin opens it in the editor', (await page.locator('.insp input[data-fld="title"]').count()) === 1); }
+    }
+  }
   // a world that can't be opened: the dashboard says so; a space that is gone: a way out and no editor armed
   {
     await page.goto(`${BASE}/w/999999`, { timeout: 60000 });

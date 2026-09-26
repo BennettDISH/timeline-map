@@ -6,6 +6,7 @@ import imageServiceBase64 from '../services/imageServiceBase64'
 import imageFolderService from '../services/imageFolderService'
 import { errText } from '../services/http'
 import { usesOf, describeUse, ACCEPT } from '../utils/images'
+import Modal from '../components/Modal'
 import '../styles/shell.scss'
 import '../styles/archive.scss'
 
@@ -124,8 +125,9 @@ function ImageManager() {
   useEffect(() => {
     if (folderMenu == null && !moveMenu) return
     const close = () => { setFolderMenu(null); setMoveMenu(false) }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') { setFolderMenu(null); setMoveMenu(false) } }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [folderMenu, moveMenu])
 
   // ---- upload: button, drag-anywhere, paste ----
@@ -287,7 +289,7 @@ function ImageManager() {
           <p>{worldsErr}</p>
           <div className="mrow"><button className="sbtn primary" onClick={() => setTick((t) => t + 1)}>⟳ Try again</button><Link to="/dashboard" className="sbtn ghost">To your worlds</Link></div>
         </div>
-        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
+        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'}>{flash.text}</div>}
       </div>
     )
   }
@@ -314,7 +316,7 @@ function ImageManager() {
           <p>Art lives inside a world. Found one first, then fill its archive with maps and portraits.</p>
           <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
         </div>
-        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
+        {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'}>{flash.text}</div>}
       </div>
     )
   }
@@ -327,6 +329,7 @@ function ImageManager() {
       <TopBar crumb="The Archive" />
 
       <div className="archhead">
+        <h1 className="sr-only">{world ? `The Archive of ${world.name}` : 'The Archive'}</h1>
         <div className="atitle">
           <span className="kicker">The Archive of</span>
           {world && (
@@ -383,7 +386,7 @@ function ImageManager() {
           <button className="frow newf" onClick={() => setFolderForm({ parentId: null })}>＋ New folder</button>
         </aside>
 
-        <section className="agallery">
+        <section className="agallery" role="main">
           {loading ? (
             <div className="tilegrid">
               {Array.from({ length: 10 }).map((_, i) => <div key={i} className="skel tile-skel" />)}
@@ -520,7 +523,7 @@ function ImageManager() {
         />
       )}
       {confirmFolderDel && (
-        <Modal title={`Delete “${confirmFolderDel.name}”?`} onClose={() => setConfirmFolderDel(null)}>
+        <Modal frame="smodal" title={`Delete “${confirmFolderDel.name}”?`} onClose={() => setConfirmFolderDel(null)}>
           <p className="mnote">The folder goes; its {plural(confirmFolderDel.imageCount ?? 0, 'image')} stay in the archive and return to Unsorted.</p>
           {(confirmFolderDel.children?.length > 0) && <p className="mwarn">Its {plural(confirmFolderDel.children.length, 'subfolder')} go with it — every image inside returns to Unsorted.</p>}
           <div className="mrow">
@@ -530,7 +533,7 @@ function ImageManager() {
         </Modal>
       )}
 
-      {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
+      {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'}>{flash.text}</div>}
     </div>
   )
 }
@@ -552,7 +555,7 @@ function FolderRow({ folder, depth, sel, onSel, collapsed, onToggle, menu, onMen
         <span className="fname">{folder.name}</span>
         <span className="fcount">{folder.imageCount ?? 0}</span>
         <span className="fmenu" onPointerDown={(e) => e.stopPropagation()}>
-          <button className="fdots" aria-label={`Options for ${folder.name}`} title="Folder options" onClick={(e) => { e.stopPropagation(); onMenu(menu === folder.id ? null : folder.id) }}>⋯</button>
+          <button className="fdots" aria-label={`Options for ${folder.name}`} title="Folder options" aria-haspopup="menu" aria-expanded={menu === folder.id} onClick={(e) => { e.stopPropagation(); onMenu(menu === folder.id ? null : folder.id) }}>⋯</button>
           {menu === folder.id && (
             <div className="menupop" onClick={(e) => e.stopPropagation()}>
               <button onClick={() => { onMenu(null); onRename(folder) }}>Rename</button>
@@ -571,33 +574,12 @@ function FolderRow({ folder, depth, sel, onSel, collapsed, onToggle, menu, onMen
   )
 }
 
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    const esc = (e) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', esc)
-    return () => document.removeEventListener('keydown', esc)
-  }, [onClose])
-  return (
-    <div className="modal-back"
-      onPointerDown={(e) => { e.currentTarget.dataset.down = e.target === e.currentTarget ? '1' : '' }}
-      onClick={(e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.down === '1') onClose() }}>
-      <div className="smodal" onClick={(e) => e.stopPropagation()}>
-        <div className="mhead">
-          <h3>{title}</h3>
-          <button className="mclose" onClick={onClose} aria-label="Close">✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function FolderModal({ form, parentName, busy, onClose, onSubmit }) {
   const [name, setName] = useState(form.rename ? form.rename.name : '')
   const title = form.rename ? 'Rename folder' : parentName ? `New folder in “${parentName}”` : 'New folder'
   const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(name.trim()) }
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal frame="smodal" title={title} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
           <label>Name</label>
@@ -619,7 +601,7 @@ function ConfirmDelete({ ids, images, busy, onClose, onConfirm }) {
   const periods = targets.reduce((a, i) => a + (i.usage?.backdrops || 0), 0)
   const anchors = targets.reduce((a, i) => a + (i.usage?.anchor || 0), 0)
   return (
-    <Modal title={ids.length === 1 ? 'Delete this image?' : `Delete ${ids.length} images?`} onClose={onClose}>
+    <Modal frame="smodal" title={ids.length === 1 ? 'Delete this image?' : `Delete ${ids.length} images?`} onClose={onClose}>
       {used.length > 0 && (
         <p className="mwarn">
           {ids.length === 1 ? `This image is ${describeUse(targets[0]).replace(/^In use — /, '')}.` : `${used.length === 1 ? 'One of them is' : `${used.length} of them are`} placed in your world.`}
@@ -696,6 +678,7 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
             <div style={{ display: 'flex', gap: 6 }}>
               <select
                 className="sselect"
+                aria-label="Filed under"
                 value={pick}
                 onChange={(e) => setPick(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && pick !== cur) { e.preventDefault(); onMove(pick === '' ? null : Number(pick)) } }}

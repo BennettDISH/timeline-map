@@ -6,6 +6,7 @@ import imageServiceBase64 from '../services/imageServiceBase64'
 import { errText, refused } from '../services/http'
 import MapPlane from '../components/MapPlane'
 import { Compass } from '../components/TopBar'
+import Modal from '../components/Modal'
 import EraScrub from '../components/EraScrub'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
@@ -37,6 +38,8 @@ function periodBlur(e, cur, id, { hint, bump, send, required = false }) {
   if (Object.keys(patch).length) Promise.resolve(send(patch)).then((ok) => { if (ok === false) bump() })
 }
 const REVERSED = '⚠ Ends before it starts — not saved until the bounds are in order.'
+// Enter or Space on a link-like control acts like a click
+const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 // pins sharing a spot fan out in a small ring (screen pixels, like the party's footprints) so
 // each stays visible and clickable; the first keeps the exact spot
 const stackOffsets = (pins) => {
@@ -68,7 +71,9 @@ function AtlasWorkspace() {
   const navigate = useNavigate()
 
   const [world, setWorld] = useState(null)
-  const [worldList, setWorldList] = useState(null) // null until the switcher is first opened
+  const [worldList, setWorldList] = useState(null)
+  const [pendingWorld, setPendingWorld] = useState(null) // a world browsed to with the arrow keys, not yet chosen
+  const viaKeys = useRef(false) // null until the switcher is first opened
   const [tree, setTree] = useState([])
   const [data, setData] = useState(null) // { map, placements, links, breadcrumb }
   const [loadState, setLoadState] = useState('loading') // loading | ok | err | missing (the space is gone)
@@ -84,6 +89,7 @@ function AtlasWorkspace() {
   const [save, setSave] = useState('idle') // idle | saving | saved | err
   const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
+  const [flashHold, setFlashHold] = useState(false) // the toast is hovered or focused: its timer waits
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop'|'backdrop-timed'|'backdrop-row', nodeId?, rowId?, hasCurrent }
   const [now, setNow] = useState(0) // the DM's viewing moment (local lens — NOT what players see)
   const [tlEdit, setTlEdit] = useState(false)
@@ -218,9 +224,10 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     if (!flash) return
+    if (flashHold) return // hovered or focused: it stays until the DM leaves it
     const t = setTimeout(() => setFlash(null), (flash.undoId || flash.undo) ? 9000 : 4000)
     return () => clearTimeout(t)
-  }, [flash])
+  }, [flash, flashHold])
 
   const doUndo = async (undoId) => {
     setFlash(null)
@@ -433,8 +440,9 @@ function AtlasWorkspace() {
   useEffect(() => {
     if (!tlEdit) return
     const close = (e) => { if (!e.target?.closest?.('.tlcfg, .tgear')) setTlEdit(false) }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') setTlEdit(false) }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [tlEdit])
   // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
   // is not typing in takes the new text, so a bare click in and out never writes old text back
@@ -1084,8 +1092,9 @@ function AtlasWorkspace() {
   useEffect(() => {
     if (!sharePop) return
     const close = (e) => { if (shareRef.current && !shareRef.current.contains(e.target)) setSharePop(false) }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') setSharePop(false) }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [sharePop])
 
   const setLifespan = (placementId, which, v) => {
@@ -1191,7 +1200,14 @@ function AtlasWorkspace() {
       const typing = /input|textarea|select/i.test(e.target.tagName)
       if (e.key === '/' && !typing) {
         e.preventDefault(); searchRef.current?.querySelector('input')?.focus()
-      } else if (e.key === 'Escape') { setPlacing(null); setCtx(null); closeSearch() }
+      } else if (e.key === 'Escape') {
+        // the nearest open thing closes first — a tool or a popover; with nothing open, the selection (and the reader)
+        const open = placing || ctx || searchOpen || mapMenu || help || sharePop || tlEdit || drawing
+        setPlacing(null); setCtx(null); closeSearch(); setMapMenu(false); setHelp(false); setSharePop(false); setTlEdit(false)
+        if (!open && !typing) { setSelId(null); setStray(null) }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !typing && flash?.undoId) {
+        e.preventDefault(); doUndo(flash.undoId) // the toast's ↩ Undo, from the keyboard
+      }
       else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit' && !drawing) {
         // keyboard twin of "+ Add node"
         if (isList) dropNode(50, 50)
@@ -1207,7 +1223,7 @@ function AtlasWorkspace() {
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
-  }, [mode, placing, isList, mapId, drawing]) // eslint-disable-line
+  }, [mode, placing, isList, mapId, drawing, searchOpen, mapMenu, help, sharePop, tlEdit, flash]) // eslint-disable-line
   useEffect(() => {
     if (!drawing) return
     const key = (e) => {
@@ -1247,8 +1263,9 @@ function AtlasWorkspace() {
   useEffect(() => {
     if (!ctx) return
     const close = () => setCtx(null)
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') setCtx(null) }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [ctx])
 
   useEffect(() => {
@@ -1257,8 +1274,9 @@ function AtlasWorkspace() {
       if (mapMenuRef.current?.contains(e.target) || helpRef.current?.contains(e.target)) return
       setMapMenu(false); setHelp(false)
     }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') { setMapMenu(false); setHelp(false) } }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [mapMenu, help])
 
   // ---- category legend / filter -------------------------------------------------------
@@ -1383,23 +1401,29 @@ function AtlasWorkspace() {
 
   return (
     <div className={`atlas${labelsOn ? ' labelson' : ''}${drawing ? ' drawing' : ''}${placing ? ' placing' : ''}`}>
-      <div className="top">
+      <div className="top" role="banner">
+        <h1 className="sr-only">{map?.title ? `${map.title} — ${world?.name}` : world?.name}</h1>
         {mode === 'player'
           ? <span className="brand"><Compass size={18} className="brandrose" /> {world?.name}</span>
           : <span className="brand"><Compass size={18} className="brandrose" />{' '}
               <select
                 className="brandsel"
-                value={String(worldId)}
+                value={pendingWorld ?? String(worldId)}
                 title="Switch world"
+                aria-label="Switch world"
                 onFocus={() => {
                   if (worldList) return
                   worldService.getWorlds().then((r) => setWorldList(r.worlds || [])).catch(() => {})
                 }}
+                onKeyDown={(e) => { if (e.key.startsWith('Arrow')) viaKeys.current = true; else if (e.key === 'Enter' && pendingWorld != null && pendingWorld !== String(worldId)) { const w = pendingWorld; setPendingWorld(null); navigate(`/w/${w}`) } }}
                 onChange={(e) => {
                   const id = e.target.value
+                  // arrow keys browse the list; only a mouse pick, Enter or leaving the select moves world
+                  if (viaKeys.current) { setPendingWorld(id); return }
                   if (id === String(worldId)) return
                   navigate(`/w/${id}`)
                 }}
+                onBlur={() => { viaKeys.current = false; if (pendingWorld != null && pendingWorld !== String(worldId)) { const w = pendingWorld; setPendingWorld(null); navigate(`/w/${w}`) } else setPendingWorld(null) }}
               >
                 {(worldList || [{ id: worldId, name: world?.name || '…' }]).map((w) => (
                   <option key={w.id} value={String(w.id)}>{w.name}</option>
@@ -1411,8 +1435,8 @@ function AtlasWorkspace() {
             <React.Fragment key={b.mapId}>
               {i > 0 && <span className="sep">▸</span>}
               {i === arr.length - 1
-                ? <a className="here" title="Refresh this map" onClick={() => refreshMap()}>{b.title}</a>
-                : <a onClick={() => navigate(`/w/${worldId}/m/${b.mapId}`)}>{b.title}</a>}
+                ? <a className="here" role="button" tabIndex={0} title="Refresh this map" onClick={() => refreshMap()} onKeyDown={keyAct(() => refreshMap())}>{b.title}</a>
+                : <a role="button" tabIndex={0} onClick={() => navigate(`/w/${worldId}/m/${b.mapId}`)} onKeyDown={keyAct(() => navigate(`/w/${worldId}/m/${b.mapId}`))}>{b.title}</a>}
             </React.Fragment>
           ))}
         </div>
@@ -1453,13 +1477,13 @@ function AtlasWorkspace() {
         )}
         {mode === 'edit' && saveChip && <span className={`savechip ${saveChip.c}`}>{saveChip.t}</span>}
         <div className="mode" title="Edit builds the world · View reads it with DM eyes · Player shows exactly what the share link shows">
-          <button className={mode === 'edit' ? 'on' : ''} onClick={() => switchMode('edit')}>✏ Edit</button>
-          <button className={mode === 'view' ? 'on' : ''} onClick={() => switchMode('view')}>👁 View</button>
-          <button className={mode === 'player' ? 'on' : ''} onClick={() => switchMode('player')}>🎭 Player</button>
+          <button className={mode === 'edit' ? 'on' : ''} aria-pressed={mode === 'edit'} onClick={() => switchMode('edit')}>✏ Edit</button>
+          <button className={mode === 'view' ? 'on' : ''} aria-pressed={mode === 'view'} onClick={() => switchMode('view')}>👁 View</button>
+          <button className={mode === 'player' ? 'on' : ''} aria-pressed={mode === 'player'} onClick={() => switchMode('player')}>🎭 Player</button>
         </div>
         {mode === 'edit' && ( // invite*, not share*: ad-blocker social filters hide share-named elements (1224c84)
         <div ref={shareRef} className="invitewrap">
-          <button className={`invitebtn ${world?.shareToken ? 'live' : ''}`} onClick={() => setSharePop((v) => !v)}>
+          <button className={`invitebtn ${world?.shareToken ? 'live' : ''}`} aria-expanded={sharePop} onClick={() => setSharePop((v) => !v)}>
             🔗 Share
           </button>
           {sharePop && (
@@ -1504,21 +1528,21 @@ function AtlasWorkspace() {
             : mode === 'view' ? `${railOpen ? `${railW}px ` : ''}1fr${readerOpen ? ` ${readerCol}` : ''}`
               : `${railOpen ? `${railW}px ` : ''}1fr${inspOpen ? ` ${inspW}px` : ''}${forgeOn && forgeOpen ? ` ${forgeW}px` : ''}` }}>
         {mode !== 'player' && railOpen && (
-          <div className="rail">
+          <div className="rail" role="navigation" aria-label="Maps">
             <h4>Maps</h4>
             <MapTree key={worldId} tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))} />
           </div>
         )}
 
-        <div className="stagecol">
+        <div className="stagecol" role="main">
         <div className="stage">
           {mode !== 'player' && (
-            <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'}
+            <button className="tool railtoggle" title={railOpen ? 'Hide the map tree' : 'Show the map tree'} aria-label={railOpen ? 'Hide the map tree' : 'Show the map tree'} aria-expanded={railOpen}
               onClick={toggleRail}>{railOpen ? '◂' : '☰'}</button>
           )}
           {mode === 'edit' && (
-            <button className="tool insptoggle" title={inspOpen ? 'Hide the editor' : 'Show the editor'}
+            <button className="tool insptoggle" title={inspOpen ? 'Hide the editor' : 'Show the editor'} aria-label={inspOpen ? 'Hide the editor' : 'Show the editor'} aria-expanded={inspOpen}
               onClick={toggleInsp}>{inspOpen ? '▸' : '✎'}</button>
           )}
           {loadState === 'err' && (
@@ -1561,7 +1585,8 @@ function AtlasWorkspace() {
                 inert={!!placing}
                 drawing={drawing}
                 onDraw={{ add: (pts) => setDrawing((d) => d && ({ ...d, pts: [...d.pts, ...pts] })), finish: finishOutline }}
-                onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = data?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined} />
+                onDragSelected={mode === 'edit' && !placing ? (e, id) => { const p = data?.placements.find((pp) => pp.id === id); if (p) onPinDown(e, p) } : undefined}
+                onSelect={(it) => setSelId(it.id)} />
               {printsOn && tl?.enabled && (mode === 'player' || !hiddenCats.has('party')) && (
                 <PartyTrail placements={data?.placements} t={mode === 'player' ? (previewT ?? canon) : now} eras={world?.eras} unit={tl?.unit}
                   onStep={mode === 'player' ? undefined : (st) => setNow(st)} />
@@ -1573,6 +1598,8 @@ function AtlasWorkspace() {
                 <div key={p.id}
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.visibility === 'player' ? 'pmark' : ''} ${selId === p.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''} ${world?.spotlightNodeId === p.node.id ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(off.get(p.id) ? { '--ox': `${off.get(p.id)[0]}px`, '--oy': `${off.get(p.id)[1]}px` } : {}), ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? now, world?.eras)?.idx ?? 0, latestSession(world?.eras)) } : {}) }}
+                  role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(p.id) } }}
                   onPointerDown={(e) => onPinDown(e, p)}
                   onContextMenu={mode === 'edit' ? (e) => onPinContext(e, p) : undefined}
                   onDoubleClick={(e) => { e.stopPropagation(); openInterior(p.node) }}>
@@ -1589,7 +1616,7 @@ function AtlasWorkspace() {
                     </>
                   )}
                   {(p.node.visibility === 'dm' || p.visibility === 'dm') && <span className="lock" title={p.node.visibility === 'dm' ? 'DM only' : 'Hidden on this map — the node itself is shared'}>🔒</span>}
-                  {p.node.hasInterior && <span className="open">◎</span>}
+                  {p.node.hasInterior && <span className="open" aria-hidden="true">◎</span>}
                   {mode !== 'player' && p.node.stance && <span className={`stb ${p.node.stance}`} title={`Stands as ${p.node.stance} to the party (your eyes only)`} />}
                   {p.node.category === 'party' && tl?.enabled && (() => { const so = sessionOf(p.start ?? now, world?.eras); return so ? <span className="stag" title={sessionLabel(so, tl.unit)}>{stepTag(so)}</span> : null })()}
                 </div>
@@ -1604,6 +1631,7 @@ function AtlasWorkspace() {
               {(data?.placements || []).filter(visible).map((p) => (
                 <div key={p.id}
                   className={`lsrow ${selId === p.id ? 'on' : ''} ${tl?.enabled && !present(p) ? 'ghost' : ''} ${(p.visibility === 'dm' || p.node.visibility === 'dm') ? 'secret' : ''}`}
+                  role="button" tabIndex={0} aria-label={p.node.title} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(p.id) } }}
                   onClick={() => setSelId(p.id)}
                   onDoubleClick={() => openInterior(p.node)}>
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
@@ -1613,7 +1641,7 @@ function AtlasWorkspace() {
                     </div>
                     {p.node.body && <div className="lsdesc">{p.node.body}</div>}
                   </div>
-                  {p.node.hasInterior && <span className="open" title="Has an interior">◎</span>}
+                  {p.node.hasInterior && <span className="open" title="Has an interior" aria-hidden="true">◎</span>}
                 </div>
               ))}
               {data && data.placements.length === 0 && (
@@ -1644,7 +1672,7 @@ function AtlasWorkspace() {
                   onClick={() => (drawing ? setDrawing(null) : startOutline(null))}>◌ Outline</button>
               )}
               <div className="mapmenu" ref={mapMenuRef}>
-                <button className={`tool ${mapMenu ? 'on' : ''}`} title="This space: backdrop art, name, map or list"
+                <button className={`tool ${mapMenu ? 'on' : ''}`} title="This space: backdrop art, name, map or list" aria-haspopup="menu" aria-expanded={mapMenu}
                   onClick={() => setMapMenu((v) => !v)}>Map ▾</button>
                 {mapMenu && (
                   <div className="apop">
@@ -1670,15 +1698,15 @@ function AtlasWorkspace() {
                     )}
                     {!isList && <div className="apop-sep" title="These are how YOU view every map, kept in this browser">View — every map</div>}
                     {!isList && (
-                      <button onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
+                      <button role="menuitemcheckbox" aria-checked={gridOn} onClick={() => { setMapMenu(false); toggleGrid() }}>▦ Grid {gridOn ? '✓' : ''}</button>
                     )}
                     {!isList && (
                       <button title="Keep every pin's name out instead of showing it on hover"
-                        onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
+                        role="menuitemcheckbox" aria-checked={labelsOn} onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
                     )}
                     {!isList && tl?.enabled && trail.length > 0 && (
                       <button title="The party's ghost-print trail on this map"
-                        onClick={() => { setMapMenu(false); togglePrints() }}>👣 Footprints {printsOn ? '✓' : ''}</button>
+                        role="menuitemcheckbox" aria-checked={printsOn} onClick={() => { setMapMenu(false); togglePrints() }}>👣 Footprints {printsOn ? '✓' : ''}</button>
                     )}
                     {tl?.enabled && (
                       <button title="The stretch of history this place's story spans — the scrubber zooms to it here"
@@ -1734,11 +1762,11 @@ function AtlasWorkspace() {
               <span className="dhtext">◌ Outlining <b>{drawing.placementId ? (data?.placements.find((p) => p.id === drawing.placementId)?.node.title || 'this place') : 'a new place'}</b>
                 {' — click corners or drag to trace · '}<b>Enter</b>{' or double-click closes · Backspace or right-click undoes · Esc cancels · hold Space to pan'}</span>
               <span className="kindsel" title="Button: a house or landmark — grows on hover. Area: a district — a faint wash.">
-                <button type="button" className={drawing.kind === 'button' ? 'on' : ''} onClick={() => setDrawKind('button')}>Button</button>
-                <button type="button" className={drawing.kind === 'area' ? 'on' : ''} onClick={() => setDrawKind('area')}>Area</button>
+                <button type="button" className={drawing.kind === 'button' ? 'on' : ''} aria-pressed={drawing.kind === 'button'} onClick={() => setDrawKind('button')}>Button</button>
+                <button type="button" className={drawing.kind === 'area' ? 'on' : ''} aria-pressed={drawing.kind === 'area'} onClick={() => setDrawKind('area')}>Area</button>
               </span>
               <button className="btn" disabled={drawing.pts.length < 3} onClick={finishOutline}>✓ Done{drawing.pts.length ? ` (${drawing.pts.length})` : ''}</button>
-              <button className="btn" onClick={() => setDrawing(null)}>✕</button>
+              <button className="btn" aria-label="Cancel the outline" onClick={() => setDrawing(null)}>✕</button>
             </div>
           )}
           {mode === 'edit' && placing && (
@@ -1750,7 +1778,7 @@ function AtlasWorkspace() {
           )}
 
           <div className="helpwrap" ref={helpRef}>
-            <button className="tool round" title="How to drive the map" onClick={() => setHelp((v) => !v)}>?</button>
+            <button className="tool round" title="How to drive the map" aria-label="How to drive the map" aria-expanded={help} onClick={() => setHelp((v) => !v)}>?</button>
             {help && (
               <div className="apop helppop">
                 <div><b>Scroll / pinch</b> zoom · <b>drag empty space</b> pan · <b>double-click</b> zoom in</div>
@@ -1828,7 +1856,7 @@ function AtlasWorkspace() {
                       }}>{quiet(er) ? null : <em>{label(er)}</em>}</span>
                   ))
                 })()}
-                <input type="range" min={dispMin} max={dispMax}
+                <input type="range" aria-label="Viewing moment" min={dispMin} max={dispMax}
                   value={Math.min(Math.max(now, dispMin), dispMax)}
                   onChange={(e) => setNow(Number(e.target.value))} />
                 {dispMax > dispMin && (data?.placements || [])
@@ -1869,8 +1897,9 @@ function AtlasWorkspace() {
               </div>
               <button className={`tgear${ghostsOn ? '' : ' off'}`}
                 title={ghostsOn ? 'Things not present at this moment are shown with a dashed purple edge — click to hide them' : 'Things not present at this moment are hidden — click to show them'}
+                aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
                 onClick={() => setGhostsOn((v) => { localStorage.setItem('atlas_ghosts', v ? 'off' : 'on'); return !v })}>⏳</button>
-              <button className="tgear" title="Timeline range, unit & eras" onClick={() => setTlEdit((v) => !v)}>⚙</button>
+              <button className="tgear" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
             </div>
           )}
           {mode !== 'player' && tl?.enabled && tlEdit && (
@@ -1923,7 +1952,7 @@ function AtlasWorkspace() {
           {readerOpen && sel && present(sel) && (
             <div className="reader">
               {readerGrip}
-              <button className="rclose" title="Close" onClick={() => setSelId(null)}>✕</button>
+              <button className="rclose" title="Close" aria-label="Close" onClick={() => setSelId(null)}>✕</button>
               {sel.node.imageUrl && <div className="rhero"><img src={sel.node.imageUrl} alt="" /></div>}
               <div className="rinner">
                 <div className="rhead">
@@ -1951,8 +1980,8 @@ function AtlasWorkspace() {
                   if (!prev && !next) return null
                   return (
                     <div className="rtrail">
-                      {prev && <a onClick={() => goToMoment(prev.start ?? t, prev.mapId, prev.id)}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                      {next && <a onClick={() => goToMoment(next.start, next.mapId, next.id)}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                      {prev && <a role="button" tabIndex={0} onClick={() => goToMoment(prev.start ?? t, prev.mapId, prev.id)} onKeyDown={keyAct(() => goToMoment(prev.start ?? t, prev.mapId, prev.id))}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                      {next && <a role="button" tabIndex={0} onClick={() => goToMoment(next.start, next.mapId, next.id)} onKeyDown={keyAct(() => goToMoment(next.start, next.mapId, next.id))}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                     </div>
                   )
                 })()}
@@ -1976,7 +2005,7 @@ function AtlasWorkspace() {
           )}
 
         {mode === 'edit' && inspOpen && (
-        <div className="insp" ref={inspEl}>
+        <div className="insp" ref={inspEl} role="complementary" aria-label="Editor">
           {!sel && !stray ? (loadState !== 'ok' ? (
             <div className="spacepanel">
               <div className="isect">This space</div>
@@ -1986,7 +2015,7 @@ function AtlasWorkspace() {
             <div className="spacepanel">
               <div className="isect">This space</div>
               <h3 className="sptitle">{map?.title}
-                <button className="lx" title="Rename this space" onClick={() => setRenaming(map?.title || '')}>✎</button>
+                <button className="lx" title="Rename this space" aria-label="Rename this space" onClick={() => setRenaming(map?.title || '')}>✎</button>
               </h3>
               {(data?.breadcrumb?.length || 0) > 1 && (
                 <div className="muted spup">Inside “{data.breadcrumb[data.breadcrumb.length - 2].title}”</div>
@@ -2168,10 +2197,7 @@ function AtlasWorkspace() {
           onClose={() => setNodePicker(null)} />
       )}
       {confirmInterior && (
-        <div className="modal-back" onClick={() => setConfirmInterior(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h4>Remove the interior of “{confirmInterior.node.title}”?</h4>
-              <button onClick={() => setConfirmInterior(null)}>✕</button></div>
+        <Modal title={`Remove the interior of “${confirmInterior.node.title}”?`} onClose={() => setConfirmInterior(null)}>
             {confirmInterior.impact ? (
               <div className="impact">
                 <p>The space inside is deleted — its map notes, backdrops and ambience go with it.</p>
@@ -2190,15 +2216,11 @@ function AtlasWorkspace() {
               <button className="tool" onClick={() => setConfirmInterior(null)}>Keep it</button>
               <button className="tool danger" onClick={doRemoveInterior}>Remove interior</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {confirmDel && (
-        <div className="modal-back" onClick={() => setConfirmDel(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h4>Delete “{confirmDel.node.title}”?</h4>
-              <button onClick={() => setConfirmDel(null)}>✕</button></div>
+        <Modal title={`Delete “${confirmDel.node.title}”?`} onClose={() => setConfirmDel(null)}>
             <DeleteImpact impact={confirmDel.impact} spotlit={world?.spotlightNodeId === confirmDel.node.id}
               party={confirmDel.node.category === 'party' ? (() => {
                 const steps = trail.filter((st) => st.nodeId === confirmDel.node.id)
@@ -2209,8 +2231,7 @@ function AtlasWorkspace() {
               <button className="tool" onClick={() => setConfirmDel(null)}>Keep it</button>
               <button className="tool danger" onClick={doDeleteNode}>Delete everywhere</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {ctx && ctx.placementId && (() => {
@@ -2239,9 +2260,7 @@ function AtlasWorkspace() {
       )}
 
       {bdsOpen && map && (
-        <div className="modal-back" onClick={() => setBdsOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h4>Backdrops over time</h4><button onClick={() => setBdsOpen(false)}>✕</button></div>
+        <Modal title="Backdrops over time" onClose={() => setBdsOpen(false)}>
             <p className="muted esmall">History can redraw this map. The newest period covering the viewed moment wins; outside every period, the base art shows.</p>
             <div className="bdrow base">
               {map.backdropUrl ? <img className="bdthumb" src={map.backdropUrl} alt="" /> : <span className="bdthumb none">—</span>}
@@ -2260,7 +2279,7 @@ function AtlasWorkspace() {
                 <span className="edash">–</span>
                 <input key={`e${b.end ?? ''}:${bdVer}`} className="enum" type="number" step={1} defaultValue={b.end ?? ''} placeholder="∞"
                   onBlur={(ev) => periodBlur(ev, b, b.id, { hint: setBdHint, bump: () => setBdVer((v) => v + 1), send: (d) => patchBackdrop(b.id, d) })} />
-                <button className="ex" title="Remove this period's art" onClick={() => deleteBackdrop(b.id)}>✕</button>
+                <button className="ex" title="Remove this period's art" aria-label="Remove this period's art" onClick={() => deleteBackdrop(b.id)}>✕</button>
               </div>
               {bdHint === b.id && <div className="muted warn">{REVERSED}</div>}
               </React.Fragment>
@@ -2268,20 +2287,17 @@ function AtlasWorkspace() {
             <button className="tool" onClick={() => setPicker({ kind: 'backdrop-timed', hasCurrent: false })}>
               ＋ Add art for a period (starts at {momentLabel(Math.round(now), world?.eras, tl?.unit)})
             </button>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {focusEdit != null && (
-        <div className="modal-back" onClick={() => setFocusEdit(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h4>Focus period</h4><button onClick={() => setFocusEdit(null)}>✕</button></div>
+        <Modal title="Focus period" onClose={() => setFocusEdit(null)}>
             <p className="muted esmall">Still the one world clock — but inside this space, the scrubber's track zooms to the {tl?.unit || 'moments'} its story spans. ⤢ on the bar shows the full timeline again. Blank = the world's full range.</p>
             <div className="span" style={{ marginBottom: 12 }}>
-              <input type="number" step={1} placeholder={String(tl?.min ?? '')} value={focusEdit.start}
+              <input type="number" step={1} aria-label="Focus period from" placeholder={String(tl?.min ?? '')} value={focusEdit.start}
                 onChange={(e) => setFocusEdit((f) => ({ ...f, start: e.target.value }))} />
               <span>→</span>
-              <input type="number" step={1} placeholder={String(tl?.max ?? '')} value={focusEdit.end}
+              <input type="number" step={1} aria-label="Focus period to" placeholder={String(tl?.max ?? '')} value={focusEdit.end}
                 onChange={(e) => setFocusEdit((f) => ({ ...f, end: e.target.value }))} />
             </div>
             <div className="mrow">
@@ -2289,26 +2305,23 @@ function AtlasWorkspace() {
               <button className="tool" onClick={() => setFocusEdit(null)}>Cancel</button>
               <button className="tool on" onClick={saveFocus}>Save</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {renaming != null && (
-        <div className="modal-back" onClick={() => setRenaming(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h4>Rename this space</h4><button onClick={() => setRenaming(null)}>✕</button></div>
+        <Modal title="Rename this space" onClose={() => setRenaming(null)}>
             <input className="nsearch" autoFocus maxLength={255} value={renaming} onChange={(e) => setRenaming(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') renameMap() }} />
             <div className="mrow">
               <button className="tool" onClick={() => setRenaming(null)}>Cancel</button>
               <button className="tool on" disabled={!renaming.trim()} onClick={renameMap}>Rename</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {flash && (
-        <div className={`aflash ${flash.kind}`}>
+        <div className={`aflash ${flash.kind}`} role={flash.kind === 'err' ? 'alert' : 'status'} aria-live={flash.kind === 'err' ? 'assertive' : 'polite'}
+          onPointerEnter={() => setFlashHold(true)} onPointerLeave={() => setFlashHold(false)} onFocus={() => setFlashHold(true)} onBlur={() => setFlashHold(false)}>
           {flash.text}
           {(flash.undoId || flash.undo) && <button className="aundo" onClick={() => { if (flash.undo) { const u = flash.undo; setFlash(null); u() } else doUndo(flash.undoId) }}>↩ Undo</button>}
         </div>
@@ -2362,6 +2375,8 @@ function MapTree({ tree, rootId, mapId, onGo, worldId }) {
     return (
       <React.Fragment key={m.id}>
         <div className={`trow ${String(m.id) === String(mapId) ? 'on' : ''}`} style={{ paddingLeft: 6 + depth * 14 }}
+          role="button" tabIndex={0} aria-current={String(m.id) === String(mapId) ? 'page' : undefined}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onGo(m.id) } }}
           onClick={() => onGo(m.id)} title={m.title}>
           {depth > 0 && <span className="tguide" style={{ left: 6 + (depth - 1) * 14 + 5 }} />}
           {has
@@ -2459,8 +2474,9 @@ function TimelineConfig({ tl, eras, onSave, onDisable, onClose, onEraAdd, onEraP
             onBlur={(ev) => periodBlur(ev, e, e.id, eraOpts(e))} />
           <button className={`etoggle ${e.playerVisible ? 'on' : ''}`}
             title={e.playerVisible ? 'Players can scrub this era — click to hide' : 'Hidden from players — click to reveal'}
+            aria-label={e.playerVisible ? 'Players can scrub this era' : 'Hidden from players'} aria-pressed={!!e.playerVisible}
             onClick={() => onEraPatch(e.id, { player_visible: !e.playerVisible })}>🎭</button>
-          <button className="ex" title="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
+          <button className="ex" title="Delete this era" aria-label="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
         </div>
         {eraHint === e.id && <div className="muted warn">{REVERSED}</div>}
         </React.Fragment>
@@ -2494,6 +2510,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
   const [vbusy, setVbusy] = useState(false)
   const [start, setStart] = useState(p.start ?? '')
   const titleRef = useRef(null)
+  const fid = React.useId() // the fields' labels name them
   // a just-dropped node: its title is focused with 'New node' selected, ready to be typed over
   useEffect(() => { if (autoFocusTitle && titleRef.current) { titleRef.current.focus(); titleRef.current.select(); onTitleFocused?.() } }, []) // eslint-disable-line
   const [factHint, setFactHint] = useState(null) // a period row whose bounds are reversed (held, not saved)
@@ -2526,10 +2543,10 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       <div className="isect">{n.category === 'party' ? 'This footstep' : 'Time'}</div>
       <div className="fld"><label>{n.category === 'party' ? 'Footstep — when the party stands here' : "Lifespan — when it's present"}</label>
         <div className="span">
-          <input data-fld="start" type="number" step={1} placeholder="from" value={start}
+          <input data-fld="start" type="number" step={1} aria-label="Lifespan from" placeholder="from" value={start}
             onChange={(e) => { const v = e.target.value; setStart(v); const n = wholeOr(v); if (n !== undefined) onLifespan('start', n) }} />
           <span>→</span>
-          <input data-fld="end" type="number" step={1} placeholder="to" value={end}
+          <input data-fld="end" type="number" step={1} aria-label="Lifespan to" placeholder="to" value={end}
             onChange={(e) => { const v = e.target.value; setEnd(v); const n = wholeOr(v); if (n !== undefined) onLifespan('end', n) }} />
         </div>
         {wholeOr(start) != null && wholeOr(end) != null && wholeOr(start) > wholeOr(end)
@@ -2543,8 +2560,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
   return (
     <>
       {stray && <div className="muted esmall strayhint">○ Not on any map — edit it here, place it on this map, or delete it.</div>}
-      <div className="fld"><label>Title</label>
-        <input data-fld="title" ref={titleRef} maxLength={255} value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
+      <div className="fld"><label htmlFor={`${fid}-title`}>Title</label>
+        <input id={`${fid}-title`} data-fld="title" ref={titleRef} maxLength={255} value={title} onChange={(e) => { setTitle(e.target.value); onSave(n.id, { title: e.target.value }) }} />
       </div>
       {n.visibility === 'player' && (
         <div className="markerbar">
@@ -2559,6 +2576,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       <div className="catrow">
         {Object.entries(CATS).filter(([k]) => k !== 'party' || n.category === 'party' || !partyExists).map(([k, v]) => (
           <button key={k} className={`cdot ${n.category === k ? 'on' : ''}`} title={k === 'party' ? 'The party — one per world' : v.label}
+            aria-label={k === 'party' ? 'The party' : v.label} aria-pressed={n.category === k}
             style={{ background: v.c }} onClick={() => onCat(k)}>{v.i}</button>
         ))}
         <span className="catname">{cat(n.category).label}</span>
@@ -2569,7 +2587,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
             <>
               <button className="btn primary grow" onClick={onOpen}>◎ Open interior ▸</button>
               <button className="btn xint" title="Remove the interior — the space inside is deleted; this node stays"
-                onClick={onRemoveInterior} aria-label="Close">✕</button>
+                onClick={onRemoveInterior} aria-label="Remove the interior">✕</button>
             </>
           )
           : n.category === 'party' ? (
@@ -2583,8 +2601,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
             </>
           )}
         <div className="visseg" title="Who can see this node">
-          <button className={n.visibility === 'shared' ? 'on' : ''} title="Everyone can see it" onClick={() => onVis('shared')}>👁 Players</button>
-          <button className={n.visibility === 'dm' ? 'on' : ''} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒 DM</button>
+          <button className={n.visibility === 'shared' ? 'on' : ''} aria-pressed={n.visibility === 'shared'} title="Everyone can see it" onClick={() => onVis('shared')}>👁 Players</button>
+          <button className={n.visibility === 'dm' ? 'on' : ''} aria-pressed={n.visibility === 'dm'} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒 DM</button>
         </div>
       </div>
       {onSpotlight && n.category !== 'party' && <button className={`btn block ${spotlit ? 'lit' : ''}`}
@@ -2596,18 +2614,18 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
       {n.category !== 'party' && (
       <div className="strow" title="How they stand toward the party — your eyes only, never shown to players">
         {[['friend', '🟢 Friend'], ['neutral', '⚪ Neutral'], ['foe', '🔴 Foe']].map(([v, l]) => (
-          <button key={v} className={n.stance === v ? 'on' : ''}
+          <button key={v} className={n.stance === v ? 'on' : ''} aria-pressed={n.stance === v}
             onClick={() => onStance(n.stance === v ? null : v)}>{l}</button>
         ))}
       </div>
       )}
       {n.category === 'party' && timeBlock}
       <div className="isect">Story</div>
-      <div className="fld"><label>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
-        <textarea data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+      <div className="fld"><label htmlFor={`${fid}-body`}>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
+        <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
       </div>
-      <div className="fld dmnotes"><label>🔒 DM notes — players never see this</label>
-        <textarea data-fld="note" rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
+      <div className="fld dmnotes"><label htmlFor={`${fid}-note`}>🔒 DM notes — players never see this</label>
+        <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Secrets, truths, plans — yours alone. The painter never reads this either."
           onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
         {note.trim() && (() => {
           // players read the period text covering CANON when there is one: the secret goes there
@@ -2644,7 +2662,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
                 <span>–</span>
                 <input key={`e${f.end ?? ''}:${factVer}`} type="number" step={1} defaultValue={f.end ?? ''} placeholder="…" title="To"
                   onBlur={(e) => periodBlur(e, f, f.id, { hint: setFactHint, bump: () => setFactVer((v) => v + 1), send: (d) => onFactPatch(f.id, d) })} />
-                <button className="lx" title="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
+                <button className="lx" title="Remove this period's text" aria-label="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
               </div>
               {factHint === f.id && <div className="muted warn">{REVERSED}</div>}
               <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
@@ -2668,8 +2686,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
               <button className="btn danger" onClick={onRemoveImage}>Remove</button>
             </div>
             <div className="chips" style={{ marginTop: 7 }} title="How it draws on the map">
-              <button className={`chip ${n.pin !== 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'chip' })}>Pin: icon + name</button>
-              <button className={`chip ${n.pin === 'image' ? 'on' : ''}`} onClick={() => onSave(n.id, { pin: 'image' })}>Pin: the image</button>
+              <button className={`chip ${n.pin !== 'image' ? 'on' : ''}`} aria-pressed={n.pin !== 'image'} onClick={() => onSave(n.id, { pin: 'chip' })}>Pin: icon + name</button>
+              <button className={`chip ${n.pin === 'image' ? 'on' : ''}`} aria-pressed={n.pin === 'image'} onClick={() => onSave(n.id, { pin: 'image' })}>Pin: the image</button>
             </div>
             {n.pin === 'image' && (
               <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
@@ -2753,8 +2771,8 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
                 <>
                   <button type="button" className="lgo" title={`Open “${l.otherTitle}”`} onClick={() => onJump(l.otherId)}>{dir === 'out' ? '→' : '←'} {l.otherTitle}{l.label ? <span className="llabel"> — {l.label}</span> : null}</button>
                   {dir === 'in' && <span className="lref">refers here</span>}
-                  <button className="lx" title="Label this thread — players read the label" onClick={() => setLabelEdit(l.id)}>✎</button>
-                  <button className="lx" title="Remove this thread" onClick={() => onUnlink(l.id)}>✕</button>
+                  <button className="lx" title="Label this thread — players read the label" aria-label="Label this thread" onClick={() => setLabelEdit(l.id)}>✎</button>
+                  <button className="lx" title="Remove this thread" aria-label="Remove this thread" onClick={() => onUnlink(l.id)}>✕</button>
                 </>
               )}
             </div>
@@ -2781,7 +2799,7 @@ function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, on
             </span>
             <span className="stoggles">
               {[['fill', 'Fill', 'A tint inside the outline (fades with size)'], ['stroke', 'Outline', 'The drawn edge'], ['grow', 'Grow', 'Scales up 5% under the pointer'], ['glow', 'Glow', 'A halo under the pointer'], ['pop', 'Pop', 'The art inside lifts out of the map under the pointer']].map(([k, label, tip]) => (
-                <button key={k} type="button" className={outlineStyle?.[k] ? 'on' : ''} title={tip} onClick={() => onOutlineStyle(k, !outlineStyle?.[k])}>{label}</button>
+                <button key={k} type="button" className={outlineStyle?.[k] ? 'on' : ''} aria-pressed={!!outlineStyle?.[k]} title={tip} onClick={() => onOutlineStyle(k, !outlineStyle?.[k])}>{label}</button>
               ))}
             </span>
           </div>
@@ -2853,9 +2871,7 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
   }
 
   return (
-    <div className="modal-back top" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>{title}</h4><button onClick={onClose} aria-label="Close">✕</button></div>
+    <Modal title={title} onClose={onClose} className="top">
         {generate && (
           <div className="pgen">
             <button className="btn primary block" disabled={genBusy || busy} onClick={runGen}
@@ -2890,8 +2906,7 @@ function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerat
         {images !== null && images.length < total && (
           <button type="button" className="btn block" disabled={more} onClick={() => load(false)}>{more ? 'Loading…' : `Show more (${total - images.length} remain)`}</button>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -2912,9 +2927,7 @@ function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unpla
   // Placing flows float the homeless to the top; the sort is stable, so titles stay ordered within each group.
   if (unplacedFirst) list.sort((a, b) => (a.placed === false ? 0 : 1) - (b.placed === false ? 0 : 1))
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h4>{title}</h4><button onClick={onClose} aria-label="Close">✕</button></div>
+    <Modal title={title} onClose={onClose}>
         <input className="nsearch" autoFocus placeholder="Search nodes…" value={q} onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); pick(list[0]) } }} />
         <div className="nlist">
@@ -2925,14 +2938,13 @@ function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title, unpla
               <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
               <span className="lbl">{n.title}</span>
               {n.placed === false && <span className="gorphan">○ unplaced</span>}
-              {n.hasInterior && <span className="open">◎</span>}
+              {n.hasInterior && <span className="open" aria-hidden="true">◎</span>}
             </button>
           ))}
           {nodes !== null && !err && list.length === 0 && left.length === 0 && <div className="muted">No matching nodes.</div>}
           {left.length > 0 && <div className="muted esmall">{excludedNote || 'Left out'}: {left.slice(0, 6).map((n) => n.title).join(', ')}{left.length > 6 ? '…' : ''}</div>}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -2966,6 +2978,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
   const dirty = base.current ? MIND_FIELDS.filter((k) => mind[k] !== base.current[k]) : []
   const [anchorPick, setAnchorPick] = useState(false)
   const [omitSel, setOmitSel] = useState(false) // the DM cleared the selection chip for this message
+  const bibleRef = useRef(null)
   const logRef = useRef(null)
   useEffect(() => { setOmitSel(false) }, [sel?.node?.id])
 
@@ -3159,10 +3172,8 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           <textarea rows={7} value={mind.bible} placeholder="Nothing here yet — paste your campaign bible, or load the file."
             onChange={(e) => setMind((m) => ({ ...m, bible: e.target.value }))} />
           <div className="fbrow">
-            <label className="tool" style={{ cursor: 'pointer' }}>
-              Load a .md file…
-              <input type="file" accept=".md,.markdown,.txt" style={{ display: 'none' }} onChange={loadBibleFile} />
-            </label>
+            <button type="button" className="tool" onClick={() => bibleRef.current?.click()}>Load a .md file…</button>
+            <input ref={bibleRef} type="file" accept=".md,.markdown,.txt" hidden onChange={(e) => { loadBibleFile(e); e.target.value = '' }} />
             {mind.bible ? <span className="fhint">{mind.bible.length.toLocaleString()} characters</span> : null}
           </div>
           <div className="fsect">Art style</div>
@@ -3232,7 +3243,7 @@ function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onClose }) {
           {sel && !omitSel && (
             <span className="fchip" title="The mind sees this node in full — its story, notes, threads">
               ↳ {trunc(sel.node.title)}
-              <button onClick={() => setOmitSel(true)} title="Leave this node out of the message">✕</button>
+              <button onClick={() => setOmitSel(true)} title="Leave this node out of the message" aria-label="Leave this node out of the message">✕</button>
             </span>
           )}
           {map && <span className="fchip dim">in {trunc(map.title)}</span>}

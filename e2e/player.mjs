@@ -128,6 +128,8 @@ try {
   if (await helpBtn.count()) {
     await helpBtn.click(); await page.waitForTimeout(300);
     step('the ? legend opens for players', (await page.locator('.pview .helppop').count()) === 1);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+    step('Escape closes the legend', (await page.locator('.pview .helppop').count()) === 0);
   } else step('the ? legend button exists', false, 'no .helpwrap button');
   // the sheet survives a drag (it closes on a clean tap on empty map, never on a pan)
   const anyPin = page.locator('.pview .pin').first();

@@ -10,25 +10,25 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 
 ## Checklist
 
-- [ ] **B031** · medium · xs · The '?' help popover's Colours line reuses class 'legend', which is absolutely positioned, so it overlaps the other help lines
-- [ ] **B061** · medium · s · DM time scrubber shrinks to nothing in the View posture: 0px track at 1024, 15px at 1280, 111px at 1440
-- [ ] **B062** · medium · s · Workspace and Player View overflow the window: the inspector, posture switcher and Exit go off-screen at 1024px, or at 1280px with a long map title
-- [ ] **P003** · medium · m · Login, Setup, EnvSetup, AuthCallback and Admin still wear the stock light/purple template while the rest of the app is dark
-- [ ] **P008** · medium · xs · The ⚙ partition's bible, art style and memory boxes collapse to 14 px slivers on a 1280×800 screen
-- [ ] **P024** · medium · m · On narrower desktop windows the toolbar runs under the '?' help button and the inspector toggle, and the timebar is crushed
-- [ ] **P031** · medium · s · Opening the Forge on a 1280-wide screen squeezes the canvas to 400 px and the map toolbar overlaps
-- [ ] **B087** · low · xs · Inspector resize grip is drawn inside the Forge panel when ✦ Forge is open
-- [ ] **B088** · low · xs · Right-click menu opened near the bottom of the window is cut off (height clamp assumes 110px)
-- [ ] **C043** · low · s · shell.scss says its palette mirrors .atlas but swaps --panel and --panel2
-- [ ] **P040** · low · xs · The reader's resize grip and ✕ scroll away with long text
-- [ ] **P041** · low · xs · Every signed-in cold load flashes a light-grey 'Loading...' screen before the dark app
-- [ ] **P057** · low · xs · main.scss's global `.loading{min-height:100vh}` leaks into the workspace overlay and the Setup card
-- [ ] **P067** · low · s · Controls that no rule reaches render with the browser's default light look inside the dark UI
-- [ ] **P068** · low · xs · Dashboard and Archive top bar on phones: the wordmark wraps to 2 lines and the account pill wraps to 3 and spills out of the bar
-- [ ] **P070** · low · xs · Element selectors inside `.fld` reach unintended controls: the pin-size slider gets a text-field box and its label becomes a caption
-- [ ] **P087** · low · xs · Long world names break the dashboard layout: unbroken words overflow the featured panel, long names grow it to 9 lines, and the phone top bar wraps
-- [ ] **P090** · low · xs · Brand mark and serif change between pages: Compass SVG and Cormorant on shell pages, 🧭 emoji and Georgia in the Atlas
-- [ ] **P094** · low · xs · Destructive confirm buttons in the workspace modals lose their danger styling
+- [x] **B031** · medium · xs · The '?' help popover's Colours line reuses class 'legend', which is absolutely positioned, so it overlaps the other help lines — done b87af53 (the colour key has its own class and flows as a line)
+- [x] **B061** · medium · s · DM time scrubber shrinks to nothing in the View posture: 0px track at 1024, 15px at 1280, 111px at 1440 — done b87af53 (the track keeps 160px, the moment label truncates, the canon zone takes its content width; the DM suite measures it at 1280)
+- [x] **B062** · medium · s · Workspace and Player View overflow the window: the inspector, posture switcher and Exit go off-screen at 1024px, or at 1280px with a long map title — done b87af53 (the grid column is minmax(0,1fr); crumbs shrink with an ellipsis; the DM suite asserts the top bar and editor end inside a 1280 window)
+- [x] **P003** · medium · m · Login, Setup, EnvSetup, AuthCallback and Admin still wear the stock light/purple template while the rest of the app is dark — done b87af53 (the sign-in, callback and admin pages and the error card restyled in the app's palette and serif; Setup/EnvSetup were already gone)
+- [x] **P008** · medium · xs · The ⚙ partition's bible, art style and memory boxes collapse to 14 px slivers on a 1280×800 screen — done b87af53 (.fmind children are flex:none)
+- [x] **P024** · medium · m · On narrower desktop windows the toolbar runs under the '?' help button and the inspector toggle, and the timebar is crushed — done b87af53 (the toolbar wraps within a right bound that leaves room for ? and ▸; the Forge folds the editor under 1400px; the DM suite asserts no overlap at 1280 with the Forge open)
+- [x] **P031** · medium · s · Opening the Forge on a 1280-wide screen squeezes the canvas to 400 px and the map toolbar overlaps — done b87af53 (the Forge column has a width state and a grip; opening it on a laptop folds the editor so the canvas keeps its room)
+- [x] **B087** · low · xs · Inspector resize grip is drawn inside the Forge panel when ✦ Forge is open — done b87af53 (the editor's grip is offset by the Forge column and the drag maths subtracts it)
+- [x] **B088** · low · xs · Right-click menu opened near the bottom of the window is cut off (height clamp assumes 110px) — done b87af53 (the menu measures itself after render and shifts inside the window)
+- [x] **C043** · low · s · shell.scss says its palette mirrors .atlas but swaps --panel and --panel2 — done b87af53 (--panel means the lighter surface in every sheet; the shell's usages were swapped so nothing changed on screen)
+- [x] **P040** · low · xs · The reader's resize grip and ✕ scroll away with long text — done b87af53 (the reader is a still shell around a scrolling body)
+- [x] **P041** · low · xs · Every signed-in cold load flashes a light-grey 'Loading...' screen before the dark app — done b87af53 (dark body and color-scheme meta, an inline body background in index.html, a quiet route placeholder)
+- [x] **P057** · low · xs · main.scss's global `.loading{min-height:100vh}` leaks into the workspace overlay and the Setup card — done b87af53 (the global class is .route-loading; the workspace's .loading has no min-height)
+- [x] **P067** · low · s · Controls that no rule reaches render with the browser's default light look inside the dark UI — done b87af53 (.shell .mclose, base .atlas .span input / .lx / .ic rules, a guest-button class)
+- [x] **P068** · low · xs · Dashboard and Archive top bar on phones: the wordmark wraps to 2 lines and the account pill wraps to 3 and spills out of the bar — done b87af53 (under 480px the wordmark text and crumb hide and the account pill stays on one line)
+- [x] **P070** · low · xs · Element selectors inside `.fld` reach unintended controls: the pin-size slider gets a text-field box and its label becomes a caption — done b87af53 (.fld > label and .fld input:not([type=range]):not([type=checkbox]))
+- [x] **P087** · low · xs · Long world names break the dashboard layout: unbroken words overflow the featured panel, long names grow it to 9 lines, and the phone top bar wraps — done b87af53 (names wrap anywhere and clamp to three lines)
+- [x] **P090** · low · xs · Brand mark and serif change between pages: Compass SVG and Cormorant on shell pages, 🧭 emoji and Georgia in the Atlas — done b87af53 (the compass mark in the Atlas and the Player View; one --serif token used by the reader and sheet headings)
+- [x] **P094** · low · xs · Destructive confirm buttons in the workspace modals lose their danger styling — done b87af53 (.atlas .danger and .tool.danger reach every confirm; the scoped copies are gone)
 
 ## Items
 

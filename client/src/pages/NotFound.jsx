@@ -11,6 +11,7 @@ function NotFound() {
       <TopBar crumb="Uncharted" />
       <div className="voidstate">
         <Compass size={92} className="void-rose" />
+        <h1 className="sr-only">Page not found</h1>
         <h2>This page is on no map</h2>
         <p>The path you followed leads nowhere. Check the address, or head back to your worlds.</p>
         <Link to="/dashboard" className="sbtn primary">To your worlds</Link>

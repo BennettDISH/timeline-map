@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import shareService from '../services/shareService'
 import MapPlane, { embedded } from '../components/MapPlane'
 import { Compass } from '../components/TopBar'
+import { useDialog } from '../components/Modal'
+// Enter or Space on a link-like control acts like a click
+const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail from '../components/PartyTrail'
@@ -55,6 +58,11 @@ function PlayerView() {
   const [markBusy, setMarkBusy] = useState(false)
   const [markErr, setMarkErr] = useState('')
   const [help, setHelp] = useState(false)
+  useEffect(() => {
+    const key = (e) => { if (e.key !== 'Escape') return; if (help) setHelp(false); else if (detail) setDetail(null) }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [help, detail])
   const viewTRef = useRef(null); viewTRef.current = viewT
   const detailRef = useRef(null); detailRef.current = detail
   const worldRef = useRef(null)
@@ -284,7 +292,8 @@ function PlayerView() {
 
   return (
     <div className="atlas pview">
-      <div className="top">
+      <div className="top" role="banner">
+        <h1 className="sr-only">{map?.title ? `${map.title} — ${world.name}` : world.name}</h1>
         <span className="brand"><Compass size={18} className="brandrose" /> {world.name}</span>
         <div className="crumbs">
           {(data.breadcrumb || []).map((b, i, arr) => (
@@ -292,7 +301,7 @@ function PlayerView() {
               {i > 0 && <span className="sep">▸</span>}
               {i === arr.length - 1
                 ? <span className="here">{b.title}</span>
-                : <a onClick={() => navigate(`/p/${token}/m/${b.mapId}`)}>{b.title}</a>}
+                : <a role="button" tabIndex={0} onClick={() => navigate(`/p/${token}/m/${b.mapId}`)} onKeyDown={keyAct(() => navigate(`/p/${token}/m/${b.mapId}`))}>{b.title}</a>}
             </React.Fragment>
           ))}
         </div>
@@ -311,15 +320,16 @@ function PlayerView() {
       </div>
 
       <div className="main">
-        <div className="pcol">
+        <div className="pcol" role="main">
         {trail.length > 0 && (
           <div className="dmtrail" title="Your DM is showing the way — follow the glow">
             <span className="deye">🔦</span>
             {trail.map((s, i) => (
               <React.Fragment key={s.nodeId}>
                 {i > 0 && <span className="sep">▸</span>}
-                <a className={`${s.mapId === map?.id ? 'here' : ''} ${i === trail.length - 1 ? 'last' : ''}`}
+                <a className={`${s.mapId === map?.id ? 'here' : ''} ${i === trail.length - 1 ? 'last' : ''}`} role="button" tabIndex={0}
                   title={s.mapId === map?.id ? 'Read about it' : 'Go to that map'}
+                  onKeyDown={keyAct(() => { if (s.mapId !== map?.id) navigate(`/p/${token}/m/${s.mapId}`); else openNode(s.nodeId) })}
                   onClick={() => { if (s.mapId !== map?.id) navigate(`/p/${token}/m/${s.mapId}`); else openNode(s.nodeId) }}>{s.title}</a>
               </React.Fragment>
             ))}
@@ -343,7 +353,7 @@ function PlayerView() {
             >
               <PartyTrail placements={data.placements} t={tEff} eras={world.eras} unit={tl?.unit}
                 onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(st >= (tl?.current ?? st) ? null : st) }} />
-              <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)}
+              <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)} onSelect={(it) => openNode(it.node.id)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior, selected: detail?.node?.id === p.node.id,
                   cls: `${detail?.node?.id === p.node.id ? 'sel' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`,
@@ -354,6 +364,8 @@ function PlayerView() {
                   className={`pin ${p.node.pin === 'image' && p.node.imageUrl ? 'ipin' : ''} ${p.node.player ? 'pmark' : ''} ${detail?.node?.id === p.node.id ? 'sel' : ''} ${p.node.hasInterior ? 'open2' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''} ${p.node.category === 'party' ? 'party' : ''}`}
                   style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.node.category === 'party' ? { '--sc': sessionColor(sessionOf(p.start ?? tEff, world.eras)?.idx ?? 0, latestSession(world.eras)) } : {}) }}
                   title={p.node.category === 'party' && tl?.enabled ? (() => { const so = sessionOf(p.start ?? tEff, world.eras); return so ? sessionLabel(so, tl.unit) : undefined })() : undefined}
+                  role="button" tabIndex={0} aria-label={`${p.node.title}${p.node.hasInterior ? ' (has an interior)' : ''}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNode(p.node.id) } }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); openNode(p.node.id) }}
                   onDoubleClick={(e) => { e.stopPropagation(); enter(p.node) }}>
@@ -383,6 +395,7 @@ function PlayerView() {
             <div className="listview">
               {shownPlacements.map((p) => (
                 <div key={p.id} className={`lsrow ${detail?.node?.id === p.node.id ? 'on' : ''} ${trailIds.has(p.node.id) ? 'spot' : ''}`}
+                  role="button" tabIndex={0} aria-label={p.node.title} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNode(p.node.id) } }}
                   onClick={() => openNode(p.node.id)}
                   onDoubleClick={() => enter(p.node)}>
                   <span className="ic" style={{ background: cat(p.node.category).c }}>{cat(p.node.category).i}</span>
@@ -417,7 +430,7 @@ function PlayerView() {
           )}
           {marking && <div className="markhint">Tap the map where you want your marker.</div>}
           <div className="helpwrap" ref={helpRef}>
-            <button className="tool round" title="What the map's marks mean" aria-label="What the map's marks mean" onClick={() => setHelp((v) => !v)}>?</button>
+            <button className="tool round" title="What the map's marks mean" aria-label="What the map's marks mean" aria-expanded={help} onClick={() => setHelp((v) => !v)}>?</button>
             {help && (
               <div className="apop helppop">
                 <div><b>Tap a pin</b> or an outlined place to read about it · <b>drag</b> to look around · <b>pinch or scroll</b> to zoom</div>
@@ -466,8 +479,8 @@ function PlayerView() {
                 if (!prev && !next) return null
                 return (
                   <div className="rtrail">
-                    {prev && <a onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) }}>◂ From {prev.mapTitle}{lab(prev)}</a>}
-                    {next && <a onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) }}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
+                    {prev && <a role="button" tabIndex={0} onClick={() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) }} onKeyDown={keyAct(() => { if (prev.start != null) setViewT(prev.start >= (tl?.current ?? prev.start) ? null : prev.start); goMap(prev.mapId) })}>◂ From {prev.mapTitle}{lab(prev)}</a>}
+                    {next && <a role="button" tabIndex={0} onClick={() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) }} onKeyDown={keyAct(() => { if (next.start != null) setViewT(next.start >= (tl?.current ?? next.start) ? null : next.start); goMap(next.mapId) })}>Then on to {next.mapTitle}{lab(next)} ▸</a>}
                   </div>
                 )
               })()}
@@ -481,7 +494,7 @@ function PlayerView() {
                     {detail.links.map((l) => (
                       <div key={`out${l.id}`} className="lrow out">
                         <span className="ic sic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
-                        <span className="lgo" onClick={() => openNode(l.otherId)}>
+                        <span className="lgo" role="button" tabIndex={0} onClick={() => openNode(l.otherId)} onKeyDown={keyAct(() => openNode(l.otherId))}>
                           {l.otherTitle}{l.label ? ` — ${l.label}` : ''}
                         </span>
                         <button className="tool" onClick={() => goTo(l.otherId)} title="Go there" aria-label="Go there">⌖</button>
@@ -497,7 +510,7 @@ function PlayerView() {
                     {detail.backlinks.map((l) => (
                       <div key={`in${l.id}`} className="lrow in">
                         <span className="ic sic" style={{ background: cat(l.otherCategory).c }}>{cat(l.otherCategory).i}</span>
-                        <span className="lgo" onClick={() => openNode(l.otherId)} title={`“${l.otherTitle}” refers here${l.label ? `: ${l.label}` : ''}`}>
+                        <span className="lgo" role="button" tabIndex={0} onClick={() => openNode(l.otherId)} onKeyDown={keyAct(() => openNode(l.otherId))} title={`“${l.otherTitle}” refers here${l.label ? `: ${l.label}` : ''}`}>
                           <span className="ldir">←</span>{l.otherTitle}{l.label ? ` — ${l.label}` : ''}
                         </span>
                         <button className="tool" onClick={() => goTo(l.otherId)} title="Go there" aria-label="Go there">⌖</button>
@@ -527,6 +540,8 @@ function MarkerForm({ busy, err, onClose, onSubmit }) {
   })
   const openedAt = useRef(Date.now())
   const downOnBack = useRef(false)
+  const box = useRef(null)
+  useDialog(box, onClose)
   const submit = (e) => {
     e.preventDefault()
     if (busy) return
@@ -536,13 +551,13 @@ function MarkerForm({ busy, err, onClose, onSubmit }) {
     <div className="modal-back"
       onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget }}
       onClick={(e) => { if (e.target === e.currentTarget && downOnBack.current && Date.now() - openedAt.current > 400) onClose() }}>
-      <form className="modal mform" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <div className="modal-head"><h4>Mark the map</h4><button type="button" onClick={onClose} aria-label="Close">✕</button></div>
+      <form ref={box} className="modal mform" role="dialog" aria-modal="true" aria-label="Mark the map" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div className="modal-head"><h4>Mark the map</h4><button type="button" onClick={onClose} aria-label="Close" data-close>✕</button></div>
         <input className="nsearch" autoFocus maxLength={80} placeholder="What is here?"
           value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="mcats">
           {MARKABLE.map((k) => (
-            <button key={k} type="button" className={`cdot ${category === k ? 'on' : ''}`} title={CATS[k].label}
+            <button key={k} type="button" className={`cdot ${category === k ? 'on' : ''}`} title={CATS[k].label} aria-label={CATS[k].label} aria-pressed={category === k}
               style={{ background: CATS[k].c }} onClick={() => setCategory(k)}>{CATS[k].i}</button>
           ))}
           <span className="mcatname">{cat(category).label}</span>

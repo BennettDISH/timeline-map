@@ -83,7 +83,7 @@ export default function EraScrub({ tl, eras, value, onChange, win = null }) {
           )
         })}
         <input
-          type="range" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
+          type="range" aria-label="Moment in the revealed past" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}
         />
       </div>

@@ -46,7 +46,7 @@ const areaOf = (pts) => {
 // district stays a faint wash
 const tint = (area) => Math.max(0.035, Math.min(0.12, 0.12 * Math.sqrt(300 / Math.max(area, 300)))).toFixed(3)
 
-export default function Regions({ items, backdropUrl, hoverId, onHover, inert = false, drawing, onDraw, onEnter, onDragSelected }) {
+export default function Regions({ items, backdropUrl, hoverId, onHover, inert = false, drawing, onDraw, onEnter, onDragSelected, onSelect }) {
   const svgRef = useRef(null)
   const [cur, setCur] = useState(null)   // cursor, in plane %
   const [live, setLive] = useState([])   // the freehand segment being traced right now
@@ -113,7 +113,7 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, inert = 
   return (
     <>
       <svg ref={svgRef} className={`regions${on ? ' drawing' : ''}${inert ? ' inert' : ''}`}
-        viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden={on ? undefined : 'true'}
+        viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden={on || onSelect ? undefined : 'true'} role={onSelect ? 'group' : undefined} aria-label={onSelect ? 'Outlined places' : undefined}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
         onPointerCancel={() => { trace.current = null; setLive([]) }}
         onDoubleClick={on ? (e) => { e.stopPropagation(); onDraw?.finish() } : undefined}>
@@ -131,6 +131,9 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, inert = 
           <polygon key={it.id} data-id={it.id} points={polyPoints(it.pts)}
             className={`region ${STYLE_KEYS.filter((k) => k !== 'pop' && it.st[k]).map((k) => `s-${k}`).join(' ')} ${it.cls || ''}${hoverId === it.id ? ' hov' : ''}`}
             style={{ '--ra': tint(it.area) }}
+            tabIndex={onSelect && !on ? 0 : undefined} role={onSelect ? 'button' : undefined} aria-label={onSelect ? it.title : undefined} aria-pressed={onSelect ? isSel(it) : undefined}
+            onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(it) } } : undefined}
+            onFocus={() => onHover?.(it.id)} onBlur={() => onHover?.(null)}
             onPointerEnter={() => onHover?.(it.id)} onPointerLeave={() => onHover?.(null)}>
             <title>{it.title}</title>
           </polygon>

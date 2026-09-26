@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { errText } from '../services/http'
+import Modal from '../components/Modal'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
 import atlasService from '../services/atlasService'
@@ -45,30 +46,6 @@ function WorldBadges({ w }) {
   )
 }
 
-function Modal({ title, onClose, children }) {
-  const downOnBack = useRef(false)
-  useEffect(() => {
-    const esc = (e) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', esc)
-    return () => document.removeEventListener('keydown', esc)
-  }, [onClose])
-  // only a press AND release on the backdrop closes it — a text selection that ends
-  // outside the dialog never throws away what was typed
-  return (
-    <div className="modal-back"
-      onPointerDown={(e) => { downOnBack.current = e.target === e.currentTarget }}
-      onClick={(e) => { if (e.target === e.currentTarget && downOnBack.current) onClose() }}>
-      <div className="smodal" onClick={(e) => e.stopPropagation()}>
-        <div className="mhead">
-          <h3>{title}</h3>
-          <button className="mclose" onClick={onClose} aria-label="Close">✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function Dashboard() {
   const navigate = useNavigate()
   const [worlds, setWorlds] = useState(null) // null while loading
@@ -102,8 +79,9 @@ function Dashboard() {
   useEffect(() => {
     if (menuId == null) return
     const close = () => setMenuId(null)
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    const key = (e) => { if (e.key === 'Escape') setMenuId(null) }
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [menuId])
 
   useEffect(() => {
@@ -171,6 +149,7 @@ function Dashboard() {
       <button
         className="dots"
         title="World options"
+        aria-haspopup="menu" aria-expanded={menuId === w.id}
         onClick={(e) => { e.stopPropagation(); setMenuId(menuId === w.id ? null : w.id) }}
       >⋯</button>
       {menuId === w.id && (
@@ -220,7 +199,7 @@ function Dashboard() {
             role="button"
             tabIndex={0}
             onClick={() => open(featured)}
-            onKeyDown={(e) => { if (e.key === 'Enter') open(featured) }}
+            onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(featured) } }}
           >
             <Cover world={featured} big />
             <div className="fscrim" />
@@ -250,7 +229,7 @@ function Dashboard() {
                   role="button"
                   tabIndex={0}
                   onClick={() => open(w)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') open(w) }}
+                  onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(w) } }}
                 >
                   <Cover world={w} />
                   <div className="wbody">
@@ -283,7 +262,7 @@ function Dashboard() {
         <DeleteModal busy={busy} world={modal.world} onClose={() => setModal(null)} onConfirm={deleteWorld} />
       )}
 
-      {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`}>{flash.text}</div>}
+      {flash && <div className={`flash ${flash.kind === 'err' ? 'err' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'}>{flash.text}</div>}
     </div>
   )
 }
@@ -299,7 +278,7 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
     if (name.trim()) onSubmit(name.trim(), desc.trim(), useSample && templates[0] ? templates[0].id : null)
   }
   return (
-    <Modal title="Found a new world" onClose={onClose}>
+    <Modal frame="smodal" title="Found a new world" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
           <label>Name</label>
@@ -333,7 +312,7 @@ function EditModal({ busy, world, onClose, onSubmit }) {
   const [desc, setDesc] = useState(world.description || '')
   const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(world, name.trim(), desc.trim() || null) }
   return (
-    <Modal title="Edit world details" onClose={onClose}>
+    <Modal frame="smodal" title="Edit world details" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
           <label>Name</label>
@@ -354,7 +333,7 @@ function EditModal({ busy, world, onClose, onSubmit }) {
 
 function DeleteModal({ busy, world, onClose, onConfirm }) {
   return (
-    <Modal title={`Delete “${world.name}”?`} onClose={onClose}>
+    <Modal frame="smodal" title={`Delete “${world.name}”?`} onClose={onClose}>
       <p className="mnote">
         This erases the world entirely — {plural(world.mapCount ?? 0, 'map')}, {plural(world.nodeCount ?? 0, 'node')} and{' '}
         {plural(world.imageCount ?? 0, 'image')} go with it, and its share link stops working.
