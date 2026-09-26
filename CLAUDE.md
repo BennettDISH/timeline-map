@@ -456,6 +456,20 @@ in its file with the commit hash.
 - Pickers say what they left out ("Already on this map: …", "Already threaded: …") and
   show a loading line, never an empty-state lie.
 
+## API conventions
+- Request bodies and query strings are snake_case (`node_id`, `start_time`, `shape_kind`);
+  JSON out is camelCase (`nodeId`, `startTime`). The upload body is the one exception
+  (`imageData`/`originalName` beside `world_id`) and the spotlight accepts the older `nodeId`.
+- Envelopes name what they carry: `{ world }`, `{ worlds }`, `{ maps }`, `{ nodes }`,
+  `{ image }`, `{ images, total }`; a bare act answers `{ ok: true }` (plus an `undoId` when
+  it can be undone) or `{ id }`. The world's timeline is always
+  `{ enabled, min, max, current, unit }` (`current` is canon).
+- Statuses: 400 with one plain sentence for input the server refuses; 404 for anything that
+  is not the caller's (never a 403 hint that it exists); 409 for a duplicate; 401 for every
+  dead session (no, bad, expired or revoked token, deleted user) — the client ends the
+  session on that status alone; 403 only for a live session without permission (admin).
+- Every router takes `wrap`, `ownsWorld` and `notFound` from `server/lib/route.js`.
+
 ## Input rules (server-side, `server/lib/validate.js`)
 - Every write route cleans its body first: text is clamped to its column (titles 255, era
   names 120, the clock unit 50, link labels 255, bodies and notes 20k), moments are whole

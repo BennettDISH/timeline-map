@@ -45,13 +45,9 @@ router.get('/', async (req, res) => {
       nodeCount: parseInt(row.node_count),
       coverUrl: resolveImageUrl(req, row.cover_path || row.cover_fallback),
       shared: !!row.share_token,
-      timelineEnabled: row.timeline_enabled,
-      timelineSettings: {
-        minTime: row.timeline_min_time,
-        maxTime: row.timeline_max_time,
-        currentTime: row.timeline_current_time,
-        timeUnit: row.timeline_time_unit
-      }
+      // the same timeline shape the Atlas world payload carries
+      timeline: { enabled: row.timeline_enabled, min: row.timeline_min_time, max: row.timeline_max_time,
+                  current: row.timeline_current_time, unit: row.timeline_time_unit }
     }));
 
     res.json({ worlds });
@@ -89,7 +85,6 @@ router.post('/', async (req, res) => {
     const world = result.rows[0];
     
     res.status(201).json({
-      message: 'World created successfully',
       world: {
         id: world.id,
         name: world.name,
@@ -133,7 +128,7 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    res.json({ message: 'World deleted successfully' });
+    res.json({ ok: true });
   } catch (error) {
     console.error('Delete world error:', error);
     res.status(500).json({ message: 'Server error' });

@@ -36,11 +36,11 @@ function WorldMeta({ w }) {
 }
 
 function WorldBadges({ w }) {
-  const tl = w.timelineSettings
-  if (!w.shared && !w.timelineEnabled) return null
+  const tl = w.timeline
+  if (!w.shared && !tl?.enabled) return null
   return (
     <div className="wbadges">
-      {w.timelineEnabled && tl && <span className="badge" title="Canon — the moment players see">🕓 {tl.currentTime} {tl.timeUnit}</span>}
+      {tl?.enabled && <span className="badge" title="Canon — the moment players see">🕓 {tl.current} {tl.unit}</span>}
       {w.shared && <span className="badge" title="Players can see this world through its share link">🔗 Share link on</span>}
     </div>
   )

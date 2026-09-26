@@ -173,8 +173,9 @@ router.delete('/worlds/:worldId/share', wrap(async (req, res) => {
 // at a secret shows players the way only as far as they may see.
 router.post('/worlds/:worldId/spotlight', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  if (!isId(req.body.nodeId)) return bad(res, 'That node is not in this world');
-  const nodeId = Number(req.body.nodeId);
+  const raw = req.body.node_id ?? req.body.nodeId; // snake_case like every other body; nodeId is the older spelling
+  if (!isId(raw)) return bad(res, 'That node is not in this world');
+  const nodeId = Number(raw);
   const n = (await pool.query('SELECT id FROM nodes WHERE id=$1 AND world_id=$2', [nodeId, req.params.worldId])).rows[0];
   if (!n) return res.status(400).json({ message: 'That node is not in this world' });
   await pool.query('UPDATE worlds SET spotlight_node_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [nodeId, req.params.worldId]);
