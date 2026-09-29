@@ -62,7 +62,11 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   `GUEST_RETENTION_DAYS` (30 — the same setting and window Waypoint prunes its guests by) is
   removed with its worlds and their R2 objects: `lib/guests.js`, a minute after boot and then
   daily, one sweeper at a time (advisory lock); "seen" is `users.last_seen_at`, stamped on every
-  sign-in and every sliding token refresh. `GUEST_CLEANUP_ENABLED=false` turns it off.
+  sign-in and, at most every six hours, on any signed-in request (`middleware/auth.js`). That
+  same stamp tells Waypoint a guest is still here (`centralSeen` → `POST /proxy/seen`): the
+  sliding session means a guest never signs in through Waypoint again, and Waypoint prunes a
+  guest by its sign-ins, so without it Waypoint would drop an active guest 30 days after it
+  was made. `GUEST_CLEANUP_ENABLED=false` turns the sweep off.
   **A first Waypoint sign-in always gets a fresh local row**: an older row is never adopted by
   its email, since Waypoint never verifies an address and anyone could have claimed another
   person's worlds that way (B092). A row from before Waypoint is linked by hand.

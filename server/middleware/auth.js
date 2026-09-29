@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { refreshIfStale } = require('../utils/token');
+const { centralSeen } = require('../config/sso');
 
 // Admin is a Waypoint IDENTITY, never a local role: the central ids listed in
 // ADMIN_CENTRAL_USER_IDS (comma-separated). Unset means the fleet convention — central id 1,
@@ -26,7 +27,9 @@ const authenticateToken = async (req, res, next) => {
 
     // Check if user still exists and session is valid
     const userResult = await pool.query(
-      'SELECT id, username, email, role, token_version, central_user_id, is_guest FROM users WHERE id = $1',
+      `SELECT id, username, email, role, token_version, central_user_id, is_guest,
+              (last_seen_at IS NULL OR last_seen_at < NOW() - interval '6 hours') AS unseen
+         FROM users WHERE id = $1`,
       [decoded.userId]
     );
 
@@ -34,7 +37,7 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
-    const { token_version: tokenVersion, ...user } = userResult.rows[0];
+    const { token_version: tokenVersion, unseen, ...user } = userResult.rows[0];
 
     // The revocation check. A signed, unexpired token is not enough — its `tv` claim must
     // still match users.token_version, so bumping that column (logout) kills every token
@@ -47,16 +50,19 @@ const authenticateToken = async (req, res, next) => {
     req.user = { ...user, isAdmin: isAdmin(user) };
     req.tokenVersion = tokenVersion;
     req.tokenPayload = decoded;
-    // sliding session: an actively used browser never meets the expiry mid-edit
-    // A refresh is also a sighting (at most twice a day per session): a guest in use is never
-    // swept as idle (lib/guests.js), though they may not have signed in again for weeks
-    try {
-      const fresh = refreshIfStale(decoded, tokenVersion);
-      if (fresh) {
-        res.setHeader('X-Refreshed-Token', fresh);
-        pool.query('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(() => {});
+    // A sighting, at most every six hours: the guest sweep reads last_seen_at (lib/guests.js), and
+    // Waypoint hears of a guest's activity too — this session slides, so a guest never signs in
+    // through Waypoint again, and Waypoint prunes a guest it has not seen sign in for 30 days
+    if (unseen) {
+      pool.query('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(() => {});
+      if (user.is_guest && user.central_user_id) {
+        centralSeen(user.central_user_id)
+          .then((r) => { if (!r.ok && r.status) console.error(`Waypoint refused guest ${user.central_user_id}'s activity: ${r.status}`); })
+          .catch((e) => console.error('Waypoint unreachable for proxy/seen:', e.message));
       }
-    } catch (e) { /* JWT_SECRET missing: nothing to slide */ }
+    }
+    // sliding session: an actively used browser never meets the expiry mid-edit
+    try { const fresh = refreshIfStale(decoded, tokenVersion); if (fresh) res.setHeader('X-Refreshed-Token', fresh); } catch (e) { /* JWT_SECRET missing: nothing to slide */ }
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

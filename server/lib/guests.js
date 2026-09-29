@@ -1,8 +1,10 @@
 // Guests follow Waypoint's rule: an unclaimed guest nobody has seen for GUEST_RETENTION_DAYS
 // (30 by default, the same setting and the same window Waypoint prunes its own guests by) is
-// removed together with everything it made. "Seen" is users.last_seen_at — every sign-in and
-// every sliding token refresh — so a guest in use is never swept. A guest who claimed their
-// Waypoint account is no longer is_guest (the next sign-in syncs it) and is never touched.
+// removed together with everything it made. "Seen" is users.last_seen_at — every sign-in, and
+// any signed-in request at most every six hours (middleware/auth.js, which also tells Waypoint,
+// so both sides forget an idle guest on the same day) — so a guest in use is never swept. A
+// guest who claimed their Waypoint account is no longer is_guest (the next sign-in syncs it)
+// and is never touched.
 // The sweep runs a minute after boot and then daily; GUEST_CLEANUP_ENABLED=false turns it off.
 const pool = require('../config/database');
 const { r2Enabled, deletePrefix } = require('../storage');

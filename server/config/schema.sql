@@ -16,7 +16,7 @@ ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(255);
 -- SSO integration: link to central auth service
 ALTER TABLE users ADD COLUMN IF NOT EXISTS central_user_id INTEGER UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE;
--- When the account was last seen: every sign-in and every sliding token refresh. A guest unseen for
+-- When the account was last seen: every sign-in, and any signed-in request every 6 hours. A guest unseen for
 -- GUEST_RETENTION_DAYS (30, Waypoint's own window) is removed with its worlds (lib/guests.js).
 -- A row from before the column starts its window at the boot that added it.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;

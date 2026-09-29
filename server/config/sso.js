@@ -31,6 +31,19 @@ async function centralGuest() {
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
+// Tell Waypoint that a user this app keeps signed in itself is still here: the sliding token
+// means they never sign in through Waypoint again, and Waypoint prunes a guest it has not seen
+// sign in for GUEST_RETENTION_DAYS. It counts as a sign-in there.
+async function centralSeen(centralUserId) {
+  if (!AUTH_SERVICE_URL) return { ok: false, status: 0 };
+  const res = await fetch(`${AUTH_SERVICE_URL}/api/auth/proxy/seen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ central_user_id: centralUserId, client_id: SSO_CLIENT_ID, client_secret: SSO_CLIENT_SECRET })
+  });
+  return { ok: res.ok, status: res.status };
+}
+
 async function exchangeCode(code, redirectUri) {
   const body = {
     grant_type: 'authorization_code',
@@ -49,4 +62,4 @@ async function exchangeCode(code, redirectUri) {
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
-module.exports = { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, exchangeCode };
+module.exports = { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, centralSeen, exchangeCode };
