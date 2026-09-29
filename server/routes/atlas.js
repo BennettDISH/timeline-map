@@ -433,13 +433,23 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     JOIN nodes n ON p.node_id = n.id
     LEFT JOIN images ni ON n.image_id = ni.id
     WHERE p.map_id=$1 ORDER BY p.id`, [req.params.mapId])).rows;
-  const placements = pl.map((r) => ({
-    id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
-    node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, body: r.body, dmNote: r.dm_note, stance: r.stance,
-            voiceId: r.voice_id, voiceName: r.voice_name, voiceLine: r.voice_line, voiceUrl: r.voice_url, voiceStyle: r.voice_style,
-            pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
-            imageId: r.image_id, imageUrl: resolveImageUrl(req, r.node_image_path) },
-  }));
+  // A node's long text (body, DM note, voice line and style) travels once, on its FIRST
+  // placement here; its other placements carry every other field and leave those keys out,
+  // and the client copies them across (atlasService.getMap). The Party is placed once per
+  // footstep, and its growing DM note was being sent once per footstep.
+  const texted = new Set();
+  const placements = pl.map((r) => {
+    const first = !texted.has(r.node_id);
+    texted.add(r.node_id);
+    return {
+      id: r.placement_id, x: Number(r.x), y: Number(r.y), start: r.start_time, end: r.end_time, visibility: r.placement_vis, shape: r.shape || null, shapeKind: r.shape_kind || 'area', shapeStyle: r.shape_style || null,
+      node: { id: r.node_id, title: r.title, category: r.category, visibility: r.node_vis, stance: r.stance,
+              voiceId: r.voice_id, voiceName: r.voice_name, voiceUrl: r.voice_url,
+              ...(first && { body: r.body, dmNote: r.dm_note, voiceLine: r.voice_line, voiceStyle: r.voice_style }),
+              pin: r.pin, pinSize: r.pin_size, author: r.author, hasInterior: !!r.interior_map_id, interiorMapId: r.interior_map_id,
+              imageId: r.image_id, imageUrl: resolveImageUrl(req, r.node_image_path) },
+    };
+  });
   const bds = (await pool.query(
     `SELECT b.id, b.image_id, b.start_time, b.end_time, i.file_path
      FROM map_backdrops b JOIN images i ON i.id = b.image_id

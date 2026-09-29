@@ -1,4 +1,5 @@
 import http from './http'
+import { withNodeText } from '../utils/mapPayload'
 
 // Client for the redesigned /api/atlas model (nodes / placements / links / nested maps).
 // All calls go through the shared http instance: token attached, dead sessions bounced.
@@ -18,7 +19,7 @@ const atlasService = {
   getTemplates: () => http.get(`${B}/templates`).then((r) => r.data.templates),
   cloneWorld: (sourceId, name, description) => http.post(`${B}/worlds/clone`, { source_id: sourceId, name, description }).then((r) => r.data),
 
-  getMap: (mapId) => http.get(`${B}/maps/${mapId}`).then((r) => r.data),
+  getMap: (mapId) => http.get(`${B}/maps/${mapId}`).then((r) => withNodeText(r.data)), // a node's text rides its first placement
   patchMap: (mapId, data) => http.patch(`${B}/maps/${mapId}`, data).then((r) => r.data),
 
   addNode: (mapId, data) => http.post(`${B}/maps/${mapId}/nodes`, data).then((r) => r.data),

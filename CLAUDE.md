@@ -497,6 +497,10 @@ before fixing it; the package files' line numbers are from `32ef89c`.
   dead session (no, bad, expired or revoked token, deleted user) — the client ends the
   session on that status alone; 403 only for a live session without permission (admin).
 - Every router takes `wrap`, `ownsWorld` and `notFound` from `server/lib/route.js`.
+- The DM's map payload (`GET /maps/:id`) sends a node's long text (body, DM note, voice line
+  and style) once, on its first placement — the Party stands once per footstep; its other
+  placements leave those keys out, and `withNodeText` (`utils/mapPayload.js`, applied in
+  `atlasService.getMap`) copies them across, so every reader of `p.node` sees the whole node.
 
 ## Input rules (server-side, `server/lib/validate.js`)
 - Every write route cleans its body first: text is clamped to its column (titles 255, era

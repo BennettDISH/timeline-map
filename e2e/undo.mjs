@@ -40,6 +40,11 @@ if (nodeId) {
   step('new nodes are born DM-only, and the note and stance are on before the delete',
     before?.node.visibility === 'dm' && before?.node.dmNote === 'SECRET-NOTE' && before?.node.stance === 'foe',
     JSON.stringify({ vis: before?.node.visibility, dmNote: before?.node.dmNote, stance: before?.node.stance }));
+  // the probe stands twice on the root: its long text travels once, on the first placement
+  const twice = ((await api('GET', `/maps/${cfg.root}`)).body.placements || []).filter((p) => p.node.id === nodeId);
+  step('a node placed twice sends its text once, on its first placement',
+    twice.length === 2 && twice[0].node.body === 'BODY' && twice[0].node.dmNote === 'SECRET-NOTE' && !('body' in twice[1].node) && !('dmNote' in twice[1].node) && twice[1].node.title === twice[0].node.title,
+    JSON.stringify(twice.map((p) => Object.keys(p.node).length)));
   const del = await api('DELETE', `/nodes/${nodeId}`);
   step('delete returns an undo id', del.status === 200 && del.body.undoId != null);
   // Recently deleted names it until it is put back (a reload can still reach it)
