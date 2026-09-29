@@ -9,7 +9,11 @@
   // language as the player era bar: named eras on their own line, slider beneath
   .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;user-select:none;-webkit-user-select:none;
      height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
-  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none}
+  // nothing beside the track may change width with the moment: the track is flex:1, so Set canon
+  // swapping for the narrower canon chip (or the label growing a digit) moved the thumb under the
+  // pointer, which changed the moment and swapped them back, and the bar shook at canon. Both
+  // slots are fixed: the zone fits Set canon + ↩ (129px here) with room for wider fonts
+  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none;min-width:160px}
   .timebar .ttrack{flex:1;min-width:160px;position:relative;height:100%} // the labels give way before the track does
   .timebar input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:var(--accent);z-index:2}
   .canonmark{position:absolute;top:8px;bottom:6px;width:2px;background:#c9a35f;border-radius:1px;pointer-events:none;z-index:3}
