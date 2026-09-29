@@ -1,0 +1,95 @@
+// Menus, dialogs and toasts: Map ▾ and ?, modals and pickers, the share popover, the context menu,
+// the undo toast and Recently deleted. Pages: AtlasWorkspace (PlayerView uses the modal and ? menu).
+@use '../z' as *;
+
+.atlas {
+  // image picker modal
+  .modal-back{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:$z-modal}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(560px,92vw);max-height:82vh;overflow:auto;padding:14px}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .modal-head h4{margin:0}
+  .modal-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+  .pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:10px}
+  .pick{padding:0;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--panel2);aspect-ratio:1}
+  .pick img{width:100%;height:100%;object-fit:cover;display:block}
+  .pick:hover{border-color:var(--accent)}
+  // share link (DM popover) + Player View chrome
+  // not share*: ad-blocker "social sharing" cosmetic filters hide share-named elements, and hid this button (1224c84)
+  .invitebtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit}
+  .invitebtn.live{color:#7fc98f;border-color:#2e5738}
+  .invitewrap{position:relative}
+  .invitepop{position:absolute;top:calc(100% + 8px);right:0;z-index:$z-popover;width:min(340px,calc(100vw - 24px));
+     background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;
+     display:flex;flex-direction:column;gap:9px;box-shadow:0 10px 30px #0008}
+  .invitepop .surl{font-size:11px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+     border-radius:6px;padding:6px 8px;word-break:break-all;user-select:all}
+  .invitepop .srow{display:flex;gap:6px;flex-wrap:wrap}
+  .invitepop .muted{color:var(--muted);font-size:12px}
+  .nsearch{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;margin-bottom:8px;font:inherit}
+  .nlist{display:flex;flex-direction:column;gap:3px;max-height:52vh;overflow:auto}
+  .nrow{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;color:var(--ink);cursor:pointer;text-align:left}
+  .nrow:hover{border-color:var(--accent)}
+  .nrow .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
+  .nrow .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .aflash, .aundobar{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:$z-toast;max-width:min(520px,92vw);
+    background:var(--panel2);border:1px solid var(--line);border-left:3px solid #6fcf97;border-radius:9px;
+    padding:9px 14px;box-shadow:0 10px 30px #000a;font-size:12.5px;
+    &.err{border-left-color:#d05b5b}
+    &.info{border-left-color:var(--accent)}}
+  .aflash.lifted{bottom:124px} // the undo toast has the spot: a message sits above it
+  .binlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto;
+    li{display:flex;align-items:center;gap:10px}
+    .binwhat{flex:1;min-width:0}}
+
+  .mrow{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .impact p{margin:0 0 8px;font-size:13px;line-height:1.5}
+  // small anchored menus (Map ▾, the ? guide)
+  .mapmenu{position:relative}
+  // the menu lives inside .toolbar (a stacking context at $z-stage): this number orders it among the toolbar's own children only
+  .apop{position:absolute;top:calc(100% + 6px);left:0;z-index:$z-menu;min-width:220px;
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;
+    box-shadow:0 12px 30px #000a;padding:5px;display:flex;flex-direction:column;gap:1px;
+    >button{background:none;border:0;color:var(--ink);font:inherit;text-align:left;
+      padding:7px 10px;border-radius:6px;cursor:pointer}
+    >button:hover{background:#ffffff12}}
+  .apop-row{display:flex;align-items:center;gap:6px;padding:7px 10px;color:var(--muted);font-size:12px;
+    span{margin-right:2px}
+    button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);
+      padding:3px 9px;cursor:pointer;font:inherit;font-size:12px}
+    button.on{background:#5b9bd530;color:var(--ink);border-color:var(--accent)}}
+  .helpwrap{position:absolute;top:10px;right:10px;z-index:$z-hud}
+  .tool.round{width:30px;height:30px;padding:0;border-radius:50%;color:var(--muted)}
+  .helppop{left:auto;right:0;min-width:280px;padding:10px 12px;font-size:12px;color:var(--muted);gap:7px;
+    b{color:var(--ink);font-weight:600}}
+  .ctxmenu{position:fixed;top:0;left:0;min-width:210px;z-index:$z-context}
+  .bdrow{display:flex;align-items:center;gap:8px;margin-bottom:7px;
+    &.base{padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:10px}
+    .bdthumb{width:64px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:none;
+      &.none{display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--panel2)}}
+    .bdlabel{flex:1;color:var(--muted);font-size:12px}
+    .bdfrom{color:var(--muted);font-size:11px}
+    .enum{width:64px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 6px;font-size:12px}
+    .ex{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 5px;
+      &:hover{color:#ff9b9b}}}
+}
+
+.atlas .mnote{font-size:13px;line-height:1.5;margin:0 0 4px}
+.atlas .aundobar .aundo{margin-left:12px;background:none;border:1px solid #6fcf9755;border-radius:6px;
+  color:#6fcf97;padding:2px 10px;cursor:pointer;font:inherit;font-weight:600;
+  &:hover{border-color:#6fcf97}}
+.atlas .pick{position:relative}
+.atlas .pick .puse{position:absolute;top:4px;right:4px;font-size:11px;line-height:1;border-radius:8px;padding:2px 4px;
+  background:#000000aa;color:var(--muted)}
+.atlas .pick .puse.on{color:#7fc98f}
+.atlas .pgen{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;
+  input{background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:6px 8px;font:inherit;font-size:12px}}
+.atlas .helppop .helpkey{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
+.atlas .helpwrap{z-index:$z-grip}
+.atlas .pick .pname{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:#000a;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;pointer-events:none}
+.atlas .apop-sep{padding:7px 10px 2px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin-top:4px}
+.atlas .ctxmenu .apop-sep{border-top:0;margin-top:0;padding-top:4px;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+// the picker: above any dialog that opened it, the current image marked
+.atlas .modal-back.top{z-index:$z-modal-over}
+.atlas .pick.current{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
+.atlas .modal .nsearch{margin:8px 0 0}

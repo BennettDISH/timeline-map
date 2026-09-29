@@ -36,7 +36,7 @@ Production: `npm run build` then `npm start` (Railway runs both from `main`).
 
 ## Layout
 - `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId/m/:mapId`, the editor), **PlayerView**
-  (`/p/:token`, the public read-only share), Dashboard, ImageManager (the Archive), AdminPanel,
+  (`/p/:token`, the public read-only share), Dashboard, Archive (the world's images), AdminPanel,
   Login, AuthCallback, NotFound.
 - `server/routes/` — **atlas** (the whole Atlas API), **share** (the tokened Player View API and
   the secrecy boundary), **forge**, **voice**, worlds, images, image-base64, imageFolders, auth, admin.

@@ -1,0 +1,62 @@
+// The Forge: the per-world mind panel, its conversation, batch cards and settings.
+// Page: AtlasWorkspace (components/atlas/ForgePanel).
+@use '../z' as *;
+
+// ---- The Forge: the per-world mind's panel (edit posture only) ----
+.atlas .forgebtn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:7px;padding:4px 10px;cursor:pointer;font:inherit}
+.atlas .forgebtn.on{border-color:var(--accent);color:var(--accent)}
+.atlas .forge{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;
+  .fhead{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);
+    h4{margin:0;font-size:14px}
+    .x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}}
+  .fbatch{border:1px dashed var(--accent);border-radius:8px;padding:8px 10px}
+  .fbsum{font-size:13px;font-weight:600}
+  .fbmeta{font-size:11.5px;color:var(--muted);margin:3px 0 7px}
+  .fbrow{display:flex;gap:6px}
+  .flog{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .fintro{color:var(--muted);font-size:12.5px;line-height:1.5}
+  .fmsg{max-width:92%;border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;flex:none}
+  .fmsg.me{align-self:flex-end;background:var(--panel2);border:1px solid var(--line)}
+  .fmsg.mind{align-self:flex-start;background:#2a2417;border:1px solid #4a3f22}
+  .fmsg.fwait{color:var(--muted);font-style:italic;animation:forgepulse 1.6s ease-in-out infinite}
+  .fsend{display:flex;gap:6px;padding:10px 12px;
+    textarea{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);
+      padding:6px 8px;font:inherit;font-size:12.5px;resize:none}}}
+@keyframes forgepulse{0%,100%{opacity:.55}50%{opacity:1}}
+.atlas .forge .fhbtns{display:flex;gap:2px;align-items:center}
+.atlas .forge .fhbtns .gear{background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px}
+.atlas .forge .fhbtns .gear.on{color:var(--accent)}
+.atlas .forge .fmind{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px;
+  .fsect{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:10px}
+  .fsect:first-child{margin-top:0}
+  .fhint{font-size:11.5px;color:var(--muted);line-height:1.45}
+  textarea,select{background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);
+    padding:6px 8px;font:inherit;font-size:12.5px;resize:vertical}
+  .fanchor{display:flex;flex-direction:column;gap:6px;
+    img{width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}}
+  >.tool.on{margin-top:12px}}
+.atlas .forge .fbrow{align-items:center}
+.atlas .forge .fasks{border-top:1px dashed #6b5a2a;margin:2px 0 8px;padding-top:7px;
+  .faskhead{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#d9b64e;margin-bottom:4px}
+  .fask{font-size:12px;line-height:1.5}
+  .fbrow{margin-top:7px}}
+// ---- the Forge as a conversation: threaded cards, context chip, one composer ----
+.atlas .forge .flog .fbatch{flex:none;margin:-2px 0 2px}
+.atlas .forge .fcompose{border-top:1px solid var(--line)}
+.atlas .forge .fctx{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0;
+  &:empty{display:none}}
+.atlas .forge .fchip{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;
+  color:#d9b64e;border:1px solid #6b5a2a;border-radius:10px;padding:4px 8px;
+  button{background:none;border:0;color:#d9b64e;cursor:pointer;font-size:11px;padding:0 0 0 2px;line-height:1}
+  &.dim{color:var(--muted);border-color:var(--line)}}
+// the Forge: a message that never arrived, the composer's limit, unsaved settings
+.atlas .fmsg.failed{opacity:.8;border:1px dashed #b07bd0}
+.atlas .ffail{font-size:11px;color:#c9a35f;margin-top:4px}
+.atlas .fcount{font-size:11px;color:var(--muted);margin-left:6px;align-self:center}
+.atlas .forge .gear.dirty{color:#c9a35f}
+.atlas .fask.gone{opacity:.6;text-decoration:line-through}
+// the Forge column resizes from its left edge, like the editor and the tree
+.atlas .fresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:$z-grip}
+.atlas .fresize:hover,.atlas .fresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
+// the ⚙ partition's boxes keep their rows; the partition scrolls
+.atlas .forge .fmind > *{flex:none}

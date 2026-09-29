@@ -1,0 +1,33 @@
+// Shared controls: tool and btn buttons, chips, section labels, muted and warning text, links.
+// Pages: AtlasWorkspace and PlayerView.
+
+.atlas {
+  .tool{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 10px;cursor:pointer}
+  .tool.on{outline:2px solid var(--accent)}
+  .tool:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:11px;background:var(--panel2);color:var(--ink);cursor:pointer}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#08131f}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#08131f}
+  .btn.block{display:block;width:100%;text-align:center;margin-bottom:6px}
+  .btn.danger{color:#ff9b9b;border-color:#5a2a2a}
+  .muted{color:var(--muted);font-style:italic}
+  label.btn{cursor:pointer}
+  // inspector section labels
+  .isect{display:flex;align-items:center;gap:8px;margin:17px 0 9px;font-size:10px;
+    letter-spacing:.16em;text-transform:uppercase;color:#c9a35f;
+    &::after{content:'';flex:1;height:1px;background:var(--line)}}
+  .esmall{font-size:11px;font-style:normal;line-height:1.45}
+}
+
+.atlas .lnk{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+// a held period: the bounds are reversed, nothing is saved until they are in order
+.atlas .muted.warn{color:#d9a441}
+// base looks for controls no context rule reached
+.atlas .span input{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:6px 8px;font:inherit}
+.atlas .lx{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px}
+.atlas .ic{border-radius:50%;text-align:center;flex:none;width:16px;height:16px;line-height:16px;font-size:10px}
+// the destructive choice is marked wherever it stands
+.atlas .danger{color:#e66}
+.atlas .tool.danger{border-color:#5a2a2a}

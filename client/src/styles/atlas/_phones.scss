@@ -1,0 +1,14 @@
+// Phone widths: the top bar wraps and the crumbs take their own row. After the Player View
+// on purpose: these win over its own crumbs rule. Pages: AtlasWorkspace and PlayerView.
+@use '../z' as *;
+
+// ---- phones: the page fits the screen, the map stays the main thing, targets are tappable ----
+.atlas{grid-template-columns:minmax(0,1fr)}
+.atlas .top{min-width:0}
+.atlas .top .brand{min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+@media (max-width:700px){
+  .atlas{grid-template-rows:auto 1fr}
+  .atlas .top{flex-wrap:wrap;height:auto;min-height:46px;padding:4px 8px;gap:6px 8px}
+  .atlas .top .crumbs{flex-basis:100%;order:9;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:$z-hud;width:32px;height:32px;border-radius:50%;padding:0}
+}

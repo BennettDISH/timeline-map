@@ -1,0 +1,53 @@
+// The Player View's own chrome: layout, navigation, the dead-link page, markers and their form,
+// and the lantern's trail. Page: PlayerView (/p/:token).
+@use '../z' as *;
+
+.atlas {
+  .nowchip{color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+     padding:3px 10px;white-space:nowrap;font-weight:600}
+  // Player View: single-column, canvas-first, bottom-sheet inspector. Reuses the pin styles.
+  &.pview .main{position:absolute;inset:46px 0 0 0;display:flex}
+  &.pview .pcol{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+  &.pview .stage{position:relative;flex:1 1 auto}
+  &.pview .deadlink{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+     gap:6px;color:var(--muted);text-align:center;padding:20px}
+  &.pview .deadlink h3{color:var(--ink);margin:0}
+  .stalechip{color:#d0a24a;border:1px solid #d0a24a44;border-radius:999px;padding:2px 9px;font-size:10.5px;white-space:nowrap}
+  .sby{color:#6fcf97;font-size:11.5px;font-style:italic}
+  .markbtn{position:absolute;left:10px;bottom:10px;z-index:$z-hud;color:#6fcf97;border-color:#6fcf9755;
+    background:#0d0f13d8}
+  .markhint{position:absolute;left:10px;bottom:46px;z-index:$z-hud;color:#6fcf97;font-size:11.5px;font-style:italic;
+    background:#0d0f13cc;border:1px dashed #6fcf9755;border-radius:6px;padding:4px 9px;pointer-events:none}
+  .mcats{display:flex;align-items:center;gap:6px;margin:10px 0;
+    .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#fff;font-size:12px;
+      line-height:22px;text-align:center;cursor:pointer;opacity:.4;padding:0;flex:none}
+    .cdot.on{opacity:1;border-color:#fff;box-shadow:0 0 0 2px #6fcf97}
+    .mcatname{color:var(--muted);font-size:11.5px}}
+  .mnotearea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);padding:6px 8px;font:inherit;margin-bottom:8px}
+}
+
+// ---- the DM's lantern: the golden trail players follow ----
+.atlas .dmtrail{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 12px;font-size:12.5px;
+  background:linear-gradient(180deg,#2a2312,#221d10);border-bottom:1px solid #6b5a2a;color:#d9b64e;flex:none;
+  .deye{filter:drop-shadow(0 0 6px #d9b64e)}
+  .sep{color:#6b5a2a}
+  a{color:#d9b64e;cursor:pointer;text-decoration:none;border-bottom:1px dotted #6b5a2a;
+    &.here{background:#d9b64e22;border:1px solid #6b5a2a;border-bottom-style:solid;border-radius:5px;padding:1px 7px;font-weight:600}
+    &.last{font-weight:700}}}
+// ---- Player View navigation: always a way up, one tap in ----
+.atlas.pview .crumbs{display:flex;overflow-x:auto;white-space:nowrap;scrollbar-width:none;flex:1}
+.atlas.pview .crumbs::-webkit-scrollbar{display:none}
+.atlas.pview .backbtn{position:absolute;top:10px;left:10px;z-index:$z-chrome;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atlas.pview .pin .enter,.atlas.pview .lsrow .enter{background:none;border:0;color:var(--muted);cursor:pointer;font:inherit;font-size:15px;padding:0 3px;line-height:1}
+.atlas.pview .ambbtn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit;white-space:nowrap}
+.atlas.pview .ambbtn.on{color:#7fc98f;border-color:#2e5738}
+// the Player View: while marking the whole map takes the drop; sheet thread directions; the marker form
+.atlas.pview .stage.marking .pin{pointer-events:none}
+.atlas.pview .deadlink .tool{margin-top:12px}
+.atlas.pview .lrow .ldir{color:var(--muted);margin-right:4px;font-size:11px}
+.atlas .mrow .placebtn{min-width:230px}
+.atlas .mform .merr{color:#e66;font-size:12px;margin-top:8px}
+.atlas.pview .helpwrap .tool.round{width:30px;height:30px;border-radius:999px;padding:0}
+.atlas .dmtrail{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none} // one line, scrolling
+.atlas .dmtrail .dlabel{color:#d9b64e;opacity:.8;margin-right:2px;font-size:12px}

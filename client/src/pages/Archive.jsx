@@ -15,7 +15,7 @@ const PAGE = 60
 
 // The Archive: one world's art — maps, portraits, handouts. Scoped to a single world
 // (switchable in the header); upload by button, by dragging anywhere, or by pasting.
-function ImageManager() {
+function Archive() {
   const { worldId: paramWorldId } = useParams()
   const navigate = useNavigate()
 
@@ -702,4 +702,4 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
   )
 }
 
-export default ImageManager
+export default Archive

@@ -1,0 +1,82 @@
+// The clock: the DM's timebar and ⚙ panel (TimelineConfig), and the players' era bar (EraScrub).
+// Pages: AtlasWorkspace and PlayerView.
+@use '../z' as *;
+
+.atlas {
+  // timeline scrubber + presence
+  // the DM scrubber is a real row under the map — never on top of it; same band
+  // language as the player era bar: named eras on their own line, slider beneath
+  .timebar{position:static;flex:none;display:flex;align-items:center;gap:10px;user-select:none;-webkit-user-select:none;
+     height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
+  .timebar .tzone{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none}
+  .timebar .ttrack{flex:1;min-width:160px;position:relative;height:100%} // the labels give way before the track does
+  .timebar input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:var(--accent);z-index:2}
+  .canonmark{position:absolute;top:8px;bottom:6px;width:2px;background:#c9a35f;border-radius:1px;pointer-events:none;z-index:3}
+  .canonchip{color:#c9a35f;border:1px solid #c9a35f44;border-radius:999px;padding:1px 8px;font-size:10px;
+     letter-spacing:.08em;text-transform:uppercase}
+  .tcanon{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
+  .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
+  .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;max-width:240px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  // the timebar's small buttons: .fexp (focus expand), .tback (back to canon), .tghosts (⏳), .tcfg (⚙)
+  .timebar .tbtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
+  .timebar .tbtn:hover{color:var(--ink)}
+  // era bands: history's stripes behind the scrubber — gold if players may walk them.
+  // (the input stays absolute, from the rule above: bands under it, ticks over it)
+  .timebar .teraband{position:absolute;top:10px;height:20px;border-radius:5px;pointer-events:none;overflow:hidden;
+     background:rgba(176,123,208,.10);border:1px solid rgba(176,123,208,.25)}
+  .timebar .teraband.pv{background:rgba(201,163,95,.20);border-color:rgba(201,163,95,.45)}
+  .timebar .teraband em{display:block;padding:0 7px;font-style:normal;font-size:10.5px;line-height:19px;color:#e3cf9c;
+     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}
+  .timebar .teraband:not(.pv) em{color:#d4b8e3}
+  .tlcfg{position:absolute;right:10px;bottom:74px;z-index:$z-hud-panel;display:flex;flex-direction:column;align-items:stretch;gap:9px;
+     width:320px;max-height:70vh;overflow-y:auto;padding:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px #000a}
+  .tlcfg label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
+  .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
+  .tlcfg input[type=text]{width:140px}
+  .tlcfg .tlhead{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    h4{margin:0;font-size:14px}}
+  .ttick{position:absolute;bottom:4px;width:1px;height:8px;background:var(--accent);opacity:.55;pointer-events:none}
+  .tlrow{display:flex;gap:6px}
+  .tlrow.tloff{flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+  .tlrow.tlnote{flex-wrap:wrap;align-items:center;gap:6px 8px}
+  .erarow{display:flex;align-items:center;gap:4px;
+    .ename{flex:1;min-width:0;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 7px;font-size:12px}
+    .enum{width:52px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 5px;font-size:12px}
+    .edash{color:var(--muted)}
+    .etoggle{background:none;border:1px solid var(--line);border-radius:6px;padding:3px 6px;cursor:pointer;opacity:.35;font-size:12px}
+    .etoggle.on{opacity:1;border-color:#c9a35f;background:rgba(201,163,95,.12)}
+    .ex{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px;
+      &:hover{color:#ff9b9b}}}
+  // the player era bar: its own row, tall enough that era names live INSIDE the gold
+  // bands on their own line — the slider runs below them, covering nothing
+  .erabar{position:static;flex:none;display:flex;align-items:center;gap:12px;
+    height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
+  .etrack{flex:1;position:relative;height:100%;
+    input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:#c9a35f;z-index:2}
+    .eseg{position:absolute;top:10px;height:20px;border-radius:5px;background:rgba(201,163,95,.22);
+      border:1px solid rgba(201,163,95,.45);pointer-events:none;overflow:hidden;
+      em{display:block;padding:0 7px;font-size:10.5px;font-style:normal;line-height:19px;color:#e3cf9c;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}}}
+  // fixed-width zone: the label and the Now button swap content without ever
+  // resizing the track under a mid-drag thumb
+  .ezone{display:flex;align-items:center;justify-content:flex-end;gap:10px;width:260px;flex:none}
+  .einfo{color:var(--ink);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    min-width:0;flex:1;text-align:right}
+  .enow{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55;flex:none}
+}
+
+.atlas .tnowbtn{background:none;border:0;cursor:pointer;font:inherit;padding:0;color:var(--ink);
+  &:hover{color:var(--accent)}}
+.atlas .tnowedit{width:86px;background:#161a21;border:1px solid var(--accent);border-radius:6px;
+  color:var(--ink);padding:3px 7px;font:inherit;text-align:right}
+.atlas .einfobtn{background:none;border:0;cursor:pointer;padding:0;font:inherit;text-align:right;
+  &:hover{color:#c9a35f}}
+.atlas .timebar .tstep{position:absolute;top:2px;width:8px;height:8px;border-radius:50%;background:var(--sc,#38b6a3);border:1px solid #0d0f13;transform:translateX(-50%);padding:0;cursor:pointer;z-index:4}
+.atlas .timebar .tstep:hover{transform:translateX(-50%) scale(1.5)}
+.atlas .tbtn.off{opacity:.4}
+.atlas .timebar .tstep.grp{width:10px;height:10px;border-width:2px}
+@media (max-width:600px){ // the era bar on its own two rows: the track wide, the clock under it
+  .atlas .erabar{flex-wrap:wrap;height:auto;padding:6px 10px 8px;gap:4px 12px}
+  .atlas .etrack{flex:1 1 100%;height:44px}
+  .atlas .ezone{width:100%;justify-content:space-between}
+}

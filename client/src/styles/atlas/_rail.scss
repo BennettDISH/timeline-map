@@ -1,0 +1,26 @@
+// The Maps rail: the tree of maps and its tools. Page: AtlasWorkspace (components/atlas/MapTree).
+@use '../z' as *;
+
+.atlas {
+  .rail{background:var(--panel2);border-right:1px solid var(--line);overflow:auto;padding:10px}
+  .rail h4{margin:6px 6px 8px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .trow{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer}
+  .trow:hover{background:#ffffff10}
+  .trow.on{background:#5b9bd530;font-weight:600}
+  .trow .tthumb{width:22px;height:16px;border-radius:3px;object-fit:cover;border:1px solid var(--line);flex:none}
+  .railtoggle{position:absolute;top:10px;left:10px;z-index:$z-chrome;width:32px;justify-content:center;color:var(--muted)}
+}
+
+// ---- the Maps rail as a tree: carets, guides, counts, tools ----
+.atlas .trow{position:relative;min-width:0}
+.atlas .trow .ttitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.atlas .trow .tcaret{width:16px;height:16px;flex:none;background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;line-height:16px;padding:0;text-align:center;border-radius:4px}
+.atlas .trow .tcaret:hover{background:#ffffff18;color:var(--ink)}
+.atlas .trow .tcaret.none{cursor:default}
+.atlas .trow .tnothumb{width:22px;height:16px;border-radius:3px;border:1px dashed var(--line);flex:none;opacity:.6}
+.atlas .trow .tguide{position:absolute;top:0;bottom:0;width:1px;background:#ffffff14;pointer-events:none}
+.atlas .trow .tcount{font:500 10px/1 ui-monospace,monospace;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:2px 5px;flex:none}
+.atlas .ttools{display:flex;gap:4px;margin:0 6px 6px;
+  button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 7px;font:inherit;font-size:10.5px;cursor:pointer}
+  button:hover{color:var(--ink);border-color:var(--accent)}}
+.atlas .tsect{margin:10px 6px 4px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}

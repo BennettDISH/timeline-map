@@ -42,8 +42,8 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   `Pickers` = ImagePicker + NodePicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
-- Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `ImageManager`
-  (the Archive), `AdminPanel`, `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
+- Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `Archive`
+  (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel`, `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
   ensured on boot and admin is a Waypoint identity)
 - Authentication context in `client/src/utils/AuthContext.jsx`; SSO is built server-side
   (no VITE_ client vars; configured only when URL + client id + secret all exist).
@@ -77,7 +77,14 @@ Live tables (the 15 `schema.sql` creates, and exactly what production holds as o
 legacy tables (`events` and friends) are gone.
 
 ## Development Guidelines
-- Follow existing SCSS styling patterns in `client/src/styles/` (`atlas.scss` for the workspace)
+- Follow existing SCSS styling patterns in `client/src/styles/`. `atlas.scss` (the workspace and
+  the Player View) is only an index of `styles/atlas/_*.scss`, one partial per surface (shell,
+  controls, dialogs, rail, plane, regions, timebar, inspector, reader, player, phones, forge,
+  audio, access) in cascade order: a rule belongs in its surface's partial, and an override that
+  must win across surfaces goes in a later one (`_phones`, `_access`). Scoping is by root class
+  only (`.atlas`, `.shell`): once a sheet is loaded it applies everywhere, so every rule names
+  its root. Moving rules between partials can change which one wins — compare the compiled CSS
+  before and after (same rules, no flipped order between equal-specificity rules on one element)
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path

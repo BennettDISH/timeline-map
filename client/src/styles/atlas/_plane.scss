@@ -1,0 +1,141 @@
+// The map surface: MapPlane, pins (chip, image, party, marker, lantern), the legend, the list view,
+// the party's footprints and the colour language. Pages: AtlasWorkspace and PlayerView.
+@use '../z' as *;
+
+.atlas {
+  // The map and the timebar are drag surfaces — text selection mid-gesture paints blue
+  // ghosting across labels and hints. Inputs inside (year typing) stay editable regardless.
+  .stage{position:relative;overflow:hidden;min-height:0;background:#0d0f13;user-select:none;-webkit-user-select:none}
+  // The pan/zoom map plane (MapPlane). Pins live in % of .mp-world, whose shape matches
+  // the backdrop image — a coordinate is the same map point on every screen.
+  .mp-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;background:#0b0d12}
+  .mp-world{position:absolute;top:0;left:0;transform-origin:0 0;background:#12161d;
+     box-shadow:0 0 0 1px #3a3f47, 0 18px 60px #0009}
+  .mp-world.nobg{background-color:#12161d;
+     background-image:radial-gradient(#ffffff12 1px,transparent 1px);background-size:40px 40px}
+  .mp-backdrop{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;
+     user-select:none;-webkit-user-drag:none}
+  .mp-grid{position:absolute;inset:0;pointer-events:none;
+     background-image:linear-gradient(#ffffff17 1px,transparent 1px),linear-gradient(90deg,#ffffff17 1px,transparent 1px);
+     background-size:160px 160px}
+  .mp-controls{position:absolute;right:12px;bottom:12px;z-index:$z-chrome;display:flex;flex-direction:column;gap:5px;
+     opacity:.4;transition:opacity .15s;
+     button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+       color:var(--ink);font-size:15px;line-height:1;cursor:pointer}
+     button:hover{border-color:var(--accent)}}
+  .mp-viewport:hover .mp-controls,.mp-controls:hover{opacity:1}
+  @media (hover: none){.mp-controls{opacity:1}}
+  .stage .hint{position:absolute;bottom:10px;left:10px;z-index:$z-stage;color:var(--muted);font-size:11px;font-style:italic;
+     background:#00000066;border:1px dashed var(--line);border-radius:6px;padding:4px 8px;max-width:260px;
+     pointer-events:none}
+  .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+     color:var(--muted);gap:8px;text-align:center;pointer-events:none;z-index:4;
+     .tool{pointer-events:auto}}
+  .empty-map.static{position:static;pointer-events:auto;padding:60px 20px}
+  .pin{position:absolute;transform:translate(calc(-50% + var(--ox,0px) * var(--pinscale,1)),calc(-50% + var(--oy,0px) * var(--pinscale,1))) scale(var(--pinscale,1));z-index:3;display:flex;align-items:center;gap:6px;
+     background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:3px 10px 3px 7px;cursor:grab;
+     touch-action:none;user-select:none;box-shadow:0 2px 6px #0006;white-space:nowrap;max-width:220px;color:var(--ink)}
+  .pin .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
+  .pin .lbl{overflow:hidden;text-overflow:ellipsis}
+  .pin .open{color:var(--muted)}
+  .pin.sel{outline:2px solid var(--accent);outline-offset:1px}
+  .pin.open2{border-style:double;border-width:3px}
+  .pin.secret{opacity:.45} // DM-only: faint, almost transparent — players never see it
+  .pin .lock{font-size:10px}
+  .pin.ghost{border-style:dashed;border-color:#b07bd0} // not present at the lens moment: a dashed purple edge (⏳ on the timebar hides them)
+  .legend{position:absolute;left:10px;bottom:10px;z-index:$z-stage;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center;max-width:calc(100% - 160px)}
+  .lchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;
+    padding:2px 9px;font-size:11px;background:#0d0f13cc;color:var(--ink);cursor:pointer;
+    .ic{width:12px;height:12px;border-radius:50%;color:#fff;font-size:8px;line-height:12px;text-align:center;flex:none}
+    em{color:var(--muted);font-style:normal}
+    &.off{opacity:.38}
+    &.all{color:var(--accent)}
+    &:hover{border-color:var(--accent)}}
+  .listview{position:absolute;inset:0;overflow-y:auto;padding:52px 20px 90px;z-index:2}
+  .listhead{max-width:660px;margin:0 auto 12px;text-align:center;font-size:12px}
+  .lsrow{max-width:660px;margin:0 auto 7px;display:flex;align-items:flex-start;gap:10px;background:var(--panel);
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;cursor:pointer;
+    .ic{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;line-height:18px;text-align:center;flex:none;margin-top:1px}
+    .lsbody{flex:1;min-width:0}
+    .lstitle{font-weight:600}
+    .lsdesc{color:var(--muted);font-size:12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .open{color:var(--muted)}
+    &:hover{border-color:var(--accent)}
+    &.on{outline:2px solid var(--accent);outline-offset:1px}
+    &.ghost{opacity:.35}}
+  .pin.ipin{flex-direction:column;gap:3px;background:none;border:none;box-shadow:none;padding:0;max-width:none;
+    .iart{max-width:64px;max-height:64px;display:block;pointer-events:none;user-select:none;
+      filter:drop-shadow(0 4px 8px rgba(0,0,0,.75))}
+    .ilbl{font-size:10.5px;color:var(--ink);background:#0d0f13c4;border:1px solid #ffffff14;
+      border-radius:999px;padding:1px 8px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;
+      text-shadow:0 1px 3px #000}
+    .lock{position:absolute;top:-6px;left:-6px}
+    .open{position:absolute;top:-6px;right:-6px;background:#0d0f13d0;border-radius:50%;
+      width:17px;height:17px;line-height:16px;text-align:center;font-size:11px}
+    &.sel{outline:none;
+      .iart{filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 5px var(--accent))}
+      .ilbl{border-color:var(--accent)}}
+    &.secret .iart{filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 5px #b07bd0)}
+    &.open2{border:none}
+  }
+  .pin.pmark{border-style:dashed;border-color:#6fcf9788;
+    .psig{font-size:9px;margin-right:-2px}}
+  .pin.pmark.ipin{border:none}
+}
+
+.atlas .pin.spot{border-color:#d9b64e;animation:spotglow 2s ease-in-out infinite}
+.atlas .pin.ipin.spot{border:none;box-shadow:none;animation:spotglow2 2s ease-in-out infinite}
+.atlas .lsrow.spot{outline:1px solid #d9b64e88;background:#d9b64e14}
+@keyframes spotglow{0%,100%{box-shadow:0 0 0 3px #d9b64e33,0 0 12px #d9b64e55}50%{box-shadow:0 0 0 3px #d9b64e66,0 0 22px #d9b64eaa}}
+@keyframes spotglow2{0%,100%{filter:drop-shadow(0 0 6px #d9b64e88)}50%{filter:drop-shadow(0 0 14px #d9b64e)}}
+// ---- collapsed pins: icon-only until hover ----
+// The pin is a FIXED circle centered on its map point; the name is an out-of-flow flyout,
+// so hover animates opacity/slide only — the box never changes size and nothing re-anchors.
+// Touch devices have no hover: they keep the full labeled chips.
+@media (hover: hover){
+  .atlas:not(.labelson) .pin:not(.ipin){width:32px;height:32px;padding:0;justify-content:center;border-radius:50%;gap:0}
+  .atlas:not(.labelson) .pin:not(.ipin) .lbl{position:absolute;left:calc(100% + 7px);top:50%;opacity:0;pointer-events:none;
+    transform:translateY(-50%) translateX(-6px);transition:opacity .14s ease,transform .14s ease;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 9px;box-shadow:0 2px 6px #0006;
+    white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  .atlas:not(.labelson) .pin:not(.ipin):hover .lbl,.atlas:not(.labelson) .pin.sel:not(.ipin) .lbl{opacity:1;transform:translateY(-50%) translateX(0)}
+  .atlas:not(.labelson) .pin:not(.ipin) .open,.atlas:not(.labelson) .pin:not(.ipin) .lock{display:none}
+  .atlas .pin .psig{position:absolute;top:-7px;right:-7px;width:16px;height:16px;line-height:14px;text-align:center;
+    background:var(--panel);border:1px solid #2e5738;border-radius:50%;font-size:9px}
+  .atlas:not(.labelson) .pin.ipin .ilbl{opacity:0;transition:opacity .14s ease}
+  .atlas:not(.labelson) .pin.ipin:hover .ilbl,.atlas:not(.labelson) .pin.ipin.sel .ilbl{opacity:1}
+  .atlas .pin:hover{z-index:$z-stage}
+}
+.atlas .pin .stb{position:absolute;top:-4px;left:-4px;width:11px;height:11px;border-radius:50%;border:2px solid #0d0f13}
+.atlas .pin .stb.friend{background:#4f9f6f}
+.atlas .pin .stb.neutral{background:#8a8a86}
+.atlas .pin .stb.foe{background:#d05b5b}
+// ---- the party: its own kind of pin, and the trail of where it has been ----
+.atlas .pin.party{border-color:var(--sc,#38b6a3);box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#38b6a3) 45%,transparent),0 2px 8px #0008}
+.atlas .pin .stag{position:absolute;top:-9px;right:-10px;font:600 9px/1 ui-monospace,monospace;letter-spacing:.02em;color:#0d0f13;background:var(--sc,#38b6a3);border-radius:8px;padding:3px 5px;white-space:nowrap}
+.atlas .ftrail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
+.atlas .fstep{position:absolute;width:12px;height:12px;border-radius:50%;border:2px solid #0d0f13;background:var(--sc,#38b6a3);z-index:2;padding:0;cursor:pointer;
+  transform:translate(calc(-50% + var(--ox,0px) * var(--pinscale,1)),calc(-50% + var(--oy,0px) * var(--pinscale,1))) scale(var(--pinscale,1))}
+.atlas .fstep:hover{opacity:1 !important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#38b6a3) 40%,transparent)}
+// the colour language holds on EVERY pin variant, region and list row: not-here (dashed
+// purple) wins over marker green and lantern gold on the edge; DM-only is faint, never a
+// colour of its own; glyphs are dark so they read on every category colour
+.atlas .pin.ghost,.atlas .pin.pmark.ghost,.atlas .pin.spot.ghost{border-style:dashed;border-color:#b07bd0}
+.atlas .pin.ipin.ghost .iart{outline:1.5px dashed #b07bd0;outline-offset:3px}
+.atlas .pin.ipin.secret .iart{filter:drop-shadow(0 2px 4px #0008)}
+.atlas .lsrow.ghost{opacity:1;border:1px dashed #b07bd0}
+.atlas .lsrow.secret{opacity:.45}
+.atlas .ic,.atlas .sic,.atlas .cdot,.atlas .pin .ic,.atlas .lchip .ic{color:#0d0f13}
+@media (hover: hover){ // on a collapsed chip the way in is a small badge at its corner
+  .atlas:not(.labelson) .pin:not(.ipin) .enter{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;padding:0;line-height:16px;font-size:11px;
+    border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+}
+@media (hover: none){
+  .atlas .pin{max-width:40vw}
+  .atlas .pin .lbl{max-width:30vw;overflow:hidden;text-overflow:ellipsis}
+}
+.atlas .empty-map.worldgone{gap:6px}
+// the map surface: a selected pin above its neighbours, a crosshair while placing, a
+// selected outline that can be moved, a labelled group in the space menu
+.atlas .pin.sel{z-index:$z-chrome}
+.atlas.placing .mp-viewport,.atlas.placing .pin{cursor:crosshair}

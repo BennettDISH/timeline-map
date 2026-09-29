@@ -1,0 +1,78 @@
+// The workspace shell: top bar, crumbs, posture switch, search, save chip, the main grid,
+// the stage column, the toolbar, the resize grips and the 🎭 frame. Page: AtlasWorkspace.
+@use '../z' as *;
+
+.atlas {
+  .top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .top .brand{font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .top .brandsel{
+    appearance:none;background:transparent;border:0;color:var(--ink);
+    font:inherit;font-weight:700;font-size:15px;cursor:pointer;
+    padding:0 14px 0 0;max-width:24vw;overflow:hidden;text-overflow:ellipsis;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%239a9a94'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right center;
+    &:focus{outline:none} // replaced by the :focus-visible ring at the end of the file
+    option{background:var(--panel2);color:var(--ink);font-size:13px;font-weight:400}
+  }
+  .crumbs{display:flex;align-items:center;gap:5px;flex:1;overflow:hidden;white-space:nowrap;color:var(--muted)}
+  .crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+  .crumbs .sep{color:var(--line)}
+  .crumbs .here{color:var(--ink);font-weight:600}
+  .top .exit{color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+  .mode{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .mode button{background:var(--panel2);border:0;color:var(--muted);padding:4px 10px;cursor:pointer;font:inherit}
+  .mode button.on{background:var(--accent);color:#08131f;font-weight:600}
+  .main{display:grid;min-height:0} // the columns are set inline per posture
+  .toolbar{position:absolute;top:10px;left:52px;right:100px;z-index:$z-stage;display:flex;flex-wrap:wrap;gap:6px} // wraps before it reaches ? and ▸
+  .loading{display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .savechip{font-size:11px;border-radius:999px;padding:2px 9px;border:1px solid var(--line);white-space:nowrap;
+    &.sv{color:var(--muted)}
+    &.ok{color:#6fcf97;border-color:#2e5738}
+    &.bad{color:#ff9b9b;border-color:#5a2a2a}}
+  .gsearch{position:relative;width:200px;flex:none;
+    input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--ink);
+      padding:4px 12px;font:inherit;font-size:12px}
+    input:focus{outline:none;border-color:var(--accent)}}
+  .gresults{position:absolute;top:calc(100% + 6px);left:0;width:min(320px,72vw);z-index:$z-results;background:var(--panel);
+    border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 34px #000a;overflow:hidden;
+    display:flex;flex-direction:column;max-height:50vh;overflow-y:auto;
+    button{display:flex;align-items:center;gap:8px;background:none;border:0;color:var(--ink);font:inherit;
+      padding:7px 10px;cursor:pointer;text-align:left}
+    button:hover{background:#ffffff10}
+    .ic{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;line-height:16px;text-align:center;flex:none}
+    .gtitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .glock,.gopen{font-size:11px;color:var(--muted)}
+    .gnone{padding:9px 12px;color:var(--muted);font-style:italic;font-size:12px}
+    .gfilter{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);
+      button{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+      button.on{color:var(--ink);border-color:var(--accent)}}}
+  .gorphan{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:0 6px;white-space:nowrap;flex:none}
+  @media (max-width: 900px){
+    .crumbs{display:none}
+    .gsearch{width:140px}
+  }
+  // the stage column: map on top, timeline rows underneath
+  .stagecol{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+  .stagecol .stage{flex:1 1 auto}
+  .main{position:relative}
+  .iresize,.rresize{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:$z-grip}
+  .iresize:hover,.iresize:active{background:linear-gradient(90deg,var(--accent),transparent)}
+  .rresize:hover,.rresize:active{background:linear-gradient(270deg,var(--accent),transparent)}
+  .insptoggle{position:absolute;top:10px;right:10px;z-index:$z-chrome;width:32px;justify-content:center;color:var(--muted)}
+  .main.m-edit .helpwrap{right:52px}
+}
+
+.atlas .crumbs a.here{color:var(--fg);cursor:pointer}
+// ---- laptop widths and one look ----
+// crumbs shrink with an ellipsis instead of pushing the posture switcher and Exit off-screen
+.atlas .crumbs{min-width:0}
+.atlas .crumbs a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:2ch}
+.atlas .top .brand .brandrose{color:#c9a35f;flex:none}
+.atlas .loading{min-height:0}
+// 🎭 Player posture: the share link framed at the current map — nothing of the DM's chrome
+.atlas .main.m-player{grid-template-columns:1fr;background:var(--bg)}
+.atlas .pframe{display:block;width:100%;height:100%;border:0;background:var(--bg)}
+.atlas .preview-off{display:grid;place-items:center;height:100%;padding:24px}
+.atlas .pofcard{max-width:440px;text-align:center;color:var(--ink)}
+.atlas .pofcard h2{font-family:var(--serif);font-weight:600;font-size:22px;margin:0 0 8px}
+.atlas .pofcard p{color:var(--muted);margin:0 0 14px}

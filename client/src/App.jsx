@@ -12,7 +12,7 @@ const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AdminPanel = lazy(() => import('./pages/AdminPanel'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
-const ImageManager = lazy(() => import('./pages/ImageManager'))
+const Archive = lazy(() => import('./pages/Archive'))
 const AtlasWorkspace = lazy(() => import('./pages/AtlasWorkspace'))
 
 // Protected Route component — a bounce to /login REPLACES the entry (Back never traps you on
@@ -94,7 +94,7 @@ function AppRoutes() {
           path="/worlds/:worldId/images" 
           element={
             <ProtectedRoute>
-              <ImageManager />
+              <Archive />
             </ProtectedRoute>
           } 
         />
