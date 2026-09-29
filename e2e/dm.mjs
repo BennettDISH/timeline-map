@@ -426,7 +426,7 @@ try {
       const inside = (w0.eras || []).find((e) => e.start >= tl0.min && e.end <= tl0.max);
       if (outside || inside) {
         if (!(await page.locator('.tlcfg').count())) { await page.locator('.timebar .tcfg').click(); await page.waitForTimeout(300); }
-        if (outside) { const note = await eraNote(outside.name); step("an era the clock doesn't cover is flagged, with a way to grow the clock", /outside the clock/.test(note || '') && /Grow the clock to/.test(note || ''), (note || 'no note').slice(0, 100)); }
+        if (outside) { const note = await eraNote(outside.name); step("an era the clock doesn't cover is flagged, with a way to grow the clock", /outside the clock/i.test(note || '') && /Grow the clock to/.test(note || ''), (note || 'no note').slice(0, 100)); }
         else console.log(`skip every era of world ${cfg.worldId} lies inside its clock`);
         if (inside) step('…and an era inside the clock is not', (await eraNote(inside.name)) === null, inside.name);
         await page.keyboard.press('Escape'); await page.waitForTimeout(300);
@@ -453,6 +453,46 @@ try {
       if (now && (now.min !== tl0.min || now.max !== tl0.max)) await patch(`worlds/${cfg.worldId}`, { timeline_min_time: tl0.min, timeline_max_time: tl0.max });
       if (now && now.current !== tl0.current && tl0.current != null) await patch(`worlds/${cfg.worldId}`, { timeline_current_time: tl0.current });
       await patch(`maps/${cfg.interior}`, { focus_start: m0?.focusStart ?? null, focus_end: m0?.focusEnd ?? null });
+    }
+  }
+  // Undo reaches back 24 hours: two deletes stack up and Ctrl+Z takes them back newest first,
+  // and after a reload Map ▾ → Recently deleted names a delete and puts it back. Two probe
+  // entries are made for it and removed afterwards.
+  {
+    const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
+    const make = async (title, x) => ({ title, ...(await (await fetch(`${BASE}/api/atlas/maps/${cfg.root}/nodes`, { method: 'POST', headers: J, body: JSON.stringify({ title, category: 'place', x, y: 14 }) })).json()) });
+    const t0 = Date.now(), A = await make(`undo-ui-a-${t0}`, 14), B = await make(`undo-ui-b-${t0}`, 18);
+    const onMap = async (n) => ((await (await fetch(`${BASE}/api/atlas/maps/${cfg.root}`, { headers: J })).json()).placements || []).some((p) => p.node.id === n.nodeId);
+    const del = async (n) => { // find it with the search box (a click on the map could land on a neighbour), then delete it from the editor
+      await page.locator('.gsearch input').fill(n.title); await page.waitForTimeout(700);
+      await page.locator('.gresults button', { hasText: n.title }).first().click(); await page.waitForTimeout(800);
+      await page.locator('.insp button', { hasText: 'Delete…' }).click(); await page.waitForTimeout(600);
+      await page.locator('button', { hasText: 'Delete everywhere' }).click(); await page.waitForTimeout(1500);
+    };
+    const ctrlZ = async () => { await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press('Control+z'); await page.waitForTimeout(1800); };
+    try {
+      await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await page.waitForSelector('.atlas .pin', { timeout: 30000 });
+      if (!(await page.locator('.mode button.on', { hasText: 'Edit' }).count())) { await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400); }
+      await del(A);
+      step('a delete offers ↩ Undo in its own toast', (await page.locator('.aundobar', { hasText: A.title }).count()) === 1 && !(await onMap(A)));
+      await del(B);
+      step('…a second delete takes the toast', (await page.locator('.aundobar', { hasText: B.title }).count()) === 1 && !(await onMap(B)));
+      await ctrlZ();
+      const bBack = await onMap(B), aStillGone = !(await onMap(A));
+      await ctrlZ();
+      step('Ctrl+Z takes the deletes back newest first, the first one included', bBack && aStillGone && await onMap(A), `B back ${bBack}, A kept gone ${aStillGone}`);
+      await del(A);
+      await page.reload({ waitUntil: 'networkidle' }); await page.waitForSelector('.atlas .pin', { timeout: 30000 }); await page.waitForTimeout(600);
+      await page.locator('.toolbar button', { hasText: 'Map ▾' }).click(); await page.waitForTimeout(300);
+      await page.locator('.apop button', { hasText: 'Recently deleted' }).click(); await page.waitForTimeout(1500);
+      const row = page.locator('.binlist li', { hasText: A.title });
+      step('after a reload Recently deleted still names it', (await row.count()) === 1, (await row.textContent().catch(() => 'no row')).slice(0, 80));
+      if (await row.count()) { await row.locator('button', { hasText: 'Undo' }).click(); await page.waitForTimeout(1800); }
+      step('…and its ↩ Undo puts it back', await onMap(A));
+      await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    } finally {
+      for (const n of [A, B]) if (n.nodeId) await fetch(`${BASE}/api/atlas/nodes/${n.nodeId}`, { method: 'DELETE', headers: J }).catch(() => {});
     }
   }
   step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));

@@ -22,7 +22,7 @@ export default function DeleteImpact({ impact, spotlit, party }) {
   return (
     <div className="impact">
       {bits.map((b, i) => <p key={i}>{b}</p>)}
-      <p className="muted">You'll get an Undo offer for a few seconds afterwards.</p>
+      <p className="muted">You can undo it for 24 hours: ↩ Undo on the toast, Ctrl+Z, or Map ▾ → Recently deleted.</p>
     </div>
   )
 }
