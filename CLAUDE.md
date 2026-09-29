@@ -270,7 +270,9 @@ legacy tables (`events` and friends) are gone.
   "Then on to … ▸" with links (`partyNeighbors` in `utils/moment.js`); players get the
   world-wide `partyTrail` in the windowed share payload, reachable maps only. (The
   "⚑ The party is at …" chip was removed on 2026-09-25 as clutter.)
-  Map ▾ → 👣 Footprints toggles the ghost-print trail (local preference).
+  The ghost-print trail is OFF until asked for: 👣 on the timebar (beside ⏳) in the workspace,
+  and the Player View's own 👣 Footprints beside ✍ Mark the map (shown only on a map with a
+  print; `trailSteps` in PartyTrail.jsx) — each a local preference (`atlas_prints`, `atlas_pv_prints`).
   **A session is an era NAMED "Session N"** (`sessionNum` in `utils/moment.js`): tags, tick
   titles, colours and labels number from the name, never from the era's position; where
   eras overlap, a session era wins, else the narrowest (`momentLabel`, `sessionOf`).

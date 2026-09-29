@@ -85,7 +85,7 @@ function AtlasWorkspace() {
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
   const [gridOn, setGridOn] = useFlag('atlas_grid', false)
   const [labelsOn, setLabelsOn] = useFlag('atlas_labels', false)
-  const [printsOn, setPrintsOn] = useFlag('atlas_prints', true)
+  const [printsOn, setPrintsOn] = useFlag('atlas_prints', false) // the party's earlier footsteps (👣): off until asked for
   const [ghostsOn, setGhostsOn] = useFlag('atlas_ghosts', true) // show things not present at the lens moment
   const togglePrints = () => setPrintsOn((v) => !v)
   const [bdsOpen, setBdsOpen] = useState(false) // "backdrops over time" manager
@@ -1567,10 +1567,6 @@ function AtlasWorkspace() {
                       <button title="Show every pin's name all the time, not just on hover"
                         role="menuitemcheckbox" aria-checked={labelsOn} onClick={() => { setMapMenu(false); toggleLabels() }}>🏷 Always show names {labelsOn ? '✓' : ''}</button>
                     )}
-                    {!isList && tl?.enabled && trail.length > 0 && (
-                      <button title="The party's ghost-print trail on this map"
-                        role="menuitemcheckbox" aria-checked={printsOn} onClick={() => { setMapMenu(false); togglePrints() }}>👣 Footprints {printsOn ? '✓' : ''}</button>
-                    )}
                     {tl?.enabled && (
                       <button title="Zoom the scrubber to the range of time this map's story spans"
                         onClick={() => { setMapMenu(false); setFocusEdit({ start: map?.focusStart ?? '', end: map?.focusEnd ?? '' }) }}>
@@ -1654,7 +1650,7 @@ function AtlasWorkspace() {
                 {mode === 'edit' && <div><b>N</b> {isList ? 'adds a row to this list' : 'starts a new entry · '}{isList ? '' : <><b>Enter</b> drops it at the cursor</>}</div>}
                 <div><b>/</b> finds an entry · <b>Esc</b> cancels</div>
                 <div><b>Ctrl+Shift+B</b> reports a bug</div>
-                <div className="helpkey"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
+                <div className="helpkey"><b>Colours:</b> faint = DM-only (players never see it) · dashed purple = not here at this moment (⏳ on the timebar hides them) · faint footprints = where the party has been (👣 on the timebar shows them) · dashed green = a player's marker · gold glow = the lantern · gold shapes = outlined places (hover for the name)</div>
                 <div><b>✏ Edit</b> builds · <b>👁 View</b> reads with DM eyes · <b>🎭 Player</b> shows what the share link shows</div>
               </div>
             )}
@@ -1764,6 +1760,12 @@ function AtlasWorkspace() {
                 title={ghostsOn ? 'Hide things not present at this moment' : 'Show things not present at this moment (dashed purple)'}
                 aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
                 onClick={() => setGhostsOn((v) => !v)}>⏳</button>
+              {!isList && trail.length > 0 && (
+                <button className={`tbtn tprints${printsOn ? '' : ' off'}`}
+                  title={printsOn ? "Hide the party's earlier footsteps" : "Show the party's earlier footsteps on this map"}
+                  aria-label="Show the party's earlier footsteps" aria-pressed={printsOn}
+                  onClick={togglePrints}>👣</button>
+              )}
               {mode === 'edit' && ( // the clock's settings are building, not reading: View keeps its hands off
                 <button className="tbtn tcfg" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
               )}

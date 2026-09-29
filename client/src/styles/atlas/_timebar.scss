@@ -18,7 +18,7 @@
   .tcanon{white-space:nowrap;color:#c9a35f;border-color:#c9a35f55}
   .timebar .tlabel{color:var(--muted);font-size:11px;min-width:24px;text-align:center}
   .timebar .tnow{color:var(--ink);font-weight:600;min-width:78px;max-width:240px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  // the timebar's small buttons: .fexp (focus expand), .tback (back to canon), .tghosts (⏳), .tcfg (⚙)
+  // the timebar's small buttons: .fexp (focus expand), .tback (back to canon), .tghosts (⏳), .tprints (👣), .tcfg (⚙)
   .timebar .tbtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px}
   .timebar .tbtn:hover{color:var(--ink)}
   // era bands: history's stripes behind the scrubber — gold if players may walk them.

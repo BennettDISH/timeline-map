@@ -101,6 +101,10 @@ try {
       step('⬆ returns to the parent map', home && dead === 0 && here === parentLabel, `${page.url().split('/p/')[1]} in ${Date.now() - t0}ms (was ${inside.split('/p/')[1]}) — crumb “${here}”${dead ? ' DEAD LINK SHOWN' : ''}`);
     }
   } else step('some pin or outlined place offers ◎ to enter', false, 'no ◎ found');
+  // footprints are off until a player asks for them (👣 Footprints beside ✍ Mark the map)
+  const printsBtn = page.locator('.pview .printsbtn');
+  step('footprints are hidden until 👣 Footprints is pressed', (await page.locator('.pview .fstep').count()) === 0 && (await printsBtn.count()) === 1, `${await page.locator('.pview .fstep').count()} print(s), ${await printsBtn.count()} button(s)`);
+  if (await printsBtn.count()) { await printsBtn.click(); await page.waitForTimeout(500); }
   // a ghost footprint is clickable (no force) and moves the lens to that moment
   const print = page.locator('.pview .fstep').first();
   if (await print.count()) {

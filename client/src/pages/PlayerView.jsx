@@ -11,7 +11,8 @@ const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.prev
 const toViewT = (t, tl) => (t >= (tl?.current ?? t) ? null : t)
 import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
-import PartyTrail from '../components/PartyTrail'
+import PartyTrail, { trailSteps } from '../components/PartyTrail'
+import { useFlag } from '../hooks/prefs'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors, latestSession } from '../utils/moment'
 import { isPresent, pickCovering } from '../utils/timeline'
@@ -75,6 +76,7 @@ function PlayerView() {
   const loadSeq = useRef(0) // only the reply for the map the player is looking at now is painted
   const nodeSeq = useRef(0) // the last pin tapped owns the sheet
   const [ambOn, setAmbOn] = useState(false) // the space's ambience loop, started by a tap
+  const [printsOn, setPrintsOn] = useFlag('atlas_pv_prints', false) // 👣 where the party has been: off until asked for
   const ambienceUrl = data?.map?.ambienceUrl || null
   // a new map, or an ambience the DM changed or removed: the loop stops and the toggle resets
   useEffect(() => { const a = ambRef.current; if (a) { a.pause(); a.currentTime = 0 } setAmbOn(false) }, [mapId, ambienceUrl])
@@ -279,6 +281,7 @@ function PlayerView() {
   // decides between paintings, exactly as the DM's lens does
   const backdropUrl = (tl?.enabled && pickCovering(data.backdrops, shownAt)?.url) || map?.backdropUrl
   const hasParty = (data.placements || []).some((p) => p.node.category === 'party')
+  const hasPrints = tl?.enabled && trailSteps(data.placements, shownAt).prints.length > 0
 
   return (
     <div className="atlas pview">
@@ -341,8 +344,10 @@ function PlayerView() {
               onWorldDoubleClick={(e) => { if (marking) return false; const p = regionAt(e); if (!p) return false; enter(p.node); return true }}
               dblZoom={!marking}
             >
-              <PartyTrail placements={data.placements} t={shownAt} eras={world.eras} unit={tl?.unit}
-                onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(toViewT(st, tl)) }} />
+              {printsOn && (
+                <PartyTrail placements={data.placements} t={shownAt} eras={world.eras} unit={tl?.unit}
+                  onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(toViewT(st, tl)) }} />
+              )}
               <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)} onSelect={(it) => openNode(it.node.id)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
                   id: p.id, pts: p.shape, style: styleOf(p), x: p.x, y: p.y, title: p.node.title, node: p.node, hasInterior: p.node.hasInterior, selected: detail?.node?.id === p.node.id,
@@ -401,11 +406,18 @@ function PlayerView() {
             </div>
           )}
           {!isList && (
-            <button className={`tool markbtn ${marking ? 'on' : ''}`}
-              title={marking ? 'Tap the map to drop your marker — tap here to cancel' : 'Add your own marker to the map'}
-              onClick={() => { setMarking((v) => !v); setDetail(null) }}>
-              {marking ? '✕ Cancel' : '✍ Mark the map'}
-            </button>
+            <div className="mapbtns">
+              <button className={`tool markbtn ${marking ? 'on' : ''}`}
+                title={marking ? 'Tap the map to drop your marker — tap here to cancel' : 'Add your own marker to the map'}
+                onClick={() => { setMarking((v) => !v); setDetail(null) }}>
+                {marking ? '✕ Cancel' : '✍ Mark the map'}
+              </button>
+              {hasPrints && (
+                <button className={`tool printsbtn${printsOn ? ' shown' : ''}`} aria-pressed={printsOn}
+                  title={printsOn ? 'Hide where the party has been' : 'Show where the party has been on this map'}
+                  onClick={() => setPrintsOn((v) => !v)}>👣 Footprints</button>
+              )}
+            </div>
           )}
           {marking && <div className="markhint">Tap the map where you want your marker.</div>}
           <div className="helpwrap" ref={helpRef}>
@@ -414,7 +426,7 @@ function PlayerView() {
               <div className="apop helppop">
                 <div><b>Tap a pin</b> or an outlined place to read about it · <b>drag</b> to look around · <b>pinch or scroll</b> to zoom</div>
                 <div><b>◎</b> goes inside that place · <b>⬆</b> at the top goes back out</div>
-                {hasParty && <div><b>⚑ The party</b> is you · <b>S3·7</b> means session 3, footstep 7 · the faint prints are where you have been — tap one to look back at that moment</div>}
+                {hasParty && <div><b>⚑ The party</b> is you · <b>S3·7</b> means session 3, footstep 7 · <b>👣 Footprints</b> shows where you have been — tap a print to look back at that moment</div>}
                 {tl?.enabled && <div><b>The bar at the bottom</b> looks back through the parts of the past your DM has opened · <b>⦿ Now</b> returns to the present</div>}
                 <div><b>🔦 Gold glow</b> = your DM is pointing the way · <b>✍ dashed green</b> = a marker someone at the table left</div>
                 <div><b>✍ Mark the map</b> leaves your own marker — everyone sees it at once</div>

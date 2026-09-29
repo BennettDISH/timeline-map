@@ -1,6 +1,7 @@
 // The Player View's own chrome: layout, navigation, the dead-link page, markers and their form,
 // and the lantern's trail. Page: PlayerView (/p/:token).
 @use '../z' as *;
+@use '../looks' as *;
 
 .atlas {
   .nowchip{color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:999px;
@@ -14,8 +15,11 @@
   &.pview .deadlink h3{color:var(--ink);margin:0}
   .stalechip{color:#d0a24a;border:1px solid #d0a24a44;border-radius:999px;padding:2px 9px;font-size:10.5px;white-space:nowrap}
   .sby{color:#6fcf97;font-size:11.5px;font-style:italic}
-  .markbtn{position:absolute;left:10px;bottom:10px;z-index:$z-hud;color:#6fcf97;border-color:#6fcf9755;
-    background:#0d0f13d8}
+  // the map's own buttons, bottom left: ✍ Mark the map, and 👣 Footprints on a map with prints
+  .mapbtns{position:absolute;left:10px;bottom:10px;z-index:$z-hud;display:flex;gap:6px}
+  .markbtn{color:#6fcf97;border-color:#6fcf9755;background:#0d0f13d8}
+  .printsbtn{background:#0d0f13d8}
+  .printsbtn.shown{@include toggle-on}
   .markhint{position:absolute;left:10px;bottom:46px;z-index:$z-hud;color:#6fcf97;font-size:11.5px;font-style:italic;
     background:#0d0f13cc;border:1px dashed #6fcf9755;border-radius:6px;padding:4px 9px;pointer-events:none}
   .mcats{display:flex;align-items:center;gap:6px;margin:10px 0;

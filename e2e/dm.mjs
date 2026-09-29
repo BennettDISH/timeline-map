@@ -31,6 +31,20 @@ try {
     const now = await page.evaluate(() => localStorage.getItem('auth_token'));
     step('an older refreshed token is never adopted, so the session holds', now && now !== older && !page.url().includes('/login') && (await page.locator('.atlas .pin').count()) > 0, page.url().includes('/login') ? 'bounced to sign-in' : '');
   }
+  // the party's earlier footsteps are off until 👣 on the timebar asks for them (at canon the
+  // party is inside the interior, so the root map holds only prints)
+  {
+    const prints = () => page.locator('.atlas .fstep').count();
+    const hiddenFirst = await prints();
+    const btn = page.locator('.timebar .tprints');
+    step('footprints are hidden until asked for, and 👣 sits on the timebar', hiddenFirst === 0 && (await btn.count()) === 1, `${hiddenFirst} print(s) shown, ${await btn.count()} 👣`);
+    if (await btn.count()) {
+      await btn.click(); await page.waitForTimeout(400);
+      const shown = await prints();
+      await btn.click(); await page.waitForTimeout(400);
+      step('…👣 shows them and hides them again', shown > 0 && (await prints()) === 0, `${shown} print(s) with 👣 on`);
+    }
+  }
   // View posture: the running surface
   await page.locator('.mode button', { hasText: 'View' }).click();
   await page.waitForTimeout(500);

@@ -2,20 +2,29 @@ import React from 'react'
 import { isPresent } from '../utils/timeline'
 import { sessionOf, sessionColor, sessionLabel, latestSession } from '../utils/moment'
 
+const at = (v) => (v == null ? -Infinity : v)
+
+// The party's footsteps on a map up to moment t, oldest first, and the ones drawn as prints: all
+// but a newest one still alive (that one is the real pin). The Player View offers 👣 Footprints
+// only on a map with a print to show.
+export function trailSteps(placements, t) {
+  const steps = (placements || [])
+    .filter((p) => p.node?.category === 'party' && at(p.start) <= t)
+    .sort((a, b) => at(a.start) - at(b.start) || a.id - b.id)
+  const last = steps[steps.length - 1]
+  const lastAlive = !!last && isPresent(last, t)
+  return { steps, last, lastAlive, prints: lastAlive ? steps.slice(0, -1) : steps }
+}
+
 // Where the party has BEEN on this map, up to the moment shown: every past footstep as a
 // ghost print (older = fainter, colored by session), joined in order by a dotted path. A
 // footstep alive at the moment is drawn as the real pin elsewhere, so it is left out here —
 // but only when it really is alive; a newest step the party has since walked away from
 // stays a print. Where they went next is told in the Party's own text, not on the map.
+// Drawn only while 👣 is on: off by default, in the workspace and the Player View alike.
 export default function PartyTrail({ placements, t, eras, unit, onStep }) {
-  const at = (v) => (v == null ? -Infinity : v)
-  const steps = (placements || [])
-    .filter((p) => p.node?.category === 'party' && at(p.start) <= t)
-    .sort((a, b) => at(a.start) - at(b.start) || a.id - b.id)
+  const { steps, last, lastAlive, prints } = trailSteps(placements, t)
   if (!steps.length) return null
-  const last = steps[steps.length - 1]
-  const lastAlive = isPresent(last, t)
-  const prints = lastAlive ? steps.slice(0, -1) : steps
   // the party comes back to the same places: footsteps sharing a spot fan out in a small
   // ring so each stays clickable. The live pin (or, failing that, the oldest print) keeps
   // the exact spot; later ones step around it.
