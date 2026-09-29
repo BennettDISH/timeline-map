@@ -23,6 +23,14 @@ echo "--- share api"; node --test server/test/share-live.test.js 2>&1 | grep -E 
 for d in "$HOME/.cache/atlas-e2e-libs/usr/lib/x86_64-linux-gnu" "$E2E_LIBS"; do [ -n "$d" ] && [ -d "$d" ] && export LD_LIBRARY_PATH="$d" && break; done
 export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
 echo "--- player suite"; node e2e/player.mjs 2>&1 | grep -v "Skipping host"
+# the signed-in suites need a live token: a dead one loops the browser on the sign-in redirect and
+# trips the sign-in rate limit, so a dead token is replaced first (e2e/login.mjs) and, failing
+# that, the three suites are skipped rather than run
+tok=$(node -e "console.log(require('$R/e2e/dm.config.json').token||'')" 2>/dev/null)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -H "Authorization: Bearer $tok" "$BASE/api/auth/me")
+if [ "$code" != 200 ] && ! node e2e/login.mjs; then
+  echo "--- SKIPPED the dm suite, undo api and server api: no live token (see e2e/README.md)"; exit 1
+fi
 echo "--- dm suite"; node e2e/dm.mjs 2>&1 | grep -v "Skipping host"
 echo "--- undo api"; node e2e/undo.mjs 2>&1
 echo "--- server api"; node e2e/server.mjs 2>&1

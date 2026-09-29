@@ -32,9 +32,10 @@ non-zero, so `npm run all` stops on the first red suite.
 The DM suite expects a throwaway world laid out like the proving ground (world 30): a clock in
 footsteps with three sessions as eras (one DM-only era named differently), a Party node with a
 footstep on the root map and one in the interior, and the world's own share token (`shareToken`)
-for the player-side outline checks. To mint the JWT: `POST /api/auth/login` with the throwaway
-account's username and password and copy `token` (it expires after `JWT_EXPIRES_IN`, 24 h by
-default — re-mint when the suite starts failing at "workspace opens"). The suite creates outlined
+for the player-side outline checks. `dm.config.json` also keeps the account's
+Waypoint login (`login: {email, password}`), so `node e2e/login.mjs` mints a fresh JWT (it
+expires after `JWT_EXPIRES_IN`, 24 h by default) and writes it back; `watch.sh` does that on its
+own when the stored token is dead, and skips the signed-in suites if it cannot. The suite creates outlined
 places and deletes only the ones it made.
 
 ```bash
