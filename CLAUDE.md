@@ -173,8 +173,13 @@ legacy tables (`events` and friends) are gone.
 
 ## Timeline semantics
 - The DM's scrubber is a local LENS (never auto-saved); players see the CANON moment
-  (`timeline_current_time`), which moves only via the explicit "Set canon" button. Saving the
-  timeline range/unit never sends canon (the server clamps it into the new range); switching
+  (`timeline_current_time`), which moves only via the explicit "Set canon" button — or when the
+  DM confirms a clock range that leaves canon outside it: the ⚙ panel holds such a range with a
+  warning until "Save and move canon", the server clamps canon into it, and the toast says where
+  players now are. The ⚙ panel (Edit only) saves as it goes like the rest of the workspace — a
+  box when it is left (Enter leaves it, Esc puts it back), a button at once — so closing it
+  never loses an edit (`closeTl` blurs the focused box first: React runs no onBlur for a box
+  it removes). Saving the range/unit never sends canon; switching
   the clock back on keeps the world's stored range, unit and canon unless it never had one;
   disabling it asks first (players would see every moment). A blank moment box anywhere
   means "no change", never 0. The world PATCH rejects null/non-integer clock fields (400).

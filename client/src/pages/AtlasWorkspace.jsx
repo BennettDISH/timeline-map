@@ -379,7 +379,9 @@ function AtlasWorkspace() {
   focusIdRef.current = fn?.id ?? null
   useEffect(() => { if (selId != null) setStray(null) }, [selId])
   useEffect(() => { document.title = `${map?.title ? `${map.title} · ` : ''}${world?.name || 'Fantasy Map Timeline'}`; return () => { document.title = 'Fantasy Map Timeline' } }, [map?.title, world?.name])
-  useDismiss(tlEdit, [], () => setTlEdit(false), { keep: '.tlcfg, .tcfg' })
+  // the ⚙ panel saves a box when it is left: a press outside leaves it before the panel goes
+  const closeTl = () => { const a = document.activeElement; if (a?.closest?.('.tlcfg')) a.blur(); setTlEdit(false) }
+  useDismiss(tlEdit, [], closeTl, { keep: '.tlcfg, .tcfg' })
   // the server's map notes changed under the box (a Forge recap, another tab): a box the DM
   // is not typing in takes the new text, so a bare click in and out never writes old text back
   useEffect(() => {
@@ -894,14 +896,22 @@ function AtlasWorkspace() {
     }
     setTlEdit(true)
   }
-  const saveTimeline = (min, max, unit) => {
-    if (!(min < max)) return
-    // the lens is local and canon moves only through "Set canon": the server clamps canon
-    // into the new range itself, so the lens is clamped here and never sent
-    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, current: Math.min(Math.max(w.timeline.current ?? min, min), max) } }))
+  // the ⚙ panel saves the clock as it goes, sending only what changed. The lens is local and
+  // never sent; canon moves only through "Set canon", or when the DM confirmed in the panel a
+  // range that leaves it outside — the server then clamps canon into it, and the toast says so
+  const saveClock = (patch) => {
+    const min = patch.timeline_min_time ?? tl.min, max = patch.timeline_max_time ?? tl.max
+    if (!(min < max)) return Promise.resolve(false)
+    const unit = patch.timeline_time_unit ?? tl.unit
+    const moved = tl.current != null && (tl.current < min || tl.current > max) ? Math.min(Math.max(tl.current, min), max) : null
+    setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, min, max, unit, ...(moved != null && { current: moved }) } }))
     setLens((v) => Math.min(Math.max(v, min), max))
-    setTlEdit(false)
-    track(atlasService.patchWorld(worldId, { timeline_min_time: min, timeline_max_time: max, timeline_time_unit: unit })).catch(() => refreshWorldMeta())
+    return track(atlasService.patchWorld(worldId, patch), "Couldn't save the timeline")
+      .then(() => {
+        if (moved != null) setFlash({ kind: 'ok', text: `Canon moved to ${momentLabel(moved, world?.eras, unit)} — that's what players now see` })
+        return true
+      })
+      .catch(() => { refreshWorldMeta(); return false })
   }
   const disableTimeline = () => {
     setWorld((w) => w && ({ ...w, timeline: { ...w.timeline, enabled: false } }))
@@ -1712,12 +1722,14 @@ function AtlasWorkspace() {
                 title={ghostsOn ? 'Hide things not present at this moment' : 'Show things not present at this moment (dashed purple)'}
                 aria-label="Show things not present at this moment" aria-pressed={ghostsOn}
                 onClick={() => setGhostsOn((v) => !v)}>⏳</button>
-              <button className="tbtn tcfg" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
+              {mode === 'edit' && ( // the clock's settings are building, not reading: View keeps its hands off
+                <button className="tbtn tcfg" title="Timeline range, unit & eras" aria-label="Timeline settings" aria-expanded={tlEdit} onClick={() => setTlEdit((v) => !v)}>⚙</button>
+              )}
             </div>
           )}
-          {tl?.enabled && tlEdit && (
-            <TimelineConfig key={`${tl.min}:${tl.max}:${tl.unit}`} tl={tl} eras={world?.eras || []} onSave={saveTimeline} onDisable={disableTimeline} onNextSession={nextSession}
-              onClose={() => setTlEdit(false)} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
+          {tl?.enabled && tlEdit && mode === 'edit' && (
+            <TimelineConfig tl={tl} eras={world?.eras || []} onClock={saveClock} onDisable={disableTimeline} onNextSession={nextSession}
+              onClose={closeTl} onEraAdd={eraAdd} onEraPatch={eraPatch} onEraDelete={eraDelete} />
           )}
         </div>
 
