@@ -814,6 +814,43 @@ router.delete('/nodes/:id', wrap(async (req, res) => {
   res.json({ ok: true, undoId });
 }));
 
+// GET /worlds/:worldId/tombstones — what can still be undone (the last 24 hours), newest
+// first, each named the way the DM knows it: the workspace's "Recently deleted" list. Names
+// are read as they stand now, the snapshot's own where the thing itself is gone; `t` is the
+// clock moment a period text or period art began, for the client to label.
+router.get('/worlds/:worldId/tombstones', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const rows = (await pool.query(
+    `SELECT id, kind, payload, EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age FROM tombstones
+     WHERE world_id=$1 AND created_at > NOW() - INTERVAL '24 hours' ORDER BY created_at DESC, id DESC LIMIT 100`,
+    [req.params.worldId])).rows;
+  const nodeIds = new Set(), mapIds = new Set();
+  for (const { kind, payload: p } of rows) {
+    if (kind === 'interior') nodeIds.add(p.ownerNodeId);
+    if (kind === 'placement') { nodeIds.add(p.placement?.node_id); mapIds.add(p.placement?.map_id); }
+    if (kind === 'fact') nodeIds.add(p.fact?.node_id);
+    if (kind === 'link') { nodeIds.add(p.link?.from_node_id); nodeIds.add(p.link?.to_node_id); }
+    if (kind === 'backdrop') mapIds.add(p.backdrop?.map_id);
+  }
+  const titles = async (table, ids) => new Map((await pool.query(`SELECT id, title FROM ${table} WHERE id = ANY($1::int[])`,
+    [[...ids].filter(Number.isInteger)])).rows.map((r) => [r.id, r.title]));
+  const nodeT = await titles('nodes', nodeIds), mapT = await titles('maps', mapIds);
+  const q = (title, gone) => (title ? `“${title}”` : gone);
+  const say = ({ kind, payload: p }) => {
+    switch (kind) {
+      case 'node': return [`The entry ${q(p.node?.title, '(untitled)')}`, null];
+      case 'interior': return [`The interior map of ${q(nodeT.get(p.ownerNodeId), q(p.map?.title, 'an entry'))}`, null];
+      case 'placement': return [`${q(nodeT.get(p.placement?.node_id), 'An entry')} on the map ${q(mapT.get(p.placement?.map_id), '(gone)')}`, null];
+      case 'era': return [`The era ${q(p.era?.name, '(unnamed)')}`, null];
+      case 'fact': return [`A period text of ${q(nodeT.get(p.fact?.node_id), 'an entry')}`, p.fact?.start_time ?? null];
+      case 'link': return [`The thread ${q(nodeT.get(p.link?.from_node_id), 'an entry')} – ${q(nodeT.get(p.link?.to_node_id), 'an entry')}`, null];
+      case 'backdrop': return [`Period art on the map ${q(mapT.get(p.backdrop?.map_id), '(gone)')}`, p.backdrop?.start_time ?? null];
+      default: return ['Something deleted', null];
+    }
+  };
+  res.json({ tombstones: rows.map((r) => { const [label, t] = say(r); return { id: r.id, kind: r.kind, label, t, ageSeconds: r.age }; }) });
+}));
+
 // POST /undo/:id — put back what a tombstoned delete removed, with original ids.
 // The whole restore runs in ONE transaction: it either fully applies or fully rolls
 // back, so a mid-restore failure can never half-resurrect a node or brick the

@@ -16,6 +16,7 @@ import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessio
 import { cleanRing, centroid } from '../utils/geometry'
 import { cat } from '../utils/categories'
 import { isPresent, pickCovering } from '../utils/timeline'
+import { ago } from '../utils/format'
 import MapTree from '../components/atlas/MapTree'
 import DeleteImpact from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
@@ -50,6 +51,10 @@ function AtlasWorkspace() {
   const [trailTick, setTrailTick] = useState(0) // bumps when footsteps may have moved (map loads, lifespan saves)
   const [flash, setFlash] = useState(null) // { kind: 'ok'|'err'|'info', text }
   const [flashHold, setFlashHold] = useState(false) // the toast is hovered or focused: its timer waits
+  const [undoToast, setUndoToast] = useState(null) // the newest undoable act: { key, text, undoId } | { key, text, undo }
+  const [undoHold, setUndoHold] = useState(false)
+  const [undos, setUndos] = useState([]) // this session's server-side undos, newest last — Ctrl/⌘+Z takes them back in turn
+  const [bin, setBin] = useState(null) // the Recently deleted dialog: { loading } | { items } | { err }
   const [picker, setPicker] = useState(null) // { kind: 'node'|'backdrop'|'backdrop-timed'|'backdrop-row', nodeId?, rowId?, hasCurrent }
   const [lens, setLens] = useState(0) // the DM's viewing moment — a local lens, never what players see (that is canon: tl.current)
   const [tlEdit, setTlEdit] = useState(false)
@@ -166,17 +171,43 @@ function AtlasWorkspace() {
   useEffect(() => {
     if (!flash) return
     if (flashHold) return // hovered or focused: it stays until the DM leaves it
-    const t = setTimeout(() => setFlash(null), (flash.undoId || flash.undo) ? 9000 : 4000)
+    const t = setTimeout(() => setFlash(null), 4000)
     return () => clearTimeout(t)
   }, [flash, flashHold])
 
+  // ---- undo: every destructive act offers its way back. The newest shows as its own toast for
+  // 9 s (hover or focus holds it) beside any message, never under one. Server-side undos stack
+  // up for the session — Ctrl/⌘+Z takes back the newest even after its toast has gone — and
+  // Map ▾ → Recently deleted reaches every tombstone of the last 24 hours, across reloads. A
+  // local undo (an outline, an image, a backdrop) lasts only as long as its toast.
+  const undoable = (text, how) => {
+    if (!how.undoId && !how.undo) { setFlash({ kind: 'ok', text }); return } // nothing to take back
+    setUndoToast({ key: Date.now(), text, ...how })
+    if (how.undoId) setUndos((s) => [...s.filter((u) => u.undoId !== how.undoId).slice(-29), { text, undoId: how.undoId }])
+  }
+  useEffect(() => {
+    if (!undoToast) { setUndoHold(false); return }
+    if (undoHold) return
+    const t = setTimeout(() => setUndoToast(null), 9000)
+    return () => clearTimeout(t)
+  }, [undoToast, undoHold])
   const doUndo = async (undoId) => {
     setFlash(null)
+    setUndoToast((u) => (u?.undoId === undoId ? null : u))
+    setUndos((s) => s.filter((u) => u.undoId !== undoId))
     const r = await track(atlasService.undo(undoId), "Couldn't undo").catch(() => null)
-    if (!r) return
+    if (!r) return false
     refreshMap(); refreshTree(); refreshWorldMeta() // the lantern may have come back with its node
     if (focusIdRef.current) reloadNodeDetail(focusIdRef.current) // a restored fact or link shows at once
     setFlash({ kind: 'ok', text: 'Put back the way it was' })
+    return true
+  }
+  const takeBack = (u) => {
+    if (u?.undo) { setUndoToast(null); u.undo() } else if (u?.undoId) doUndo(u.undoId)
+  }
+  const openBin = () => {
+    setBin({ loading: true })
+    atlasService.getTombstones(worldId).then((items) => setBin({ items })).catch((e) => setBin({ err: errText(e, "Couldn't load what was deleted") }))
   }
 
   // ---- loading the world + map --------------------------------------------------
@@ -425,7 +456,7 @@ function AtlasWorkspace() {
   const removeLink = async (id) => {
     const r = await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => null)
     if (focusIdRef.current) reloadNodeDetail(focusIdRef.current)
-    if (r) setFlash({ kind: 'ok', text: 'Thread removed', undoId: r.undoId })
+    if (r) undoable('Thread removed', { undoId: r.undoId })
   }
   const labelLink = async (id, label) => {
     await track(atlasService.patchLink(id, { label }), "Couldn't save the label").catch(() => {})
@@ -544,7 +575,7 @@ function AtlasWorkspace() {
       const ok = await track(atlasService.patchPlacement(d.placementId, patch), "Couldn't save the outline").then(() => true).catch(() => false)
       if (!ok) return
       await refreshMap(); setSelId(d.placementId)
-      if (old) setFlash({ kind: 'ok', text: 'Outline redrawn', undo: () => restoreOutline(d.placementId, old) })
+      if (old) undoable('Outline redrawn', { undo: () => restoreOutline(d.placementId, old) })
     } else {
       const [cx, cy] = centroid(pts)
       await dropNode(cx, cy, pts, d.kind)
@@ -559,7 +590,7 @@ function AtlasWorkspace() {
     const ok = await track(atlasService.patchPlacement(placementId, { shape: null, shape_kind: null, shape_style: null }), "Couldn't remove the outline").then(() => true).catch(() => false)
     if (!ok) return
     await refreshMap()
-    if (old) setFlash({ kind: 'ok', text: 'Outline removed — back to a plain pin', undo: () => restoreOutline(placementId, old) })
+    if (old) undoable('Outline removed — back to a plain pin', { undo: () => restoreOutline(placementId, old) })
   }
   // the API speaks snake_case, the map payload camelCase: translate so a saved DM note
   // (dm_note) lands on p.node.dmNote — the key every reader and the reseeded inspector use
@@ -734,7 +765,7 @@ function AtlasWorkspace() {
     track(atlasService.patchFact(id, data), "Couldn't save the entry").then(() => { reloadNodeDetail(nodeId); return true }).catch(() => false)
   const factDelete = (nodeId, id) =>
     track(atlasService.deleteFact(id), "Couldn't remove the entry")
-      .then((r) => { reloadNodeDetail(nodeId); setFlash({ kind: 'ok', text: 'Period text removed', undoId: r?.undoId }) }).catch(() => {})
+      .then((r) => { reloadNodeDetail(nodeId); undoable('Period text removed', { undoId: r?.undoId }) }).catch(() => {})
 
   const askRemoveInterior = async (node) => {
     const impact = await atlasService.nodeImpact(node.id).catch(() => null)
@@ -748,7 +779,7 @@ function AtlasWorkspace() {
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
     if (mapData?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
-    setFlash({ kind: 'ok', text: `“${node.title}” no longer has an interior map — the entry itself is untouched`, undoId: r.undoId })
+    undoable(`“${node.title}” no longer has an interior map — the entry itself is untouched`, { undoId: r.undoId })
   }
 
   const askDeleteNode = async (node) => {
@@ -762,13 +793,13 @@ function AtlasWorkspace() {
     if (!r) return
     setSelId(null); setStray((s) => (s && s.id === node.id ? null : s)); refreshMap(); refreshTree()
     if (world?.spotlightNodeId === node.id) setWorld((w) => ({ ...w, spotlightNodeId: null })) // the lantern went out with it
-    setFlash({ kind: 'ok', text: `“${node.title}” deleted`, undoId: r.undoId })
+    undoable(`“${node.title}” deleted`, { undoId: r.undoId })
   }
   const removeFromMap = async (p) => {
     const r = await track(atlasService.deletePlacement(p.id), "Couldn't remove it").catch(() => null)
     if (!r) return
     setSelId(null); refreshMap()
-    setFlash({ kind: 'ok', text: `“${p.node.title}” removed from this map — the entry still exists`, undoId: r.undoId })
+    undoable(`“${p.node.title}” removed from this map — the entry still exists`, { undoId: r.undoId })
   }
 
   // ---- images -----------------------------------------------------------------------
@@ -777,12 +808,12 @@ function AtlasWorkspace() {
     const prev = cur ? { id: cur.imageId ?? null, url: cur.imageUrl || null } : null
     localPatchNode(nodeId, { imageUrl: imageUrl || null, imageId: imageId ?? null })
     track(atlasService.patchNode(nodeId, { image_id: imageId })).catch(() => {})
-    if (imageId == null && prev?.id != null) setFlash({ kind: 'ok', text: 'Image removed from the node — it stays in the Archive.', undo: () => setNodeImage(nodeId, prev.id, prev.url) })
+    if (imageId == null && prev?.id != null) undoable('Image removed from the node — it stays in the Archive.', { undo: () => setNodeImage(nodeId, prev.id, prev.url) })
   }
   const setBackdrop = (imageId) => {
     const prev = map?.imageId ?? null // removing the base art can be undone from the toast
     return track(atlasService.patchMap(mapId, { image_id: imageId }), "Couldn't set the backdrop")
-      .then(() => { refreshMap(); refreshTree(); if (imageId == null && prev != null) setFlash({ kind: 'ok', text: 'Backdrop removed', undo: () => setBackdrop(prev) }) })
+      .then(() => { refreshMap(); refreshTree(); if (imageId == null && prev != null) undoable('Backdrop removed', { undo: () => setBackdrop(prev) }) })
       .catch(() => {})
   }
   const handlePick = (imageId, imageUrl) => {
@@ -805,7 +836,7 @@ function AtlasWorkspace() {
     track(atlasService.patchBackdrop(id, data), "Couldn't save the backdrop").then(() => { refreshMap(); return true }).catch(() => false)
   const deleteBackdrop = (id) =>
     track(atlasService.deleteBackdrop(id), "Couldn't remove the backdrop")
-      .then((r) => { refreshMap(); setFlash({ kind: 'ok', text: 'Period art removed', undoId: r?.undoId }) }).catch(() => {})
+      .then((r) => { refreshMap(); undoable('Period art removed', { undoId: r?.undoId }) }).catch(() => {})
 
   const setMapView = (view) => {
     if (!map || map.view === view) return
@@ -856,7 +887,7 @@ function AtlasWorkspace() {
     .then(refreshWorldMeta).catch(() => {})
   const eraPatch = (id, data) => track(atlasService.patchEra(id, data), "Couldn't save the era").then(() => { refreshWorldMeta(); return true }).catch(() => false)
   const eraDelete = (id) => track(atlasService.deleteEra(id), "Couldn't delete the era")
-    .then((r) => { refreshWorldMeta(); setFlash({ kind: 'ok', text: 'Era deleted — players lose that stretch of the past', undoId: r?.undoId }) }).catch(() => {})
+    .then((r) => { refreshWorldMeta(); undoable('Era deleted — players lose that stretch of the past', { undoId: r?.undoId }) }).catch(() => {})
   // Sessions are eras of ten footsteps; the next one starts where the last ended and the
   // timeline grows to hold it — so the latest session is always the end of the clock.
   const nextSession = () => once('session', async () => {
@@ -1061,8 +1092,8 @@ function AtlasWorkspace() {
         const open = placing || ctx || searchOpen || mapMenu || help || sharePop || tlEdit || drawing
         setPlacing(null); setCtx(null); closeSearch(); setMapMenu(false); setHelp(false); setSharePop(false); setTlEdit(false)
         if (!open && !typing) { setSelId(null); setStray(null) }
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !typing && flash?.undoId) {
-        e.preventDefault(); doUndo(flash.undoId) // the toast's ↩ Undo, from the keyboard
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !typing && (undoToast || undos.length)) {
+        e.preventDefault(); takeBack(undoToast || undos[undos.length - 1]) // the newest undoable act, its toast up or not
       }
       else if ((e.key === 'n' || e.key === 'N') && !typing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && mode === 'edit' && !drawing) {
         // keyboard twin of "＋ Add entry"
@@ -1079,7 +1110,7 @@ function AtlasWorkspace() {
     }
     document.addEventListener('keydown', key)
     return () => document.removeEventListener('keydown', key)
-  }, [mode, placing, isList, mapId, drawing, searchOpen, mapMenu, help, sharePop, tlEdit, flash]) // eslint-disable-line
+  }, [mode, placing, isList, mapId, drawing, searchOpen, mapMenu, help, sharePop, tlEdit, undoToast, undos]) // eslint-disable-line
   useEffect(() => {
     if (!drawing) return
     const key = (e) => {
@@ -1552,6 +1583,8 @@ function AtlasWorkspace() {
                       <button className={!isList ? 'on' : ''} onClick={() => { setMapMenu(false); setMapView('map') }}>🗺 Map</button>
                       <button className={isList ? 'on' : ''} onClick={() => { setMapMenu(false); setMapView('list') }}>☰ List</button>
                     </div>
+                    <button title="Everything deleted in this world in the last 24 hours, each with ↩ Undo"
+                      onClick={() => { setMapMenu(false); openBin() }}>🗑 Recently deleted…</button>
                   </div>
                 )}
               </div>
@@ -2149,11 +2182,37 @@ function AtlasWorkspace() {
         </Modal>
       )}
 
+      {bin && (
+        <Modal title="Recently deleted" onClose={() => setBin(null)}>
+          <div className="muted esmall">Everything deleted in this world in the last 24 hours, newest first. ↩ Undo puts it back as it was.</div>
+          {bin.loading ? <div className="muted">Loading…</div>
+            : bin.err ? <div className="mrow"><span className="muted warn">{bin.err}</span><button className="tool" onClick={openBin}>Try again</button></div>
+            : !bin.items.length ? <div className="muted">Nothing deleted in the last 24 hours</div>
+            : (
+              <ul className="binlist">
+                {bin.items.map((t) => (
+                  <li key={t.id}>
+                    <span className="binwhat">{t.label}{t.t != null && tl ? ` from ${momentLabel(t.t, world?.eras, tl.unit)}` : ''}</span>
+                    <span className="muted esmall">{ago(t.ageSeconds)}</span>
+                    <button className="tool" onClick={() => doUndo(t.id).then((ok) => { if (ok) openBin() })}>↩ Undo</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </Modal>
+      )}
+
       {flash && (
-        <div className={`aflash ${flash.kind}`} role={flash.kind === 'err' ? 'alert' : 'status'} aria-live={flash.kind === 'err' ? 'assertive' : 'polite'}
+        <div className={`aflash ${flash.kind}${undoToast ? ' lifted' : ''}`} role={flash.kind === 'err' ? 'alert' : 'status'} aria-live={flash.kind === 'err' ? 'assertive' : 'polite'}
           onPointerEnter={() => setFlashHold(true)} onPointerLeave={() => setFlashHold(false)} onFocus={() => setFlashHold(true)} onBlur={() => setFlashHold(false)}>
           {flash.text}
-          {(flash.undoId || flash.undo) && <button className="aundo" onClick={() => { if (flash.undo) { const u = flash.undo; setFlash(null); u() } else doUndo(flash.undoId) }}>↩ Undo</button>}
+        </div>
+      )}
+      {undoToast && (
+        <div className="aundobar" role="status" aria-live="polite"
+          onPointerEnter={() => setUndoHold(true)} onPointerLeave={() => setUndoHold(false)} onFocus={() => setUndoHold(true)} onBlur={() => setUndoHold(false)}>
+          {undoToast.text}
+          <button className="aundo" title="Ctrl+Z does the same" onClick={() => takeBack(undoToast)}>↩ Undo</button>
         </div>
       )}
     </div>

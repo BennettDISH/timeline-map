@@ -92,8 +92,14 @@ legacy tables (`events` and friends) are gone.
   Say it disabled.
 - **Every delete is undoable**: facts, links, eras and timed backdrops leave tombstones
   (kinds `fact`/`link`/`era`/`backdrop`, restored by `POST /undo/:id` with their original
-  ids) and their ✕ buttons show the ↩ Undo toast; removing a base backdrop, a node's image
-  or an outline (or redrawing one) is a LOCAL undo on the toast (`flash.undo`). Breaking the
+  ids) and their ✕ buttons show the ↩ Undo toast. That toast is its own (`undoToast`, 9 s,
+  hover or focus holds it) and sits beside any message, never replaced by one; every
+  destructive act goes through `undoable(text, { undoId } | { undo })`. Server-side undos
+  stack for the session (`undos`): Ctrl/⌘+Z, when not typing, takes back the newest whether
+  its toast is up or not. Map ▾ → 🗑 Recently deleted lists the world's tombstones of the last
+  24 hours, named server-side (`GET /worlds/:id/tombstones`), each with ↩ Undo — across
+  reloads. Removing a base backdrop, a node's image or an outline (or redrawing one) is a
+  LOCAL undo that lives only as long as its toast. Breaking the
   share link (Regenerate / Turn off) takes two clicks and the toast says what happened.
 - **One Party per world** is enforced by the API (409 on a second `party` node) and the
   inspector (the ⚑ dot hides once a Party exists; leaving `party` asks first). At campaign

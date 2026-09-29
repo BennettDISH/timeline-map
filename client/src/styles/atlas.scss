@@ -248,11 +248,15 @@
     &.on{outline:2px solid var(--accent);outline-offset:1px}
     &.ghost{opacity:.35}}
 
-  .aflash{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:$z-toast;max-width:min(520px,92vw);
+  .aflash, .aundobar{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:$z-toast;max-width:min(520px,92vw);
     background:var(--panel2);border:1px solid var(--line);border-left:3px solid #6fcf97;border-radius:9px;
     padding:9px 14px;box-shadow:0 10px 30px #000a;font-size:12.5px;
     &.err{border-left-color:#d05b5b}
     &.info{border-left-color:var(--accent)}}
+  .aflash.lifted{bottom:124px} // the undo toast has the spot: a message sits above it
+  .binlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto;
+    li{display:flex;align-items:center;gap:10px}
+    .binwhat{flex:1;min-width:0}}
 
   .mrow{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   .impact p{margin:0 0 8px;font-size:13px;line-height:1.5}
@@ -483,7 +487,7 @@
 .atlas .einfobtn{background:none;border:0;cursor:pointer;padding:0;font:inherit;text-align:right;
   &:hover{color:#c9a35f}}
 
-.atlas .aflash .aundo{margin-left:12px;background:none;border:1px solid #6fcf9755;border-radius:6px;
+.atlas .aundobar .aundo{margin-left:12px;background:none;border:1px solid #6fcf9755;border-radius:6px;
   color:#6fcf97;padding:2px 10px;cursor:pointer;font:inherit;font-weight:600;
   &:hover{border-color:#6fcf97}}
 

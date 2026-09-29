@@ -42,7 +42,13 @@ if (nodeId) {
     JSON.stringify({ vis: before?.node.visibility, dmNote: before?.node.dmNote, stance: before?.node.stance }));
   const del = await api('DELETE', `/nodes/${nodeId}`);
   step('delete returns an undo id', del.status === 200 && del.body.undoId != null);
+  // Recently deleted names it until it is put back (a reload can still reach it)
+  const binBefore = (await api('GET', `/worlds/${cfg.worldId}/tombstones`)).body.tombstones || [];
+  const listed = binBefore.find((t) => t.id === del.body.undoId);
+  step('Recently deleted lists the delete by name', listed?.kind === 'node' && listed?.label === `The entry “${before?.node.title}”`, JSON.stringify(listed));
   const undo = await api('POST', `/undo/${del.body.undoId}`);
+  const binAfter = (await api('GET', `/worlds/${cfg.worldId}/tombstones`)).body.tombstones || [];
+  step('…and drops it once it is put back', !binAfter.some((t) => t.id === del.body.undoId));
   const relit = (await api('GET', `/worlds/${cfg.worldId}`)).body.world?.spotlightNodeId;
   step('after undo the lantern is lit again on the restored node', relit === nodeId, String(relit));
   await api('DELETE', `/worlds/${cfg.worldId}/spotlight`);

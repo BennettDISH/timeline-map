@@ -31,6 +31,7 @@ const atlasService = {
   createInterior: (id, view) => http.post(`${B}/nodes/${id}/interior`, { view }).then((r) => r.data),
   deleteInterior: (id) => http.delete(`${B}/nodes/${id}/interior`).then((r) => r.data),
   undo: (id) => http.post(`${B}/undo/${id}`).then((r) => r.data),
+  getTombstones: (worldId) => http.get(`${B}/worlds/${worldId}/tombstones`).then((r) => r.data.tombstones),
   deleteNode: (id) => http.delete(`${B}/nodes/${id}`).then((r) => r.data),
 
   patchPlacement: (id, data) => http.patch(`${B}/placements/${id}`, data).then((r) => r.data),
