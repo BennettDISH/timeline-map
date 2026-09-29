@@ -397,19 +397,17 @@ Known gaps.
 
 ## Open cleanup list
 `docs/cleanup/` holds the verified punch list from the 2026-09-26 audit — start at its
-`README.md`. The first pass (every control clicked on the live site, all code read) left 326
-items in WP-01..WP-20; a second pass that hunted one bug class at a time added 75 in
-WP-21..WP-28. Fixed items are ticked in their package file with the commit that fixed them (C065
-was a data chore instead: exported, then dropped), and the live suites (`bash e2e/watch.sh`) ran
-after each deploy. Still open: C023, C081 and C085 in WP-04
-(the timeline panel's save model, the focus-period thumb, eras outside the clock). Held for
-Bennett's decision rather than for code: B092 (a Waypoint sign-up can adopt an unclaimed local
-account by its email), P048 (Undo is one 9-second toast), P081 (guest accounts are never swept),
-P103 (Spellforge's Map tab remounts the frame — a Spellforge change), P109 (a map repeats a
-node's text on every placement — a wire-format change), P112 (each lens tick re-renders the
-whole workspace), C083 (reordering atlas.scss changes the cascade and needs a visual pass) and
-C090 (one look for the controls is a design change). Re-check that an item still reproduces
-before fixing it; the package files' line numbers are from `32ef89c`.
+`README.md`, whose Progress section says where every open item stands. The first pass (every
+control clicked on the live site, all code read) left 326 items in WP-01..WP-20; a second pass
+that hunted one bug class at a time added 75 in WP-21..WP-28. An item is ticked in its package
+file with the commit that fixed it (C065 was a data chore instead: exported, then dropped) once
+the live suites (`bash e2e/watch.sh`) pass on that deploy. Fixed and deployed but not yet
+ticked, waiting on a signed-in suite run: C023, C081, C085, P048 and P109. Waiting on Bennett:
+B092 (a Waypoint sign-up can adopt an unclaimed local account by its email — his decision),
+C083 (the stylesheet split — his look, plus the computed-style check in the DM workspace) and
+C090 (one look per control — his pick from the comparison sheets). Parked until V1: P112 (each
+lens tick re-renders the whole workspace). Re-check that an item still reproduces before
+fixing it; the package files' line numbers are from `32ef89c`.
 
 ## Image rules
 - Uploads: the BYTES decide the type (PNG/JPEG/GIF/WebP magic numbers; an SVG or a text file
@@ -538,3 +536,6 @@ before fixing it; the package files' line numbers are from `32ef89c`.
   surfaces need to be mobile-first)
 - From the "later" shelf: per-fact visibility, branching campaigns,
   @-mention-to-link
+- A guest can't yet become a real account with the worlds they made: Waypoint needs a claim
+  path the app can call. Guests are never swept for that reason (P081, Bennett 2026-09-28) —
+  though Waypoint itself prunes unclaimed guests after its retention window

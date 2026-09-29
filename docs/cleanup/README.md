@@ -10,7 +10,10 @@ history for intent and asked whether it deserves a line at all.
 
 ## Progress
 
-- Done: WP-01, WP-03, WP-04 (all but C023, C081 and C085), WP-06, WP-21 (all but B092, which needs Bennett's call), WP-02 (all but P048), WP-25, WP-22, WP-05, WP-23, WP-10, WP-16 (all but P081, a guest-cleanup policy for Bennett to set), WP-12, WP-26 (all but P109 wire format and P112 memo), WP-28, WP-24 (all but P103, which is Spellforge-side), WP-09, WP-27, WP-15, WP-11, WP-13, WP-14, WP-07, WP-08, WP-17, WP-18, WP-19, WP-20 (all but C083 and C090 — the stylesheet reorganisation and the control looks — which need Bennett's eye).
+- Ticked: 392 of 401. Every package is done except the items below.
+- Fixed and deployed, to be ticked once the signed-in suite (dm, undo, server) passes: C023, C081 and C085 (WP-04), P048 (WP-02) and P109 (WP-26).
+- Waiting on Bennett: B092 (WP-21), a decision on Waypoint sign-ups and unclaimed local accounts; C083 (WP-20), his look at the split stylesheet, plus the same computed-style check in the DM workspace; C090 (WP-20), his pick of one look per control from the comparison sheets.
+- Parked: P112 (WP-26), speed work after V1. Decided: P081 (WP-16), guests are never swept. Done on the Spellforge side: P103 (WP-24).
 - Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js`.
 
 ## How to work this list

@@ -28,7 +28,7 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 - [x] **P036** · low · s · Admin panel: a dead end with no navigation, a raw axios instance, 'No users found' shown on failure, and a stale table checklist — done ffb0b27 (in the shell with TopBar, on http.js, an error state with retry, expected tables read from schema.sql)
 - [x] **P037** · low · xs · Accessibility holes on auth surfaces: errors are not announced, the account menu has no ARIA state — done ffb0b27 (role=alert on errors, aria-haspopup/expanded + role=menu, a Link back)
 - [x] **P079** · low · s · Auth redirects add history entries, forget where you were going and never say why you were signed out — done ffb0b27 (replace + state.from; sso_next for the redirect flow; ?reason=expired&next= on a dead token)
-- [ ] **P081** · low · m · Guest accounts and everything they made are never cleaned up; Waypoint prunes its side after 30 days, this app never does
+- [x] **P081** · low · m · Guest accounts and everything they made are never cleaned up; Waypoint prunes its side after 30 days, this app never does — decided 2026-09-28: never swept (Bennett: a guest should be able to become a real account with everything they made; that needs a claim path, listed under Known gaps in CLAUDE.md)
 
 ## Items
 
