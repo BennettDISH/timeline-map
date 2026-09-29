@@ -47,6 +47,8 @@ export default function TimelineConfig({ tl, eras, onClock, onDisable, onClose, 
     if (ev.key === 'Enter') ev.target.blur()
     else if (ev.key === 'Escape') ev.target.value = ev.target.defaultValue
   }
+  // growing the clock to hold an era never moves canon: it was inside the old range
+  const grow = (lo, hi) => onClock({ ...(lo !== tl.min && { timeline_min_time: lo }), ...(hi !== tl.max && { timeline_max_time: hi }) })
 
   return (
     <div className="tlcfg" onKeyDown={keys}>
@@ -73,7 +75,13 @@ export default function TimelineConfig({ tl, eras, onClock, onDisable, onClose, 
         )}
         <button className="tool" onClick={onEraAdd}>＋ Add an era</button>
       </div>
-      {(eras || []).map((e) => (
+      {(eras || []).map((e) => {
+        // an era the clock doesn't cover: the timebar can't draw it and the lens can't reach it,
+        // while players can still scrub a revealed stretch before the clock's start
+        const before = e.start < tl.min, after = e.end > tl.max
+        const whole = e.end < tl.min || e.start > tl.max
+        const lo = Math.min(tl.min, e.start), hi = Math.max(tl.max, e.end)
+        return (
         <React.Fragment key={e.id}>
         <div className="erarow">
           <input key={`n${e.name}:${ver}`} className="ename" maxLength={120} defaultValue={e.name} title="Era name"
@@ -90,8 +98,15 @@ export default function TimelineConfig({ tl, eras, onClock, onDisable, onClose, 
           <button className="ex" title="Delete this era" aria-label="Delete this era" onClick={() => onEraDelete(e.id)}>✕</button>
         </div>
         {eraHint === e.id && <div className="muted warn">{REVERSED}</div>}
+        {(before || after) && (
+          <div className="tlrow tlnote">
+            <span className="muted warn esmall">⚠ {whole ? 'Outside' : 'Partly outside'} the clock ({tl.min}–{tl.max}): the timebar can't show {whole ? 'it' : 'all of it'}{e.playerVisible && before ? ', though players can scrub there' : ''}</span>
+            <button className="tool" onClick={() => grow(lo, hi)}>Grow the clock to {lo}–{hi}</button>
+          </div>
+        )}
         </React.Fragment>
-      ))}
+        )
+      })}
       {confirmOff ? (
         <div className="tlrow tloff">
           <span className="muted esmall">Players will see every moment at once — including the future and everything that has ended.</span>
