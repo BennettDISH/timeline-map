@@ -61,6 +61,8 @@ async function findOrCreateLocalUser(centralUser) {
       if (!taken) want.email = e;
     }
     if (typeof centralUser.is_guest === 'boolean' && centralUser.is_guest !== !!local.is_guest) want.is_guest = centralUser.is_guest;
+    // every sign-in is a sighting: a guest unseen for GUEST_RETENTION_DAYS is swept (lib/guests.js)
+    await pool.query('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [local.id]);
     const keys = Object.keys(want);
     if (keys.length) {
       try {
@@ -76,43 +78,22 @@ async function findOrCreateLocalUser(centralUser) {
     return local;
   }
 
-  // Adopt a pre-migration local row by email — but ONLY if it is unclaimed.
+  // A first Waypoint sign-in always gets a FRESH row. An older local row is never adopted by
+  // its email: Waypoint never verifies an address, so anyone who signed up there with someone
+  // else's email was handed that person's worlds — the first-run admin row included (B092). A
+  // row from before Waypoint is linked by hand (set its users.central_user_id).
   //
-  // `AND central_user_id IS NULL` is the load-bearing part. Without it, a local row that
-  // already belongs to central account A gets silently reassigned to central account B the
-  // moment B's email matches it: B inherits A's worlds, maps and images, and A's next login
-  // creates a fresh empty row so their data looks deleted. Emails move between central
-  // accounts (the admin address is deliberately reassignable), so this is reachable, not
-  // theoretical. An unclaimed row has no owner to steal from, which is why it is safe.
-  //
-  // Central accounts may also have no email at all — only match when there IS one, or every
-  // emailless user would link onto the same local row.
-  if (centralUser.email) {
-    const byEmail = await pool.query(
-      'SELECT * FROM users WHERE email = $1 AND central_user_id IS NULL',
-      [centralUser.email]
-    );
-
-    if (byEmail.rows.length > 0) {
-      await pool.query(
-        'UPDATE users SET central_user_id = $1 WHERE id = $2',
-        [centralUser.central_user_id, byEmail.rows[0].id]
-      );
-      return { ...byEmail.rows[0], central_user_id: centralUser.central_user_id };
-    }
-  }
-
-  // Falling through to INSERT means the email/username may still be spoken for by a row we
-  // just refused to adopt. `users.username` is UNIQUE NOT NULL and `users.email` is UNIQUE,
-  // so reusing either verbatim would raise 23505 and 500 the login. Give up the email
-  // (NULL never collides) and disambiguate the username with the central id, which is
-  // itself unique.
+  // The email or username may still be held by another row (an older local account, or a
+  // profile sync that skipped it). `users.username` is UNIQUE NOT NULL and `users.email` is
+  // UNIQUE, so reusing either verbatim would raise 23505 and 500 the sign-in. Give up the email
+  // (NULL never collides) and disambiguate the username with the central id, which is itself
+  // unique.
   const username = await freeUsername(centralUser.username, centralUser.central_user_id);
   const email = centralUser.email ? await freeEmail(centralUser.email) : null;
 
   const result = await pool.query(
-    `INSERT INTO users (username, email, password_hash, role, central_user_id, is_guest)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO users (username, email, password_hash, role, central_user_id, is_guest, last_seen_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
      RETURNING *`,
     [username, email, '', 'viewer', centralUser.central_user_id, !!centralUser.is_guest]
   );
@@ -231,7 +212,7 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     const token = generateToken(user.id, user.token_version);
-    await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     res.json({ message: 'Login successful', token, user: shape(user) });
 

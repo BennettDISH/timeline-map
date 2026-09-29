@@ -57,8 +57,15 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   sign-up are `submitting`, the initial check is `initializing` — the login card never
   unmounts mid-request. Guards bounce with `replace` + `state.from` (SSO: `sso_next`).
   Guests (`users.is_guest`, from Waypoint) are named "Guest" in the menu and warned before
-  sign-out; the app's guest is browser-bound (no claim path exists — Waypoint would need a
-  proxy claim endpoint).
+  sign-out; the app's guest is browser-bound (made through Waypoint's proxy, so the browser
+  never holds a Waypoint session to claim it from). A guest nobody has seen for
+  `GUEST_RETENTION_DAYS` (30 — the same setting and window Waypoint prunes its guests by) is
+  removed with its worlds and their R2 objects: `lib/guests.js`, a minute after boot and then
+  daily, one sweeper at a time (advisory lock); "seen" is `users.last_seen_at`, stamped on every
+  sign-in and every sliding token refresh. `GUEST_CLEANUP_ENABLED=false` turns it off.
+  **A first Waypoint sign-in always gets a fresh local row**: an older row is never adopted by
+  its email, since Waypoint never verifies an address and anyone could have claimed another
+  person's worlds that way (B092). A row from before Waypoint is linked by hand.
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` (utils/imageUrl.js) passes
   absolute R2 URLs through and prefixes relative paths; `/api/images/upload` takes the upload (base64 JSON; `/api/images-base64/upload` is its older alias) and `/api/images-base64/serve/:filename`
   streams the Postgres-fallback rows (bytes in the table when R2 is not configured)
@@ -78,13 +85,15 @@ legacy tables (`events` and friends) are gone.
 
 ## Development Guidelines
 - Follow existing SCSS styling patterns in `client/src/styles/`. `atlas.scss` (the workspace and
-  the Player View) is only an index of `styles/atlas/_*.scss`, one partial per surface (shell,
-  controls, dialogs, rail, plane, regions, timebar, inspector, reader, player, phones, forge,
+  the Player View) is only an index of `styles/atlas/_*.scss`, one partial per surface (controls,
+  shell, dialogs, rail, plane, regions, timebar, inspector, reader, player, phones, forge,
   audio, access) in cascade order: a rule belongs in its surface's partial, and an override that
   must win across surfaces goes in a later one (`_phones`, `_access`). Scoping is by root class
   only (`.atlas`, `.shell`): once a sheet is loaded it applies everywhere, so every rule names
-  its root. Moving rules between partials can change which one wins — compare the compiled CSS
-  before and after (same rules, no flipped order between equal-specificity rules on one element)
+  its root. Moving rules between partials can change which one wins: check the compiled CSS
+  holds the same rules, then load the live pages with the old and the new stylesheet and
+  compare every element's computed style — a static order check missed a `flex` shorthand
+  beating `flex-basis` and two classes on one element, and the page comparison caught both
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path
@@ -536,6 +545,7 @@ fixing it; the package files' line numbers are from `32ef89c`.
   surfaces need to be mobile-first)
 - From the "later" shelf: per-fact visibility, branching campaigns,
   @-mention-to-link
-- A guest can't yet become a real account with the worlds they made: Waypoint needs a claim
-  path the app can call. Guests are never swept for that reason (P081, Bennett 2026-09-28) —
-  though Waypoint itself prunes unclaimed guests after its retention window
+- A guest can't yet become a real account with the worlds they made: Waypoint can claim a guest
+  (keeping its central id, so the worlds would stay theirs), but only from its own account page,
+  which a guest the Atlas made through the proxy never signs into — the Atlas needs a proxy
+  claim endpoint and a button

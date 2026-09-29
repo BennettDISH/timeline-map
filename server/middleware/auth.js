@@ -48,7 +48,15 @@ const authenticateToken = async (req, res, next) => {
     req.tokenVersion = tokenVersion;
     req.tokenPayload = decoded;
     // sliding session: an actively used browser never meets the expiry mid-edit
-    try { const fresh = refreshIfStale(decoded, tokenVersion); if (fresh) res.setHeader('X-Refreshed-Token', fresh); } catch (e) { /* JWT_SECRET missing: nothing to slide */ }
+    // A refresh is also a sighting (at most twice a day per session): a guest in use is never
+    // swept as idle (lib/guests.js), though they may not have signed in again for weeks
+    try {
+      const fresh = refreshIfStale(decoded, tokenVersion);
+      if (fresh) {
+        res.setHeader('X-Refreshed-Token', fresh);
+        pool.query('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(() => {});
+      }
+    } catch (e) { /* JWT_SECRET missing: nothing to slide */ }
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

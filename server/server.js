@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3001;
 // name a column the ALTER has not added yet.
 const pool = require('./config/database');
 const { applySchema } = require('./config/apply-schema');
+const { scheduleGuestSweep } = require('./lib/guests');
 const schemaReady = (async () => {
   try {
     // Loader lives in config/apply-schema.js so `npm run migrate` runs the identical statements.
@@ -149,4 +150,5 @@ app.use((req, res) => {
 schemaReady.finally(() => app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  scheduleGuestSweep(); // after the schema: it reads users.last_seen_at
 }));
