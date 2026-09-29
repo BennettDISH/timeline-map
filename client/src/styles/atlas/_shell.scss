@@ -1,6 +1,7 @@
 // The workspace shell: top bar, crumbs, posture switch, search, save chip, the main grid,
 // the stage column, the toolbar, the resize grips and the 🎭 frame. Page: AtlasWorkspace.
 @use '../z' as *;
+@use '../looks' as *;
 
 .atlas {
   .top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
@@ -21,7 +22,7 @@
   .top .exit{color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
   .mode{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
   .mode button{background:var(--panel2);border:0;color:var(--muted);padding:4px 10px;cursor:pointer;font:inherit}
-  .mode button.on{background:var(--accent);color:#08131f;font-weight:600}
+  .mode button.on{@include toggle-on}
   .main{display:grid;min-height:0} // the columns are set inline per posture
   .toolbar{position:absolute;top:10px;left:52px;right:100px;z-index:$z-stage;display:flex;flex-wrap:wrap;gap:6px} // wraps before it reaches ? and ▸
   .loading{display:flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -45,7 +46,7 @@
     .gnone{padding:9px 12px;color:var(--muted);font-style:italic;font-size:12px}
     .gfilter{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);
       button{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
-      button.on{color:var(--ink);border-color:var(--accent)}}}
+      button.on{@include toggle-on}}}
   .gorphan{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:0 6px;white-space:nowrap;flex:none}
   @media (max-width: 900px){
     .crumbs{display:none}

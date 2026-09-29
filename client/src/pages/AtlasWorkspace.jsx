@@ -1248,7 +1248,7 @@ function AtlasWorkspace() {
           <div style={{ fontSize: '2rem' }}>🌫️</div>
           <div>{worldErr || "This world isn't available right now."}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="tool on" onClick={() => setWorldTick((t) => t + 1)}>⟳ Try again</button>
+            <button className="btn primary" onClick={() => setWorldTick((t) => t + 1)}>⟳ Try again</button>
             <Link className="tool" to="/dashboard">To your worlds</Link>
           </div>
         </div>
@@ -1353,7 +1353,7 @@ function AtlasWorkspace() {
                 <>
                   <div className="surl">{shareUrl}</div>
                   <div className="srow">
-                    <button className="tool on" onClick={copyShare}>{copied ? 'Copied ✓' : 'Copy link'}</button>
+                    <button className="btn primary" onClick={copyShare}>{copied ? 'Copied ✓' : 'Copy link'}</button>
                     <button className={`tool ${shareAsk === 'regen' ? 'danger' : ''}`} onClick={() => askShare('regen')} title="Makes a new link; the old one stops working">
                       {shareAsk === 'regen' ? "Really? Players' current link stops working" : 'Regenerate'}</button>
                     <button className="tool danger" onClick={() => askShare('off')}>{shareAsk === 'off' ? "Really? Every player's link dies" : 'Turn off'}</button>
@@ -1363,7 +1363,7 @@ function AtlasWorkspace() {
               ) : (
                 <>
                   <div className="muted">Give your players a read-only link to this world. Secrets and the future stay hidden — the server filters them, not the browser.</div>
-                  <button className="tool on" onClick={shareOn}>Create share link</button>
+                  <button className="btn primary" onClick={shareOn}>Create share link</button>
                 </>
               )}
             </div>
@@ -1391,7 +1391,7 @@ function AtlasWorkspace() {
                 <div className="pofcard">
                   <h2>No share link yet</h2>
                   <p>Players see this world only through its share link. Create one to see exactly what they would see.</p>
-                  <button className="tool on" onClick={shareOn}>Create share link</button>
+                  <button className="btn primary" onClick={shareOn}>Create share link</button>
                 </div>
               </div>
             )}
@@ -1423,7 +1423,7 @@ function AtlasWorkspace() {
             <div className="empty-map">
               <div style={{ fontSize: '2rem' }}>🌫️</div>
               <div>Couldn't load this map.</div>
-              <button className="tool on" onClick={() => loadMap(true)}>⟳ Try again</button>
+              <button className="btn primary" onClick={() => loadMap(true)}>⟳ Try again</button>
             </div>
           )}
           {loadState === 'missing' && (
@@ -1431,7 +1431,7 @@ function AtlasWorkspace() {
               <div style={{ fontSize: '2rem' }}>🌫️</div>
               <div>This map no longer exists</div>
               {world?.rootMapId && String(world.rootMapId) !== String(mapId) && (
-                <button className="tool on" onClick={() => navigate(`/w/${worldId}/m/${world.rootMapId}`)}>🗺 To the world map</button>
+                <button className="btn primary" onClick={() => navigate(`/w/${worldId}/m/${world.rootMapId}`)}>🗺 To the world map</button>
               )}
             </div>
           )}
@@ -2166,7 +2166,7 @@ function AtlasWorkspace() {
             <div className="mrow">
               <button className="tool" onClick={() => setFocusEdit({ start: '', end: '' })}>Clear</button>
               <button className="tool" onClick={() => setFocusEdit(null)}>Cancel</button>
-              <button className="tool on" onClick={saveFocus}>Save</button>
+              <button className="btn primary" onClick={saveFocus}>Save</button>
             </div>
         </Modal>
       )}
@@ -2177,7 +2177,7 @@ function AtlasWorkspace() {
               onKeyDown={(e) => { if (e.key === 'Enter') renameMap() }} />
             <div className="mrow">
               <button className="tool" onClick={() => setRenaming(null)}>Cancel</button>
-              <button className="tool on" disabled={!renaming.trim()} onClick={renameMap}>Rename</button>
+              <button className="btn primary" disabled={!renaming.trim()} onClick={renameMap}>Rename</button>
             </div>
         </Modal>
       )}

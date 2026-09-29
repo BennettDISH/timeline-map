@@ -1,6 +1,7 @@
 // The clock: the DM's timebar and ⚙ panel (TimelineConfig), and the players' era bar (EraScrub).
 // Pages: AtlasWorkspace and PlayerView.
 @use '../z' as *;
+@use '../looks' as *;
 
 .atlas {
   // timeline scrubber + presence
@@ -34,7 +35,8 @@
   .tlcfg input{width:90px;background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:4px 8px}
   .tlcfg input[type=text]{width:140px}
   .tlcfg .tlhead{display:flex;align-items:center;justify-content:space-between;gap:8px;
-    h4{margin:0;font-size:14px}}
+    h4{margin:0;font-size:14px}
+    .tlclose{@include close-x}}
   .ttick{position:absolute;bottom:4px;width:1px;height:8px;background:var(--accent);opacity:.55;pointer-events:none}
   .tlrow{display:flex;gap:6px}
   .tlrow.tloff{flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}

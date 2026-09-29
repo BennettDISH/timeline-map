@@ -230,7 +230,7 @@ function PlayerView() {
           <div style={{ fontSize: '2rem' }}>🌫️</div>
           <h3>This place isn't on your map</h3>
           <p>It may be hidden, not built yet, or gone.{world?.name ? ` Your link to ${world.name} still works.` : ''}</p>
-          <button className="tool on" onClick={() => navigate(`/p/${token}`)}>⬆ Back to the map</button>
+          <button className="btn primary" onClick={() => navigate(`/p/${token}`)}>⬆ Back to the map</button>
         </div>
       </div>
     )
@@ -243,7 +243,7 @@ function PlayerView() {
             <div style={{ fontSize: '2rem' }}>📡</div>
             <h3>Couldn't reach the map</h3>
             <p>Check your connection, then try again.</p>
-            <button className="tool on" onClick={() => load()}>Try again</button>
+            <button className="btn primary" onClick={() => load()}>Try again</button>
           </div>
         ) : <div className="loading" style={{ gridRow: '1 / 3' }}>Loading…</div>}
       </div>
@@ -260,7 +260,7 @@ function PlayerView() {
           <p>Check your connection, then try again.</p>
           <div className="mrow" style={{ justifyContent: 'center' }}>
             <button className="tool" onClick={() => navigate(`/p/${token}/m/${data.map.id}`)}>⬆ Back to {data.map.title}</button>
-            <button className="tool on" onClick={() => load()}>Try again</button>
+            <button className="btn primary" onClick={() => load()}>Try again</button>
           </div>
         </div>
       </div>
@@ -464,7 +464,7 @@ function PlayerView() {
                 )
               })()}
               {detail.node.hasInterior && (
-                <button className="tool on sgo" onClick={() => enter(detail.node)}>◎ Go inside</button>
+                <button className="btn primary sgo" onClick={() => enter(detail.node)}>◎ Go inside</button>
               )}
               {detail.links.length > 0 && (
                 <>
@@ -549,7 +549,7 @@ function MarkerForm({ busy, err, onClose, onSubmit }) {
         {err && <div className="merr">⚠ {err}</div>}
         <div className="mrow">
           <button type="button" className="tool" onClick={onClose}>Cancel</button>
-          <button type="submit" className="tool on placebtn" disabled={busy || !title.trim()}>
+          <button type="submit" className="btn primary placebtn" disabled={busy || !title.trim()}>
             {busy ? 'Placing…' : 'Place marker (everyone sees it)'}
           </button>
         </div>

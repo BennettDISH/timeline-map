@@ -54,7 +54,7 @@ export default function TimelineConfig({ tl, eras, onClock, onDisable, onClose, 
     <div className="tlcfg" onKeyDown={keys}>
       <div className="tlhead">
         <h4>🕓 Timeline</h4>
-        <button className="tool" onClick={onClose}>Close</button>
+        <button className="tlclose" title="Close" aria-label="Close" onClick={onClose}>✕</button>
       </div>
       <div className="muted esmall">Everything here saves as you go. Esc puts a box back.</div>
       <label>From <input ref={fromRef} key={`min${tl.min}:${clockVer}`} type="number" step={1} defaultValue={tl.min} onBlur={rangeBlur} /></label>

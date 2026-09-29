@@ -1,5 +1,6 @@
 // The Maps rail: the tree of maps and its tools. Page: AtlasWorkspace (components/atlas/MapTree).
 @use '../z' as *;
+@use '../looks' as *;
 
 .atlas {
   .rail{background:var(--panel2);border-right:1px solid var(--line);overflow:auto;padding:10px}
@@ -23,4 +24,4 @@
 .atlas .ttools{display:flex;gap:4px;margin:0 6px 6px;
   button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 7px;font:inherit;font-size:10.5px;cursor:pointer}
   button:hover{color:var(--ink);border-color:var(--accent)}}
-.atlas .tsect{margin:10px 6px 4px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.atlas .tsect{@include section-label;margin:10px 6px 4px}

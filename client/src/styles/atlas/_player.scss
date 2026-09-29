@@ -44,7 +44,7 @@
 .atlas.pview .ambbtn.on{color:#7fc98f;border-color:#2e5738}
 // the Player View: while marking the whole map takes the drop; sheet thread directions; the marker form
 .atlas.pview .stage.marking .pin{pointer-events:none}
-.atlas.pview .deadlink .tool{margin-top:12px}
+.atlas.pview .deadlink .tool,.atlas.pview .deadlink .btn{margin-top:12px}
 .atlas.pview .lrow .ldir{color:var(--muted);margin-right:4px;font-size:11px}
 .atlas .mrow .placebtn{min-width:230px}
 .atlas .mform .merr{color:#e66;font-size:12px;margin-top:8px}

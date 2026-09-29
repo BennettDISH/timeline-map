@@ -1,6 +1,7 @@
 // The Forge: the per-world mind panel, its conversation, batch cards and settings.
 // Page: AtlasWorkspace (components/atlas/ForgePanel).
 @use '../z' as *;
+@use '../looks' as *;
 
 // ---- The Forge: the per-world mind's panel (edit posture only) ----
 .atlas .forgebtn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:7px;padding:4px 10px;cursor:pointer;font:inherit}
@@ -8,7 +9,7 @@
 .atlas .forge{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;
   .fhead{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);
     h4{margin:0;font-size:14px}
-    .x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}}
+    .x{@include close-x}}
   .fbatch{border:1px dashed var(--accent);border-radius:8px;padding:8px 10px}
   .fbsum{font-size:13px;font-weight:600}
   .fbmeta{font-size:11.5px;color:var(--muted);margin:3px 0 7px}
@@ -27,14 +28,14 @@
 .atlas .forge .fhbtns .gear{background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px}
 .atlas .forge .fhbtns .gear.on{color:var(--accent)}
 .atlas .forge .fmind{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px;
-  .fsect{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:10px}
+  .fsect{@include section-label;margin-top:10px}
   .fsect:first-child{margin-top:0}
   .fhint{font-size:11.5px;color:var(--muted);line-height:1.45}
   textarea,select{background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);
     padding:6px 8px;font:inherit;font-size:12.5px;resize:vertical}
   .fanchor{display:flex;flex-direction:column;gap:6px;
     img{width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}}
-  >.tool.on{margin-top:12px}}
+  >.btn.primary{margin-top:12px}}
 .atlas .forge .fbrow{align-items:center}
 .atlas .forge .fasks{border-top:1px dashed #6b5a2a;margin:2px 0 8px;padding-top:7px;
   .faskhead{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#d9b64e;margin-bottom:4px}

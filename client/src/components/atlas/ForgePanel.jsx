@@ -193,14 +193,14 @@ export default function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onCl
           <div className="faskhead">It asks permission to:</div>
           {b.asksText.map((t, i) => <div key={i} className={`fask${/^✕ /.test(t) ? ' gone' : ''}`}>• {t}</div>)}
           <div className="fbrow">
-            {b.asksLive !== 0 && <button className="tool on" disabled={!!busy} onClick={() => askAct(b, true)}>{isBusy(b, 'allow') ? '…' : (b.asksLive != null && b.asksLive < b.asksText.length ? `Allow what remains (${b.asksLive})` : 'Allow')}</button>}
+            {b.asksLive !== 0 && <button className="btn primary" disabled={!!busy} onClick={() => askAct(b, true)}>{isBusy(b, 'allow') ? '…' : (b.asksLive != null && b.asksLive < b.asksText.length ? `Allow what remains (${b.asksLive})` : 'Allow')}</button>}
             <button className="tool" disabled={!!busy} onClick={() => askAct(b, false)}>{isBusy(b, 'refuse') ? '…' : (b.asksLive === 0 ? 'Dismiss' : 'Refuse')}</button>
           </div>
         </div>
       )}
       {b.asksState === 'allowed' && <div className="fbmeta">✓ permission granted — Unmake reverts it all</div>}
       <div className="fbrow">
-        <button className="tool on" disabled={!!busy} title={b.asksState === 'pending' ? 'Keep the creation — its request for permission is declined' : 'Keep the creation'}
+        <button className="btn primary" disabled={!!busy} title={b.asksState === 'pending' ? 'Keep the creation — its request for permission is declined' : 'Keep the creation'}
           onClick={() => batchAct(b, true)}>{isBusy(b, 'keep') ? '…' : (b.asksState === 'pending' ? 'Keep (decline the request)' : 'Keep')}</button>
         <button className="tool danger" disabled={!!busy} onClick={() => batchAct(b, false)}>{isBusy(b, 'unmake') ? '…' : 'Unmake'}</button>
       </div>
@@ -262,7 +262,7 @@ export default function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onCl
           <div className="fhint">Threads, secrets, and session summaries it keeps between sessions. It reads the latest 20,000 characters every turn — edit freely.</div>
           <textarea rows={8} value={mind.lore} placeholder="Nothing remembered yet."
             onChange={(e) => setMind((m) => ({ ...m, lore: e.target.value }))} />
-          <button className="tool on" disabled={savingMind || !base.current || !dirty.length} onClick={saveMind}
+          <button className="btn primary" disabled={savingMind || !base.current || !dirty.length} onClick={saveMind}
             title={!base.current ? 'The mind has not loaded yet' : dirty.length ? `Saves ${dirty.length} changed ${dirty.length === 1 ? 'field' : 'fields'}` : 'Nothing changed'}>
             {savingMind ? 'Saving…' : dirty.length ? 'Save settings' : 'Saved'}</button>
         </div>
@@ -308,7 +308,7 @@ export default function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onCl
             placeholder="Ask, recap, or ask for something — “paint him”, “what does Ren know?”, “last night the party…”"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} />
-          <button className="tool on" disabled={!!busy || !text.trim()} onClick={send}>Send</button>
+          <button className="btn primary" disabled={!!busy || !text.trim()} onClick={send}>Send</button>
           {text.length > 9000 && <span className="fcount">{text.length.toLocaleString()} / 12,000</span>}
         </div>
       </div>

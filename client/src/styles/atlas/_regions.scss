@@ -1,6 +1,7 @@
 // Outlines: regions on the plane, their labels and styles, drawing one (the HUD and corners).
 // Pages: AtlasWorkspace and PlayerView (components/Regions).
 @use '../z' as *;
+@use '../looks' as *;
 
 // ---- outlines: a placement may cover a region of the art; the drawn feature is the button ----
 // The SVG spans the plane in a 0–100 viewBox (non-uniform, like the trail), so strokes use
@@ -46,7 +47,7 @@
 // the kind switch (drawing HUD + inspector)
 .atlas .kindsel{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;
   button{background:none;border:none;color:var(--muted);padding:3px 9px;cursor:pointer;font:inherit;font-size:12px}
-  button.on{background:var(--accent);color:#0d0f13}}
+  button.on{@include toggle-on}}
 .atlas .drawhud .kindsel{border-color:#38b6a3;
   button{color:#cfe9e4}
   button.on{background:#38b6a3;color:#0d0f13}}

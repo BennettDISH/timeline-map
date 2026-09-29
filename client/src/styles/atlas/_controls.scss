@@ -1,5 +1,6 @@
 // Shared controls: tool and btn buttons, chips, section labels, muted and warning text, links.
 // Pages: AtlasWorkspace and PlayerView.
+@use '../looks' as *;
 
 .atlas {
   .tool{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 10px;cursor:pointer}
@@ -7,7 +8,7 @@
   .tool:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:11px;background:var(--panel2);color:var(--ink);cursor:pointer}
-  .chip.on{background:var(--accent);border-color:var(--accent);color:#08131f}
+  .chip.on{@include toggle-on}
   .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#08131f}
   .btn.block{display:block;width:100%;text-align:center;margin-bottom:6px}
@@ -15,9 +16,7 @@
   .muted{color:var(--muted);font-style:italic}
   label.btn{cursor:pointer}
   // inspector section labels
-  .isect{display:flex;align-items:center;gap:8px;margin:17px 0 9px;font-size:10px;
-    letter-spacing:.16em;text-transform:uppercase;color:#c9a35f;
-    &::after{content:'';flex:1;height:1px;background:var(--line)}}
+  .isect{@include section-label;margin:17px 0 9px}
   .esmall{font-size:11px;font-style:normal;line-height:1.45}
 }
 

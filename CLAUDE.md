@@ -98,6 +98,12 @@ legacy tables (`events` and friends) are gone.
   holds the same rules, then load the live pages with the old and the new stylesheet and
   compare every element's computed style — a static order check missed a `flex` shorthand
   beating `flex-basis` and two classes on one element, and the page comparison caught both
+- **One look per job** (C090, Bennett's picks): a pressed toggle, a close ✕ and a section label
+  are the `toggle-on`, `close-x` and `section-label` mixins in `styles/_looks.scss` — include the
+  mixin, never draw a new one. A primary action is `.btn.primary`; `.tool.on` means only a tool
+  that is pressed right now (Add entry while placing, Outline while drawing, Map ▾ while open).
+  Exceptions on purpose: the drawing HUD's teal, the category dots, the 🎭 era toggle, and the
+  Dashboard/Archive's gold ◆ labels and primary buttons (their own theme)
 - Use the service layer in `client/src/services/` — do NOT create raw axios instances in components
 - Timeline invariant (min < max, current clamped into range) is enforced server-side in the
   Atlas world PATCH — keep it that way for any new write path

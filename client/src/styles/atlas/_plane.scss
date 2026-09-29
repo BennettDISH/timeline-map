@@ -30,7 +30,7 @@
      pointer-events:none}
   .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
      color:var(--muted);gap:8px;text-align:center;pointer-events:none;z-index:4;
-     .tool{pointer-events:auto}}
+     .tool,.btn{pointer-events:auto}}
   .empty-map.static{position:static;pointer-events:auto;padding:60px 20px}
   .pin{position:absolute;transform:translate(calc(-50% + var(--ox,0px) * var(--pinscale,1)),calc(-50% + var(--oy,0px) * var(--pinscale,1))) scale(var(--pinscale,1));z-index:3;display:flex;align-items:center;gap:6px;
      background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:3px 10px 3px 7px;cursor:grab;
