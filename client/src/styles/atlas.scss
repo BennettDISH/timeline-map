@@ -3,8 +3,8 @@
 // Scoping is by that root class only: once a sheet is on the page it applies everywhere, so
 // every rule here names .atlas. The order below is the cascade order.
 @use 'atlas/tokens';
-@use 'atlas/shell';
 @use 'atlas/controls';
+@use 'atlas/shell';
 @use 'atlas/dialogs';
 @use 'atlas/rail';
 @use 'atlas/plane';
