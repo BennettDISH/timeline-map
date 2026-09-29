@@ -22,6 +22,17 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   const mark = (mapId, title) => fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${mapId}/nodes`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, x: 1, y: 1 }),
   });
+  // a signed-in answer is never cached, nor answered 304: a browser hands a stored response's
+  // headers back on a 304, and a cached X-Refreshed-Token came back expired after every sign-in
+  {
+    const first = await dm('GET', `/worlds/${cfg.worldId}`);
+    const etag = first.headers.get('etag');
+    step('a signed-in answer tells the browser not to store it', /no-store/.test(first.headers.get('cache-control') || ''), first.headers.get('cache-control') || 'no Cache-Control');
+    // max-age=0 is what a browser revalidates with; without it fetch adds no-cache, which Express
+    // never answers with a 304, so the check would pass on a server that still sends them
+    const again = await fetch(`${BASE}/api/atlas/worlds/${cfg.worldId}`, { headers: { ...H, 'If-None-Match': etag || '', 'Cache-Control': 'max-age=0' } });
+    step('…and a matching If-None-Match still gets the whole answer, never a 304', etag && again.status === 200, `${again.status}${etag ? '' : ' (no ETag to match)'}`);
+  }
   for (const spelled of [`${cfg.root}.0`, `${cfg.root}e0`, `0${cfg.root}`]) {
     const r = await mark(spelled, 'server-probe');
     step(`a marker on a non-canonical map id (${spelled}) is refused before anything is written`, r.status === 404, String(r.status));

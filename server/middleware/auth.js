@@ -15,6 +15,12 @@ const isAdmin = (u) => !!u && !u.is_guest && u.central_user_id != null && ADMIN_
 // expired one, a revoked one, a deleted user — is a 401, so the client can end the session on
 // the status alone; 403 means a live session that lacks permission (admin routes).
 const authenticateToken = async (req, res, next) => {
+  // A signed-in answer is never stored by the browser, nor revalidated into use from a copy it
+  // stored before: a browser hands a stored response's headers back on a 304, so a cached
+  // X-Refreshed-Token came back days later, expired, and ended every fresh sign-in at once
+  res.set('Cache-Control', 'no-store');
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN

@@ -18,6 +18,19 @@ try {
   await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
   await page.waitForSelector('.atlas .pin', { timeout: 30000 });
   step('workspace opens with pins', (await page.locator('.atlas .pin').count()) > 0);
+  // the sliding session adopts only a LATER token for the same account: the browser's cache once
+  // replayed a refresh from days ago on a 304, and the expired token ended every fresh sign-in
+  {
+    const held = await page.evaluate(() => localStorage.getItem('auth_token'));
+    const [h, p, s] = held.split('.'), c = JSON.parse(Buffer.from(p, 'base64url'));
+    const older = [h, Buffer.from(JSON.stringify({ ...c, iat: c.iat - 172800, exp: c.exp - 172800 })).toString('base64url'), s].join('.');
+    const world = `**/api/atlas/worlds/${cfg.worldId}`;
+    await page.route(world, async (route) => { const r = await route.fetch(); await route.fulfill({ response: r, headers: { ...r.headers(), 'x-refreshed-token': older } }); }, { times: 1 });
+    await page.reload({ waitUntil: 'networkidle' }); await page.waitForSelector('.atlas .pin', { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(800);
+    await page.unroute(world);
+    const now = await page.evaluate(() => localStorage.getItem('auth_token'));
+    step('an older refreshed token is never adopted, so the session holds', now && now !== older && !page.url().includes('/login') && (await page.locator('.atlas .pin').count()) > 0, page.url().includes('/login') ? 'bounced to sign-in' : '');
+  }
   // View posture: the running surface
   await page.locator('.mode button', { hasText: 'View' }).click();
   await page.waitForTimeout(500);

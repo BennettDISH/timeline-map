@@ -1,5 +1,5 @@
 // Session handling (token header + dead-token redirect) lives in the shared http instance.
-import api, { clearLocalSession } from './http'
+import api, { clearLocalSession, adoptToken } from './http'
 
 const authService = {
   // Register new user
@@ -65,9 +65,7 @@ const authService = {
     // Sliding session: the server returns a fresh token once the current one is past
     // halfway through its life, so an app that is actually being used never runs into
     // the short expiry. Absent on every other call — only store one when it is there.
-    if (response.data.token) {
-      localStorage.setItem('auth_token', response.data.token)
-    }
+    if (response.data.token) adoptToken(response.data.token)
     return response.data.user
   },
 

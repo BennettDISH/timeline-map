@@ -149,7 +149,10 @@ legacy tables (`events` and friends) are gone.
   until it lands. `pagehide` flushes what is pending with keepalive fetches. A dead session
   (`atlas:auth-expired` from `http.js`) stashes pending edits in `localStorage.atlas_unsaved`
   and the next visit to that world re-applies them; `authenticateToken` slides the session
-  with an `X-Refreshed-Token` header that `http.js` stores. Local node state is camelCase
+  with an `X-Refreshed-Token` header that `http.js` adopts only when it is a LATER token for
+  the same account (`adoptToken`), and every signed-in answer is `Cache-Control: no-store` and
+  never a 304: a browser hands a stored response's headers back on a 304, so a cached refresh
+  from days ago came back expired and signed the DM out again on every sign-in (2026-09-29). Local node state is camelCase
   (`localPatchNode` translates API keys), so a saved `dm_note` is what the reseeded inspector
   shows. Reveal (`PATCH /nodes/:id {reveal:true}`) merges note into body ON THE SERVER. Map
   loads carry a sequence number; a stale reply never lands. Create buttons ignore re-entry

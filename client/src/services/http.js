@@ -16,6 +16,17 @@ export const clearLocalSession = () => {
   }
 }
 
+// The sliding session's fresh token replaces the held one only when it is a LATER token for the
+// same account: the browser's cache hands a stored response's headers back on a 304, and a
+// refresh from days ago once came back expired and ended a brand-new sign-in on the next call.
+const claims = (t) => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) } catch (e) { return null } }
+export const adoptToken = (fresh) => {
+  try {
+    const held = claims(localStorage.getItem('auth_token')), next = claims(fresh)
+    if (held && next && next.userId === held.userId && next.exp > held.exp) localStorage.setItem('auth_token', fresh)
+  } catch (e) { /* ignore */ }
+}
+
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -35,7 +46,7 @@ http.interceptors.response.use(
   (response) => {
     // sliding session: the server hands back a fresh token past the halfway mark
     const fresh = response.headers?.['x-refreshed-token']
-    if (fresh) { try { localStorage.setItem('auth_token', fresh) } catch (e) { /* ignore */ } }
+    if (fresh) adoptToken(fresh)
     return response
   },
   (error) => {
