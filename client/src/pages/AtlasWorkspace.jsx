@@ -934,6 +934,19 @@ function AtlasWorkspace() {
     }).catch(() => setFlash({ kind: 'err', text: "Couldn't copy — select the link text instead." }))
   }
   useDismiss(sharePop, [shareRef], () => setSharePop(false))
+  // The bug widget listens on this page's window, and a key pressed inside the 🎭 frame never
+  // gets there: Ctrl+Shift+B toggled the browser's bookmarks bar instead. Every load of the
+  // frame hands that one chord up as a cancelable copy, and the frame's own key is held back
+  // only when the widget took the copy.
+  const forwardBugKey = (ev) => {
+    try {
+      ev.currentTarget.contentWindow.addEventListener('keydown', (k) => {
+        if (!k.ctrlKey || !k.shiftKey || (k.key !== 'B' && k.key !== 'b')) return
+        const copy = new KeyboardEvent('keydown', { key: k.key, code: k.code, ctrlKey: true, shiftKey: true, altKey: k.altKey, metaKey: k.metaKey, repeat: k.repeat, bubbles: true, cancelable: true })
+        if (!window.dispatchEvent(copy)) k.preventDefault()
+      })
+    } catch (e) { /* a frame from another origin keeps its keys */ }
+  }
 
   const setLifespan = (placementId, which, v) => {
     // only the bound that changed is sent, merged per placement: a second tab's stale copy
@@ -1322,7 +1335,7 @@ function AtlasWorkspace() {
         // Secrecy, time and reach are decided by the same server code players hit.
         <div className="main m-player" role="main">
           {world?.shareToken
-            ? <iframe className="pframe" title="What players see" src={`/p/${world.shareToken}/m/${mapId}`} />
+            ? <iframe className="pframe" title="What players see" src={`/p/${world.shareToken}/m/${mapId}`} onLoad={forwardBugKey} />
             : (
               <div className="preview-off">
                 <div className="pofcard">

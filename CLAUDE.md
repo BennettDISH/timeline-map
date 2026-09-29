@@ -155,6 +155,10 @@ legacy tables (`events` and friends) are gone.
   always a deliberate act. The one exception is a player's own marker (forced 'player').
 - The internal bug-tracker widget is injected server-side (the SPA fallback in `server.js`)
   on every page except `/p/*`; its key comes from `BUG_WIDGET_KEY` and is not in the bundle.
+  Ctrl+Shift+B opens it. The 🎭 posture's frame is a `/p` page with no widget, so the workspace
+  hands that chord up from the frame on every load (`forwardBugKey`: a cancelable copy on its
+  own window, and the frame's key is held back only when the widget took it) — otherwise the
+  browser's bookmarks bar gets it.
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
 - **The embed contract**: Spellforge's Map tab frames `/p/*` in an iframe. Only `/p` and

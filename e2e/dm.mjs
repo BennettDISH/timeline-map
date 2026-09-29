@@ -254,6 +254,20 @@ try {
       await inner.locator('.atlas.pview .pin, .atlas.pview .region, .atlas.pview .empty-map').first().waitFor({ timeout: 30000 }).catch(() => {});
       step('…and the framed Player View renders', (await inner.locator('.atlas.pview').count()) === 1);
       step('…with none of the DM chrome around it', (await page.locator('.atlas .rail, .atlas .insp, .atlas .gsearch, .atlas .timebar').count()) === 0);
+      // Ctrl+Shift+B opens the bug widget from inside the frame too (its keys never reached the
+      // workspace, so the browser's bookmarks bar took the chord). The widget's field sits in a
+      // closed shadow root: while it is open, this page's focus is the widget's host.
+      if (await page.locator('#bug-tracker-widget-host').count()) {
+        const onWidget = () => page.evaluate(() => document.activeElement?.id === 'bug-tracker-widget-host');
+        await page.keyboard.press('Control+Shift+B'); await page.waitForTimeout(300);
+        step('Ctrl+Shift+B on the workspace opens the bug widget', await onWidget());
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        await inner.locator('button, a[href]').first().focus();
+        const inFrame = await page.evaluate(() => document.activeElement?.tagName === 'IFRAME');
+        await page.keyboard.press('Control+Shift+B'); await page.waitForTimeout(300);
+        step('…and from inside the framed Player View', inFrame && await onWidget(), inFrame ? '' : 'focus never reached the frame');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      } else console.log('skip the bug widget is not on the page (the tracker did not answer)');
     } else step('Player posture without a share link says so', (await page.locator('.atlas .preview-off').count()) === 1);
     await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400);
     // a right-click on a pin offers that pin's actions
