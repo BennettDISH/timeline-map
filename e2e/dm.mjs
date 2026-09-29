@@ -137,6 +137,10 @@ try {
     await page.mouse.click(ix, iy);
     await page.waitForTimeout(500);
     step('a click inside the region selects it', (await page.locator('.atlas .region.sel').count()) === 1);
+    // SVG rings any focused shape (not only on :focus-visible), in the map's units: a clicked
+    // outline once wore a thick black-and-white frame round its whole extent
+    const ring = await page.evaluate(() => { const r = document.querySelector('.atlas polygon.region.sel'); if (!r) return 'no selected outline'; if (document.activeElement !== r) r.focus(); return getComputedStyle(r).outlineStyle; });
+    step('a clicked outline draws no focus ring', ring === 'none', ring);
     // players get the outline too: the share payload carries it and the Player View draws it
     const mapNow = page.url().split('/m/')[1];
     if (cfg.shareToken) {
