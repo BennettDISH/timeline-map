@@ -10,8 +10,9 @@ history for intent and asked whether it deserves a line at all.
 
 ## Progress
 
-- Ticked: 399 of 401 — every package is done.
-- Open: C090 (WP-20), waiting on Bennett's pick of one look per control from the comparison sheets (2026-09-28), and P112 (WP-26), speed work parked by Bennett until the Atlas is at a good V1.
+- Ticked: 400 of 401 — every package is done. Open: P112 (WP-26), speed work parked by Bennett until the Atlas is at a good V1.
+- The appendix's 21 judgment calls were re-checked against the code on 2026-09-29: twelve are fixed or moot, seven small ones still hold, two need no action.
+- Never tested by either pass: the Player View in real WebKit (every iPhone and iPad browser), and the Forge's write path run end to end against a sandbox (appendix, "Not reached by this pass").
 - Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js` (`bash e2e/watch.sh`, which mints a fresh DM token itself).
 
 ## How to work this list

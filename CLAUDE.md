@@ -420,8 +420,10 @@ Known gaps.
 items in WP-01..WP-20; a second pass that hunted one bug class at a time added 75 in
 WP-21..WP-28. An item is ticked in its package file with the commit that fixed it (C065 was a
 data chore instead: exported, then dropped) once the live suites (`bash e2e/watch.sh`) pass on
-that deploy. 399 of 401 are done. Open: C090 (one look per control — Bennett picks from the
-comparison sheets) and P112 (each lens tick re-renders the whole workspace — parked until V1).
+that deploy. 400 of 401 are done; P112 (each lens tick re-renders the whole workspace) is parked
+until V1. The appendix's judgment calls were re-checked on 2026-09-29 (seven small ones still
+hold), and two areas were never tested by any pass: the Player View in real WebKit (iPhone and
+iPad Safari) and the Forge's write path end to end against a sandbox.
 
 ## Image rules
 - Uploads: the BYTES decide the type (PNG/JPEG/GIF/WebP magic numbers; an SVG or a text file
