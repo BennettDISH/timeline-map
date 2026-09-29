@@ -131,6 +131,11 @@ async function breadcrumb(mapId) {
 }
 
 // GET /worlds/:worldId — world + timeline; lazily ensures a root map exists.
+// The root map made at first open is '<world> — World Map'. Its title column holds 255, like the
+// world's name, so a long name gives up its tail: a title that overflowed failed the insert, and
+// the world could never be opened.
+const rootTitle = (name) => `${String(name).slice(0, 255 - ' — World Map'.length)} — World Map`;
+
 router.get('/worlds/:worldId', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
@@ -138,7 +143,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   if (!w.root_map_id) {
     const m = (await pool.query(
       `INSERT INTO maps (title, world_id, view, created_by) VALUES ($1,$2,'map',$3) RETURNING id`,
-      [`${w.name} — World Map`, worldId, req.user.id])).rows[0];
+      [rootTitle(w.name), worldId, req.user.id])).rows[0];
     await pool.query('UPDATE worlds SET root_map_id=$1 WHERE id=$2', [m.id, worldId]);
     w.root_map_id = m.id;
   }
@@ -242,7 +247,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
   // still reads that way (a root the DM renamed keeps its own name)
   if (was?.root_map_id && c.vals.name !== was.name) {
     await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3',
-      [`${c.vals.name} — World Map`, was.root_map_id, `${was.name} — World Map`]);
+      [rootTitle(c.vals.name), was.root_map_id, rootTitle(was.name)]);
   }
   res.json({ ok: true });
 }));

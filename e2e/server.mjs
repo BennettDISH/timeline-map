@@ -166,6 +166,21 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       step('the default root map follows a world rename', r1.ok && t2 === `${newName} — World Map`, String(t2));
     } else step('the default root map follows a world rename', true, 'skipped: the root has its own name');
   }
+  // a world named to the full 255 characters still opens: its root map's title gives up the
+  // name's tail rather than overflowing the column (it used to fail, and the world never opened)
+  {
+    const stamp = String(Date.now()), name = `long-name-probe-${'x'.repeat(255 - 16 - stamp.length)}${stamp}`;
+    const made = await fetch(`${BASE}/api/worlds`, { method: 'POST', headers: H, body: JSON.stringify({ name }) });
+    const wid = (await json(made))?.world?.id;
+    try {
+      const opened = await dm('GET', `/worlds/${wid}`); const w = (await json(opened))?.world;
+      const root = w?.rootMapId ? (await json(await dm('GET', `/maps/${w.rootMapId}`)))?.map : null;
+      step('a world with a 255-character name opens, its world map titled within the column', made.status === 201 && opened.status === 200 && root?.title?.endsWith(' — World Map') && root.title.length <= 255,
+        `${made.status}/${opened.status} ${root?.title?.length ?? 'no root'}`);
+    } finally {
+      if (wid) await fetch(`${BASE}/api/worlds/${wid}`, { method: 'DELETE', headers: H });
+    }
+  }
 } else {
   step('marker probes need dm.config.json (shareToken, token, root)', false, 'skipped');
 }
