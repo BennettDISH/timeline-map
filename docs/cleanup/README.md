@@ -10,11 +10,9 @@ history for intent and asked whether it deserves a line at all.
 
 ## Progress
 
-- Ticked: 392 of 401. Every package is done except the items below.
-- Fixed and deployed, to be ticked once the signed-in suite (dm, undo, server) passes: C023, C081 and C085 (WP-04), P048 (WP-02) and P109 (WP-26).
-- Waiting on Bennett: B092 (WP-21), a decision on Waypoint sign-ups and unclaimed local accounts; C083 (WP-20), his look at the split stylesheet, plus the same computed-style check in the DM workspace; C090 (WP-20), his pick of one look per control from the comparison sheets.
-- Parked: P112 (WP-26), speed work after V1. Decided: P081 (WP-16), guests are never swept. Done on the Spellforge side: P103 (WP-24).
-- Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js`.
+- Ticked: 399 of 401 — every package is done.
+- Open: C090 (WP-20), waiting on Bennett's pick of one look per control from the comparison sheets (2026-09-28), and P112 (WP-26), speed work parked by Bennett until the Atlas is at a good V1.
+- Verified after each deploy by the live suites in `e2e/` and `server/test/share-live.test.js` (`bash e2e/watch.sh`, which mints a fresh DM token itself).
 
 ## How to work this list
 

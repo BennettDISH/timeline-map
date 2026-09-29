@@ -406,17 +406,12 @@ Known gaps.
 
 ## Open cleanup list
 `docs/cleanup/` holds the verified punch list from the 2026-09-26 audit — start at its
-`README.md`, whose Progress section says where every open item stands. The first pass (every
-control clicked on the live site, all code read) left 326 items in WP-01..WP-20; a second pass
-that hunted one bug class at a time added 75 in WP-21..WP-28. An item is ticked in its package
-file with the commit that fixed it (C065 was a data chore instead: exported, then dropped) once
-the live suites (`bash e2e/watch.sh`) pass on that deploy. Fixed and deployed but not yet
-ticked, waiting on a signed-in suite run: C023, C081, C085, P048 and P109. Waiting on Bennett:
-B092 (a Waypoint sign-up can adopt an unclaimed local account by its email — his decision),
-C083 (the stylesheet split — his look, plus the computed-style check in the DM workspace) and
-C090 (one look per control — his pick from the comparison sheets). Parked until V1: P112 (each
-lens tick re-renders the whole workspace). Re-check that an item still reproduces before
-fixing it; the package files' line numbers are from `32ef89c`.
+`README.md`. The first pass (every control clicked on the live site, all code read) left 326
+items in WP-01..WP-20; a second pass that hunted one bug class at a time added 75 in
+WP-21..WP-28. An item is ticked in its package file with the commit that fixed it (C065 was a
+data chore instead: exported, then dropped) once the live suites (`bash e2e/watch.sh`) pass on
+that deploy. 399 of 401 are done. Open: C090 (one look per control — Bennett picks from the
+comparison sheets) and P112 (each lens tick re-renders the whole workspace — parked until V1).
 
 ## Image rules
 - Uploads: the BYTES decide the type (PNG/JPEG/GIF/WebP magic numbers; an SVG or a text file

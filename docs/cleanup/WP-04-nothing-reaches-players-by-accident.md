@@ -14,10 +14,10 @@ Part of the [Atlas cleanup list](README.md) (2026-09-26).
 - [x] **B043** · medium · xs · '＋ Story for a period' creates an empty period that blanks the node's description for players at once — done 2a657dc
 - [x] **B059** · medium · xs · '＋ Next session' leaves the open panel showing the old range; pressing Save then shrinks the clock and strands the new session — done 2a657dc
 - [x] **C009** · medium · s · New places are born public and present at all times, so session prep appears on players' phones immediately — done 7ae8390 (every manual node is born DM-only)
-- [ ] **C023** · medium · s · The timeline panel mixes three save models, has no title, and 'Close' silently throws away range edits — fixed in b20e6f9 and deployed; ticked once the signed-in suite (dm, undo, server) passes
+- [x] **C023** · medium · s · The timeline panel mixes three save models, has no title, and 'Close' silently throws away range edits — done b20e6f9 (DM suite: the panel saves on Tab and Enter, holds a range that would move canon, Esc saves nothing)
 - [x] **P026** · medium · s · 'Disable timeline' instantly shows players every out-of-time thing (future and ended), with no confirmation — done 2a657dc (inline confirm in the panel)
-- [ ] **C081** · low · xs · On a map with a focus period, a lens outside the window pins the thumb to the edge, and the first nudge jumps the lens — fixed in 1cd1ae4 and deployed; ticked once the signed-in suite (dm, undo, server) passes
-- [ ] **C085** · low · s · Eras can sit outside the clock: the DM timebar hides them and the lens can't reach them, but players can scrub there — fixed in 7c193a6 and deployed; ticked once the signed-in suite (dm, undo, server) passes
+- [x] **C081** · low · xs · On a map with a focus period, a lens outside the window pins the thumb to the edge, and the first nudge jumps the lens — done 1cd1ae4 (DM suite: a lens outside the focus period widens the bar, nudges one step, ⤡ brings it inside)
+- [x] **C085** · low · s · Eras can sit outside the clock: the DM timebar hides them and the lens can't reach them, but players can scrub there — done 7c193a6 (DM suite: an era outside the clock is flagged with Grow the clock)
 
 ## Items
 
