@@ -387,6 +387,74 @@ try {
       step('the title input stops at 255 characters', maxLen === '255', `maxlength=${maxLen}`);
     }
   }
+  // the ⚙ timeline panel (Edit only) saves as it goes, and a blur never moves canon; an era the
+  // clock doesn't cover is flagged; a lens outside a map's focus period widens the bar instead
+  // of pinning the thumb. The clock and the interior's focus period are put back afterwards.
+  {
+    const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
+    const getWorld = async () => (await (await fetch(`${BASE}/api/atlas/worlds/${cfg.worldId}`, { headers: J })).json()).world;
+    const patch = (path, body) => fetch(`${BASE}/api/atlas/${path}`, { method: 'PATCH', headers: J, body: JSON.stringify(body) });
+    const w0 = await getWorld(), tl0 = w0.timeline;
+    const m0 = (await (await fetch(`${BASE}/api/atlas/maps/${cfg.interior}`, { headers: J })).json()).map;
+    const box = (label) => page.locator('.tlcfg label', { hasText: label }).locator('input');
+    const eraNote = (name) => page.evaluate((n) => {
+      let el = [...document.querySelectorAll('.tlcfg .erarow input.ename')].find((i) => i.value === n)?.closest('.erarow')?.nextElementSibling;
+      while (el && !el.classList.contains('erarow') && !el.classList.contains('tlnote')) el = el.nextElementSibling;
+      return el?.classList.contains('tlnote') ? el.textContent : null;
+    }, name);
+    try {
+      await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await page.waitForSelector('.timebar', { timeout: 30000 });
+      await page.locator('.mode button', { hasText: 'View' }).click(); await page.waitForTimeout(300);
+      step('View shows no ⚙ for the clock', (await page.locator('.timebar .tcfg').count()) === 0);
+      await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(300);
+      await page.locator('.timebar .tcfg').click(); await page.waitForTimeout(300);
+      step('the ⚙ panel has a title and no Save button', (await page.locator('.tlcfg h4', { hasText: 'Timeline' }).count()) === 1 && (await page.locator('.tlcfg button', { hasText: /^Save$/ }).count()) === 0);
+      await box(/^To/).fill(String(tl0.max + 1)); await page.keyboard.press('Tab'); await page.waitForTimeout(1500);
+      step('leaving the To box saves it', (await getWorld()).timeline.max === tl0.max + 1);
+      await box(/^To/).fill(String(tl0.max)); await page.keyboard.press('Enter'); await page.waitForTimeout(1500);
+      step('…and Enter saves it back', (await getWorld()).timeline.max === tl0.max);
+      if (tl0.current != null && tl0.current + 1 < tl0.max) {
+        await box(/^From/).fill(String(tl0.current + 1)); await page.keyboard.press('Tab'); await page.waitForTimeout(1200);
+        const w1 = await getWorld();
+        step('a range that leaves canon outside waits for a second click, and nothing is saved',
+          (await page.locator('.tlcfg .warn', { hasText: 'Canon' }).count()) === 1 && w1.timeline.min === tl0.min && w1.timeline.current === tl0.current);
+        await box(/^From/).focus(); await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+        step('Esc puts the box back and closes the panel, still nothing saved', (await page.locator('.tlcfg').count()) === 0 && (await getWorld()).timeline.min === tl0.min);
+      }
+      const outside = (w0.eras || []).find((e) => e.start < tl0.min || e.end > tl0.max);
+      const inside = (w0.eras || []).find((e) => e.start >= tl0.min && e.end <= tl0.max);
+      if (outside || inside) {
+        if (!(await page.locator('.tlcfg').count())) { await page.locator('.timebar .tcfg').click(); await page.waitForTimeout(300); }
+        if (outside) { const note = await eraNote(outside.name); step("an era the clock doesn't cover is flagged, with a way to grow the clock", /outside the clock/.test(note || '') && /Grow the clock to/.test(note || ''), (note || 'no note').slice(0, 100)); }
+        else console.log(`skip every era of world ${cfg.worldId} lies inside its clock`);
+        if (inside) step('…and an era inside the clock is not', (await eraNote(inside.name)) === null, inside.name);
+        await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+      }
+      // the interior gets a focus period that leaves canon (the lens after a load) outside it
+      if (tl0.current != null && tl0.current - tl0.min >= 4) {
+        const win = [tl0.min, tl0.min + 2];
+        await patch(`maps/${cfg.interior}`, { focus_start: win[0], focus_end: win[1] });
+        await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.interior}`, { waitUntil: 'networkidle', timeout: 90000 });
+        await page.waitForSelector('.timebar input[type=range]', { timeout: 30000 }); await page.waitForTimeout(500);
+        const slider = page.locator('.timebar input[type=range]');
+        const read = () => slider.evaluate((el) => [Number(el.min), Number(el.max), Number(el.value)]);
+        const [mn, mx, v] = await read();
+        step('a lens outside the focus period widens the bar, and the thumb shows the lens', mn === tl0.min && mx === tl0.max && v === tl0.current, `${mn}–${mx} v=${v}`);
+        await slider.focus(); await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(300);
+        const [, , v2] = await read();
+        step('…a nudge moves the lens one step, not into the window', v2 === tl0.current - 1, `v=${v2}`);
+        await page.locator('.timebar .fexp').click(); await page.waitForTimeout(400);
+        const [mn3, mx3, v3] = await read();
+        step('…and ⤡ narrows the bar to the period and brings the lens inside it', mn3 === win[0] && mx3 === win[1] && v3 === win[1], `${mn3}–${mx3} v=${v3}`);
+      }
+    } finally {
+      const now = (await getWorld().catch(() => null))?.timeline;
+      if (now && (now.min !== tl0.min || now.max !== tl0.max)) await patch(`worlds/${cfg.worldId}`, { timeline_min_time: tl0.min, timeline_max_time: tl0.max });
+      if (now && now.current !== tl0.current && tl0.current != null) await patch(`worlds/${cfg.worldId}`, { timeline_current_time: tl0.current });
+      await patch(`maps/${cfg.interior}`, { focus_start: m0?.focusStart ?? null, focus_end: m0?.focusEnd ?? null });
+    }
+  }
   step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();
