@@ -185,7 +185,9 @@ legacy tables (`events` and friends) are gone.
   means "no change", never 0. The world PATCH rejects null/non-integer clock fields (400).
 - Maps may declare a FOCUS PERIOD (`maps.focus_start/focus_end`): inside that map the DM
   scrubber's track zooms to that window (⤢ expands). It is a magnifier on the ONE world
-  clock — never a second clock; `now` and canon stay world-level.
+  clock — never a second clock; the lens and canon stay world-level. A lens outside the window
+  widens the bar rather than pinning the thumb to an edge (`lensOut`), and the widening latches
+  until ⤡, which brings the lens inside the period.
 - Nodes carry a `pin` style: 'chip' (icon + name) or 'image' — the node's art drawn
   directly on the map (frameless, PNG transparency respected), for both DM and players.
 - **Outlines**: a placement may carry a `shape` (JSONB, 3–200 `[x,y]` points in % of the

@@ -1129,8 +1129,19 @@ function AtlasWorkspace() {
   const fMin = hasFocus ? Math.max(tl?.min ?? 0, map.focusStart ?? (tl?.min ?? 0)) : (tl?.min ?? 0)
   const fMax = hasFocus ? Math.min(tl?.max ?? 0, map.focusEnd ?? (tl?.max ?? 0)) : (tl?.max ?? 0)
   const focusOk = hasFocus && fMin < fMax
-  const dispMin = focusOk && !focusExpand ? fMin : (tl?.min ?? 0)
-  const dispMax = focusOk && !focusExpand ? fMax : (tl?.max ?? 0)
+  // a lens outside this map's focus period widens the bar rather than pinning the thumb to an
+  // edge, where the first nudge would jump the lens into the window. The widening latches, so
+  // scrubbing back inside keeps the whole timeline until ⤡, which brings the lens inside.
+  const lensOut = focusOk && String(map.id) === String(mapId) && (lens < fMin || lens > fMax)
+  const narrow = focusOk && !focusExpand && !lensOut
+  const dispMin = narrow ? fMin : (tl?.min ?? 0)
+  const dispMax = narrow ? fMax : (tl?.max ?? 0)
+  useEffect(() => { if (lensOut && !focusExpand) setFocusExpand(true) }, [lensOut, focusExpand])
+  const toggleFocus = () => {
+    if (narrow) { setFocusExpand(true); return }
+    setFocusExpand(false)
+    setLens((v) => Math.min(Math.max(v, fMin), fMax))
+  }
 
   const saveFocus = () => {
     const f = focusEdit
@@ -1149,9 +1160,7 @@ function AtlasWorkspace() {
     const v = Number(raw)
     setMomentEdit(null)
     if (raw === '' || !Number.isFinite(v) || !tl) return
-    const t = Math.min(Math.max(Math.round(v), tl.min), tl.max)
-    setLens(t)
-    if (focusOk && !focusExpand && (t < fMin || t > fMax)) setFocusExpand(true) // typed outside the window: widen so the thumb shows
+    setLens(Math.min(Math.max(Math.round(v), tl.min), tl.max)) // a moment outside the focus period widens the bar (lensOut)
   }
 
   // the timed period whose art is on screen at the viewed moment (the latest-starting one
@@ -1696,8 +1705,8 @@ function AtlasWorkspace() {
               </div>
               <span className="tlabel" title={momentLabel(dispMax, world?.eras, tl.unit)}>{dispMax}</span>
               {focusOk && (
-                <button className="tbtn fexp" title={focusExpand ? `Back to this map's focus period (${fMin}–${fMax})` : 'Show the whole timeline'}
-                  onClick={() => setFocusExpand((v) => !v)}>{focusExpand ? '⤡' : '⤢'}</button>
+                <button className="tbtn fexp" title={narrow ? 'Show the whole timeline' : `Back to this map's focus period (${fMin}–${fMax})${lensOut ? ' — the lens moves into it' : ''}`}
+                  onClick={toggleFocus}>{narrow ? '⤢' : '⤡'}</button>
               )}
               {momentEdit != null ? (
                 <input className="tnowedit" autoFocus type="number" value={momentEdit}
