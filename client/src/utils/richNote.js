@@ -50,7 +50,11 @@ export function plainToHtml(text) {
   for (const raw of String(text || '').split('\n')) {
     const line = raw.trim()
     const item = /^[·•*-]\s+(.*)$/.exec(line)
-    if (item) { (items ||= []).push(`<li>${esc(item[1])}</li>`); continue }
+    if (item) {
+      const lead = /^([^:]{2,40}):\s+(.+)$/.exec(item[1]) // "Kaelen arrives: …" — the short label reads in bold
+      ;(items ||= []).push(lead ? `<li><b>${esc(lead[1])}:</b> ${esc(lead[2])}</li>` : `<li>${esc(item[1])}</li>`)
+      continue
+    }
     if (items) { out.push(`<ul>${items.join('')}</ul>`); items = null }
     if (!line) continue
     const step = /^(\d+(?:[–-]\d+)?)\s+·\s+(.*)$/.exec(line)
