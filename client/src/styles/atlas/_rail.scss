@@ -40,8 +40,21 @@
   button:last-child{border-radius:0 6px 6px 0;border-left:0}
   button:hover{color:var(--ink)}
   button.on{@include toggle-on}}
-.atlas .sntext{display:block;width:100%;box-sizing:border-box;min-height:220px;resize:vertical;background:#161a21;
-  border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:12.5px;line-height:1.5;padding:7px 8px}
+.atlas .sntools{display:flex;gap:2px;margin-bottom:4px;
+  button{background:none;border:1px solid transparent;color:var(--muted);border-radius:5px;min-width:24px;height:22px;
+    padding:0 5px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{color:var(--ink);border-color:var(--line)}}
+.atlas .sntext{display:block;position:relative;width:100%;box-sizing:border-box;min-height:220px;resize:vertical;overflow:auto;
+  background:#161a21;border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:12.5px;line-height:1.5;
+  padding:7px 8px;overflow-wrap:anywhere;cursor:text;
+  p,div{margin:0 0 .45em}
+  h3,h4{margin:.7em 0 .3em;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#c9a35f}
+  h3:first-child,h4:first-child{margin-top:0}
+  ul,ol{margin:.15em 0 .5em;padding-left:1.25em}
+  li{margin:.1em 0}
+  b,strong{color:#fff}
+  blockquote{margin:.3em 0;padding-left:.7em;border-left:2px solid var(--line);color:var(--muted)}}
+.atlas .sntext.blank::before{content:attr(data-ph);position:absolute;color:var(--muted);pointer-events:none}
 .atlas .sntext:focus{outline:none;border-color:var(--accent)}
 .atlas .snmodal .modal{width:min(860px,94vw)}
 .atlas .snmodal .sntext{min-height:62vh}

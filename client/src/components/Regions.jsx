@@ -63,7 +63,7 @@ export default function Regions({ items, backdropUrl, hoverId, onHover, inert = 
   const on = !!drawing
   useEffect(() => {
     if (!on) { setCur(null); setLive([]); trace.current = null; return }
-    const down = (e) => { if (e.code === 'Space' && !/input|textarea|select|button/i.test(e.target.tagName)) { space.current = true; e.preventDefault() } }
+    const down = (e) => { if (e.code === 'Space' && !/input|textarea|select|button/i.test(e.target.tagName) && !e.target.isContentEditable) { space.current = true; e.preventDefault() } }
     const up = (e) => { if (e.code === 'Space') space.current = false }
     window.addEventListener('keydown', down); window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); space.current = false }

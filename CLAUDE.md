@@ -294,7 +294,11 @@ legacy tables (`events` and friends) are gone.
   tree (`components/atlas/SessionNotes.jsx`) shows the era under the lens (a pick from its list
   holds until the lens moves into another era), opening on Prep for an era not yet played and
   Recap after; it saves on a pause or on leaving the box, never adopts an outside change over a
-  draft being typed or sent, and ⤢ opens it wide. Undo, world copies and the Forge's Unmake of a
+  draft being typed or sent, and ⤢ opens it wide. A note is rich text (B, I, heading, bullets,
+  numbered) stored as HTML that `utils/richNote.js` cleans on load, paste and save: a short list
+  of tags, no attributes, loose text in paragraphs; a plain-text note reads with its capitals as
+  headings, `· ` lines as bullets and `12 · ` footsteps in bold. The workspace's shortcuts (`/`,
+  `N`, Ctrl+Z) treat a contentEditable target as typing. Undo, world copies and the Forge's Unmake of a
   dropped era carry the notes.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in

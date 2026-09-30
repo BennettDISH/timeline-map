@@ -1085,7 +1085,7 @@ function AtlasWorkspace() {
 
   useEffect(() => {
     const key = (e) => {
-      const typing = /input|textarea|select/i.test(e.target.tagName)
+      const typing = /input|textarea|select/i.test(e.target.tagName) || !!e.target.isContentEditable // the session notes are rich text
       if (e.key === '/' && !typing) {
         e.preventDefault(); searchRef.current?.querySelector('input')?.focus()
       } else if (e.key === 'Escape') {
