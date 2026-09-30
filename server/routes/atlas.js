@@ -148,8 +148,9 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     w.root_map_id = m.id;
   }
   const eras = (await pool.query(
-    'SELECT id, name, start_time, end_time, player_visible FROM eras WHERE world_id=$1 ORDER BY start_time, id',
-    [worldId])).rows.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time, playerVisible: e.player_visible }));
+    'SELECT id, name, start_time, end_time, player_visible, prep_note, recap_note FROM eras WHERE world_id=$1 ORDER BY start_time, id',
+    [worldId])).rows.map((e) => ({ id: e.id, name: e.name, start: e.start_time, end: e.end_time, playerVisible: e.player_visible,
+      prepNote: e.prep_note || '', recapNote: e.recap_note || '' }));
   res.json({ world: {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
     shareToken: w.share_token || null,
@@ -352,8 +353,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       [w.id, nodeMap.get(l.from_node_id), nodeMap.get(l.to_node_id), l.label]);
   }
   for (const e of await rowsOfC('SELECT * FROM eras WHERE world_id=$1 ORDER BY id', [src.id])) {
-    await client.query('INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5)',
-      [w.id, e.name, e.start_time, e.end_time, e.player_visible]);
+    await client.query('INSERT INTO eras (world_id, name, start_time, end_time, player_visible, prep_note, recap_note) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [w.id, e.name, e.start_time, e.end_time, e.player_visible, e.prep_note, e.recap_note]);
   }
   for (const b of await rowsOfC('SELECT b.* FROM map_backdrops b JOIN maps m ON m.id=b.map_id WHERE m.world_id=$1 ORDER BY b.id', [src.id])) {
     if (!mapMap.has(b.map_id) || !imgMap.has(b.image_id)) continue;
@@ -950,8 +951,8 @@ router.post('/undo/:id', wrap(async (req, res) => {
     } else if (t.kind === 'era') {
       const e = p.era;
       await client.query(
-        'INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
-        [e.id, e.world_id, e.name, e.start_time, e.end_time, e.player_visible]);
+        'INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible, prep_note, recap_note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING',
+        [e.id, e.world_id, e.name, e.start_time, e.end_time, e.player_visible, e.prep_note ?? null, e.recap_note ?? null]);
     } else if (t.kind === 'backdrop') {
       const b = p.backdrop;
       if (!(await exists('maps', b.map_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The map is gone' }); }
@@ -1043,6 +1044,8 @@ router.patch('/eras/:id', wrap(async (req, res) => {
     start_time: [(v) => (v == null ? undefined : whole(v)), 'An era is whole numbers on the clock'],
     end_time: [(v) => (v == null ? undefined : whole(v)), 'An era is whole numbers on the clock'],
     player_visible: [bool, 'An era is open to players or not'],
+    prep_note: [long, 'Session notes are text'],
+    recap_note: [long, 'Session notes are text'],
   });
   if (c.bad) return bad(res, c.bad);
   if (!(await pairOk('eras', req.params.id, c.vals))) return bad(res, 'An era ends after it starts');

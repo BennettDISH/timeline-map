@@ -510,7 +510,7 @@ async function allowAsks({ worldId, batchId }) {
         undo.push({ op: 'reveal', node: n.id, prevVis: n.visibility, placements: lifted });
       } else if (a.op === 'drop_era') {
         const e = (await client.query(
-          'SELECT id, name, start_time, end_time, player_visible FROM eras WHERE id=$1 AND world_id=$2',
+          'SELECT id, name, start_time, end_time, player_visible, prep_note, recap_note FROM eras WHERE id=$1 AND world_id=$2',
           [a.era, worldId])).rows[0];
         if (!e) continue;
         undo.push({ op: 'drop_era', row: e });
@@ -645,9 +645,9 @@ async function discardBatch({ worldId, batchId }) {
           }
         } else if (u.op === 'drop_era') {
           await client.query(
-            `INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible)
-             VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
-            [u.row.id, worldId, u.row.name, u.row.start_time, u.row.end_time, u.row.player_visible]);
+            `INSERT INTO eras (id, world_id, name, start_time, end_time, player_visible, prep_note, recap_note)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
+            [u.row.id, worldId, u.row.name, u.row.start_time, u.row.end_time, u.row.player_visible, u.row.prep_note ?? null, u.row.recap_note ?? null]);
         } else if (u.op === 'reveal') {
           await client.query('UPDATE nodes SET visibility=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [u.prevVis, u.node]);
           if (u.placements && u.placements.length)

@@ -248,6 +248,11 @@ CREATE TABLE IF NOT EXISTS eras (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_eras_world ON eras(world_id);
+-- The DM's session notes, kept on the era they belong to: the prep written before it is
+-- played and the recap written after. DM-only like every note, since share.js names the era
+-- columns it sends and never these.
+ALTER TABLE eras ADD COLUMN IF NOT EXISTS prep_note TEXT;
+ALTER TABLE eras ADD COLUMN IF NOT EXISTS recap_note TEXT;
 
 -- A map's art can change as history moves: timed backdrop overrides. The active backdrop
 -- at moment t is the row covering t with the LATEST start (ties: newest row); no row

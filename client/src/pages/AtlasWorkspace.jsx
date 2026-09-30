@@ -18,6 +18,7 @@ import { cat } from '../utils/categories'
 import { isPresent, pickCovering } from '../utils/timeline'
 import { ago } from '../utils/format'
 import MapTree from '../components/atlas/MapTree'
+import SessionNotes from '../components/atlas/SessionNotes'
 import DeleteImpact from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
@@ -1406,6 +1407,7 @@ function AtlasWorkspace() {
             <h4>Maps</h4>
             <MapTree key={worldId} tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))} />
+            {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
           </div>
         )}
 

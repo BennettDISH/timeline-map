@@ -289,6 +289,13 @@ legacy tables (`events` and friends) are gone.
   clear it first.
 - Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose
   from the inspector, never as a side effect.
+- Every era carries the DM's session notes, `eras.prep_note` and `recap_note` (DM-only: share.js
+  and the Forge's digest name the era columns they read). The Session notes box under the map
+  tree (`components/atlas/SessionNotes.jsx`) shows the era under the lens (a pick from its list
+  holds until the lens moves into another era), opening on Prep for an era not yet played and
+  Recap after; it saves on a pause or on leaving the box, never adopts an outside change over a
+  draft being typed or sent, and ⤢ opens it wide. Undo, world copies and the Forge's Unmake of a
+  dropped era carry the notes.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or

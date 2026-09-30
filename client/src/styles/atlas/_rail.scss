@@ -4,7 +4,7 @@
 
 .atlas {
   .rail{background:var(--panel2);border-right:1px solid var(--line);overflow:auto;padding:10px}
-  .rail h4{margin:6px 6px 8px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .rail > h4{margin:6px 6px 8px;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase} // the rail's own title only: a dialog opened from the rail keeps its heading
   .trow{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer}
   .trow:hover{background:#ffffff10}
   .trow.on{background:#5b9bd530;font-weight:600}
@@ -25,3 +25,23 @@
   button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 7px;font:inherit;font-size:10.5px;cursor:pointer}
   button:hover{color:var(--ink);border-color:var(--accent)}}
 .atlas .tsect{@include section-label;margin:10px 6px 4px}
+
+// ---- session notes, under the tree: a Prep and a Recap per era, following the lens ----
+.atlas .snotes{margin-top:12px;padding:0 2px}
+.atlas .snotes .snhead{display:flex;align-items:center;gap:4px;
+  .tsect{flex:1}}
+.atlas .snwide{background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 6px 0;line-height:1}
+.atlas .snwide:hover{color:var(--ink)}
+.atlas .snpick{display:block;width:100%;margin:2px 0 6px;background:#161a21;border:1px solid var(--line);border-radius:6px;
+  color:var(--ink);font:inherit;font-size:12px;padding:4px 6px}
+.atlas .sntabs{display:flex;margin-bottom:6px;
+  button{flex:1;background:none;border:1px solid var(--line);color:var(--muted);font:inherit;font-size:11.5px;padding:3px 0;cursor:pointer}
+  button:first-child{border-radius:6px 0 0 6px}
+  button:last-child{border-radius:0 6px 6px 0;border-left:0}
+  button:hover{color:var(--ink)}
+  button.on{@include toggle-on}}
+.atlas .sntext{display:block;width:100%;box-sizing:border-box;min-height:220px;resize:vertical;background:#161a21;
+  border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:12.5px;line-height:1.5;padding:7px 8px}
+.atlas .sntext:focus{outline:none;border-color:var(--accent)}
+.atlas .snmodal .modal{width:min(860px,94vw)}
+.atlas .snmodal .sntext{min-height:62vh}
