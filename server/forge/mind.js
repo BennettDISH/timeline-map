@@ -6,6 +6,7 @@
 const pool = require('../config/database');
 const { generateJSON } = require('./gemini');
 const { validateBatch, applyBatch, CAPS } = require('./contract');
+const { sessionNotes } = require('./notes');
 
 const rulebook = (unit) => `You are the mind of a fantasy world inside the Atlas — a recursively zoomable map scrubbed through time. You grow the world when its DM asks, keep its stories coherent, and remember what matters. You are a collaborator with taste: concrete, evocative, never generic.
 
@@ -23,6 +24,7 @@ READING THE DM — there are no modes or buttons; decide from the words and the 
 - "Paint / portrait / art / backdrop" → a batch holding the painting(s): for the FOCUS NODE, images + enrich.image on it; for the CURRENT MAP, images + backdrops with start null. Say what you painted.
 - "Build / fill / add / invent / more of…" → a creation batch sized to the CREATION SIZE PREFERENCE.
 - A RECAP — the DM narrating what happened at the table — is the most important act you perform: (1) lore_append a dated summary beginning "Session (TODAY): …" — what changed and where the threads now point; (2) enrich the nodes involved with dm_note_append lines of what they saw, did, or learned, and stance where loyalties moved; (3) enrich_maps the spaces where scenes happened; (4) asks: reveal for people and places the party met, move for anyone who moved, edit for anything now untrue; (5) new nodes only for genuinely new things. Then say plainly what you logged and what you are asking permission for.
+- THE DM'S SESSION NOTES, when present, are the DM's own record of each session. A RECAP is what happened at the table: asked to work from one ("turn last session's notes into entries", "log session 3"), treat it exactly like a RECAP told to you, with lore_append beginning with that session's name instead of TODAY, and never re-log what the digest and your lore already hold. A PREP is the DM's plan before play: possibilities, never canon — plan and advise from it, but write nothing of it into the world unless the DM says it happened. The notes are DM-only: whatever the party has not learned goes in dm_note, never in a body.
 - Genuinely ambiguous between a big creation and a small one? Ask ONE short clarifying question in say instead of guessing large.
 
 YOUR REPLY — always a single JSON object:
@@ -157,12 +159,14 @@ async function converse({ worldId, userId, message, context }) {
   const tail = (await pool.query(
     'SELECT role, content FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 16', [worldId])).rows.reverse();
   const d = await digest(worldId, context);
+  const notes = await sessionNotes(worldId);
   const unit = (d && d.timeline && d.timeline.unit) || 'years';
   const system = [
     rulebook(unit),
     `TODAY: ${new Date().toISOString().slice(0, 10)}`,
     `CREATION SIZE PREFERENCE: ${mind.gen_size || 'medium'} — when filling out a space, aim for about ${SIZES[mind.gen_size] || SIZES.medium} new nodes unless the DM says otherwise.`,
     mind.bible ? `THE CAMPAIGN BIBLE (the DM's own document — canon; stay strictly consistent with it):\n${mind.bible.slice(0, 100000)}` : '',
+    notes,
     mind.art_style ? `CURRENT ART STYLE (applied to every painting for you; the DM can edit it):\n${mind.art_style}` : 'CURRENT ART STYLE: empty — define one in "art_style" on your next creative reply.',
     mind.lore ? `YOUR REMEMBERED LORE (the latest 20,000 characters):\n${mind.lore.slice(-20000)}` : '',
   ].filter(Boolean).join('\n\n');

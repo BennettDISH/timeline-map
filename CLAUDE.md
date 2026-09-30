@@ -290,7 +290,7 @@ legacy tables (`events` and friends) are gone.
 - Double-clicking a pin only ENTERS an existing interior; interiors are created on purpose
   from the inspector, never as a side effect.
 - Every era carries the DM's session notes, `eras.prep_note` and `recap_note` (DM-only: share.js
-  and the Forge's digest name the era columns they read). The Session notes box under the map
+  names the era columns it sends, and never these; the Forge reads them, see The Forge). The Session notes box under the map
   tree (`components/atlas/SessionNotes.jsx`) shows the era under the lens (a pick from its list
   holds until the lens moves into another era), opening on Prep for an era not yet played and
   Recap after; it saves on a pause or on leaving the box, never adopts an outside change over a
@@ -383,8 +383,11 @@ Known gaps.
   so the DM's later edits survive, and the mind's message for the batch gets an "↩ Unmade"
   line. A failed apply is stored as "⚠ Nothing was changed: …" and writes no lore. The DM's
   message is stored BEFORE the model call, so a failed turn keeps it. Messages over 12,000
-  characters are refused (400), never trimmed. The mind reads the whole bible (≤100k) and
-  the latest 20k of lore; the lore PATCH keeps the newest 20k. Edit asks show their proposed
+  characters are refused (400), never trimmed. The mind reads the whole bible (≤100k), the
+  DM's session notes (`forge/notes.js`: plain text, newest session first, 30k characters, a
+  count of older sessions left out — a recap is worked like a recap told to it, the session
+  named in lore instead of TODAY; a prep is the plan and never written into the world unless the
+  DM says it happened) and the latest 20k of lore; the lore PATCH keeps the newest 20k. Edit asks show their proposed
   words on the card. A `move` ask carries an outline along (or clears it across maps).
   The rulebook speaks the world's own clock unit and knows the one `party` node. The
   digest sends each node's `vis` ('dm' | 'player'; revealed nodes unmarked, player markers
