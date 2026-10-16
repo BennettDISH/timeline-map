@@ -99,7 +99,7 @@ const styleParam = (st) => (st ? JSON.stringify(st) : null);
 const NODE_COLS = ['id', 'world_id', 'title', 'body', 'category', 'interior_map_id', 'image_id', 'visibility', 'pin', 'pin_size', 'author',
   'created_by', 'created_at', 'updated_at', 'dm_note', 'stance', 'voice_id', 'voice_name', 'voice_line', 'voice_url', 'voice_style'];
 const MAP_COLS = ['id', 'title', 'world_id', 'image_id', 'created_by', 'created_at', 'updated_at',
-  'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url', 'is_main', 'tree_parent_id'];
+  'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url', 'is_main', 'tree_parent_id', 'tree_order'];
 const MIND_COLS = ['lore', 'art_style', 'style_image_id', 'gen_size', 'bible'];
 const without = (cols, ...drop) => cols.filter((c) => !drop.includes(c));
 // INSERT a row from a snapshot, copying every listed column the snapshot has, with overrides
@@ -393,15 +393,30 @@ router.post('/worlds/clone', wrap(async (req, res) => {
 }));
 
 // GET /worlds/:worldId/maps — flat list for the nesting tree (client builds the tree from parentMapId).
+// POST /worlds/:worldId/tree-order — the DM's order for one set of siblings in the Maps tree:
+// { ids } in the order wanted; each gets its position. Only the tree reads it.
+router.post('/worlds/:worldId/tree-order', wrap(async (req, res) => {
+  if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  const ids = req.body.ids;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 1000 || !ids.every(isId) || new Set(ids.map(Number)).size !== ids.length)
+    return bad(res, 'An order is a list of maps');
+  const mine = (await pool.query('SELECT count(*)::int AS n FROM maps WHERE id = ANY($1::int[]) AND world_id = $2', [ids.map(Number), req.params.worldId])).rows[0].n;
+  if (mine !== ids.length) return bad(res, 'That map is not in this world');
+  await pool.query(
+    `UPDATE maps m SET tree_order = v.ord FROM unnest($1::int[]) WITH ORDINALITY AS v(id, ord)
+     WHERE m.id = v.id AND m.world_id = $2`, [ids.map(Number), req.params.worldId]);
+  res.json({ ok: true });
+}));
+
 router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
-    SELECT m.id, m.title, m.owner_node_id, m.is_main, m.tree_parent_id, i.file_path AS backdrop_path,
+    SELECT m.id, m.title, m.owner_node_id, m.is_main, m.tree_parent_id, m.tree_order, i.file_path AS backdrop_path,
       (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id AND p.map_id <> m.id ORDER BY p.id LIMIT 1) AS owner_map_id
     FROM maps m LEFT JOIN images i ON m.image_id=i.id
     WHERE m.world_id=$1 ORDER BY m.id`, [req.params.worldId])).rows;
   res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.owner_map_id,
-    isMain: !!m.is_main, filedUnder: m.tree_parent_id ?? null, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
+    isMain: !!m.is_main, filedUnder: m.tree_parent_id ?? null, order: m.tree_order ?? null, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
 }));
 
 // GET /worlds/:worldId/trail — every footstep of party-category nodes across the world:

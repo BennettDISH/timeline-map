@@ -6,8 +6,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 // map yet gather under "Unplaced" instead of vanishing.
 // The DM can organise the tree apart from the nodes that link maps: a ⚓ main map stands at
 // the top beside the world map, and a map filed under another sits there whatever node owns
-// it (drag a row onto another, or right-click a row). Filing never changes how maps link.
-export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) {
+// it (drag a row onto another, or right-click a row). Dragging to a row's top or bottom edge
+// places it before or after that row instead: the DM's own order among siblings (A–Z for any
+// never ordered). Filing never changes how maps link.
+const byOrder = (a, b) => ((a.order ?? 1e9) - (b.order ?? 1e9)) || a.title.localeCompare(b.title)
+export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile, onOrder }) {
   const key = `atlas_tree_${worldId}`
   const [folded, setFolded] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')) } catch (e) { return new Set() }
@@ -38,10 +41,10 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
       if (!k.has(pid)) k.set(pid, [])
       k.get(pid).push(m)
     }
-    for (const list of k.values()) list.sort((a, b) => a.title.localeCompare(b.title))
+    for (const list of k.values()) list.sort(byOrder)
     return k
   }, [tree, byId, upOf]) // eslint-disable-line react-hooks/exhaustive-deps
-  const tops = useMemo(() => tree.filter((m) => m.id !== rootId && isTop(m)).sort((a, b) => a.title.localeCompare(b.title)), [tree, rootId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const tops = useMemo(() => tree.filter((m) => m.id !== rootId && isTop(m)).sort(byOrder), [tree, rootId]) // eslint-disable-line react-hooks/exhaustive-deps
   // the current map's ancestors are never folded shut — you can always see where you are
   const openPath = useMemo(() => {
     const set = new Set(); let cur = byId.get(Number(mapId)); let guard = 0
@@ -55,7 +58,7 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
   const [menu, setMenu] = useState(null) // { m, x, y, filing }
   const menuRef = useRef(null)
   const [dragId, setDragId] = useState(null)
-  const [dropId, setDropId] = useState(null)
+  const [drop, setDrop] = useState(null) // { id, zone: 'before' | 'in' | 'after' }
   useEffect(() => {
     if (!menu) return
     const off = (e) => { if (!menuRef.current?.contains(e.target)) setMenu(null) }
@@ -65,8 +68,28 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
   }, [menu])
   const canFile = (m, target) => m.id !== rootId && target.id !== m.id && !under(m.id).has(target.id) && target.id !== upOf.get(m.id)
   const file = (m, data) => { setMenu(null); onFile?.(m.id, data) }
+  // the row a map is shown under (null: a top), and that row's children in order
+  const shownUp = (m) => (isTop(m) ? null : (kids.get(null) || []).some((o) => o.id === m.id) ? undefined : upOf.get(m.id))
+  const siblingsOf = (pid) => (pid === null ? tops : kids.get(pid) || [])
+  // before/after a row: same parent as that row; never beside the world map's own slot, never into itself
+  const canPlace = (d, target) => d.id !== rootId && target.id !== d.id && !under(d.id).has(target.id) && shownUp(target) !== undefined
+  const zoneOf = (e, target) => {
+    const r = e.currentTarget.getBoundingClientRect(), y = (e.clientY - r.top) / r.height
+    if (target.id === rootId) return 'in'
+    return y < 0.28 ? 'before' : y > 0.72 ? 'after' : 'in'
+  }
+  const dropOk = (d, target, zone) => (zone === 'in' ? canFile(d, target) : canPlace(d, target))
+  const place = (d, target, zone) => {
+    if (zone === 'in') return file(d, { tree_parent_id: target.id, is_main: false })
+    const pid = shownUp(target)
+    const list = siblingsOf(pid).filter((o) => o.id !== d.id)
+    list.splice(list.findIndex((o) => o.id === target.id) + (zone === 'after' ? 1 : 0), 0, d)
+    if (shownUp(d) !== pid) onFile?.(d.id, pid === null ? { is_main: true, tree_parent_id: null } : { tree_parent_id: pid, is_main: false })
+    onOrder?.(list.map((o) => o.id))
+  }
+  const sortAZ = (m) => { setMenu(null); onOrder?.([...(kids.get(m.id) || [])].sort((a, b) => a.title.localeCompare(b.title)).map((o) => o.id)) }
   const openMenu = (e, m) => {
-    if (!onFile || m.id === rootId) return
+    if (!onFile) return
     e.preventDefault()
     setMenu({ m, x: Math.min(e.clientX, window.innerWidth - 240), y: Math.min(e.clientY, window.innerHeight - 200), filing: false })
   }
@@ -83,7 +106,7 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
     const closed = has && isFolded(m.id)
     return (
       <React.Fragment key={m.id}>
-        <div className={`trow ${String(m.id) === String(mapId) ? 'on' : ''}${isTop(m) ? ' top' : ''}${dropId === m.id ? ' drop' : ''}${dragId === m.id ? ' dragging' : ''}`}
+        <div className={`trow ${String(m.id) === String(mapId) ? 'on' : ''}${isTop(m) ? ' top' : ''}${drop?.id === m.id ? ` drop-${drop.zone}` : ''}${dragId === m.id ? ' dragging' : ''}`}
           style={{ paddingLeft: 6 + depth * 14 }}
           role="button" tabIndex={0} aria-current={String(m.id) === String(mapId) ? 'page' : undefined}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onGo(m.id) } }}
@@ -91,10 +114,20 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
           onContextMenu={(e) => openMenu(e, m)}
           draggable={!!onFile && !isRoot}
           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(m.id)); setDragId(m.id) }}
-          onDragEnd={() => { setDragId(null); setDropId(null) }}
-          onDragOver={(e) => { const d = byId.get(dragId); if (d && canFile(d, m)) { e.preventDefault(); if (dropId !== m.id) setDropId(m.id) } }}
-          onDragLeave={() => { if (dropId === m.id) setDropId(null) }}
-          onDrop={(e) => { e.preventDefault(); const d = byId.get(dragId); setDragId(null); setDropId(null); if (d && canFile(d, m)) file(d, { tree_parent_id: m.id, is_main: false }) }}>
+          onDragEnd={() => { setDragId(null); setDrop(null) }}
+          onDragOver={(e) => {
+            const d = byId.get(dragId); if (!d) return
+            const zone = zoneOf(e, m)
+            if (!dropOk(d, m, zone)) { if (drop?.id === m.id) setDrop(null); return }
+            e.preventDefault()
+            if (drop?.id !== m.id || drop.zone !== zone) setDrop({ id: m.id, zone })
+          }}
+          onDragLeave={() => { if (drop?.id === m.id) setDrop(null) }}
+          onDrop={(e) => {
+            e.preventDefault(); const d = byId.get(dragId), zone = zoneOf(e, m)
+            setDragId(null); setDrop(null)
+            if (d && dropOk(d, m, zone)) place(d, m, zone)
+          }}>
           {depth > 0 && <span className="tguide" style={{ left: 6 + (depth - 1) * 14 + 5 }} />}
           {has
             ? <button type="button" className={`tcaret${openPath.has(m.id) ? ' held' : ''}`} disabled={openPath.has(m.id)}
@@ -135,6 +168,9 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
             <div className="apop-sep">{m.title}</div>
             {!menu.filing ? (
               <>
+                {(kids.get(m.id) || []).length > 1 && <button title="Put the maps under this one back in A–Z order" onClick={() => sortAZ(m)}>↕ Sort what's under it A–Z</button>}
+                {m.id === rootId && <div className="muted esmall tmhint">Drag any map onto another to file it there, or to a row's top or bottom edge to reorder.</div>}
+                {m.id !== rootId && <>
                 <button onClick={() => file(m, m.isMain ? { is_main: false } : { is_main: true, tree_parent_id: null })}>
                   ⚓ {m.isMain ? 'Not a main map' : 'Make it a main map'}
                 </button>
@@ -142,6 +178,7 @@ export default function MapTree({ tree, rootId, mapId, onGo, worldId, onFile }) 
                 {(m.filedUnder != null || m.isMain) && (
                   <button title="Back under the map its node stands on" onClick={() => file(m, { is_main: false, tree_parent_id: null })}>↺ Back where its node stands</button>
                 )}
+                </>}
               </>
             ) : (
               <div className="tfilelist">

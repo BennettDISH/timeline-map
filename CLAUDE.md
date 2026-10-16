@@ -493,6 +493,9 @@ iPad Safari) and the Forge's write path end to end against a sandbox.
   File under…). Filed beats main beats the owner node's map. The server refuses filing under
   itself or under its own filed descendants; the client also hides anything shown beneath it.
   Filing never touches the breadcrumb, Go inside or the share view. Clone remaps the filing.
+  Dragging to a row's top/bottom edge places before/after it (`maps.tree_order`, set per
+  sibling set by POST /worlds/:id/tree-order; unordered maps follow A–Z). Before/after a top
+  makes the map a main map. The world map's right-click offers only "Sort what's under it A–Z".
 - SVG filters on regions are in user units of the 0–100 viewBox (a 5px blur is 5% of the
   plane): glow is ~0.35 units; the pop's shadow sits on a wrapper OUTSIDE the clipped group.
 

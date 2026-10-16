@@ -217,6 +217,8 @@ ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_end INTEGER;
 -- of the tree like the world map; a map filed under another sits there whatever node owns it
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS is_main BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS tree_parent_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
+-- the DM's order among siblings in the tree (NULL: after the ordered ones, A–Z)
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS tree_order INTEGER;
 
 -- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;

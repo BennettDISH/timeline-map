@@ -21,6 +21,7 @@ const atlasService = {
 
   getMap: (mapId) => http.get(`${B}/maps/${mapId}`).then((r) => withNodeText(r.data)), // a node's text rides its first placement
   patchMap: (mapId, data) => http.patch(`${B}/maps/${mapId}`, data).then((r) => r.data),
+  orderMaps: (worldId, ids) => http.post(`${B}/worlds/${worldId}/tree-order`, { ids }).then((r) => r.data),
 
   addNode: (mapId, data) => http.post(`${B}/maps/${mapId}/nodes`, data).then((r) => r.data),
   placeNode: (mapId, data) => http.post(`${B}/maps/${mapId}/placements`, data).then((r) => r.data),

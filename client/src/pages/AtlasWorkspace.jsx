@@ -220,6 +220,11 @@ function AtlasWorkspace() {
       ...('tree_parent_id' in data ? { filedUnder: data.tree_parent_id } : {}) } : m)))
     atlasService.patchMap(id, data).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't file that map") })).finally(refreshTree)
   }
+  const orderMaps = (ids) => {
+    const at = new Map(ids.map((id, i) => [id, i + 1]))
+    setTree((t) => t.map((m) => (at.has(m.id) ? { ...m, order: at.get(m.id) } : m)))
+    atlasService.orderMaps(worldId, ids).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't reorder the maps") })).finally(refreshTree)
+  }
   const loadMap = useCallback((blank) => {
     if (!mapId) return Promise.resolve()
     const seq = ++loadSeq.current
@@ -1414,7 +1419,7 @@ function AtlasWorkspace() {
             <h4>Maps</h4>
             <MapTree key={worldId} tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))}
-              onFile={fileMap} />
+              onFile={fileMap} onOrder={orderMaps} />
             {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
           </div>
         )}
