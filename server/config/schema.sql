@@ -213,6 +213,10 @@ CREATE INDEX IF NOT EXISTS idx_node_facts_node ON node_facts(node_id);
 -- the world clock, never a second clock.
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_start INTEGER;
 ALTER TABLE maps ADD COLUMN IF NOT EXISTS focus_end INTEGER;
+-- the Maps tree's own filing, apart from the nodes that link maps: a main map stands at the top
+-- of the tree like the world map; a map filed under another sits there whatever node owns it
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS is_main BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE maps ADD COLUMN IF NOT EXISTS tree_parent_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;
 
 -- Worlds gain a root map (the top-level canvas). Timeline columns already exist above.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS root_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL;

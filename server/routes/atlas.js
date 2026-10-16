@@ -99,7 +99,7 @@ const styleParam = (st) => (st ? JSON.stringify(st) : null);
 const NODE_COLS = ['id', 'world_id', 'title', 'body', 'category', 'interior_map_id', 'image_id', 'visibility', 'pin', 'pin_size', 'author',
   'created_by', 'created_at', 'updated_at', 'dm_note', 'stance', 'voice_id', 'voice_name', 'voice_line', 'voice_url', 'voice_style'];
 const MAP_COLS = ['id', 'title', 'world_id', 'image_id', 'created_by', 'created_at', 'updated_at',
-  'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url'];
+  'owner_node_id', 'view', 'focus_start', 'focus_end', 'dm_note', 'ambience_prompt', 'ambience_url', 'is_main', 'tree_parent_id'];
 const MIND_COLS = ['lore', 'art_style', 'style_image_id', 'gen_size', 'bible'];
 const without = (cols, ...drop) => cols.filter((c) => !drop.includes(c));
 // INSERT a row from a snapshot, copying every listed column the snapshot has, with overrides
@@ -325,7 +325,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const m of maps) {
-    const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'owner_node_id'), m,
+    const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'owner_node_id', 'tree_parent_id'), m,
       { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null });
     mapMap.set(m.id, r.id);
   }
@@ -335,6 +335,9 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       { world_id: w.id, created_by: req.user.id, interior_map_id: null, image_id: n.image_id ? (imgMap.get(n.image_id) || null) : null,
         pin: n.pin || 'chip', pin_size: n.pin_size || 64 });
     nodeMap.set(n.id, r.id);
+  }
+  for (const m of maps) if (m.tree_parent_id && mapMap.has(m.tree_parent_id)) {
+    await client.query('UPDATE maps SET tree_parent_id=$1 WHERE id=$2', [mapMap.get(m.tree_parent_id), mapMap.get(m.id)]);
   }
   for (const m of maps) if (m.owner_node_id && nodeMap.has(m.owner_node_id)) {
     await client.query('UPDATE maps SET owner_node_id=$1 WHERE id=$2', [nodeMap.get(m.owner_node_id), mapMap.get(m.id)]);
@@ -393,11 +396,12 @@ router.post('/worlds/clone', wrap(async (req, res) => {
 router.get('/worlds/:worldId/maps', wrap(async (req, res) => {
   if (!(await ownsWorld(req.params.worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const rows = (await pool.query(`
-    SELECT m.id, m.title, m.owner_node_id, i.file_path AS backdrop_path,
+    SELECT m.id, m.title, m.owner_node_id, m.is_main, m.tree_parent_id, i.file_path AS backdrop_path,
       (SELECT p.map_id FROM placements p WHERE p.node_id=m.owner_node_id AND p.map_id <> m.id ORDER BY p.id LIMIT 1) AS owner_map_id
     FROM maps m LEFT JOIN images i ON m.image_id=i.id
     WHERE m.world_id=$1 ORDER BY m.id`, [req.params.worldId])).rows;
-  res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.owner_map_id, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
+  res.json({ maps: rows.map((m) => ({ id: m.id, title: m.title, ownerNodeId: m.owner_node_id, parentMapId: m.owner_map_id,
+    isMain: !!m.is_main, filedUnder: m.tree_parent_id ?? null, thumbUrl: resolveImageUrl(req, m.backdrop_path) })) });
 }));
 
 // GET /worlds/:worldId/trail — every footstep of party-category nodes across the world:
@@ -481,9 +485,21 @@ router.patch('/maps/:mapId', wrap(async (req, res) => {
     focus_start: [whole, 'A focus period is whole numbers on the clock'],
     focus_end: [whole, 'A focus period is whole numbers on the clock'],
     dm_note: [long, 'Map notes are text'],
+    is_main: [bool, 'A map is a main map or not'],
+    tree_parent_id: [idOrNull, 'That map is not in this world'],
   });
   if (c.bad) return bad(res, c.bad);
   if (c.vals.image_id != null && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
+  if (c.vals.tree_parent_id != null) {
+    // filed under a map of this world, never under itself or anything filed beneath it
+    if (c.vals.tree_parent_id === Number(req.params.mapId)) return bad(res, "A map can't be filed under itself");
+    if ((await worldIdOfMap(c.vals.tree_parent_id)) !== wid) return bad(res, 'That map is not in this world');
+    const loop = (await pool.query(`
+      WITH RECURSIVE up(id, g) AS (SELECT $1::int, 0 UNION ALL
+        SELECT m.tree_parent_id, up.g + 1 FROM maps m JOIN up ON m.id = up.id WHERE m.tree_parent_id IS NOT NULL AND up.g < 200)
+      SELECT 1 FROM up WHERE id = $2 LIMIT 1`, [c.vals.tree_parent_id, req.params.mapId])).rows.length;
+    if (loop) return bad(res, "A map can't be filed under a map filed beneath it");
+  }
   if ('focus_start' in c.vals || 'focus_end' in c.vals) {
     const row = (await pool.query('SELECT focus_start, focus_end FROM maps WHERE id=$1', [req.params.mapId])).rows[0];
     if (!ordered('focus_start' in c.vals ? c.vals.focus_start : row.focus_start, 'focus_end' in c.vals ? c.vals.focus_end : row.focus_end))
@@ -885,7 +901,8 @@ router.post('/undo/:id', wrap(async (req, res) => {
 
     const insertMap = async (m, ownerNodeId) => {
       const imageId = (await exists('images', m.image_id)) ? m.image_id : null;
-      await insertRow(client, 'maps', MAP_COLS, m, { image_id: imageId, owner_node_id: ownerNodeId });
+      const filed = (await exists('maps', m.tree_parent_id)) ? m.tree_parent_id : null;
+      await insertRow(client, 'maps', MAP_COLS, m, { image_id: imageId, owner_node_id: ownerNodeId, tree_parent_id: filed });
     };
     const insertPlacement = async (pl) => {
       if (!(await exists('nodes', pl.node_id)) || !(await exists('maps', pl.map_id))) return;

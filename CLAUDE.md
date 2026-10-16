@@ -487,6 +487,12 @@ iPad Safari) and the Forge's write path end to end against a sandbox.
 - A place never stands inside its own interior (400); the tree files a self-owned or
   cyclic space under Unplaced; an ancestor of the open map cannot fold (the caret says so).
   The tree remounts per world (folds are per world). Its thumbnail follows the backdrop.
+- The tree has its own filing, apart from the nodes that link maps (`maps.is_main`,
+  `maps.tree_parent_id`): a ⚓ main map stands at the top beside the world map; a map filed
+  under another sits there whatever node owns it (drag a row onto another, or right-click →
+  File under…). Filed beats main beats the owner node's map. The server refuses filing under
+  itself or under its own filed descendants; the client also hides anything shown beneath it.
+  Filing never touches the breadcrumb, Go inside or the share view. Clone remaps the filing.
 - SVG filters on regions are in user units of the 0–100 viewBox (a 5px blur is 5% of the
   plane): glow is ~0.35 units; the pop's shadow sits on a wrapper OUTSIDE the clipped group.
 

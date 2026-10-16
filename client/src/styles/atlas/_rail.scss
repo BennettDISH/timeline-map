@@ -25,6 +25,13 @@
   button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 7px;font:inherit;font-size:10.5px;cursor:pointer}
   button:hover{color:var(--ink);border-color:var(--accent)}}
 .atlas .tsect{@include section-label;margin:10px 6px 4px}
+// organising: main maps, hand-filed maps, drag-to-file, the row menu
+.atlas .trow.top ~ .trow.top{margin-top:6px}
+.atlas .trow .tmain,.atlas .trow .tfiled{flex:none;font-size:10px;opacity:.75}
+.atlas .trow.drop{background:#5b9bd540;box-shadow:inset 0 0 0 1px var(--accent)}
+.atlas .trow.dragging{opacity:.45}
+.atlas .tmenu .tfilelist{max-height:260px;overflow:auto;display:flex;flex-direction:column}
+.atlas .tmenu .tfilelist button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 
 // ---- session notes, under the tree: a Prep and a Recap per era, following the lens ----
 .atlas .snotes{margin-top:12px;padding:0 2px}

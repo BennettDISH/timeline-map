@@ -213,6 +213,13 @@ function AtlasWorkspace() {
 
   // ---- loading the world + map --------------------------------------------------
   const refreshTree = () => atlasService.getMaps(worldId).then(setTree).catch(() => {})
+  // the Maps tree's own filing (a main map, or filed under another): shown at once, then saved
+  const fileMap = (id, data) => {
+    setTree((t) => t.map((m) => (m.id === id ? { ...m,
+      ...('is_main' in data ? { isMain: data.is_main } : {}),
+      ...('tree_parent_id' in data ? { filedUnder: data.tree_parent_id } : {}) } : m)))
+    atlasService.patchMap(id, data).catch((e) => setFlash({ kind: 'err', text: errText(e, "Couldn't file that map") })).finally(refreshTree)
+  }
   const loadMap = useCallback((blank) => {
     if (!mapId) return Promise.resolve()
     const seq = ++loadSeq.current
@@ -1406,7 +1413,8 @@ function AtlasWorkspace() {
           <div className="rail" role="navigation" aria-label="Maps">
             <h4>Maps</h4>
             <MapTree key={worldId} tree={tree} rootId={world?.rootMapId} mapId={mapId} worldId={worldId}
-              onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))} />
+              onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))}
+              onFile={fileMap} />
             {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
           </div>
         )}
