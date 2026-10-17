@@ -19,10 +19,10 @@ import { isPresent, pickCovering } from '../utils/timeline'
 import { ago } from '../utils/format'
 import MapTree from '../components/atlas/MapTree'
 import SessionNotes from '../components/atlas/SessionNotes'
-import DeleteImpact from '../components/atlas/DeleteImpact'
+import DeleteImpact, { doorsLine } from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
-import { ImagePicker, NodePicker } from '../components/atlas/Pickers'
+import { ImagePicker, NodePicker, MapPicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
 import { clampPct, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
 import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
@@ -81,6 +81,8 @@ function AtlasWorkspace() {
   const [sfilter, setSfilter] = useState('all') // 'all' | 'unplaced' — the search dropdown's chip filter
   const [confirmDel, setConfirmDel] = useState(null) // { node, impact }
   const [confirmInterior, setConfirmInterior] = useState(null) // { node, impact }
+  const [confirmMap, setConfirmMap] = useState(null) // { map, impact }: ✕ Remove this map (one beside another)
+  const [mapPicker, setMapPicker] = useState(null) // { node }: ↪ Lead to a map…
   const [mapMenu, setMapMenu] = useState(false) // the "Map ▾" toolbar menu
   const [help, setHelp] = useState(false) // the "?" gesture guide
   const [renaming, setRenaming] = useState(null) // string while the rename dialog is open
@@ -381,6 +383,7 @@ function AtlasWorkspace() {
     // an outline in progress, an open dialog and the legend's filter belong to the map they
     // were started on: none of them follows the DM to another map
     setDrawing(null); setHiddenCats(new Set()); setBdsOpen(false); setFocusEdit(null); setRenaming(null); setConfirmDel(null); setConfirmInterior(null)
+    setConfirmMap(null); setMapPicker(null)
     loadMap(true).then(() => {
       if (pendingSelect.current) { setSelId(pendingSelect.current); pendingSelect.current = null }
       // a footstep jump moves the lens only once the destination map is in hand
@@ -438,7 +441,7 @@ function AtlasWorkspace() {
   // things, another tab edits. Every 45 s (players poll at the same pace) a visible, quiet
   // tab refreshes the map and the world — never while something is being dragged, drawn,
   // typed or confirmed, so no box goes stale under the DM's hands.
-  quietRef.current = !drawing && !placing && !ctx && !confirmDel && !confirmInterior && !picker && !nodePicker && renaming == null && !focusEdit && !bdsOpen && !tlEdit
+  quietRef.current = !drawing && !placing && !ctx && !confirmDel && !confirmInterior && !confirmMap && !picker && !nodePicker && !mapPicker && renaming == null && !focusEdit && !bdsOpen && !tlEdit
   useEffect(() => {
     if (!mapId) return
     const id = setInterval(() => {
@@ -649,6 +652,7 @@ function AtlasWorkspace() {
   const renameInteriorLocally = (nodeId, title) => {
     const node = mapData?.placements.find((pp) => pp.node.id === nodeId)?.node || (stray?.id === nodeId ? stray : null)
     if (!node?.interiorMapId || !node.title || node.title === title) return
+    if (tree.find((m) => m.id === node.interiorMapId)?.ownerNodeId !== nodeId) return // a door's room keeps its name
     const { interiorMapId, title: old } = node
     setTree((t) => t.map((m) => (m.id === interiorMapId && m.title === old ? { ...m, title } : m)))
     setMapData((d) => d && ({ ...d, breadcrumb: (d.breadcrumb || []).map((b) => (b.mapId === interiorMapId && b.title === old ? { ...b, title } : b)) }))
@@ -762,11 +766,48 @@ function AtlasWorkspace() {
     // no interior: never invent one on a double-click — that is an explicit act in the inspector
     setFlash({ kind: 'info', text: `“${node.title}” has no interior — give it one from the editor (＋ Interior map)` })
   }
-  const createInteriorAs = (node, view) => once(`interior:${node.id}`, async () => {
-    const r = await track(atlasService.createInterior(node.id, view), "Couldn't create the interior").catch(() => null)
+  // besideMapId: the new map stands beside that one (the room next door) instead of inside the node
+  const createInteriorAs = (node, view, besideMapId) => once(`interior:${node.id}`, async () => {
+    const r = await track(atlasService.createInterior(node.id, view, besideMapId), "Couldn't create the map").catch(() => null)
     if (!r) return
     refreshTree(); navigate(`/w/${worldId}/m/${r.mapId}`)
   })
+  // An entry may lead to a map it does not own: the room beside, the stair back up. Such a map
+  // is its own thing, so ✕ only lets go of it (a local undo points the entry back), and the
+  // editor names it ("◎ Go to “Hall”") where an owned interior reads "◎ Go inside".
+  const leadsToOf = (node) => {
+    const m = node?.interiorMapId ? tree.find((t) => t.id === node.interiorMapId) : null
+    return m && m.ownerNodeId !== node.id ? m : null
+  }
+  const leadTo = (node, m) => once(`lead:${node.id}`, async () => {
+    setMapPicker(null)
+    const r = await track(atlasService.leadTo(node.id, m.id), "Couldn't make it lead there").catch(() => null)
+    if (!r) return
+    localPatchNode(node.id, { hasInterior: true, interiorMapId: m.id })
+    setFlash({ kind: 'ok', text: `“${node.title}” leads to “${m.title}” now` })
+  })
+  const letGo = async (node, m) => {
+    const r = await track(atlasService.deleteInterior(node.id), "Couldn't change where it leads").catch(() => null)
+    if (!r) return
+    localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
+    undoable(`“${node.title}” no longer leads to “${m.title}” — that map is untouched`, { undo: () => leadTo(node, m) })
+  }
+  // ✕ Remove this map, for a map beside another (no entry owns it as its interior)
+  const askRemoveMap = async (m) => {
+    const impact = await atlasService.mapImpact(m.id).catch(() => null)
+    setConfirmMap({ map: m, impact })
+  }
+  const doRemoveMap = async () => {
+    const m = confirmMap.map
+    setConfirmMap(null)
+    const r = await track(atlasService.deleteMap(m.id), "Couldn't remove the map").catch(() => null)
+    if (!r) return
+    refreshTree()
+    const crumb = mapData?.breadcrumb || []
+    const up = crumb.length > 1 ? crumb[crumb.length - 2].mapId : world?.rootMapId
+    if (String(mapId) === String(m.id) && up) navigate(`/w/${worldId}/m/${up}`) // we were standing in it
+    undoable(`The map “${m.title}” removed`, { undoId: r.undoId })
+  }
 
   const factAdd = (nodeId) => once(`fact:${nodeId}`, () => {
     const cur = mapData?.placements.find((p) => p.node.id === nodeId)?.node
@@ -781,7 +822,9 @@ function AtlasWorkspace() {
       .then((r) => { reloadNodeDetail(nodeId); undoable('Period text removed', { undoId: r?.undoId }) }).catch(() => {})
 
   const askRemoveInterior = async (node) => {
-    const impact = await atlasService.nodeImpact(node.id).catch(() => null)
+    const door = leadsToOf(node)
+    if (door) return letGo(node, door) // nothing is deleted: no confirm, a local undo
+    const impact = await atlasService.nodeImpact(node.id, 'interior').catch(() => null)
     setConfirmInterior({ node, impact })
   }
   const doRemoveInterior = async () => {
@@ -791,7 +834,7 @@ function AtlasWorkspace() {
     if (!r) return
     localPatchNode(node.id, { hasInterior: false, interiorMapId: null })
     refreshTree()
-    if (mapData?.map?.ownerNodeId === node.id && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
+    if (String(mapId) === String(node.interiorMapId) && world?.rootMapId) navigate(`/w/${worldId}/m/${world.rootMapId}`) // we were standing in it
     undoable(`“${node.title}” no longer has an interior map — the entry itself is untouched`, { undoId: r.undoId })
   }
 
@@ -863,7 +906,7 @@ function AtlasWorkspace() {
   const canon = tl?.current ?? 0
   const switchMode = (m) => {
     setMode(m)
-    setPlacing(null); setPicker(null); setNodePicker(null); setTlEdit(false); setMapMenu(false)
+    setPlacing(null); setPicker(null); setNodePicker(null); setMapPicker(null); setTlEdit(false); setMapMenu(false)
     setDrawing(null); setCtx(null); setBdsOpen(false); setFocusEdit(null); setRenaming(null) // edit-only tools end with the posture
     writePref('atlas_mode', m)
   }
@@ -1904,8 +1947,14 @@ function AtlasWorkspace() {
                   <div className="muted spup">This map belongs to an entry that isn't placed on any map — it lives under “Unplaced” in the tree.</div>
                   <div className="onmaprow">
                     <button className="btn" title="Open the entry this map belongs to" onClick={() => openStray(map.ownerNodeId)}>Open its owner</button>
-                    <button className="btn danger" title="Delete this map — its entry stays" onClick={() => removeOrphanSpace(map.ownerNodeId)}>✕ Remove this map</button>
+                    <button className="btn danger" title="Delete this map — its entry stays" onClick={() => (map.beside ? askRemoveMap(map) : removeOrphanSpace(map.ownerNodeId))}>✕ Remove this map</button>
                   </div>
+                </div>
+              )}
+              {(mapData?.breadcrumb?.length || 0) > 1 && map?.beside && (
+                <div className="onmaprow besiderow">
+                  <span className="muted grow">A map beside another: players reach it through an entry that leads here</span>
+                  <button className="btn danger" title="Delete this map — the entries that lead here stay" onClick={() => askRemoveMap(map)}>✕ Remove this map</button>
                 </div>
               )}
               {!isList && (
@@ -1972,6 +2021,7 @@ function AtlasWorkspace() {
               }}
               partyExists={trail.some((st) => st.nodeId !== fn.id) || (mapData?.placements || []).some((pp) => pp.node.category === 'party' && pp.node.id !== fn.id)}
               onOpen={() => openInterior(fn)} onCreate={(v) => createInteriorAs(fn, v)}
+              leadsTo={leadsToOf(fn)} onLeadTo={() => setMapPicker({ node: fn, beside: sel && map?.ownerNodeId ? map : null })}
               onRemoveInterior={() => askRemoveInterior(fn)}
               onImage={() => setPicker({ kind: 'node', nodeId: fn.id, hasCurrent: !!fn.imageUrl })}
               onRemoveImage={() => setNodeImage(fn.id, null, null)}
@@ -2051,6 +2101,12 @@ function AtlasWorkspace() {
             onGenerated={() => { const k = picker.kind; setPicker(null); setFlash({ kind: 'ok', text: k === 'backdrop-timed' ? `Painted — a new period from ${periodAt} on this map` : 'Painted and attached' }); forgeRefresh() }} />
         )
       })()}
+      {mapPicker && (
+        <MapPicker maps={tree} rootId={world?.rootMapId} title={`Where does “${mapPicker.node.title}” lead?`}
+          excludeIds={sel && sel.node.id === mapPicker.node.id ? [map?.id] : []} excludedNote="It stands here"
+          beside={mapPicker.beside} onBeside={() => { const { node, beside } = mapPicker; setMapPicker(null); createInteriorAs(node, 'map', beside.id) }}
+          onPick={(m) => leadTo(mapPicker.node, m)} onClose={() => setMapPicker(null)} />
+      )}
       {nodePicker === 'link' && sel && (
         <NodePicker worldId={worldId} excludeId={sel.node.id} title="Thread to…" excludedNote="Already threaded"
           excludeIds={[...(nodeDetail.out || []), ...(nodeDetail.in || [])].map((l) => l.otherId)}
@@ -2087,6 +2143,7 @@ function AtlasWorkspace() {
                 {confirmInterior.impact.nestedMaps > 0 && (
                   <p>{confirmInterior.impact.nestedMaps} {confirmInterior.impact.nestedMaps === 1 ? 'map' : 'maps'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.</p>
                 )}
+                {confirmInterior.impact.doorsIn > 0 && <p>{doorsLine(confirmInterior.impact.doorsIn)}</p>}
                 <p className="muted">The entry itself stays where it is. Undo is offered afterwards.</p>
               </div>
             ) : (
@@ -2095,6 +2152,30 @@ function AtlasWorkspace() {
             <div className="mrow">
               <button className="tool" onClick={() => setConfirmInterior(null)}>Keep it</button>
               <button className="tool danger" onClick={doRemoveInterior}>Remove interior</button>
+            </div>
+        </Modal>
+      )}
+
+      {confirmMap && (
+        <Modal title={`Remove the map “${confirmMap.map.title}”?`} onClose={() => setConfirmMap(null)}>
+            {confirmMap.impact ? (
+              <div className="mnote">
+                <p>The map is deleted — its notes, backdrops and ambience go with it.</p>
+                {confirmMap.impact.nodesInside > 0 ? (
+                  <p>{confirmMap.impact.nodesInside} {confirmMap.impact.nodesInside === 1 ? 'entry' : 'entries'} inside will be left unplaced — they still exist (findable with search).</p>
+                ) : <p>Nothing is placed only here.</p>}
+                {confirmMap.impact.nestedMaps > 0 && (
+                  <p>{confirmMap.impact.nestedMaps} {confirmMap.impact.nestedMaps === 1 ? 'map' : 'maps'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.</p>
+                )}
+                {confirmMap.impact.doorsIn > 0 && <p>{doorsLine(confirmMap.impact.doorsIn)}</p>}
+                <p className="muted">Undo is offered afterwards.</p>
+              </div>
+            ) : (
+              <p className="mnote muted">Couldn't check what's inside — the map, and anything placed only there, goes with it. Undo will still be offered.</p>
+            )}
+            <div className="mrow">
+              <button className="tool" onClick={() => setConfirmMap(null)}>Keep it</button>
+              <button className="tool danger" onClick={doRemoveMap}>Remove the map</button>
             </div>
         </Modal>
       )}

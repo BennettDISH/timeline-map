@@ -2,6 +2,11 @@ import React from 'react'
 
 // What a delete takes with it, in words — shown in the confirm dialogs.
 
+// the other entries that lead into a map going away (doors from the rooms beside it): they stay,
+// leading nowhere, and Undo points them back
+export const doorsLine = (n) =>
+  `${n} other ${n === 1 ? 'entry leads' : 'entries lead'} into it — ${n === 1 ? 'it leads' : 'they lead'} nowhere after this, and Undo points ${n === 1 ? 'it' : 'them'} back.`
+
 export default function DeleteImpact({ impact, spotlit, party }) {
   if (!impact) return <p className="muted">This removes the entry from every map, along with its threads.{spotlit ? ' The lantern pointing at it goes out.' : ''}</p>
   const bits = []
@@ -10,14 +15,16 @@ export default function DeleteImpact({ impact, spotlit, party }) {
   const maps = impact.maps ?? impact.placements
   if (!party && maps > 1) bits.push(`It sits on ${maps} maps — it disappears from all of them.`)
   if (impact.interiorMaps > 0) {
-    bits.push('Its interior is deleted too.')
+    bits.push(impact.interiorMaps === 1 ? 'Its interior is deleted too.' : `The ${impact.interiorMaps} maps it owns (its interior and the maps beside it) are deleted too.`)
     if (impact.nodesInside > 0) {
       bits.push(`${impact.nodesInside} ${impact.nodesInside === 1 ? 'entry' : 'entries'} inside will be left unplaced — they still exist (findable with search), but lose their spot.`)
     }
     if (impact.nestedMaps > 0) {
       bits.push(`${impact.nestedMaps} ${impact.nestedMaps === 1 ? 'map' : 'maps'} nested deeper inside stay — their owners keep them, listed under Unplaced in the map tree.`)
     }
+    if (impact.doorsIn > 0) bits.push(doorsLine(impact.doorsIn))
   }
+  if (impact.leadsElsewhere) bits.push('The map it leads to is not its own — that map stays.')
   if (bits.length === 0) bits.push('It has no interior and sits only on this map.')
   return (
     <div className="impact">

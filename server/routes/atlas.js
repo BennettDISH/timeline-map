@@ -130,6 +130,34 @@ async function breadcrumb(mapId) {
   return chain;
 }
 
+// Owning and leading are two things. A map's owner_node_id is the entry it belongs to: that
+// decides the tree, the crumb, what players must see to reach it, and what a delete takes. A
+// node's interior_map_id is only where it LEADS (◎ Go inside). Usually the node owns the map it
+// leads to (its interior), but it may lead to a map of someone else's: a door into the room
+// beside this one, or any map the DM points it at. Such a door never owns, renames or deletes
+// the map behind it.
+const mapSnapshot = async (mapId) => ({
+  map: (await pool.query('SELECT * FROM maps WHERE id=$1', [mapId])).rows[0],
+  placements: await rowsOf('SELECT * FROM placements WHERE map_id=$1', [mapId]),
+  backdrops: await rowsOf('SELECT * FROM map_backdrops WHERE map_id=$1', [mapId]),
+});
+// the other entries that lead into these maps: a delete leaves them leading nowhere (the FK
+// sets NULL), so the snapshot keeps them and an undo points them back
+const doorsInto = async (mapIds, exceptNodeId = null) => (mapIds.length ? (await pool.query(
+  'SELECT id AS node_id, interior_map_id AS map_id FROM nodes WHERE interior_map_id = ANY($1::int[]) AND id IS DISTINCT FROM $2 ORDER BY id',
+  [mapIds, exceptNodeId])).rows.map((r) => ({ nodeId: r.node_id, mapId: r.map_id })) : []);
+// delete one map with an undoable tombstone (kind 'interior'): `leads` says whether its owner
+// led into it, so an undo knows whether to point the owner back
+async function removeMap(wid, userId, mapId) {
+  const snap = await mapSnapshot(mapId);
+  const owner = snap.map.owner_node_id
+    ? (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [snap.map.owner_node_id])).rows[0] : null;
+  const payload = { ownerNodeId: snap.map.owner_node_id, leads: owner?.interior_map_id === mapId, ...snap,
+    doorsIn: await doorsInto([mapId], snap.map.owner_node_id) };
+  await pool.query('DELETE FROM maps WHERE id=$1', [mapId]);
+  return tombstone(wid, userId, 'interior', payload);
+}
+
 // GET /worlds/:worldId — world + timeline; lazily ensures a root map exists.
 // The root map made at first open is '<world> — World Map'. Its title column holds 255, like the
 // world's name, so a long name gives up its tail: a title that overflowed failed the insert, and
@@ -479,8 +507,12 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     `SELECT b.id, b.image_id, b.start_time, b.end_time, i.file_path
      FROM map_backdrops b JOIN images i ON i.id = b.image_id
      WHERE b.map_id = $1 ORDER BY b.start_time NULLS FIRST, b.id`, [req.params.mapId])).rows;
+  // a map beside another: its owner leads elsewhere, so only a door leads here, and the map is
+  // removed on its own rather than through its owner
+  const owner = map.owner_node_id ? (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [map.owner_node_id])).rows[0] : null;
   res.json({
     map: { id: map.id, worldId: map.world_id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, imageId: map.image_id,
+           beside: !!owner && owner.interior_map_id !== map.id,
            focusStart: map.focus_start, focusEnd: map.focus_end, dmNote: map.dm_note,
            ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
@@ -598,9 +630,13 @@ router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   const { node_id, shape = null, shape_kind = null } = req.body;
   if (!isId(node_id) || (await worldIdOfNode(node_id)) !== wid) return bad(res, 'Node is not in this world');
-  // a place never stands inside itself: the tree and the crumb would loop
-  const own = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [node_id])).rows[0];
-  if (own?.interior_map_id === Number(req.params.mapId)) return bad(res, "A place can't stand inside its own interior");
+  // a place never stands inside itself (any map it owns): the tree and the crumb would loop;
+  // and a door never stands in the room it opens onto
+  const own = (await pool.query(
+    'SELECT n.interior_map_id, (SELECT owner_node_id FROM maps WHERE id=$2) = n.id AS owns_here FROM nodes n WHERE n.id=$1',
+    [node_id, req.params.mapId])).rows[0];
+  if (own?.owns_here) return bad(res, "A place can't stand inside its own interior");
+  if (own?.interior_map_id === Number(req.params.mapId)) return bad(res, "An entry can't stand on the map it leads to");
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return bad(res, `An outline needs 3 to ${MAX_CORNERS} corners`);
   if (kind === undefined) return bad(res, 'An outline is an area or a button');
@@ -689,41 +725,58 @@ router.get('/nodes/:id/locate', wrap(async (req, res) => {
   res.json({});
 }));
 
+// What removing these maps takes with it: the entries left with nowhere to stand (every
+// placement they have is on these maps), the maps nested deeper (owned by entries that stood
+// here: their owners keep them, under "Unplaced"; cycles-safe via UNION), and the other
+// entries that lead into them, which an undo points back. exceptId is the entry doing the
+// removing (or the map's owner), never counted.
+async function mapsImpact(direct, exceptId) {
+  const r = (await pool.query(`
+    WITH RECURSIVE tree(map_id) AS (
+      SELECT unnest($1::int[])
+      UNION
+      SELECT m.id FROM tree t
+      JOIN placements p ON p.map_id = t.map_id
+      JOIN maps m ON m.owner_node_id = p.node_id
+    )
+    SELECT
+      GREATEST((SELECT COUNT(*) FROM tree) - cardinality($1::int[]), 0) AS nested_maps,
+      (SELECT COUNT(*) FROM nodes n WHERE n.id IS DISTINCT FROM $2
+         AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id = n.id AND p.map_id = ANY($1::int[]))
+         AND NOT EXISTS (SELECT 1 FROM placements p2 WHERE p2.node_id = n.id AND NOT (p2.map_id = ANY($1::int[])))) AS nodes_inside,
+      (SELECT COUNT(*) FROM nodes n WHERE n.interior_map_id = ANY($1::int[]) AND n.id IS DISTINCT FROM $2) AS doors_in`,
+    [direct, exceptId])).rows[0];
+  return { nestedMaps: parseInt(r.nested_maps), nodesInside: parseInt(r.nodes_inside), doorsIn: parseInt(r.doors_in) };
+}
+
 // GET /nodes/:id/impact — what deleting this node takes with it: how many maps it sits on,
-// and (walking its interior tree, cycles-safe via UNION) how many maps and nodes live inside.
+// and every map it owns (maps.owner_node_id cascades one level) with what lives inside them.
+// ?scope=interior asks only about its interior (the ✕ beside ◎ Go inside). A node that leads
+// to a map it does not own takes nothing with it there (leadsElsewhere).
 // The client shows this before the delete so "honest delete" isn't a guess.
 router.get('/nodes/:id/impact', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
-  // Only the DIRECT interior is deleted (maps.owner_node_id cascades one level). Spaces
-  // nested deeper keep their owner nodes and survive under "Unplaced"; a node counts as
-  // stranded only when every placement it has sits on the deleted map.
-  const r = (await pool.query(`
-    WITH RECURSIVE tree(map_id) AS (
-      SELECT interior_map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL
-      UNION
-      SELECT n.interior_map_id
-      FROM tree t
-      JOIN placements p ON p.map_id = t.map_id
-      JOIN nodes n ON n.id = p.node_id
-      WHERE n.interior_map_id IS NOT NULL
-    ), direct AS (SELECT interior_map_id AS map_id FROM nodes WHERE id = $1 AND interior_map_id IS NOT NULL)
-    SELECT
-      (SELECT COUNT(*) FROM placements WHERE node_id = $1) AS placements,
-      (SELECT COUNT(DISTINCT map_id) FROM placements WHERE node_id = $1) AS maps,
-      (SELECT COUNT(*) FROM direct) AS interior_maps,
-      GREATEST((SELECT COUNT(*) FROM tree) - (SELECT COUNT(*) FROM direct), 0) AS nested_maps,
-      (SELECT COUNT(*) FROM nodes n WHERE n.id != $1
-         AND EXISTS (SELECT 1 FROM placements p JOIN direct d ON d.map_id = p.map_id WHERE p.node_id = n.id)
-         AND NOT EXISTS (SELECT 1 FROM placements p2 WHERE p2.node_id = n.id AND p2.map_id NOT IN (SELECT map_id FROM direct))) AS nodes_inside`,
-    [req.params.id])).rows[0];
+  const id = Number(req.params.id);
+  const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [id])).rows[0];
+  const owned = (await pool.query('SELECT id FROM maps WHERE owner_node_id=$1 ORDER BY id', [id])).rows.map((r) => r.id);
+  const direct = req.query.scope === 'interior' ? owned.filter((m) => m === n.interior_map_id) : owned;
+  const c = (await pool.query('SELECT COUNT(*) AS placements, COUNT(DISTINCT map_id) AS maps FROM placements WHERE node_id=$1', [id])).rows[0];
   res.json({
-    placements: parseInt(r.placements),
-    maps: parseInt(r.maps),
-    interiorMaps: parseInt(r.interior_maps),
-    nestedMaps: parseInt(r.nested_maps),
-    nodesInside: parseInt(r.nodes_inside),
+    placements: parseInt(c.placements),
+    maps: parseInt(c.maps),
+    interiorMaps: direct.length,
+    ...(await mapsImpact(direct, id)),
+    leadsElsewhere: n.interior_map_id != null && !owned.includes(n.interior_map_id),
   });
+}));
+
+// GET /maps/:mapId/impact — the same, for removing one map on its own (a map beside another).
+router.get('/maps/:mapId/impact', wrap(async (req, res) => {
+  const wid = await worldIdOfMap(req.params.mapId);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
+  const m = (await pool.query('SELECT owner_node_id FROM maps WHERE id=$1', [req.params.mapId])).rows[0];
+  res.json({ interiorMaps: 1, ...(await mapsImpact([Number(req.params.mapId)], m.owner_node_id)) });
 }));
 
 // PATCH /nodes/:id — title / body / DM note / stance / category / visibility / image / pin.
@@ -784,9 +837,10 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   const before = 'title' in c.vals ? (await pool.query('SELECT title, interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0] : null;
   await updateCols('nodes', req.params.id, c.vals, true);
   // an interior still carrying its node's old name follows the rename; a space the DM named
-  // on purpose keeps its own name
+  // on purpose keeps its own name, and so does a map the node only leads to (a door's room)
   if (before?.interior_map_id && c.vals.title !== before.title) {
-    await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3', [c.vals.title, before.interior_map_id, before.title]);
+    await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3 AND owner_node_id=$4',
+      [c.vals.title, before.interior_map_id, before.title, req.params.id]);
   }
   // Revealing a node reveals where it stands: the Forge births placements DM-only, so a
   // "revealed" node would otherwise stay invisible to players behind its hidden placement.
@@ -796,16 +850,27 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// POST /nodes/:id/interior — give a node an interior map (its zoom-in space); idempotent.
+// POST /nodes/:id/interior — give a node a map to lead to (its zoom-in space); idempotent. By
+// default the map is the node's own interior, nested inside it. With beside_map_id it is a NEW
+// map beside that one instead: the same owner and the same spot in the tree, so it is the room
+// next door rather than a room inside the door, and the node leads there without owning it.
 router.post('/nodes/:id/interior', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const node = (await pool.query('SELECT title, interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
   if (node.interior_map_id) return res.json({ mapId: node.interior_map_id });
   const view = req.body.view === 'list' ? 'list' : 'map';
+  let owner = Number(req.params.id), filed = null, main = false;
+  if (req.body.beside_map_id != null) {
+    const b = isId(req.body.beside_map_id)
+      ? (await pool.query('SELECT world_id, owner_node_id, tree_parent_id, is_main FROM maps WHERE id=$1', [req.body.beside_map_id])).rows[0] : null;
+    if (!b || b.world_id !== wid) return bad(res, 'That map is not in this world');
+    if (!b.owner_node_id) return bad(res, 'Nothing stands beside the world map — give the entry an interior map instead');
+    owner = b.owner_node_id; filed = b.tree_parent_id; main = b.is_main;
+  }
   const m = (await pool.query(
-    'INSERT INTO maps (title, world_id, view, owner_node_id, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-    [node.title, wid, view, req.params.id, req.user.id])).rows[0];
+    'INSERT INTO maps (title, world_id, view, owner_node_id, tree_parent_id, is_main, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+    [node.title, wid, view, owner, filed, main, req.user.id])).rows[0];
   // exactly one interior per node, even under a double click: the claim is atomic
   const claimed = await pool.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2 AND interior_map_id IS NULL RETURNING id', [m.id, req.params.id]);
   if (!claimed.rows.length) {
@@ -816,46 +881,76 @@ router.post('/nodes/:id/interior', wrap(async (req, res) => {
   res.status(201).json({ mapId: m.id });
 }));
 
-// DELETE /nodes/:id/interior — remove a node's interior space. The map inside is deleted
-// (its placements cascade; nodes placed only there are left unplaced); the node stays.
+// PUT /nodes/:id/leads-to — point a node at a map that already exists (the door to the room
+// beside, the stair back up): it leads there without owning it. A node leads one way, so one
+// that already leads somewhere is a 409 until that is removed (DELETE /nodes/:id/interior).
+router.put('/nodes/:id/leads-to', wrap(async (req, res) => {
+  const wid = await worldIdOfNode(req.params.id);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
+  const mapId = isId(req.body.map_id) ? Number(req.body.map_id) : null;
+  if (!mapId || (await worldIdOfMap(mapId)) !== wid) return bad(res, 'That map is not in this world');
+  if ((await pool.query('SELECT 1 FROM placements WHERE node_id=$1 AND map_id=$2', [req.params.id, mapId])).rows.length)
+    return bad(res, "An entry can't lead to the map it stands on");
+  const r = await pool.query('UPDATE nodes SET interior_map_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND interior_map_id IS NULL RETURNING id', [mapId, req.params.id]);
+  if (!r.rows.length) {
+    const cur = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+    if (cur?.interior_map_id !== mapId) return res.status(409).json({ message: 'It already leads to another map — remove that first' });
+  }
+  res.json({ ok: true });
+}));
+
+// DELETE /nodes/:id/interior — the node stops leading anywhere. Its OWN interior is deleted
+// (its placements cascade; nodes placed only there are left unplaced; undoable) and the node
+// stays. A map it only led to stays exactly as it was: the door lets go, the room is untouched
+// (`kept` names it, for the client's local undo).
 router.delete('/nodes/:id/interior', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
-  const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  const n = (await pool.query(
+    'SELECT n.interior_map_id, m.owner_node_id FROM nodes n LEFT JOIN maps m ON m.id = n.interior_map_id WHERE n.id=$1', [req.params.id])).rows[0];
   if (!n?.interior_map_id) return res.json({ ok: true });
-  const snapshot = {
-    ownerNodeId: Number(req.params.id),
-    map: (await pool.query('SELECT * FROM maps WHERE id=$1', [n.interior_map_id])).rows[0],
-    placements: await rowsOf('SELECT * FROM placements WHERE map_id=$1', [n.interior_map_id]),
-    backdrops: await rowsOf('SELECT * FROM map_backdrops WHERE map_id=$1', [n.interior_map_id]),
-  };
-  await pool.query('DELETE FROM maps WHERE id=$1', [n.interior_map_id]);
-  const undoId = await tombstone(wid, req.user.id, 'interior', snapshot);
+  if (n.owner_node_id !== Number(req.params.id)) {
+    await pool.query('UPDATE nodes SET interior_map_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.id]);
+    return res.json({ ok: true, kept: n.interior_map_id });
+  }
+  const undoId = await removeMap(wid, req.user.id, n.interior_map_id);
   res.json({ ok: true, undoId });
 }));
 
-// DELETE /nodes/:id — delete the node everywhere (cascades placements, links, and its
-// interior map). Everything removed is snapshotted first, so it can be undone.
+// DELETE /maps/:mapId — remove one map on its own (✕ Remove this map): a map beside another,
+// or one whose owner stands nowhere. Undoable like an interior; the world map stays.
+router.delete('/maps/:mapId', wrap(async (req, res) => {
+  const wid = await worldIdOfMap(req.params.mapId);
+  if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
+  const m = (await pool.query('SELECT owner_node_id FROM maps WHERE id=$1', [req.params.mapId])).rows[0];
+  if (!m.owner_node_id) return bad(res, "The world map can't be removed");
+  const undoId = await removeMap(wid, req.user.id, Number(req.params.mapId));
+  res.json({ ok: true, undoId });
+}));
+
+// DELETE /nodes/:id — delete the node everywhere (cascades placements, links, and every map it
+// owns). Everything removed is snapshotted first, so it can be undone: the maps it owned, the
+// other entries that led into them, and the map it only led to (which stays).
 router.delete('/nodes/:id', wrap(async (req, res) => {
   const wid = await worldIdOfNode(req.params.id);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const node = (await pool.query('SELECT * FROM nodes WHERE id=$1', [req.params.id])).rows[0];
+  const owned = (await pool.query('SELECT id FROM maps WHERE owner_node_id=$1 ORDER BY id', [node.id])).rows.map((r) => r.id);
+  const ownsInterior = node.interior_map_id != null && owned.includes(node.interior_map_id);
   const snapshot = {
     node,
     placements: await rowsOf('SELECT * FROM placements WHERE node_id=$1', [node.id]),
     links: await rowsOf('SELECT * FROM links WHERE from_node_id=$1 OR to_node_id=$1', [node.id]),
     facts: await rowsOf('SELECT * FROM node_facts WHERE node_id=$1', [node.id]),
-    interior: null,
+    interior: ownsInterior ? await mapSnapshot(node.interior_map_id) : null,
+    sideMaps: [],
+    leadsTo: node.interior_map_id != null && !ownsInterior ? node.interior_map_id : null,
+    doorsIn: await doorsInto(owned, node.id),
     // the lantern goes out with its node (ON DELETE SET NULL) — undo relights it
     spotlit: (await pool.query('SELECT 1 FROM worlds WHERE id=$1 AND spotlight_node_id=$2', [wid, node.id])).rows.length > 0,
   };
-  if (node.interior_map_id) {
-    snapshot.interior = {
-      map: (await pool.query('SELECT * FROM maps WHERE id=$1', [node.interior_map_id])).rows[0],
-      placements: await rowsOf('SELECT * FROM placements WHERE map_id=$1', [node.interior_map_id]),
-      backdrops: await rowsOf('SELECT * FROM map_backdrops WHERE map_id=$1', [node.interior_map_id]),
-    };
-  }
+  // the maps beside its interior that it owns go with it too
+  for (const id of owned) if (id !== node.interior_map_id) snapshot.sideMaps.push(await mapSnapshot(id));
   await pool.query('DELETE FROM nodes WHERE id=$1', [req.params.id]);
   const undoId = await tombstone(wid, req.user.id, 'node', snapshot);
   res.json({ ok: true, undoId });
@@ -886,7 +981,8 @@ router.get('/worlds/:worldId/tombstones', wrap(async (req, res) => {
   const say = ({ kind, payload: p }) => {
     switch (kind) {
       case 'node': return [`The entry ${q(p.node?.title, '(untitled)')}`, null];
-      case 'interior': return [`The interior map of ${q(nodeT.get(p.ownerNodeId), q(p.map?.title, 'an entry'))}`, null];
+      case 'interior': return [p.leads === false ? `The map ${q(p.map?.title, '(untitled)')}`
+        : `The interior map of ${q(nodeT.get(p.ownerNodeId), q(p.map?.title, 'an entry'))}`, null];
       case 'placement': return [`${q(nodeT.get(p.placement?.node_id), 'An entry')} on the map ${q(mapT.get(p.placement?.map_id), '(gone)')}`, null];
       case 'era': return [`The era ${q(p.era?.name, '(unnamed)')}`, null];
       case 'fact': return [`A period text of ${q(nodeT.get(p.fact?.node_id), 'an entry')}`, p.fact?.start_time ?? null];
@@ -932,6 +1028,13 @@ router.post('/undo/:id', wrap(async (req, res) => {
         'INSERT INTO map_backdrops (id, map_id, image_id, start_time, end_time, created_at) VALUES ($1,$2,$3,$4,$5,$6)',
         [b.id, b.map_id, b.image_id, b.start_time, b.end_time, b.created_at]);
     };
+    // the entries that led into a removed map lead there again, unless they lead elsewhere now
+    const pointBack = async (doors) => {
+      for (const d of doors || []) {
+        if (!(await exists('maps', d.mapId))) continue;
+        await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2 AND interior_map_id IS NULL', [d.mapId, d.nodeId]);
+      }
+    };
 
     if (t.kind === 'node') {
       const n = p.node;
@@ -944,6 +1047,13 @@ router.post('/undo/:id', wrap(async (req, res) => {
         for (const pl of p.interior.placements || []) await insertPlacement(pl);
         for (const b of p.interior.backdrops || []) await insertBackdrop(b);
       }
+      for (const s of p.sideMaps || []) {
+        await insertMap(s.map, n.id);
+        for (const pl of s.placements || []) await insertPlacement(pl);
+        for (const b of s.backdrops || []) await insertBackdrop(b);
+      }
+      if (p.leadsTo) await pointBack([{ nodeId: n.id, mapId: p.leadsTo }]);
+      await pointBack(p.doorsIn);
       // a node CAN be placed on its own interior map — that row appears in both
       // snapshot lists; insertPlacement's ON CONFLICT makes the second pass a no-op
       for (const pl of p.placements || []) await insertPlacement(pl);
@@ -962,12 +1072,15 @@ router.post('/undo/:id', wrap(async (req, res) => {
       await insertPlacement(p.placement);
     } else if (t.kind === 'interior') {
       if (!(await exists('nodes', p.ownerNodeId))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The node is gone' }); }
+      // a map beside another was not where its owner led (older tombstones always were)
+      const leads = p.leads !== false;
       const owner = (await client.query('SELECT interior_map_id FROM nodes WHERE id=$1', [p.ownerNodeId])).rows[0];
-      if (owner.interior_map_id) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The node has a new interior now' }); }
+      if (leads && owner.interior_map_id) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The node has a new interior now' }); }
       await insertMap(p.map, p.ownerNodeId);
-      await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.map.id, p.ownerNodeId]);
+      if (leads) await client.query('UPDATE nodes SET interior_map_id=$1 WHERE id=$2', [p.map.id, p.ownerNodeId]);
       for (const pl of p.placements || []) await insertPlacement(pl);
       for (const b of p.backdrops || []) await insertBackdrop(b);
+      await pointBack(p.doorsIn);
     } else if (t.kind === 'fact') {
       const f = p.fact;
       if (!(await exists('nodes', f.node_id))) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'The node is gone' }); }

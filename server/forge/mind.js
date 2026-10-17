@@ -76,7 +76,7 @@ RULES OF CRAFT
 - pin "image" draws the node's art directly on the map (good for characters and landmarks with art); "chip" is the default lozenge.
 - To give an EXISTING node an interior: one map with owner = that node's numeric id, then place new nodes onto it by its key.
 - To FILL OUT what exists, use "enrich": give an existing node facts across the eras, place it on more maps, fill its empty body. To PAINT an existing node, put the painting in images and reference it from enrich.image — never leave finished art floating unattached in the gallery. To fill out a whole MAP, combine both — enrich the nodes already on it and add new ones placed by its numeric id. Always prefer enriching an existing thing over inventing a duplicate of it.
-- A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside.
+- A node that HAS an interior map keeps its contents INSIDE: when asked to fill out such a node or its space, place the new people and things on the interior map's numeric id (the digest's interiorMap field), not around the node outside. A node with leadsTo instead is a way into ANOTHER place's map (a door, a stair, a gate): that map is not its inside, so never fill it as the node's own.
 - When a CAMPAIGN BIBLE is present it is canon: use its names, places, and history exactly; invent only in its gaps, and in its voice. Asked to "build from the bible", check the digest first and never rebuild what already exists.
 - SECRETS HAVE THEIR OWN CHANNEL: a node's body, facts, and any image are the PUBLIC face — exactly what players see the moment the DM reveals it. Every twist, hidden allegiance, trap, or protected truth goes in dm_note and NOWHERE else. A villain's body reads as their cover story; their dm_note holds the truth.
 - IMAGES ARE PUBLIC TOO: never paint a secret. Prompt the surface — the tavern's crowd, not the trapdoor beneath it; the blind shell-gatherer, not what she guards. If a place's secret is visual, paint the innocent version.
@@ -101,7 +101,8 @@ async function digest(worldId, context = {}) {
   const eras = (await pool.query('SELECT id, name, start_time, end_time FROM eras WHERE world_id=$1 ORDER BY start_time', [worldId])).rows;
   const maps = (await pool.query('SELECT id, title, owner_node_id, view FROM maps WHERE world_id=$1 ORDER BY id', [worldId])).rows;
   const nodes = (await pool.query(
-    `SELECT n.id, n.title, n.category, n.visibility, n.author, n.interior_map_id, LEFT(COALESCE(n.body,''), 160) AS body,
+    `SELECT n.id, n.title, n.category, n.visibility, n.author, n.interior_map_id,
+            (SELECT owner_node_id FROM maps WHERE id = n.interior_map_id) = n.id AS owns_interior, LEFT(COALESCE(n.body,''), 160) AS body,
             LEFT(COALESCE(n.dm_note,''), 160) AS secret,
             ($2::int IS NOT NULL AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id=n.id AND p.map_id=$2::int)) AS here
      FROM nodes n WHERE n.world_id=$1
@@ -138,7 +139,8 @@ async function digest(worldId, context = {}) {
     nodes: nodes.map((n) => ({ id: n.id, title: n.title, cat: n.category,
       ...(n.visibility !== 'shared' ? { vis: n.visibility } : {}),
       ...(n.visibility === 'player' && n.author ? { author: n.author } : {}),
-      body: n.body, ...(n.secret ? { secret: n.secret } : {}), interiorMap: n.interior_map_id })),
+      body: n.body, ...(n.secret ? { secret: n.secret } : {}),
+      ...(n.interior_map_id != null && !n.owns_interior ? { interiorMap: null, leadsTo: n.interior_map_id } : { interiorMap: n.interior_map_id }) })),
     ...(nodeCount > nodes.length ? { note: `${nodeCount - nodes.length} older nodes not shown (the newest, and everything on the current map, are)` } : {}),
     party,
     links,
@@ -180,14 +182,15 @@ async function converse({ worldId, userId, message, context }) {
   }
   if (context?.nodeId) {
     const n = (await pool.query(
-      'SELECT id, title, category, visibility, stance, body, dm_note, interior_map_id FROM nodes WHERE id=$1', [context.nodeId])).rows[0];
+      `SELECT id, title, category, visibility, stance, body, dm_note, interior_map_id,
+              (SELECT owner_node_id FROM maps WHERE id = nodes.interior_map_id) = nodes.id AS owns_interior FROM nodes WHERE id=$1`, [context.nodeId])).rows[0];
     if (n) {
       const facts = (await pool.query('SELECT body, start_time, end_time FROM node_facts WHERE node_id=$1 ORDER BY start_time', [n.id])).rows;
       const links = (await pool.query(
         `SELECT CASE WHEN l.from_node_id=$1 THEN t.title ELSE f.title END AS other, l.label
          FROM links l JOIN nodes f ON f.id=l.from_node_id JOIN nodes t ON t.id=l.to_node_id
          WHERE l.from_node_id=$1 OR l.to_node_id=$1`, [n.id])).rows;
-      where += `\n\nFOCUS NODE (the DM's selection, full detail) #${n.id} "${n.title}" — ${n.category}, ${n.visibility === 'dm' ? 'hidden from players' : 'revealed'}${n.stance ? `, stance ${n.stance}` : ''}${n.interior_map_id ? `, interior map #${n.interior_map_id}` : ''}`
+      where += `\n\nFOCUS NODE (the DM's selection, full detail) #${n.id} "${n.title}" — ${n.category}, ${n.visibility === 'dm' ? 'hidden from players' : 'revealed'}${n.stance ? `, stance ${n.stance}` : ''}${n.interior_map_id ? (n.owns_interior ? `, interior map #${n.interior_map_id}` : `, leads to map #${n.interior_map_id} (another place's map, not its inside)`) : ''}`
         + `\nPublic face: ${n.body || '(none)'}`
         + `\nDM notes: ${n.dm_note || '(none)'}`
         + (facts.length ? `\nTimed facts: ${facts.map((f) => `[${f.start_time ?? '…'}–${f.end_time ?? '…'}] ${f.body}`).join(' | ')}` : '')

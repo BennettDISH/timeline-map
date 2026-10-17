@@ -133,3 +133,45 @@ export function NodePicker({ worldId, excludeId, excludeIds, excludedNote, title
     </Modal>
   )
 }
+
+// Pick a map of this world (searchable) for an entry to lead to: the room beside, the way back.
+// The list is the Maps tree the workspace already holds; each row says where the map sits.
+// `beside` (the map the entry stands on, never the world map) offers a NEW map beside it first.
+export function MapPicker({ maps, rootId, excludeIds, excludedNote, title, beside, onBeside, onPick, onClose }) {
+  const [q, setQ] = useState('')
+  const byId = new Map(maps.map((m) => [m.id, m]))
+  const skip = new Set(excludeIds || [])
+  const match = (m) => (m.title || '').toLowerCase().includes(q.toLowerCase())
+  const sorted = [...maps].sort((a, b) => (a.id === rootId ? -1 : b.id === rootId ? 1 : a.title.localeCompare(b.title)))
+  const list = sorted.filter((m) => !skip.has(m.id) && match(m))
+  const left = sorted.filter((m) => skip.has(m.id) && match(m))
+  const where = (m) => {
+    if (m.id === rootId) return 'the world map'
+    const up = byId.get(m.filedUnder ?? m.parentMapId)
+    return up ? `in “${up.title}”` : (m.isMain ? 'a main map' : 'unplaced')
+  }
+  return (
+    <Modal title={title} onClose={onClose}>
+        {beside && onBeside && (
+          <button type="button" className="btn primary block" onClick={onBeside}
+            title={`A new map in the same place in the tree as “${beside.title}” — the room next door, not a room inside this entry`}>
+            ＋ New map beside “{beside.title}”
+          </button>
+        )}
+        <div className="muted esmall">{beside && onBeside ? 'Or a map you already have:' : 'A map you already have:'}</div>
+        <input className="nsearch" autoFocus placeholder="Search maps…" value={q} onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) { e.preventDefault(); onPick(list[0]) } }} />
+        <div className="nlist">
+          {list.map((m) => (
+            <button key={m.id} className="nrow" onClick={() => onPick(m)}>
+              <span className="ic" style={{ background: 'var(--line)' }}>🗺</span>
+              <span className="lbl">{m.title}</span>
+              <span className="muted esmall">{where(m)}</span>
+            </button>
+          ))}
+          {list.length === 0 && left.length === 0 && <div className="muted">{maps.length ? 'No matching maps.' : 'Loading…'}</div>}
+          {left.length > 0 && <div className="muted esmall">{excludedNote || 'Left out'}: {left.slice(0, 6).map((m) => m.title).join(', ')}{left.length > 6 ? '…' : ''}</div>}
+        </div>
+    </Modal>
+  )
+}

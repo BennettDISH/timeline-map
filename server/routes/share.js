@@ -126,9 +126,10 @@ async function reachableIds(nodeIds, w, t) {
     return mapOk.get(mapId);
   };
   for (const r of rows) if (!ok.has(r.node_id) && (await walk(r.map_id))) ok.add(r.node_id);
+  // a map the node OWNS: a door that only leads into a room is not known by that room
   const interiors = (await pool.query(
-    'SELECT id, interior_map_id FROM nodes WHERE id = ANY($1::int[]) AND interior_map_id IS NOT NULL', [nodeIds])).rows;
-  for (const r of interiors) if (!ok.has(r.id) && (await walk(r.interior_map_id))) ok.add(r.id);
+    'SELECT owner_node_id AS id, id AS map_id FROM maps WHERE owner_node_id = ANY($1::int[]) ORDER BY id', [nodeIds])).rows;
+  for (const r of interiors) if (!ok.has(r.id) && (await walk(r.map_id))) ok.add(r.id);
   return ok;
 }
 // one canonical spelling per id: '60.0' and '6e1' are not ids, so nothing downstream ever sees a
@@ -141,6 +142,12 @@ const intId = (v) => { const n = /^[1-9]\d{0,9}$/.test(String(v)) ? Number(v) : 
 // An owner placed in several spots is reachable through ANY of them the player can stand on:
 // each visible present placement is tried in turn (oldest first), so a pin the player can see
 // never offers an interior the API then refuses.
+// A map BESIDE another (its owner leads elsewhere: the room next door, made from a door) is a
+// room the owner's pin never opens, so it is reachable only through a door players can see as
+// well: a visible, present placement of a visible entry leading there, standing on a map they
+// can reach (reachableMaps). A hidden door keeps its room hidden, as it did when rooms nested
+// inside doors. The crumb is still the map's home (owner) chain; the step is marked `beside`
+// for the lantern, and crumbOut drops the mark before a crumb leaves the server.
 async function walkUp(mapId, w, t, seen = new Set()) {
   if (!mapId || seen.has(mapId)) return null;
   seen.add(mapId);
@@ -150,8 +157,12 @@ async function walkUp(mapId, w, t, seen = new Set()) {
   if (w.pending && w.pending.maps.has(m.id)) return null; // built by a pending Forge batch: not yet
   const here = { mapId: m.id, title: m.title };
   if (!m.owner_node_id) return m.id === w.root_map_id ? [here] : null;
-  const owner = (await pool.query('SELECT visibility FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
+  const owner = (await pool.query('SELECT visibility, interior_map_id FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
   if (!owner || owner.visibility === 'dm') return null;
+  if (owner.interior_map_id !== m.id) {
+    if (!(await reachableMaps(w, t)).inn.has(m.id)) return null;
+    here.beside = true;
+  }
   const ups = (await pool.query(
     `SELECT p.map_id FROM placements p
      WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
@@ -162,6 +173,56 @@ async function walkUp(mapId, w, t, seen = new Set()) {
   }
   return null;
 }
+// Every map players can reach at moment t, found FORWARD from the world map in one pass per ring:
+// a map joins once its (visible) owner stands visibly on a map already in, and a map beside
+// another also once a visible door into it stands visibly on a map already in. Searching back
+// from a room instead walks every route through a maze of doors, which grows without bound when
+// the maze's way in is hidden; this is linear in the maps, and doors that only lead to each
+// other never vouch for each other. `parent` and `via` record what let each map in (always a map
+// that joined earlier), so a walk down them ends. Only maps beside another ask for it, so a
+// world without doors never runs it; it is worked out once per request and moment.
+async function reachableMaps(w, t) {
+  const key = String(t);
+  if (!w.reach) w.reach = new Map();
+  if (w.reach.has(key)) return w.reach.get(key);
+  const maps = (await pool.query(
+    `SELECT m.id, m.owner_node_id AS owner, o.visibility AS ovis, o.interior_map_id AS oint
+     FROM maps m LEFT JOIN nodes o ON o.id = m.owner_node_id WHERE m.world_id = $1 ORDER BY m.id`, [w.id])).rows;
+  const stands = (await pool.query(
+    `SELECT p.node_id, p.map_id, n.visibility AS nvis, n.interior_map_id AS leads FROM placements p
+     JOIN nodes n ON n.id = p.node_id WHERE n.world_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}
+     ORDER BY p.id`, [w.id, t])).rows;
+  const standsOn = new Map(), doorsInto = new Map();
+  for (const s of stands) {
+    if (!standsOn.has(s.node_id)) standsOn.set(s.node_id, []);
+    standsOn.get(s.node_id).push(s.map_id);
+    if (s.leads != null && s.nvis !== 'dm') {
+      if (!doorsInto.has(s.leads)) doorsInto.set(s.leads, []);
+      doorsInto.get(s.leads).push({ nodeId: s.node_id, mapId: s.map_id });
+    }
+  }
+  const pending = (id) => !!(w.pending && w.pending.maps.has(id));
+  const inn = new Set(), parent = new Map(), via = new Map();
+  if (w.root_map_id && !pending(w.root_map_id)) inn.add(w.root_map_id);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const m of maps) {
+      if (inn.has(m.id) || !m.owner || !m.ovis || m.ovis === 'dm' || pending(m.id)) continue;
+      const up = (standsOn.get(m.owner) || []).find((id) => inn.has(id));
+      if (up == null) continue;
+      const door = m.oint === m.id ? null : (doorsInto.get(m.id) || []).find((d) => inn.has(d.mapId));
+      if (m.oint !== m.id && !door) continue;
+      inn.add(m.id);
+      parent.set(m.id, { nodeId: m.owner, mapId: up });
+      if (door) via.set(m.id, door);
+      grew = true;
+    }
+  }
+  const r = { inn, parent, via };
+  w.reach.set(key, r);
+  return r;
+}
+const crumbOut = (chain) => chain.map(({ mapId, title }) => ({ mapId, title }));
 
 // The DM's lantern: the chain of steps from the world root down to the spotlit node —
 // kingdom, village, hut, npc — each step's pin glowing on the map it sits on. Resolved at
@@ -182,16 +243,37 @@ async function spotlightTrail(w) {
      ORDER BY (visibility = 'dm') ASC,
        (($2::int IS NULL) OR ((start_time IS NULL OR start_time <= $2::int) AND (end_time IS NULL OR end_time >= $2::int))) DESC, id`,
     [n.id, canon])).rows;
+  const step = async (nodeId, mapId) => {
+    const o = (await pool.query('SELECT id, title, category FROM nodes WHERE id = $1', [nodeId])).rows[0];
+    return o ? { nodeId: o.id, title: o.title, category: o.category, mapId } : null;
+  };
+  // the way down to a map as reachableMaps found it: through the door that let a map beside
+  // another in, else its owner on the map above (each joined earlier, so the walk ends)
+  const pathTo = async (reach, mapId) => {
+    if (mapId === w.root_map_id) return [];
+    const how = reach.via.get(mapId) || reach.parent.get(mapId);
+    const before = how && (await pathTo(reach, how.mapId));
+    const last = before && (await step(how.nodeId, how.mapId));
+    return last ? [...before, last] : null;
+  };
+  // the pins to follow from the root down a chain: each map's owner on the map above it, except
+  // into a map beside another, where the way in is a door (and the way to that door before it)
+  const stepsDown = async (chain) => {
+    let out = [];
+    for (let i = 1; i < chain.length; i++) {
+      if (chain[i].beside) { out = await pathTo(await reachableMaps(w, canon), chain[i].mapId); if (!out) return null; continue; }
+      const id = (await pool.query('SELECT owner_node_id FROM maps WHERE id = $1', [chain[i].mapId])).rows[0]?.owner_node_id;
+      const s = id && (await step(id, chain[i - 1].mapId));
+      if (!s) return null;
+      out.push(s);
+    }
+    return out;
+  };
   for (const p of spots) {
     const chain = await walkUp(p.map_id, w, canon);
     if (!chain) continue;
-    const out = [];
-    for (let i = 1; i < chain.length; i++) {
-      const m = (await pool.query('SELECT owner_node_id FROM maps WHERE id = $1', [chain[i].mapId])).rows[0];
-      const o = m && (await pool.query('SELECT id, title, category FROM nodes WHERE id = $1', [m.owner_node_id])).rows[0];
-      if (!o) return [];
-      out.push({ nodeId: o.id, title: o.title, category: o.category, mapId: chain[i - 1].mapId });
-    }
+    const out = await stepsDown(chain);
+    if (!out) return [];
     const alive = canon == null || ((p.start_time == null || p.start_time <= canon) && (p.end_time == null || p.end_time >= canon));
     if (n.visibility !== 'dm' && p.visibility !== 'dm' && alive) out.push({ nodeId: n.id, title: n.title, category: n.category, mapId: p.map_id });
     return out;
@@ -360,7 +442,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
            ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops, partyTrail } : {}),
-    placements, breadcrumb,
+    placements, breadcrumb: crumbOut(breadcrumb),
     spotlight: await spotlightTrail(w),
   });
 }));
@@ -464,10 +546,12 @@ router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
   if (!id) return notFound(res);
   const t = await allowedTime(w, req.query.t);
   const n = (await pool.query(
-    `SELECT interior_map_id FROM nodes WHERE id = $1 AND world_id = $2 AND visibility != 'dm'`,
+    `SELECT n.interior_map_id, (SELECT owner_node_id FROM maps WHERE id = n.interior_map_id) = n.id AS owns
+     FROM nodes n WHERE n.id = $1 AND n.world_id = $2 AND n.visibility != 'dm'`,
     [id, w.id])).rows[0];
   if (!n) return notFound(res);
-  if (n.interior_map_id && (await walkUp(n.interior_map_id, w, t))) return res.json({ mapId: n.interior_map_id });
+  // a place is its interior; a door is where it stands (its room is one tap further, ◎)
+  if (n.interior_map_id && n.owns && (await walkUp(n.interior_map_id, w, t))) return res.json({ mapId: n.interior_map_id });
   const ps = (await pool.query(
     `SELECT p.map_id FROM placements p
      WHERE p.node_id = $1 AND p.visibility != 'dm' AND ${PRESENT(2)}

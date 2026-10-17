@@ -31,7 +31,10 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
 ## Architecture
 - **Atlas model**: a world is a graph of `nodes` (one identity, no copies) seen through nested `maps`;
   a node appears on a map via a `placement` (position + lifespan + visibility); `links` are
-  first-class bidirectional edges. A node's `interior_map_id` is what makes it zoomable-into.
+  first-class bidirectional edges. A node's `interior_map_id` is what makes it zoomable-into:
+  it is where the node LEADS. A map's `owner_node_id` is whose map it is (the tree, the crumb,
+  player reachability, what a delete takes). They usually match; a DOOR leads to a map it does
+  not own (see Doors under Map surface rules).
 - Server: `server/routes/atlas.js` (the whole Atlas API), `worlds.js` (world CRUD only),
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
   `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
@@ -39,7 +42,7 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   `storage.js` (R2), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
-  `Pickers` = ImagePicker + NodePicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —
+  `Pickers` = ImagePicker + NodePicker + MapPicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
 - Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `Archive`
@@ -173,7 +176,11 @@ legacy tables (`events` and friends) are gone.
 - `server/routes/share.js` is the public read-only API. **All secrecy is enforced there,
   server-side**: DM-only nodes/placements and out-of-time placements never leave the DB; links
   are pruned when either end is hidden; deep links into hidden/future branches 404 via the
-  owner-chain walk (`walkUp`). The DM-side 🎭 Player posture IS the Player View — an iframe of
+  owner-chain walk (`walkUp`). A map BESIDE another (its owner leads elsewhere) also needs a
+  door players can see — a visible, present placement of a visible node leading there, on a map
+  they can reach (`doorInto`) — so a hidden door keeps its room hidden; the crumb stays the
+  map's home chain (`crumbOut` drops the door before it leaves), and the lantern walks through
+  the door. The DM-side 🎭 Player posture IS the Player View — an iframe of
   the share link at the current map — so it can never drift from these rules (no share link:
   it says so and offers to create one).
 - **Node detail follows the same rule as maps** (`reachableIds`): `/nodes/:id` and its
@@ -484,8 +491,22 @@ iPad Safari) and the Forge's write path end to end against a sandbox.
   more kinds); it resets per map. Pins sharing a spot fan out in a ring (`stackOffsets`);
   the selected pin sits above its neighbours; only the primary mouse button drags, and a
   right-click on a pin opens that pin's own menu.
-- A place never stands inside its own interior (400); the tree files a self-owned or
+- A place never stands inside its own interior or any map it owns (400), and a door never
+  stands on the map it leads to (400); the tree files a self-owned or
   cyclic space under Unplaced; an ancestor of the open map cannot fold (the caret says so).
+- **Doors**: rooms need not nest. "↪ Lead to another map…" in the editor (an entry that leads
+  nowhere yet) opens a picker: "＋ New map beside “X”" makes a map with the SAME owner and tree
+  filing as the map the entry stands on (`POST /nodes/:id/interior {beside_map_id}`; never beside
+  the world map), so tree and crumb show it as a sibling; or any existing map
+  (`PUT /nodes/:id/leads-to {map_id}`; 409 while it leads elsewhere, 400 onto a map it stands
+  on). The editor reads "◎ Go there ▸" with "Leads to “X” — a map of its own"; its ✕ only lets
+  go (`DELETE /nodes/:id/interior` answers `{kept}`; a local undo re-links). A door never renames
+  its map, its delete takes no map (impact `leadsElsewhere`), and its world copy follows. A map
+  beside another (`map.beside` in the payload) is removed on its own: "✕ Remove this map" in its
+  map panel → `DELETE /maps/:id` (tombstone kind 'interior' with `leads:false`). Every removal
+  snapshots the other entries that led in (`doorsIn`, counted in the impact) and undo points them
+  back; a node delete snapshots EVERY map it owns (`sideMaps`) and the map it only led to
+  (`leadsTo`). The Forge digest sends a door's target as `leadsTo`, not `interiorMap`.
   The tree remounts per world (folds are per world). Its thumbnail follows the backdrop.
 - The tree has its own filing, apart from the nodes that link maps (`maps.is_main`,
   `maps.tree_parent_id`): a ⚓ main map stands at the top beside the world map; a map filed
@@ -502,6 +523,8 @@ iPad Safari) and the Forge's write path end to end against a sandbox.
 ## Vocabulary (one word for one thing, in every string players or the DM read)
 - **map** — every map: the root, an interior, a list-view map. Never "space", "place" (for a
   map), "plane". "interior map" is the adjective form ("＋ Interior map"); entering one is "◎ Go inside".
+  An entry that leads to a map of its own is a door in the code and "leads to" in UI text
+  ("↪ Lead to another map…", "＋ New map beside “X”", "◎ Go there").
 - **entry** — a node, in UI text ("＋ Add entry", "Find an entry…", "Who can see this entry").
   The code keeps `node`. A player's own entry is a **marker**. **pin** is the drawn thing on
   the map; an outlined entry is an **outline** (the code's `shape`/`region`), whose drawn

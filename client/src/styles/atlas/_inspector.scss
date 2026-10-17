@@ -48,6 +48,11 @@
 
 .atlas .primrow .xint{flex:none;color:var(--muted);padding:6px 9px;
   &:hover{color:#ff9b9b;border-color:#5a2a2a}}
+// where an entry leads when that is not a map inside it: a map beside this one, or any map
+.atlas .btn.leadbtn{margin-bottom:6px}
+.atlas .leadnote{font-size:11.5px;margin:-2px 0 8px;overflow-wrap:anywhere}
+.atlas .spacepanel .besiderow{align-items:center;margin:0 0 10px;
+  .grow{flex:1;font-size:11.5px}}
 .atlas .btn.lit{color:#d9b64e;border-color:#6b5a2a}
 .atlas .fld.dmnotes textarea{border-color:#4a3a5a;background:#1d1926}
 .atlas .spacepanel{

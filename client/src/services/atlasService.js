@@ -28,10 +28,14 @@ const atlasService = {
 
   getNode: (id) => http.get(`${B}/nodes/${id}`).then((r) => r.data),
   locateNode: (id, mapId) => http.get(`${B}/nodes/${id}/locate${mapId != null ? `?map=${mapId}` : ''}`).then((r) => r.data),
-  nodeImpact: (id) => http.get(`${B}/nodes/${id}/impact`).then((r) => r.data),
+  nodeImpact: (id, scope) => http.get(`${B}/nodes/${id}/impact${scope ? `?scope=${scope}` : ''}`).then((r) => r.data),
   patchNode: (id, data) => http.patch(`${B}/nodes/${id}`, data).then((r) => r.data),
-  createInterior: (id, view) => http.post(`${B}/nodes/${id}/interior`, { view }).then((r) => r.data),
+  // besideMapId: a new map beside that one (the room next door) instead of one inside the node
+  createInterior: (id, view, besideMapId) => http.post(`${B}/nodes/${id}/interior`, { view, ...(besideMapId != null && { beside_map_id: besideMapId }) }).then((r) => r.data),
+  leadTo: (id, mapId) => http.put(`${B}/nodes/${id}/leads-to`, { map_id: mapId }).then((r) => r.data),
   deleteInterior: (id) => http.delete(`${B}/nodes/${id}/interior`).then((r) => r.data),
+  mapImpact: (mapId) => http.get(`${B}/maps/${mapId}/impact`).then((r) => r.data),
+  deleteMap: (mapId) => http.delete(`${B}/maps/${mapId}`).then((r) => r.data),
   undo: (id) => http.post(`${B}/undo/${id}`).then((r) => r.data),
   getTombstones: (worldId) => http.get(`${B}/worlds/${worldId}/tombstones`).then((r) => r.data.tombstones),
   deleteNode: (id) => http.delete(`${B}/nodes/${id}`).then((r) => r.data),

@@ -8,7 +8,7 @@ import { wholeOr, REVERSED, coveringFact, periodBlur } from './helpers'
 // The editor (the right-hand panel in Edit posture): one selected placement and its node.
 // Every save goes through the callbacks the workspace passes in; this file holds no service calls.
 
-export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, leadsTo, onLeadTo, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
   const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
@@ -92,11 +92,19 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
       <div className="primrow">
         {n.hasInterior
           ? (
-            <>
-              <button className="btn primary grow" onClick={onOpen}>◎ Go inside ▸</button>
-              <button className="btn xint" title="Remove the interior map — it is deleted; this entry stays"
-                onClick={onRemoveInterior} aria-label="Remove the interior">✕</button>
-            </>
+            leadsTo ? (
+              <>
+                <button className="btn primary grow" title={`Go to “${leadsTo.title}”, the map this entry leads to`} onClick={onOpen}>◎ Go there ▸</button>
+                <button className="btn xint" title={`Stop leading to “${leadsTo.title}” — that map stays as it is`}
+                  onClick={onRemoveInterior} aria-label="Stop leading there">✕</button>
+              </>
+            ) : (
+              <>
+                <button className="btn primary grow" onClick={onOpen}>◎ Go inside ▸</button>
+                <button className="btn xint" title="Remove the interior map — it is deleted; this entry stays"
+                  onClick={onRemoveInterior} aria-label="Remove the interior">✕</button>
+              </>
+            )
           )
           : n.category === 'party' ? (
             onFootstep
@@ -113,6 +121,13 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
           <button className={n.visibility === 'dm' ? 'on' : ''} aria-pressed={n.visibility === 'dm'} title="DM only — hidden from players" onClick={() => onVis('dm')}>🔒 DM</button>
         </div>
       </div>
+      {n.hasInterior && leadsTo && <div className="leadnote muted">Leads to “{leadsTo.title}” — a map of its own, not inside this entry</div>}
+      {!n.hasInterior && n.category !== 'party' && onLeadTo && (
+        // a way into another room rather than a room inside this entry: the map beside this one,
+        // or any map that exists (the way back, a gate across the world)
+        <button className="btn block leadbtn" title="A door, a stair, a gate: lead to a new map beside this one, or to a map you already have"
+          onClick={onLeadTo}>↪ Lead to another map…</button>
+      )}
       {onSpotlight && n.category !== 'party' && <button className={`btn block ${spotlit ? 'lit' : ''}`}
         title={spotlit ? 'Players see the lantern\'s path leading here — click to put it out'
           : 'Light the lantern here: players see the path to it, one map at a time'}
