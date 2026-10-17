@@ -2,8 +2,9 @@
 // node reads, interiors enter and exit, the era bar scrubs, and nothing throws.
 import { chromium } from 'playwright';
 import { readFileSync, existsSync } from 'fs';
-// config: player.config.json beside this file (gitignored) or env — see README.md
-const cfgUrl = new URL('./player.config.json', import.meta.url);
+// config: player.config.json beside this file (gitignored) or env — see README.md; E2E_CONFIG
+// names another (the local stack's e2e/local.config.json carries baseUrl and shareToken too)
+const cfgUrl = process.env.E2E_CONFIG || new URL('./player.config.json', import.meta.url);
 const cfg = existsSync(cfgUrl) ? JSON.parse(readFileSync(cfgUrl)) : {};
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
 const TOKEN = process.env.SHARE_TOKEN || cfg.shareToken;
@@ -149,13 +150,14 @@ try {
     } else step('a sheet opened before the drag check', false, `sheets: ${before}`);
   }
   // a hidden or missing place under a WORKING link is not a dead link; an unknown token is
-  const FIX = 'fx89ef1c8ec74cadc99ae56b256c46b337'; // the public secrecy fixture: map 61 is a DM-only interior
+  // the public secrecy fixture, where map 61 is a DM-only interior; the local stack names its own
+  const FIX = cfg.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337', HIDDEN = cfg.hiddenMap ?? 61;
   const heading = async (url) => {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.locator('.pview .deadlink h3').first().waitFor({ timeout: 20000 }).catch(() => {});
     return (await page.locator('.pview .deadlink h3').first().textContent().catch(() => '')).trim();
   };
-  const h1 = await heading(`${BASE}/p/${FIX}/m/61`);
+  const h1 = await heading(`${BASE}/p/${FIX}/m/${HIDDEN}`);
   step('a hidden map under a working link says the PLACE is missing, not the link', /isn't on your map/.test(h1), h1);
   step('…and offers a way back to the map', (await page.locator('.pview .deadlink button').count()) === 1);
   const h2 = await heading(`${BASE}/p/not-a-real-token-000`);

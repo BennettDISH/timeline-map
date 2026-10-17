@@ -4,7 +4,7 @@
 - Frontend: React 18 + Vite + SASS
 - Backend: Express.js + PostgreSQL
 - Purpose: a recursively zoomable fantasy world you scrub through time — the "Atlas" model
-- Hosting: Railway (no local server testing available)
+- Hosting: Railway (test locally first on the local stack, `e2e/local.mjs`)
 
 The legacy map system (worlds → maps → events, `MapViewer`/`NodeEditor` and friends, ~3.5k lines)
 was deleted in August 2026. **Atlas is the only map UI.** The founding vision lives in
@@ -18,13 +18,23 @@ still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
   in `server/` is optional — the boot applies the schema
 
 ## Testing & Deployment
-- **No local server testing available** - always push changes to git to test on Railway
+- **Test locally before a push** on the local stack: `node e2e/local.mjs --build` (after `cd e2e &&
+  npm install` once) runs the real server against an in-memory Postgres (PGlite on a socket, a
+  devDependency of `e2e` only, never the server's), seeds a DM and a world laid out like the
+  proving ground, and writes `e2e/local.config.json`; `E2E_CONFIG=e2e/local.config.json bash
+  e2e/watch.sh` then runs every suite against it except the live secrecy suite. Outside services
+  (R2, Waypoint, the Forge, voices) are off there, and the database dies with the process. The
+  server reads `client/dist/index.html` once at boot: rebuild and restart after a client change.
+  In the desktop app's browser pane it is `atlas-local` in `~/repos/.claude/launch.json`
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
 - **Always push changes to git when finished with a task** - commit and push automatically after completing work
-- Tests run against the LIVE deploy: the API suite is `node --test server/test/share-live.test.js`
-  (from the repo root); the browser suites (Playwright) live in `e2e/` — `player.mjs` for the
-  Player View and `dm.mjs` for the DM workspace on a throwaway world — see `e2e/README.md`
+- After a push the suites run against the LIVE deploy (`bash e2e/watch.sh` waits for it): the
+  API secrecy suite is `node --test server/test/share-live.test.js` (from the repo root, live
+  only: it reads the production fixture world); the browser suites (Playwright) live in `e2e/` —
+  `player.mjs` for the Player View and `dm.mjs` for the DM workspace on a throwaway world — with
+  the API probes `undo.mjs`, `doors.mjs` and `server.mjs` — see `e2e/README.md`. Every suite takes
+  `E2E_CONFIG` to read another config than `dm.config.json` / `player.config.json`
 - The DB schema is ensured on every boot from `server/config/schema.sql` (idempotent statements,
   comment lines stripped before splitting on `;` — keep semicolons out of comments)
 

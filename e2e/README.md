@@ -1,7 +1,35 @@
 # Browser suites
 
-Real-browser checks against the live deploy (Railway), because there is no local server.
-They complement the API suite (`node --test server/test/share-live.test.js`, run from the repo root).
+Real-browser and API checks, run against the live deploy (Railway) after a push, and against
+the local stack (below) before one. They complement the API suite
+(`node --test server/test/share-live.test.js`, run from the repo root, live only).
+
+## The local stack: test before a push
+
+`e2e/local.mjs` runs the whole Atlas on this machine: the real server against an in-memory
+Postgres (PGlite on a socket, a devDependency of `e2e` and never of the server). It seeds one DM
+and a world laid out like the proving ground: a footstep clock (canon 37), a DM-only era plus
+Sessions 1–3 (player-visible), revealed places, the Keep's interior, the Party's footsteps from
+the world map (15) into the interior (30), and a DM-only vault with a hidden interior. Then it
+writes `e2e/local.config.json` (gitignored), which every suite reads when `E2E_CONFIG` names it.
+Outside services are off whatever the shell holds: no R2 (images stay in the database), no
+Waypoint, Forge, voices or bug widget. The database lives as long as the process; Ctrl+C drops it.
+
+```bash
+cd e2e && npm install                                   # once
+node e2e/local.mjs --build                              # from the repo root; --build rebuilds client/dist
+E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh      # every suite but the live secrecy suite
+E2E_CONFIG=e2e/local.config.json node e2e/doors.mjs     # or one suite
+```
+
+The server reads `client/dist/index.html` once at boot, so rebuild (`--build`) and restart after a
+client change. `LOCAL_PORT` (5099) and `LOCAL_DB_PORT` (5433) move the ports. The DM workspace is
+at the printed `/w/…` URL once the browser holds the config's token
+(`localStorage.setItem('auth_token', …)`); the Player View link is printed too. In the desktop
+app's browser pane it starts as `atlas-local` from `~/repos/.claude/launch.json`. On 2026-10-17
+every suite passed against it (player 17, dm 72, undo 17, doors 27, server 55, contract 5).
+
+## The suites
 
 - `player.mjs` — the public Player View: pins open sheets, the party pin reads its footstep
   story, ◎ enters an interior and ⬆ comes back, a ghost footprint is clickable, the era bar
@@ -25,7 +53,7 @@ They complement the API suite (`node --test server/test/share-live.test.js`, run
   period widens the bar (the clock and the interior's focus period are put back after). Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
-`bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order; `SKIP_WAIT=1` runs them at once.
+`bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order; `SKIP_WAIT=1` runs them at once; `E2E_CONFIG=e2e/local.config.json` runs them against the local stack (no wait, no token renewal, no live secrecy suite).
 
 Both configs are gitignored — copy the `*.config.example.json` files. A FAIL step makes the run exit
 non-zero, so `npm run all` stops on the first red suite.

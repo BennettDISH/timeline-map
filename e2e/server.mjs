@@ -1,11 +1,13 @@
 // API probes against the live deploy for the server-resilience package. Read-only probes run
 // on the public fixture world; the write probes (player markers) run on the throwaway world in
 // dm.config.json and are cleaned up through the DM API, so nothing lands on a real world.
+// E2E_CONFIG names another config; the local one (e2e/local.mjs) names its own world as the
+// fixture (`fixtureToken`), since the live fixture world is not there.
 import { readFileSync, existsSync } from 'fs';
-const cfgUrl = new URL('./dm.config.json', import.meta.url);
+const cfgUrl = process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url);
 const cfg = existsSync(cfgUrl) ? JSON.parse(readFileSync(cfgUrl)) : null;
 const BASE = process.env.BASE_URL || cfg?.baseUrl || 'https://timeline-map-production.up.railway.app';
-const FIXTURE = process.env.SHARE_TOKEN || 'fx89ef1c8ec74cadc99ae56b256c46b337';
+const FIXTURE = process.env.SHARE_TOKEN || cfg?.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337';
 const steps = [];
 const step = (name, ok, note = '') => { steps.push(!!ok); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
 const json = async (r) => { try { return await r.json(); } catch (e) { return null; } };

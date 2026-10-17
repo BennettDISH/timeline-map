@@ -1,8 +1,8 @@
 // API check against the live deploy: Undo puts back EVERY column it snapshotted (DM note,
 // stance, body, the interior's notes and focus), and the delete impact tells the truth.
-// Needs dm.config.json (a throwaway DM account + world) — see README.md.
+// Needs dm.config.json (a throwaway DM account + world) — see README.md; E2E_CONFIG names another.
 import { readFileSync } from 'fs';
-const cfg = JSON.parse(readFileSync(new URL('./dm.config.json', import.meta.url)));
+const cfg = JSON.parse(readFileSync(process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url)));
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
 const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` };
 const api = async (method, path, body) => {

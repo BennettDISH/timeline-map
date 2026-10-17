@@ -4,15 +4,16 @@ A recursively zoomable fantasy world you scrub through time. A DM builds it on a
 open a share link on their phones and see only what the DM has revealed, at the canon moment.
 
 **Start with `CLAUDE.md`.** It is the always-current description of the model, the rules the
-code enforces, and how to work on the repo (no local server: push to `main`, Railway deploys,
-the live suites prove it).
+code enforces, and how to work on the repo (prove a change on the local stack, push to `main`,
+Railway deploys, the live suites prove it again).
 
 ## Doc map
 - `CLAUDE.md` — the truth: architecture, the timeline and secrecy rules, the Forge, voice, input rules.
 - `docs/UX-REDESIGN.md` — the founding vision (its roadmap is retired).
 - `docs/cleanup/README.md` — the 2026-09-26 whole-app audit and its work packages.
 - `docs/R2-SETUP.md` — Cloudflare R2 storage setup.
-- `e2e/README.md` — the live suites: the API secrecy tests, the Player View, DM, undo and server probes.
+- `e2e/README.md` — the suites (the API secrecy tests, the Player View, DM, undo, doors and server
+  probes) and the local stack they also run against.
 - `server/test/FIXTURE.md` — the production fixture world the secrecy suite reads.
 
 ## Stack
@@ -44,9 +45,12 @@ Production: `npm run build` then `npm start` (Railway runs both from `main`).
 - `server/config/apply-schema.js` — reads schema.sql into statements for the boot-time ensure and `migrate.js`.
 
 ## Tests
-Everything runs against the live deploy. `bash e2e/watch.sh` waits for the deploy of the local
-HEAD and runs every suite in order; `node --test server/test/share-live.test.js` is the secrecy
-suite on its own. Details and the config files in `e2e/README.md`.
+Before a push, `node e2e/local.mjs --build` runs the real server on an in-memory Postgres
+(PGlite) with a seeded proving-ground world, and `E2E_CONFIG=e2e/local.config.json bash
+e2e/watch.sh` runs every suite against it but the live secrecy suite. After a push,
+`bash e2e/watch.sh` waits for the deploy of the local HEAD and runs every suite in order against
+it; `node --test server/test/share-live.test.js` is the secrecy suite on its own. Details and
+the config files in `e2e/README.md`.
 
 ## Sign-in
 "Sign in with Waypoint" is wired entirely server-side (`AUTH_SERVICE_URL`, `SSO_CLIENT_ID`,

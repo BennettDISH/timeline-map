@@ -1,16 +1,21 @@
 {
   "name": "atlas-e2e",
   "private": true,
-  "description": "Browser suites against the live deploy (Playwright)",
+  "description": "Browser (Playwright) and API suites, against the live deploy or the local stack (local.mjs)",
   "scripts": {
     "player": "node player.mjs",
     "dm": "node dm.mjs",
     "all": "node player.mjs && node dm.mjs && node undo.mjs && node doors.mjs && node server.mjs",
     "undo": "node undo.mjs",
     "server": "node server.mjs",
-    "doors": "node doors.mjs"
+    "doors": "node doors.mjs",
+    "local": "node local.mjs"
   },
   "dependencies": {
     "playwright": "1.52.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@electric-sql/pglite-socket": "0.2.13"
   }
 }
