@@ -9,8 +9,12 @@ const cfg = existsSync(cfgUrl) ? JSON.parse(readFileSync(cfgUrl)) : {};
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
 const TOKEN = process.env.SHARE_TOKEN || cfg.shareToken;
 if (!TOKEN) { console.error('No share token: set SHARE_TOKEN or put shareToken in e2e/player.config.json'); process.exit(2); }
-const out = { errors: [], steps: [] };
+const out = { errors: [], steps: [], skipped: [] };
 const step = (name, ok, note = '') => { out.steps.push({ name, ok, note }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
+// a check the world gives nothing to try on (no party footstep players can reach) is named, not failed
+const skip = (name, note) => { out.skipped.push({ name, note }); console.log(`skip ${name} — ${note}`); };
+// a map shows its places as pins or, for an outlined place, as a region with no pin
+const SHOWN = '.pview .pin, .pview polygon.region';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on('pageerror', (e) => out.errors.push(`pageerror: ${e.message}`));
@@ -18,9 +22,9 @@ page.on('pageerror', (e) => out.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' && !/status of 404/.test(m.text())) out.errors.push(`console: ${m.text().slice(0, 200)}`); });
 try {
   await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
-  await page.waitForSelector('.pview .pin', { timeout: 30000 });
-  const pins = await page.locator('.pview .pin').count();
-  step('world map renders pins', pins > 0, `${pins} pins`);
+  await page.waitForSelector(SHOWN, { timeout: 30000 });
+  const pins = await page.locator('.pview .pin').count(), outlined = await page.locator('.pview polygon.region').count();
+  step('world map renders pins or outlined places', pins + outlined > 0, `${pins} pins, ${outlined} outlined`);
   // taps the centroid of the first outlined place (regions have no pin) and returns its title
   const tapRegion = async () => {
     const c = await page.evaluate(() => {
@@ -49,33 +53,59 @@ try {
   const opened = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
   step('tapping a pin or an outlined place opens its sheet', opened, opened ? `"${(await sheet.locator('h3').first().textContent()).trim()}"` : `no sheet for "${(title || '').trim()}"`);
   if (opened) await page.locator('.pview .sclose').click();
-  // the party stands wherever its canon footstep is — find it in the trail and go there for the party checks
+  // the party stands wherever its canon footstep is — find it in the trail and go there for the party
+  // checks. A session the party has not walked yet leaves no footstep at canon: then the era bar goes
+  // back to the party's last footstep players can scrub to (on the world map when it has one)
   const worldInfo = await fetch(`${BASE}/api/share/${TOKEN}/world`).then((r) => r.json()).then((j) => j.world).catch(() => null);
   const rootId = worldInfo?.rootMapId;
   const canon = worldInfo?.timeline?.current;
+  const eras = worldInfo?.eras || [];
   const rootPayload = rootId ? await fetch(`${BASE}/api/share/${TOKEN}/maps/${rootId}?window=1`).then((r) => r.json()).catch(() => null) : null;
   const ptrail = rootPayload?.partyTrail || [];
   const atT = (v) => (v == null ? -Infinity : v);
+  const onRoot = (s) => String(s.mapId) === String(rootId);
   const canonStep = ptrail.filter((s) => canon == null || (atT(s.start) <= canon && (s.end == null || canon <= s.end))).sort((a, b) => atT(b.start) - atT(a.start))[0] || null;
-  const hasNeighbour = !!canonStep && ptrail.some((s) => s !== canonStep && ((s.end != null && s.end < atT(canonStep.start)) || (canonStep.end != null && s.start != null && s.start > canonStep.end)));
-  const away = canonStep && String(canonStep.mapId) !== String(rootId);
+  // the latest moment of a footstep the era bar reaches: inside a revealed era, before canon
+  const reachable = (t) => t != null && t < canon && eras.some((e) => t >= e.start && t <= e.end);
+  const pastMoment = (s) => [Math.min(s.end ?? canon - 1, canon - 1), s.start].find((t) => t >= atT(s.start) && reachable(t));
+  const past = canonStep || canon == null ? [] : ptrail.map((s) => ({ s, t: pastMoment(s) })).filter((x) => x.t != null).sort((a, b) => b.t - a.t);
+  const pastPick = past.find((x) => onRoot(x.s)) || past[0] || null;
+  const partyStep = canonStep || pastPick?.s || null;
+  const viewAt = canonStep ? null : pastPick?.t ?? null;
+  const hasNeighbour = !!partyStep && ptrail.some((s) => s !== partyStep && ((s.end != null && s.end < atT(partyStep.start)) || (partyStep.end != null && s.start != null && s.start > partyStep.end)));
+  const away = partyStep && !onRoot(partyStep);
   if (away) {
-    await page.goto(`${BASE}/p/${TOKEN}/m/${canonStep.mapId}`, { waitUntil: 'networkidle', timeout: 90000 });
-    await page.waitForSelector('.pview .pin', { timeout: 30000 }).catch(() => {});
+    await page.goto(`${BASE}/p/${TOKEN}/m/${partyStep.mapId}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await page.waitForSelector(SHOWN, { timeout: 30000 }).catch(() => {});
+  }
+  // the era bar's moment label takes a typed moment (Enter), which is how a player jumps straight there
+  let when = '';
+  if (viewAt != null) {
+    await page.locator('.pview .einfobtn').click();
+    await page.locator('.pview .tnowedit').fill(String(viewAt));
+    await page.locator('.pview .tnowedit').press('Enter');
+    await page.locator('.pview .nowchip', { hasText: 'the past' }).waitFor({ timeout: 10000 }).catch(() => {});
+    when = ` (${(await page.locator('.pview .nowchip').textContent().catch(() => '')).trim()}: no footstep at canon ${canon}, so the era bar went back to the last one)`;
   }
   const party = page.locator('.pview .pin.party').first();
-  if (await party.count()) {
+  if (partyStep && await party.waitFor({ state: 'attached', timeout: 10000 }).then(() => true).catch(() => false)) {
     await party.click({ force: true });
     const ok = await sheet.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
     const body = ok ? await sheet.locator('.sbody').first().textContent().catch(() => '') : '';
     const trail = ok ? await sheet.locator('.rtrail a').count() : 0;
-    step('the party pin opens with its footstep story', ok && body.trim().length > 0, `${body.slice(0, 60)}… trail links: ${trail}`);
+    step('the party pin opens with its footstep story', ok && body.trim().length > 0, `${body.slice(0, 60)}… trail links: ${trail}${when}`);
     if (hasNeighbour) step('the Party sheet offers its From / Then on to links', trail >= 1, `${trail} link(s)`);
     if (ok) await page.locator('.pview .sclose').click();
-  } else step('a party pin is on the map at canon', false, canonStep ? `expected on map ${canonStep.mapId}` : 'no canon footstep in the trail');
+  } else if (partyStep) step('a party pin is on the map where its footstep is', false, `expected on map ${partyStep.mapId}${when}`);
+  else skip('the party pin checks', ptrail.length ? `no footstep at canon ${canon} and none in a revealed era before it` : 'the share has no party trail');
+  // back to now (and to the world map) for the rest
+  if (viewAt != null && !away) {
+    await page.locator('.pview .enow').click();
+    await page.locator('.pview .nowchip', { hasText: 'the past' }).waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  }
   if (away) {
     await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
-    await page.waitForSelector('.pview .pin', { timeout: 30000 }).catch(() => {});
+    await page.waitForSelector(SHOWN, { timeout: 30000 }).catch(() => {});
   }
   // enter an interior via ◎ (a pin's button, or an outlined place's sheet) and come back via ⬆
   const enter = page.locator('.pview .pin .enter').first();
@@ -136,10 +166,12 @@ try {
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     step('Escape closes the legend', (await page.locator('.pview .helppop').count()) === 0);
   } else step('the ? legend button exists', false, 'no .helpwrap button');
-  // the sheet survives a drag (it closes on a clean tap on empty map, never on a pan)
+  // the sheet survives a drag (it closes on a clean tap on empty map, never on a pan) — opened
+  // from a pin, or from an outlined place on a map that has no pin at this moment
   const anyPin = page.locator('.pview .pin').first();
-  if (await anyPin.count()) {
-    await anyPin.click({ force: true }); await page.locator('.pview .sheet').first().waitFor({ timeout: 8000 }).catch(() => {});
+  if ((await anyPin.count()) || (await page.locator('.pview polygon.region').count())) {
+    if (await anyPin.count()) await anyPin.click({ force: true }); else await tapRegion();
+    await page.locator('.pview .sheet').first().waitFor({ timeout: 8000 }).catch(() => {});
     const before = await page.locator('.pview .sheet').count();
     const vp = await page.locator('.pview .mp-viewport').boundingBox();
     if (vp && before === 1) {
@@ -148,7 +180,7 @@ try {
       await page.waitForTimeout(300);
       step('dragging the map keeps the open sheet', (await page.locator('.pview .sheet').count()) === 1);
     } else step('a sheet opened before the drag check', false, `sheets: ${before}`);
-  }
+  } else skip('dragging the map keeps the open sheet', 'no pin or outlined place to open a sheet from');
   // a hidden or missing place under a WORKING link is not a dead link; an unknown token is
   // the public secrecy fixture, where map 61 is a DM-only interior; the local stack names its own
   const FIX = cfg.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337', HIDDEN = cfg.hiddenMap ?? 61;
@@ -168,5 +200,5 @@ try {
 } catch (e) { step('run completed', false, e.message); }
 await browser.close();
 const failed = out.steps.filter((s) => !s.ok).length;
-console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: failed, errors: out.errors.slice(0, 5) }));
+console.log(JSON.stringify({ pass: out.steps.filter((s) => s.ok).length, fail: failed, skipped: out.skipped.length, errors: out.errors.slice(0, 5) }));
 process.exitCode = failed ? 1 : 0; // a red step is a red run
