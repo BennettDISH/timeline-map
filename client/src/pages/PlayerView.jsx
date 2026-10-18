@@ -150,7 +150,7 @@ function PlayerView() {
 
   // Keep the view current without the player doing anything.
   useEffect(() => {
-    const iv = setInterval(load, 45000)
+    const iv = setInterval(() => { if (document.visibilityState === 'visible') load() }, 45000)
     const onVis = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVis)
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
