@@ -81,6 +81,7 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     await t('a reversed era is refused', 'POST', `/worlds/${cfg.worldId}/eras`, { name: 'probe', start_time: 49, end_time: 40 }, 400, (b) => /after/.test(b?.message || ''));
     await t('a self-link is refused', 'POST', '/links', { from_node_id: probe.nodeId, to_node_id: probe.nodeId }, 400, (b) => /different/.test(b?.message || ''));
     await t('an empty world name is refused', 'PATCH', `/worlds/${cfg.worldId}`, { name: '' }, 400, (b) => /name/.test(b?.message || ''));
+    await t('a clock moment past what the clock can hold is refused with a sentence, not a 500', 'PATCH', `/worlds/${cfg.worldId}`, { timeline_max_time: 99999999999 }, 400, (b) => /whole/.test(b?.message || ''));
     await t('a stance outside the vocabulary is refused', 'PATCH', `/nodes/${probe.nodeId}`, { stance: 'enemy-of-all' }, 400);
     await t('a blank title is accepted', 'PATCH', `/nodes/${probe.nodeId}`, { title: '' }, 200);
     const n3 = await json(await dm('GET', `/nodes/${probe.nodeId}`));
