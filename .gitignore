@@ -72,3 +72,9 @@ temp/
 e2e/node_modules
 e2e/*.config.json
 e2e/*.tmp.mjs
+
+# Local env files, scratch and temp files anywhere
+.env*
+!.env.example
+*.tmp.*
+scratch*

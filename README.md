@@ -3,12 +3,16 @@
 A recursively zoomable fantasy world you scrub through time. A DM builds it on a PC; players
 open a share link on their phones and see only what the DM has revealed, at the canon moment.
 
+Live: https://timeline-map-production.up.railway.app (GitHub: `timeline-map`).
+
 **Start with `CLAUDE.md`.** It is the always-current description of the model, the rules the
 code enforces, and how to work on the repo (prove a change on the local stack, push to `main`,
 Railway deploys, the live suites prove it again).
 
 ## Doc map
 - `CLAUDE.md` — the truth: architecture, the timeline and secrecy rules, the Forge, voice, input rules.
+- `docs/README.md` — the index of everything in `docs/`.
+- `docs/ROADMAP.md` — open ideas, planned work and known issues.
 - `docs/UX-REDESIGN.md` — the founding vision (its roadmap is retired).
 - `docs/cleanup/README.md` — the 2026-09-26 whole-app audit and its work packages.
 - `docs/R2-SETUP.md` — Cloudflare R2 storage setup.
@@ -34,6 +38,24 @@ The schema is applied on every server boot from `server/config/schema.sql`; `cd 
 migrate` runs the same statements by hand if you want to see them land first.
 
 Production: `npm run build` then `npm start` (Railway runs both from `main`).
+
+## Deploy
+Railway, the `timeline-map` service with its own Postgres. A push to `main` deploys (nixpacks,
+`npm start`, health check `/health`, see `railway.toml`). Production holds a real campaign, so
+schema changes are additive only (see Database in `CLAUDE.md`).
+
+## Environment variables
+Names only; `.env.example` explains each.
+- Core: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `NODE_ENV`, `PORT`
+- Waypoint sign-in: `AUTH_SERVICE_URL`, `SSO_CLIENT_ID`, `SSO_CLIENT_SECRET`, `APP_BASE_URL`,
+  `ADMIN_CENTRAL_USER_IDS`
+- Guests: `GUEST_RETENTION_DAYS`, `GUEST_CLEANUP_ENABLED`
+- Images (all five turn R2 on): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+  `R2_BUCKET`, `R2_PUBLIC_URL`
+- The Forge: `GEMINI_API_KEY`, `FORGE_ENABLED`, `FORGE_TEXT_MODEL`, `FORGE_IMAGE_MODEL`
+- Voices: `VOICE_PROVIDER`, `VOICE_ENABLED`, `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`,
+  `VOICE_TTS_MODEL`, `VOICE_TTS_MODEL_GEMINI`, `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS`
+- Embedding and the bug widget: `EMBED_ORIGINS`, `BUG_WIDGET_KEY`
 
 ## Layout
 - `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId/m/:mapId`, the editor), **PlayerView**

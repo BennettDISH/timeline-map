@@ -39,5 +39,5 @@ Railway redeploys automatically. New uploads now go to R2 with keys like
   `r2Enabled` gate). Check by uploading — R2 URLs start with your `R2_PUBLIC_URL`.
 - Keys are prefixed per world (`worlds/<worldId>/...`).
 - Deleting an image removes its R2 object (`server/routes/images.js` DELETE).
-- Upload size is bounded by `express.json({ limit: '10mb' })` in `server/server.js` (base64 body).
-  Raising it (or moving to multipart) is a future enhancement once R2 is proven.
+- Upload size is bounded by the upload route's own `express.json({ limit: '14mb' })` in
+  `server/server.js` (base64 is 4/3 of the file, so about a 10 MB image).

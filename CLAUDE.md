@@ -9,7 +9,7 @@
 The legacy map system (worlds → maps → events, `MapViewer`/`NodeEditor` and friends, ~3.5k lines)
 was deleted in August 2026. **Atlas is the only map UI.** The founding vision lives in
 `docs/UX-REDESIGN.md`; its roadmap is retired — this file is the current truth, and what is
-still unbuilt is listed under Known gaps at the end. `README.md` is the doc map.
+still unbuilt is in `docs/ROADMAP.md`. `docs/README.md` indexes the docs.
 
 ## Key Commands
 - `npm run dev` - Start both client and server (for development structure reference only)
@@ -327,8 +327,8 @@ legacy tables (`events` and friends) are gone.
   the clock to …" (growing never moves canon).
 
 **Releases:** v1.0.0 was tagged 2026-08-20 with the founding vision implemented end-to-end;
-everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wish-shelf under
-Known gaps.
+everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wish-shelf in
+`docs/ROADMAP.md`.
 
 ## Player markers (live, trust-based)
 - A share-link holder can drop a marker on the Player View: POST `/:token/maps/:mapId/nodes`
@@ -450,16 +450,14 @@ Known gaps.
   (the DM's latest-start-then-newest rule on unclamped starts). Node categories come from
   one list: `server/lib/vocab.js` (mirrored by `MARKABLE` in `utils/categories.js`).
 
-## Open cleanup list
+## Cleanup list
 `docs/cleanup/` holds the verified punch list from the 2026-09-26 audit — start at its
 `README.md`. The first pass (every control clicked on the live site, all code read) left 326
 items in WP-01..WP-20; a second pass that hunted one bug class at a time added 75 in
 WP-21..WP-28. An item is ticked in its package file with the commit that fixed it (C065 was a
 data chore instead: exported, then dropped) once the live suites (`bash e2e/watch.sh`) pass on
-that deploy. 400 of 401 are done; P112 (each lens tick re-renders the whole workspace) is parked
-until V1. The appendix's judgment calls were re-checked on 2026-09-29 (seven small ones still
-hold), and two areas were never tested by any pass: the Player View in real WebKit (iPhone and
-iPad Safari) and the Forge's write path end to end against a sandbox.
+that deploy. 400 of 401 are done. The open one (P112), the small judgment calls that still hold
+and the two areas no pass tested are in `docs/ROADMAP.md`.
 
 ## Image rules
 - Uploads: the BYTES decide the type (PNG/JPEG/GIF/WebP magic numbers; an SVG or a text file
@@ -608,12 +606,8 @@ iPad Safari) and the Forge's write path end to end against a sandbox.
   with a notice); a space that is gone (404) shows 'This space no longer exists' with a way
   to the world map, and no editor chrome is armed until a map is loaded.
 
-## Known gaps (the honest list)
+## Known gaps
 - Mobile is view-only BY DESIGN (Bennett: editing happens on a PC; only player/viewing
   surfaces need to be mobile-first)
-- From the "later" shelf: per-fact visibility, branching campaigns,
-  @-mention-to-link
-- A guest can't yet become a real account with the worlds they made: Waypoint can claim a guest
-  (keeping its central id, so the worlds would stay theirs), but only from its own account page,
-  which a guest the Atlas made through the proxy never signs into — the Atlas needs a proxy
-  claim endpoint and a button
+- Everything still unbuilt or open (the "later" shelf, guests becoming real accounts, P112,
+  the never-tested areas) is in `docs/ROADMAP.md` — add new items there, one line each

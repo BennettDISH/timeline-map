@@ -89,8 +89,8 @@ app and not paper. Every flow is optimized so a DM can build faster than they co
 ## Status
 
 The app this section once diagnosed (events pinned on a map) was deleted in August 2026; the
-vision above is what shipped as the Atlas. `CLAUDE.md` is the current truth and holds the honest
-list of what is still unbuilt.
+vision above is what shipped as the Atlas. `CLAUDE.md` is the current truth, and
+`docs/ROADMAP.md` holds the honest list of what is still unbuilt.
 
 ---
 
@@ -173,7 +173,7 @@ Every phase of the original roadmap shipped by v1.0.0 (2026-08-20): the persiste
 nesting tree and breadcrumb, the nested canvas with map or list interiors, the node/placement
 model with autosave and undo, first-class links (threads), the one clock with lifespans, eras and
 the canon moment, the reveal layer and the share link, the sample world and templates, outlines.
-Still unbuilt, and listed under Known gaps in `CLAUDE.md`: @-mention-to-link, per-fact
+Still unbuilt, and listed in `docs/ROADMAP.md`: @-mention-to-link, per-fact
 visibility, branching campaigns, a create-world wizard, and portals (links carry no kind or
 moment in the UI).
 
