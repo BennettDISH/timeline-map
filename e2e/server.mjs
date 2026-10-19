@@ -162,6 +162,21 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       ids = await seen();
       step('revealing a DM-only entry brings its DM-only placements out with it', ids.includes(n.placementId) && ids.includes(second.placementId));
     } else step('a probe entry placed twice for the hide-here rule', false, JSON.stringify([n, second]));
+    // a map's focus period is a DM tool: players get only moments they may stand at, in both forms
+    const inner = n?.nodeId && await json(await dm('POST', `/nodes/${n.nodeId}/interior`, { view: 'map' }));
+    const pw = await json(await fetch(`${BASE}/api/share/${cfg.shareToken}/world`));
+    const tl = pw?.world?.timeline;
+    if (inner?.mapId && tl?.enabled && tl.current != null) {
+      const env = [...(pw.world.eras || []).map((e) => [e.start, e.end]), [tl.current, tl.current]];
+      const first = Math.min(...env.map(([a]) => a));
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'shared' });
+      const set = await dm('PATCH', `/maps/${inner.mapId}`, { focus_start: first - 3, focus_end: tl.current + 3 });
+      const allowed = (v) => v == null || env.some(([a, b]) => v >= a && v <= b);
+      for (const [form, q] of [['one-moment', ''], ['windowed', '?window=1']]) {
+        const m = (await json(await fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${inner.mapId}${q}`)))?.map;
+        step(`a focus period reaching into hidden time sends only moments players may stand at (${form})`, set.ok && m && allowed(m.focusStart) && allowed(m.focusEnd), `${m?.focusStart}–${m?.focusEnd}`);
+      }
+    } else step('a focus period reaching into hidden time (needs the clock on the throwaway world)', !tl?.enabled, 'skipped');
     if (n?.nodeId) step('the hide-here probe entry is removed again', (await dm('DELETE', `/nodes/${n.nodeId}`)).ok);
   }
   // images and folders: the bytes decide, names are clamped, list parameters are checked,
