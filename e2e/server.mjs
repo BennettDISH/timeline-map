@@ -136,6 +136,34 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       step('the thread probe nodes are removed again', gone === 3, `${gone} removed`);
     } else step('probe nodes for the thread rules', false, JSON.stringify([a, b, c]));
   }
+  // secrecy through the DM's own acts: a placement hidden on one map stays hidden when 👁 Players
+  // is pressed again on an entry players already see (or a marker is kept as canon); only an entry
+  // that was DM-only brings its DM-only placements out with it
+  {
+    const n = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-hidden-here', x: 3, y: 3 }));
+    const second = n?.nodeId && await json(await dm('POST', `/maps/${cfg.root}/placements`, { node_id: n.nodeId, x: 4, y: 4 }));
+    if (n?.nodeId && second?.placementId) {
+      const seen = async () => (await json(await fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${cfg.root}?window=1`)))?.placements?.map((p) => p.id) || [];
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'shared' });
+      await dm('PATCH', `/placements/${second.placementId}`, { visibility: 'dm' });
+      let ids = await seen();
+      step('a placement hidden on its map is left out of the Player View', ids.includes(n.placementId) && !ids.includes(second.placementId), ids.includes(n.placementId) ? '' : 'the shown placement is missing too');
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'shared' });
+      ids = await seen();
+      step('…and stays hidden when 👁 Players is pressed again on the shared entry', !ids.includes(second.placementId));
+      await dm('PATCH', `/placements/${second.placementId}`, { visibility: 'dm' });
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'player' });
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'shared' });
+      ids = await seen();
+      step('…and when a marker is kept as canon', !ids.includes(second.placementId));
+      await dm('PATCH', `/placements/${second.placementId}`, { visibility: 'dm' });
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'dm' });
+      await dm('PATCH', `/nodes/${n.nodeId}`, { visibility: 'shared' });
+      ids = await seen();
+      step('revealing a DM-only entry brings its DM-only placements out with it', ids.includes(n.placementId) && ids.includes(second.placementId));
+    } else step('a probe entry placed twice for the hide-here rule', false, JSON.stringify([n, second]));
+    if (n?.nodeId) step('the hide-here probe entry is removed again', (await dm('DELETE', `/nodes/${n.nodeId}`)).ok);
+  }
   // images and folders: the bytes decide, names are clamped, list parameters are checked,
   // search is literal, bulk moves and deletes are one request, folder names have one rule
   {
