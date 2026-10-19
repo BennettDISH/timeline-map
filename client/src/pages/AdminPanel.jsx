@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
 import http, { errText } from '../services/http'
 import TopBar, { Compass } from '../components/TopBar'

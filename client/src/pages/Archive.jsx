@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { plural } from '../utils/format'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
 import imageService from '../services/imageService'

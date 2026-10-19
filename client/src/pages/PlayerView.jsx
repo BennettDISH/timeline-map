@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import shareService from '../services/shareService'
 import MapPlane, { embedded, toPlanePct } from '../components/MapPlane'
 import { PinBody, pinClass } from '../components/Pin'

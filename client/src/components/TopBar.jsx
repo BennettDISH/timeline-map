@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
 
 // The app's mark: an eight-point compass rose. Single-color (currentColor) so it tints

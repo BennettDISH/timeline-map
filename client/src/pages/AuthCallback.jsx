@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
 import { errText } from '../services/http'
 import { safeNext } from '../utils/nextPath'

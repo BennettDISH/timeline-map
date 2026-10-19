@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './utils/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlayerView, { DeadLink } from './pages/PlayerView'

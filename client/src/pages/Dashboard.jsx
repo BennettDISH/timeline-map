@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { plural, entries } from '../utils/format'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router'
 import { errText } from '../services/http'
 import Modal from '../components/Modal'
 import TopBar, { Compass } from '../components/TopBar'

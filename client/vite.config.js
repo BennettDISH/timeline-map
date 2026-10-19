@@ -20,7 +20,7 @@ export default defineConfig({
         // the same two long-lived chunks as before: React and the router, and axios
         codeSplitting: {
           groups: [
-            { name: 'vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run[\\/]router)[\\/]/ },
+            { name: 'vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/ },
             { name: 'utils', test: /[\\/]node_modules[\\/]axios[\\/]/ }
           ]
         }
