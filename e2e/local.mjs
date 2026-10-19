@@ -12,7 +12,12 @@
 //                                    server reads index.html once at boot, so build before starting)
 //   E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh     every suite, in another shell
 //
-// LOCAL_PORT (5099) and LOCAL_DB_PORT (5433) move the two ports. Ctrl+C stops both.
+// A second server ("paid", LOCAL_PORT + 1) shares the database with the Forge, voices, ambience
+// and R2 switched on but answered by stubs (e2e/stubs.cjs, nothing leaves the machine) and tiny
+// daily caps, so the server suite can drive the spend guard to its limits. Its control port
+// (LOCAL_PORT + 2) is for the suites only.
+//
+// LOCAL_PORT (5099) and LOCAL_DB_PORT (5433) move the ports. Ctrl+C stops everything.
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { spawn, spawnSync } from 'child_process';
@@ -47,7 +52,8 @@ const server = spawn(process.execPath, ['server.js'], {
   env: { ...process.env, ...Object.fromEntries(OFF.map((k) => [k, ''])), DATABASE_URL: `postgresql://postgres:postgres@127.0.0.1:${DB_PORT}/postgres`,
     JWT_SECRET: SECRET, PORT: String(PORT), NODE_ENV: 'development', GUEST_CLEANUP_ENABLED: 'false', FORGE_ENABLED: '0', VOICE_ENABLED: '0' },
 });
-const stop = async (code = 0) => { server.kill(); await sock.stop().catch(() => {}); process.exit(code); };
+let paid = null;
+const stop = async (code = 0) => { server.kill(); paid?.kill(); await sock.stop().catch(() => {}); process.exit(code); };
 process.on('SIGINT', () => stop()); process.on('SIGTERM', () => stop());
 server.on('exit', (code) => { say(`server stopped (${code})`); stop(code || 1); });
 
@@ -57,6 +63,26 @@ for (let i = 0; ; i++) {
   if (i > 120) { say('the server never answered /health'); await stop(1); }
   await new Promise((r) => setTimeout(r, 500));
 }
+
+// ---- the paid server: same database, every paid service stubbed, caps small enough to reach ----
+// (started once the first server has applied the schema, so the two never apply it at once)
+const PAID_PORT = PORT + 1, STUB_PORT = PORT + 2, PAID_BASE = `http://127.0.0.1:${PAID_PORT}`;
+const PAID_CAPS = { FORGE_DAILY_CAP: 4, FORGE_DAILY_CAP_GUEST: 1, FORGE_DAILY_CEILING: 12, VOICE_DAILY_CAP: 2, VOICE_DAILY_CAP_GUEST: 0, VOICE_DAILY_CEILING: 3 };
+paid = spawn(process.execPath, ['--require', `${root}e2e/stubs.cjs`, 'server.js'], {
+  cwd: `${root}server`, stdio: 'inherit',
+  env: { ...process.env, ...Object.fromEntries(OFF.map((k) => [k, ''])), DATABASE_URL: `postgresql://postgres:postgres@127.0.0.1:${DB_PORT}/postgres`,
+    JWT_SECRET: SECRET, PORT: String(PAID_PORT), NODE_ENV: 'development', GUEST_CLEANUP_ENABLED: 'false', FORGE_ENABLED: '1', VOICE_ENABLED: '1',
+    VOICE_PROVIDER: '', GEMINI_API_KEY: 'stub', ELEVENLABS_API_KEY: 'stub', R2_ACCOUNT_ID: 'stub', R2_ACCESS_KEY_ID: 'stub', R2_SECRET_ACCESS_KEY: 'stub',
+    R2_BUCKET: 'stub', R2_PUBLIC_URL: 'https://r2.stub.invalid', ADMIN_CENTRAL_USER_IDS: '990001', STUB_PORT: String(STUB_PORT),
+    ...Object.fromEntries(Object.entries(PAID_CAPS).map(([k, v]) => [k, String(v)])) },
+});
+paid.on('exit', (code) => { say(`paid server stopped (${code})`); stop(code || 1); });
+for (let i = 0; ; i++) {
+  if (await fetch(`${PAID_BASE}/health`).then((r) => r.ok, () => false)) break;
+  if (i > 120) { say('the paid server never answered /health'); await stop(1); }
+  await new Promise((r) => setTimeout(r, 500));
+}
+say(`paid server (stubbed Forge, voices, R2) on ${PAID_BASE}`);
 
 // ---- the seed: one DM, one world shaped like the proving ground ----
 const u = (await db.query(
@@ -100,7 +126,8 @@ const vault = (await A('POST', `/maps/${rootMap}/nodes`, { title: 'Sealed Vault'
 const hiddenMap = (await A('POST', `/nodes/${vault}/interior`, {})).mapId;
 const shareToken = (await A('POST', `/worlds/${worldId}/share`)).token;
 
-const cfg = { baseUrl: BASE, token, user, worldId, root: rootMap, interior, shareToken, fixtureToken: shareToken, hiddenMap, local: true };
+const cfg = { baseUrl: BASE, token, user, worldId, root: rootMap, interior, shareToken, fixtureToken: shareToken, hiddenMap, local: true,
+  paid: { baseUrl: PAID_BASE, stubUrl: `http://127.0.0.1:${STUB_PORT}`, caps: PAID_CAPS } };
 const cfgPath = `${root}e2e/local.config.json`;
 writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
 say(`seeded “Proving ground” (world ${worldId}: root map ${rootMap}, interior ${interior})`);

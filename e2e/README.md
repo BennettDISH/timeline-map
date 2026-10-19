@@ -13,7 +13,12 @@ Sessions 1–3 (player-visible), revealed places, the Keep's interior, the Party
 the world map (15) into the interior (30), and a DM-only vault with a hidden interior. Then it
 writes `e2e/local.config.json` (gitignored), which every suite reads when `E2E_CONFIG` names it.
 Outside services are off whatever the shell holds: no R2 (images stay in the database), no
-Waypoint, Forge, voices or bug widget. The database lives as long as the process; Ctrl+C drops it.
+Waypoint, Forge, voices or bug widget. A second server on the same database (`LOCAL_PORT` + 1,
+`paid` in the config) has the Forge, voices, ambience and R2 switched on, answered by stubs
+(`e2e/stubs.cjs`, loaded with `node --require`; nothing leaves the machine), with tiny daily caps
+so the server suite can drive the spend guard to its limits. Its control port (`LOCAL_PORT` + 2)
+counts the calls that reached a stub, clears today's counters and mints throwaway accounts. The
+database lives as long as the process; Ctrl+C drops it.
 
 ```bash
 cd e2e && npm install                                   # once
@@ -37,8 +42,9 @@ every suite passed against it (player 17, dm 72, undo 17, doors 27, server 55, c
   (a new session), the party checks run at the party's last footstep in a revealed era, and
   with none there they are skipped, named as such. Needs a share token of a world that has a
   party trail and at least one player-visible era (`player.config.json` or `SHARE_TOKEN`).
-- `server.mjs` — API only: non-canonical map ids 404 before any write (read-only on the fixture world), a marker lands whole on the throwaway world and is removed again, the input rules hold (an over-long title, a decimal or reversed lifespan, a reversed era, a self-link and an empty world name are 400s with a sentence; a position off the plane is clamped; a blank title reads Untitled; odd ids are 404s), the inspector rules hold (one thread per pair, a stable thread order, an interior and the default root map follow a rename, Reveal lands in the period text at canon, locate shows the thing and names its interior, a place cannot stand inside itself), the image rules hold (bytes decide the type, names clamp, list parameters and search are checked, rename/caption, one folder-name rule, bulk move and delete, folders delete with their subfolders), and the server answers.
+- `server.mjs` — API only: non-canonical map ids 404 before any write (read-only on the fixture world), a marker lands whole on the throwaway world and is removed again, the input rules hold (an over-long title, a decimal or reversed lifespan, a reversed era, a self-link and an empty world name are 400s with a sentence; a position off the plane is clamped; a blank title reads Untitled; odd ids are 404s), the inspector rules hold (one thread per pair, a stable thread order, an interior and the default root map follow a rename, Reveal lands in the period text at canon, locate shows the thing and names its interior, a place cannot stand inside itself), the image rules hold (bytes decide the type, names clamp, list parameters and search are checked, rename/caption, one folder-name rule, bulk move and delete, folders delete with their subfolders), and the server answers. On the local stack only, the spend guard: a chat turn and each painting are one use, a proposal wanting more paintings than are left changes nothing, past the cap every paid route is a 429 with a sentence and no call reaches the provider, the count is read back by the other server process (it lives in the database), the guest cap and a cap of 0, parallel paintings never pass the cap, the daily ceiling stops an account with uses left, an admin is never capped, and voice has its own cap and ceiling. Live, it makes no paid call.
 - `server/test/contract.test.js` — local, no database: the Forge validator never throws on malformed entries.
+- `server/test/spend.test.js` — local, no database: who gets which daily cap, how the cap settings are read, and the sentences a refused DM reads.
 - `undo.mjs` — API only, on the throwaway world: Undo restores every column (DM note, stance, body, interior notes and focus) and the delete impact tells the truth.
 - `doors.mjs` — API only, on the throwaway world: an entry that leads to a map it does not own (a new map beside the one it stands on, or any map that exists) files that map beside the other in the tree and the crumb, never renames or deletes it, opens to players only through a door they can see, carries the lantern through, and undoes whole; everything it makes is deleted at the end (`E2E_CONFIG` points it at another config, such as a local server's).
 - `dm.mjs` — the DM workspace on a THROWAWAY world: View posture reader, timebar ticks

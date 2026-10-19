@@ -252,6 +252,120 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
   step('marker probes need dm.config.json (shareToken, token, root)', false, 'skipped');
 }
 
+// The spend guard, on the local stack only: its second server (cfg.paid) runs the Forge, voices
+// and R2 against stubs (e2e/stubs.cjs) with tiny daily caps, and its control port counts the
+// calls that reach a provider and mints throwaway accounts. Live, no paid call is ever made.
+if (cfg?.paid) {
+  const P = cfg.paid, caps = P.caps;
+  const ctl = async (p, body) => json(await fetch(`${P.stubUrl}${p}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}));
+  const as = (u, base = P.baseUrl) => async (method, p, body) => {
+    const r = await fetch(`${base}${p}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${u.token}` }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await json(r) };
+  };
+  const made = [];
+  // a fresh account with a world, its world map and one entry on it
+  const account = async (kind = {}) => {
+    const u = await ctl('/user', kind);
+    const call = as(u);
+    const wid = (await call('POST', '/api/worlds', { name: `spend-probe-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })).body?.world?.id;
+    if (wid) made.push([call, wid]);
+    const root = (await call('GET', `/api/atlas/worlds/${wid}`)).body?.world?.rootMapId;
+    const node = (await call('POST', `/api/atlas/maps/${root}/nodes`, { title: 'Spend probe', x: 50, y: 50 })).body?.nodeId;
+    return { ...u, call, wid, root, node };
+  };
+  const chat = (u, message) => u.call('POST', `/api/forge/worlds/${u.wid}/chat`, { message });
+  const paint = (u) => u.call('POST', `/api/forge/nodes/${u.node}/art`, {});
+  const said = (r) => r.body?.message || '';
+  const allowance = async (u, kind = 'forge', base) => (await as(u, base)('GET', `/api/${kind}/status`)).body?.allowance;
+  try {
+    await ctl('/reset', {}); // today's counters start empty, so a rerun on the same stack holds
+    const dm = await account();
+    const a0 = await allowance(dm);
+    step('the Forge status tells an account its allowance for today', a0?.limit === caps.FORGE_DAILY_CAP && a0.used === 0 && a0.left === caps.FORGE_DAILY_CAP && !!a0.resetsAt, JSON.stringify(a0));
+
+    let c0 = await ctl('/calls');
+    let r = await chat(dm, 'paint 1');
+    let c1 = await ctl('/calls');
+    step('a chat turn that paints one picture spends two uses: the turn and the painting', r.status === 200 && r.body?.batch && c1.text - c0.text === 1 && c1.image - c0.image === 1 && (await allowance(dm))?.used === 2,
+      `${r.status} ${c1.text - c0.text} text, ${c1.image - c0.image} image, ${r.body?.applyError || ''}`);
+    r = await chat(dm, 'paint 3');
+    const c2 = await ctl('/calls');
+    step('a proposal wanting more paintings than are left changes nothing and says how many are left', r.status === 200 && !r.body?.batch && c2.image === c1.image
+      && /wanted 3 paintings and only 1 Forge use is left today/.test(r.body?.applyError || ''), `${r.status} ${r.body?.applyError}`);
+    r = await paint(dm);
+    step('✦ Paint on an entry is one use', r.status === 200 && r.body?.image?.id && (await allowance(dm))?.used === caps.FORGE_DAILY_CAP, `${r.status} ${said(r)}`);
+
+    c0 = await ctl('/calls');
+    const past = [await paint(dm), await dm.call('POST', `/api/forge/maps/${dm.root}/backdrop`, {}), await chat(dm, 'one more')];
+    c1 = await ctl('/calls');
+    const want = new RegExp(`^You've used today's ${caps.FORGE_DAILY_CAP} Forge uses \\(chat turns and paintings\\) — they come back at midnight UTC, in `);
+    step('past the cap a painting, a backdrop and a chat turn are 429s with one sentence, and none reaches the provider',
+      past.every((x) => x.status === 429 && want.test(said(x))) && c1.text === c0.text && c1.image === c0.image, `${past.map((x) => x.status).join('/')} ${said(past[2])}`);
+    const tail = (await dm.call('GET', `/api/forge/worlds/${dm.wid}`)).body?.messages || [];
+    step('…and the refused turn is not stored as said to the mind', tail.length && !tail.some((m) => m.content === 'one more'), (tail.slice(-1)[0]?.content || '').replace(/\n/g, ' '));
+    const a1 = await allowance(dm);
+    const a2 = await allowance(dm, 'forge', BASE);
+    step('the count is in the database: the other server process (never sent a call) reads the same uses, so a restart keeps them',
+      a1?.used === caps.FORGE_DAILY_CAP && a1.left === 0 && a2?.used === caps.FORGE_DAILY_CAP, `paid ${JSON.stringify(a1)} / other ${JSON.stringify(a2)}`);
+
+    const guest = await account({ guest: true });
+    const g = [await chat(guest, 'hello'), await chat(guest, 'hello again')];
+    step(`a guest gets the guest cap (${caps.FORGE_DAILY_CAP_GUEST}) and its own sentence`, g[0].status === 200 && g[1].status === 429
+      && new RegExp(`^Guests get ${caps.FORGE_DAILY_CAP_GUEST} Forge use${caps.FORGE_DAILY_CAP_GUEST === 1 ? '' : 's'} a day, and today's are used`).test(said(g[1])), `${g.map((x) => x.status).join('/')} ${said(g[1])}`);
+    await guest.call('POST', `/api/voice/nodes/${guest.node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
+    r = await guest.call('POST', `/api/voice/nodes/${guest.node}/line`, { text: 'Hello' });
+    step('a guest cap of 0 shuts the door with a sentence (voice here)', r.status === 429 && /^Voice is not open to guests/.test(said(r)), `${r.status} ${said(r)}`);
+
+    const racer = await account();
+    const race = await Promise.all(Array.from({ length: caps.FORGE_DAILY_CAP + 2 }, () => paint(racer)));
+    step(`${caps.FORGE_DAILY_CAP + 2} paintings at once on a cap of ${caps.FORGE_DAILY_CAP}: exactly ${caps.FORGE_DAILY_CAP} are made, the rest are 429s`,
+      race.filter((x) => x.status === 200).length === caps.FORGE_DAILY_CAP && race.filter((x) => x.status === 429).length === 2, race.map((x) => x.status).join('/'));
+
+    // everyone so far: the dm's cap, the guest's one, the racer's cap; the next account reaches the ceiling
+    const other = await account();
+    const room = caps.FORGE_DAILY_CEILING - 2 * caps.FORGE_DAILY_CAP - caps.FORGE_DAILY_CAP_GUEST;
+    const fills = [];
+    for (let i = 0; i < room; i++) fills.push(await paint(other));
+    r = await chat(other, 'hello');
+    const ao = await allowance(other);
+    step('the daily ceiling stops an account that still has uses of its own, with its own sentence', room > 0 && room < caps.FORGE_DAILY_CAP && fills.every((x) => x.status === 200)
+      && r.status === 429 && /^The Forge has reached its daily limit for everyone — it opens again at midnight UTC/.test(said(r)) && ao?.used === room && ao.left === 0,
+    `${fills.map((x) => x.status).join('/')} then ${r.status} ${said(r)} ${JSON.stringify(ao)}`);
+
+    const admin = await account({ admin: true });
+    c0 = await ctl('/calls');
+    r = await chat(admin, 'paint 2');
+    c1 = await ctl('/calls');
+    const aa = await allowance(admin);
+    const still = await chat(other, 'and now?');
+    step('an admin is never capped, even past the ceiling, and does not spend it; their use is still counted', r.status === 200 && r.body?.batch && c1.image - c0.image === 2
+      && aa?.limit === null && aa.used === 3 && still.status === 429, `${r.status} ${r.body?.applyError || ''} ${JSON.stringify(aa)} other ${still.status}`);
+
+    // voice: a line and an ambience are one use each
+    await dm.call('POST', `/api/voice/nodes/${dm.node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
+    c0 = await ctl('/calls');
+    const lines = [];
+    for (const text of ['One', 'Two', 'Three']) {
+      lines.push(await dm.call('POST', `/api/voice/nodes/${dm.node}/line`, { text }));
+      await dm.call('DELETE', `/api/voice/nodes/${dm.node}/line`);
+    }
+    const amb = await dm.call('POST', `/api/voice/maps/${dm.root}/ambience`, { prompt: 'rain on the roof' });
+    c1 = await ctl('/calls');
+    const vwant = new RegExp(`^You've used today's ${caps.VOICE_DAILY_CAP} voice recordings \\(lines and ambiences\\) — they come back at midnight UTC`);
+    step(`voice: ${caps.VOICE_DAILY_CAP} lines on a cap of ${caps.VOICE_DAILY_CAP}, then a line and an ambience are 429s, and neither reaches the provider`,
+      lines.slice(0, 2).every((x) => x.status === 200) && [lines[2], amb].every((x) => x.status === 429 && vwant.test(said(x))) && c1.speech - c0.speech === 2 && c1.ambience === c0.ambience,
+      `${lines.map((x) => x.status).join('/')} ${amb.status} ${said(amb)} speech ${c1.speech - c0.speech}`);
+    await other.call('POST', `/api/voice/nodes/${other.node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
+    const oamb = await other.call('POST', `/api/voice/maps/${other.root}/ambience`, { prompt: 'wind in the reeds' });
+    const oline = await other.call('POST', `/api/voice/nodes/${other.node}/line`, { text: 'Hello' });
+    const av = await allowance(dm, 'voice');
+    step('voice has its own ceiling: an ambience fills it, the next line is refused for everyone', oamb.status === 200 && oline.status === 429
+      && /^Voice has reached its daily limit for everyone/.test(said(oline)) && av?.used === caps.VOICE_DAILY_CAP && av.left === 0, `${oamb.status} ${said(oamb)} / ${oline.status} ${said(oline)}`);
+  } finally {
+    for (const [call, wid] of made) await call('DELETE', `/api/worlds/${wid}`);
+  }
+}
+
 // a JSON body of `null` is the caller's mistake: a 400 before the route, never a 500 (sign-out sends {})
 const nullBody = await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'null' });
 step('a malformed JSON body is answered with a 4xx, not a 500', nullBody.status >= 400 && nullBody.status < 500, String(nullBody.status));
