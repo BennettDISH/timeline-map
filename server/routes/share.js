@@ -61,7 +61,8 @@ async function allowedTime(w, tRaw) {
   const canon = w.timeline_current_time;
   if (canon == null) return NEVER;
   const t = parseInt(tRaw, 10);
-  if (!Number.isFinite(t) || t >= canon) return canon;
+  // a moment the clock's column can't hold is no moment at all (Postgres would refuse it)
+  if (!Number.isFinite(t) || t >= canon || t < NEVER) return canon;
   const r = await pool.query(
     'SELECT 1 FROM eras WHERE world_id=$1 AND player_visible AND start_time <= $2 AND end_time >= $2 LIMIT 1',
     [w.id, t]);
