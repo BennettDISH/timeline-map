@@ -28,7 +28,8 @@ server-side Waypoint SSO and guest sign-in · Cloudflare R2 for art (base64-in-P
 · optional Gemini "Forge" (a per-world mind) and Gemini/OpenAI/ElevenLabs voices.
 
 ## Getting started
-Requires Node 18+ and a Postgres database.
+Requires Node 22 (the root `engines` pins 22.x, which is what Railway builds with; Vite needs
+20.19+) and a Postgres database.
 
 ```bash
 npm install                  # the root postinstall installs server/ and client/
