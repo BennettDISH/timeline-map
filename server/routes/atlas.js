@@ -835,17 +835,20 @@ router.patch('/nodes/:id', wrap(async (req, res) => {
        WHERE id = $1 RETURNING body`, [req.params.id]);
     return res.json({ ok: true, body: r.rows[0]?.body ?? null, factId: null });
   }
-  const before = 'title' in c.vals ? (await pool.query('SELECT title, interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0] : null;
+  const before = ('title' in c.vals || 'visibility' in c.vals)
+    ? (await pool.query('SELECT title, interior_map_id, visibility FROM nodes WHERE id=$1', [req.params.id])).rows[0] : null;
   await updateCols('nodes', req.params.id, c.vals, true);
   // an interior still carrying its node's old name follows the rename; a space the DM named
   // on purpose keeps its own name, and so does a map the node only leads to (a door's room)
-  if (before?.interior_map_id && c.vals.title !== before.title) {
+  if ('title' in c.vals && before?.interior_map_id && c.vals.title !== before.title) {
     await pool.query('UPDATE maps SET title=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND title=$3 AND owner_node_id=$4',
       [c.vals.title, before.interior_map_id, before.title, req.params.id]);
   }
   // Revealing a node reveals where it stands: the Forge births placements DM-only, so a
   // "revealed" node would otherwise stay invisible to players behind its hidden placement.
-  if ('visibility' in c.vals && c.vals.visibility !== 'dm') {
+  // Only a node that WAS DM-only is revealed: pressing 👁 Players again on a shared entry, or
+  // keeping a marker as canon, leaves a placement the DM hid on one map hidden.
+  if ('visibility' in c.vals && c.vals.visibility !== 'dm' && before?.visibility === 'dm') {
     await pool.query(`UPDATE placements SET visibility='shared' WHERE node_id=$1 AND visibility='dm'`, [req.params.id]);
   }
   res.json({ ok: true });

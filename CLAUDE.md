@@ -362,9 +362,11 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   placements, footsteps or markers stand inside the batch's maps or the DM hung spaces on
   its nodes; keeps paintings used elsewhere (the style anchor counts unless the batch set
   it — `created.anchorSet`); reverts a granted move only if its map still exists.
-  The mind never sets visibility itself (it may only ASK to `reveal`); **revealing a node
-  (atlas PATCH visibility ≠ dm) also lifts its DM-only placements to shared** — forge-born
-  placements would otherwise keep a "revealed" node invisible to players.
+  The mind never sets visibility itself (it may only ASK to `reveal`); **revealing a DM-only
+  node (atlas PATCH visibility dm → shared/player) also lifts its DM-only placements to shared** —
+  forge-born placements would otherwise keep a "revealed" node invisible to players. A node that
+  players already see (👁 Players pressed again, a marker kept as canon) lifts nothing, so a
+  placement hidden on one map stays hidden.
 - **Asks (permission-gated skills)**: the mind may request privileged acts on EXISTING
   things — `move` (reposition/carry a placement, incl. onto a new interior), `edit`
   (overwrite title/body/category/dm_note), `drop_era`, `reveal`. They're stored on the
