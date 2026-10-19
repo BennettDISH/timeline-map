@@ -85,6 +85,9 @@ app.use(['/api/images/upload', '/api/images-base64/upload'], express.json({ limi
 // AHEAD of the global parser, which skips a body already read
 app.use('/api/share', express.json({ limit: '16kb' }));
 app.use(express.json({ limit: '10mb' }));
+// Express 5's parser leaves req.body undefined when a request carries no JSON body (a DELETE,
+// a bare POST); the routes read req.body.x as they did under Express 4, which always gave {}
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -119,8 +122,9 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
   const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
 
   // SPA fallback: serve index.html for any non-API GET so client-side routes work on direct
-  // navigation / refresh (e.g. /auth/callback, /w/:id/m/:id).
-  app.get('*', (req, res, next) => {
+  // navigation / refresh (e.g. /auth/callback, /w/:id/m/:id). Express 5 names the wildcard;
+  // the braces make it match / too.
+  app.get('/{*path}', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     const isPlayer = req.path === '/p' || req.path.startsWith('/p/');
     res.type('html').send(isPlayer ? indexHtml : withWidget);
@@ -147,7 +151,9 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-schemaReady.finally(() => app.listen(PORT, () => {
+schemaReady.finally(() => app.listen(PORT, (err) => {
+  // Express 5 hands a listen error (a port in use) to this callback instead of throwing it
+  if (err) throw err;
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   scheduleGuestSweep(); // after the schema: it reads users.last_seen_at

@@ -381,6 +381,12 @@ if (cfg?.paid) {
 // a JSON body of `null` is the caller's mistake: a 400 before the route, never a 500 (sign-out sends {})
 const nullBody = await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'null' });
 step('a malformed JSON body is answered with a 4xx, not a 500', nullBody.status >= 400 && nullBody.status < 500, String(nullBody.status));
+// no body at all reads as an empty one (Express 5's parser leaves it undefined): the route answers
+// for itself — here a folder with no name is a 400 with a sentence, and nothing is written
+if (cfg?.token) {
+  const bare = await fetch(`${BASE}/api/image-folders/`, { method: 'POST', headers: { Authorization: `Bearer ${cfg.token}` } });
+  step('a POST with no body is answered by its route, never a 500', bare.status === 400, `${bare.status} ${(await json(bare))?.message || ''}`);
+}
 const health = await fetch(`${BASE}/health`);
 step('the server answers /health', health.status === 200, String(health.status));
 const failed = steps.filter((s) => !s).length;
