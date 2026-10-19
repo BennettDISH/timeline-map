@@ -9,6 +9,7 @@ ships, delete its line (git keeps the history).
 - @-mention an entry while writing to make a thread to it.
 - A create-world wizard (name → backdrop → land on a real map).
 - Portals: threads that carry a kind or a moment in the UI.
+- Copy a world with its pending Forge cards (the batches' ids remapped, so Keep and Unmake work in the copy) instead of refusing the copy until they are settled; a pending card on the sample template blocks newcomers from starting from it today.
 
 ## Planned
 - Guests keep their worlds when they become a real account: Waypoint can claim a guest (keeping its central id, so the worlds would stay theirs), but only from its own account page, which a guest the Atlas made through the proxy never signs into. The Atlas needs a proxy claim endpoint and a button.
