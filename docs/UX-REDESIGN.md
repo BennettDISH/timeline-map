@@ -1,6 +1,6 @@
 # timeline-map — Ground-Up Redesign Plan (vision locked)
 
-> **Historical (banner added 2026-09-26):** as of September 2026 production holds a real, live campaign (world 29, DM notes, R2 art, a Forge bible, a share link in use). Every statement below that calls the data disposable or says the schema may be recreated is OUT OF DATE — migrations must be additive and preserve data. See CLAUDE.md.
+> **Historical (banner added 2026-09-26):** as of September 2026 production holds a real, live campaign (world 29, DM notes, R2 art, a Forge bible, a share link in use). Every statement below that calls the data disposable or says the schema may be recreated is OUT OF DATE — migrations must be additive and preserve data. See Database in `docs/RULES.md`.
 
 A plan, not changes. Built from a multi-agent UX deep dive, a study of comparable tools (World Anvil,
 LegendKeeper, Kanka, Foundry VTT, Campfire, Obsidian+Leaflet, Aeon Timeline, kepler.gl, tldraw/Figma),
@@ -89,7 +89,7 @@ app and not paper. Every flow is optimized so a DM can build faster than they co
 ## Status
 
 The app this section once diagnosed (events pinned on a map) was deleted in August 2026; the
-vision above is what shipped as the Atlas. `CLAUDE.md` is the current truth, and
+vision above is what shipped as the Atlas. `docs/RULES.md` is the current truth, and
 `docs/ROADMAP.md` holds the honest list of what is still unbuilt.
 
 ---

@@ -1,9 +1,11 @@
 # Docs
 
-`CLAUDE.md` at the root is the design spec: the model and every rule the code enforces. This
-folder holds the rest.
+[RULES.md](RULES.md) is the design spec: the model and every rule the code enforces.
+`CLAUDE.md` at the root holds the working notes (commands, the local stack, the file map and the
+key invariants). This folder holds the rest.
 
 ## Topic docs
+- [RULES.md](RULES.md) — the design spec, by area. Update it in the same commit when behaviour changes.
 - [ROADMAP.md](ROADMAP.md) — open ideas, planned work, never-tested areas and small known issues.
 - [UX-REDESIGN.md](UX-REDESIGN.md) — the founding vision (2026-07). Its roadmap is retired; everything in it shipped by v1.0.0 except what is in ROADMAP.md.
 - [R2-SETUP.md](R2-SETUP.md) — click-by-click Cloudflare R2 setup for images.

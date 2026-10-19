@@ -5,12 +5,14 @@ open a share link on their phones and see only what the DM has revealed, at the 
 
 Live: https://timeline-map-production.up.railway.app (GitHub: `timeline-map`).
 
-**Start with `CLAUDE.md`.** It is the always-current description of the model, the rules the
-code enforces, and how to work on the repo (prove a change on the local stack, push to `main`,
-Railway deploys, the live suites prove it again).
+**Start with `CLAUDE.md`, then `docs/RULES.md`.** CLAUDE.md is how to work on the repo (prove a
+change on the local stack, push to `main`, Railway deploys, the live suites prove it again), the
+file map and the key invariants; RULES.md is the always-current description of the model and
+every rule the code enforces.
 
 ## Doc map
-- `CLAUDE.md` — the truth: architecture, the timeline and secrecy rules, the Forge, voice, input rules.
+- `CLAUDE.md` — working notes: commands, the local stack, the file map, the key invariants.
+- `docs/RULES.md` — the truth: the timeline and secrecy rules, the Forge, voice, input rules, by area.
 - `docs/README.md` — the index of everything in `docs/`.
 - `docs/ROADMAP.md` — open ideas, planned work and known issues.
 - `docs/UX-REDESIGN.md` — the founding vision (its roadmap is retired).
@@ -42,7 +44,7 @@ Production: `npm run build` then `npm start` (Railway runs both from `main`).
 ## Deploy
 Railway, the `timeline-map` service with its own Postgres. A push to `main` deploys (nixpacks,
 `npm start`, health check `/health`, see `railway.toml`). Production holds a real campaign, so
-schema changes are additive only (see Database in `CLAUDE.md`).
+schema changes are additive only (see Database in `docs/RULES.md`).
 
 ## Environment variables
 Names only; `.env.example` explains each.

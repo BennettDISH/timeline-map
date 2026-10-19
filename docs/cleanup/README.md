@@ -23,8 +23,9 @@ history for intent and asked whether it deserves a line at all.
   `32ef89c` and the code will move as you go.
 - Tick the box in the package file when an item is done and put the commit hash after it.
   IDs are stable: **B** broken · **P** product polish · **D** dead code · **O** obsolete · **C** confusing.
-- CLAUDE.md is the design spec. Where an item and CLAUDE.md disagree, decide which is wrong before
-  changing either, and update CLAUDE.md in the same commit when behaviour changes.
+- `docs/RULES.md` is the design spec (it was CLAUDE.md until 2026-10-19). Where an item and
+  RULES.md disagree, decide which is wrong before changing either, and update RULES.md in the
+  same commit when behaviour changes.
 - Deleting code: re-run the item's search yourself first. A sloppy grep that deletes live code is
   the worst outcome of a cleanup.
 - Build-verify with `cd client && npm run build` / `node --check <file>`; verify user-visible
