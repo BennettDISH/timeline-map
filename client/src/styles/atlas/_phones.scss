@@ -10,5 +10,8 @@
   .atlas{grid-template-rows:auto 1fr}
   .atlas .top{flex-wrap:wrap;height:auto;min-height:46px;padding:4px 8px;gap:6px 8px}
   .atlas .top .crumbs{flex-basis:100%;order:9;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  // the wrapped top bar is taller than 46px, so the Player View's map column takes the grid's
+  // second row instead of its fixed 46px offset, which hid the crumbs under the lantern bar
+  .atlas.pview .main{position:relative;inset:auto;min-height:0}
   .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:$z-hud;width:32px;height:32px;border-radius:50%;padding:0}
 }
