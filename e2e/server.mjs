@@ -35,6 +35,16 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     const again = await fetch(`${BASE}/api/atlas/worlds/${cfg.worldId}`, { headers: { ...H, 'If-None-Match': etag || '', 'Cache-Control': 'max-age=0' } });
     step('…and a matching If-None-Match still gets the whole answer, never a 304', etag && again.status === 200, `${again.status}${etag ? '' : ' (no ETag to match)'}`);
   }
+  // a moment the clock can't hold is no moment players may stand at: it resolves to now, never a 500
+  {
+    const at = (path) => fetch(`${BASE}/api/share/${cfg.shareToken}${path}`);
+    const nodeId = (await json(await at(`/maps/${cfg.root}`)))?.placements?.[0]?.node?.id;
+    for (const t of ['-99999999999', '99999999999', '-2147483649']) {
+      const rs = [await at(`/maps/${cfg.root}?t=${t}`), await at(`/maps/${cfg.root}?t=${t}&window=1`),
+        ...(nodeId ? [await at(`/nodes/${nodeId}?t=${t}`), await at(`/nodes/${nodeId}/locate?t=${t}`)] : [])];
+      step(`a moment past the clock's range (t=${t}) resolves to now on the map${nodeId ? ', an entry and its locate' : ''}`, rs.every((r) => r.status === 200), rs.map((r) => r.status).join('/'));
+    }
+  }
   for (const spelled of [`${cfg.root}.0`, `${cfg.root}e0`, `0${cfg.root}`]) {
     const r = await mark(spelled, 'server-probe');
     step(`a marker on a non-canonical map id (${spelled}) is refused before anything is written`, r.status === 404, String(r.status));
