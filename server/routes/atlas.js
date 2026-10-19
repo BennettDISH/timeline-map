@@ -7,7 +7,7 @@ const { r2Enabled, putObject, copyObject } = require('../storage');
 const { spotlightTrail, pendingForge } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
-const { MAX_CORNERS } = require('../lib/validate');
+const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const router = express.Router();
 
@@ -247,7 +247,8 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
   for (const k of ['timeline_min_time', 'timeline_max_time', 'timeline_current_time']) {
     if (k in req.body) {
       const v = Number(req.body[k]);
-      if (req.body[k] == null || !Number.isInteger(v)) return res.status(400).json({ message: 'Timeline moments must be whole numbers' });
+      // ...and one the clock's column can hold (Postgres INTEGER), so it is a 400, never a 500
+      if (req.body[k] == null || !Number.isInteger(v) || Math.abs(v) > INT_MAX) return res.status(400).json({ message: 'Timeline moments must be whole numbers' });
       req.body[k] = v;
     }
   }
