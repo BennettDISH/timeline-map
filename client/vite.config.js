@@ -15,11 +15,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          utils: ['axios']
+        // the same two long-lived chunks as before: React and the router, and axios
+        codeSplitting: {
+          groups: [
+            { name: 'vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run[\\/]router)[\\/]/ },
+            { name: 'utils', test: /[\\/]node_modules[\\/]axios[\\/]/ }
+          ]
         }
       }
     }
