@@ -7,6 +7,7 @@ const pool = require('../config/database');
 const { generateJSON } = require('./gemini');
 const { validateBatch, applyBatch, CAPS } = require('./contract');
 const { sessionNotes } = require('./notes');
+const spend = require('../lib/spend');
 
 const rulebook = (unit) => `You are the mind of a fantasy world inside the Atlas — a recursively zoomable map scrubbed through time. You grow the world when its DM asks, keep its stories coherent, and remember what matters. You are a collaborator with taste: concrete, evocative, never generic.
 
@@ -155,7 +156,9 @@ const SIZES = { small: '3–6', medium: '8–14', large: '18–35' };
 
 // One turn of the conversation: ground, ask, validate (one repair round), apply, remember.
 // `context` is where the DM is standing (current map / selected node), server-verified.
-async function converse({ worldId, userId, message, context }) {
+// `user` is the signed-in DM: the turn's paintings are spent from their allowance.
+async function converse({ worldId, user, message, context }) {
+  const userId = user.id;
   const mind = await ensureMind(worldId);
   const world = (await pool.query('SELECT timeline_min_time, timeline_max_time FROM worlds WHERE id=$1', [worldId])).rows[0];
   const tail = (await pool.query(
@@ -197,9 +200,14 @@ async function converse({ worldId, userId, message, context }) {
         + (links.length ? `\nThreads: ${links.map((l) => `${l.other}${l.label ? ` (${l.label})` : ''}`).join(', ')}` : '');
     }
   }
+  // the DM's paintings left today (null for an admin, who is uncapped), so the mind never
+  // proposes more. It rides on the turn, not the system prompt, so the prompt's long stable
+  // part (rulebook, bible) stays the same from turn to turn.
+  const left = (await spend.allowance(user, 'forge').catch(() => null))?.left;
+  const budget = left != null ? `\n\nPAINTINGS LEFT TODAY: ${left} (the DM's daily allowance) — never propose more images than that${left === 0 ? ', so propose none' : ''}.` : '';
   const messages = [
     ...tail.map((m) => ({ role: m.role === 'mind' ? 'model' : 'user', text: m.content })),
-    { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}${where}` },
+    { role: 'user', text: `WORLD DIGEST (current and authoritative — trust it over the chat above):\n${JSON.stringify(d)}\n\nDM SAYS: ${message}${where}${budget}` },
   ];
 
   // what the DM said is history the moment it is sent — a model failure must not lose it
@@ -216,7 +224,13 @@ async function converse({ worldId, userId, message, context }) {
       resp = await generateJSON({ system, messages });
       errs = resp?.batch ? validateBatch(resp.batch, world) : [];
     }
-    if (resp?.batch && !errs.length) {
+    // each painting the proposal asks for is one Forge use, spent before any is painted: a
+    // proposal wanting more than is left changes nothing and says so
+    const wanted = resp?.batch && !errs.length ? resp.batch.images.length : 0;
+    const short = wanted ? await spend.take(user, 'forge', wanted) : null;
+    if (short) {
+      applyError = spend.paintingsText(short.left, wanted);
+    } else if (resp?.batch && !errs.length) {
       try {
         applied = await applyBatch({ worldId, userId, batch: resp.batch, artStyle: mind.art_style });
       } catch (e) {

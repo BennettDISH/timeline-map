@@ -27,7 +27,7 @@ if [ -z "$SKIP_WAIT" ]; then
   echo "live commit: $live ($([ "$live" = "$want" ] && echo match || echo NO MATCH after 20 min))"
 fi
 cd "$R"
-echo "--- contract (local)"; node --test server/test/contract.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
+echo "--- contract and spend (local)"; node --test server/test/contract.test.js server/test/spend.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
 if [ -z "$E2E_CONFIG" ]; then
   echo "--- share api"; node --test server/test/share-live.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
 fi

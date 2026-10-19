@@ -339,6 +339,17 @@ CREATE TABLE IF NOT EXISTS tombstones (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- The spend guard (server/lib/spend.js): paid calls counted per account per UTC day, and
+-- everyone's together on user_id 0 (the daily ceiling). Kept in the database so a restart
+-- or a deploy never resets them. No foreign key: a removed guest's old days just age out.
+CREATE TABLE IF NOT EXISTS spend_counters (
+    day DATE NOT NULL,
+    kind VARCHAR(10) NOT NULL,
+    user_id INTEGER NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, kind, user_id)
+);
+
 -- Worlds flagged as templates are clonable by ANY signed-in user — including their
 -- DM-only content. Only ever set this on purpose-built sample worlds; there is no UI
 -- for it by design.

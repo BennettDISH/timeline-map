@@ -13,10 +13,12 @@ ships, delete its line (git keeps the history).
 ## Planned
 - Guests keep their worlds when they become a real account: Waypoint can claim a guest (keeping its central id, so the worlds would stay theirs), but only from its own account page, which a guest the Atlas made through the proxy never signs into. The Atlas needs a proxy claim endpoint and a button.
 - P112: each lens tick re-renders the whole workspace (about 15 fps scrubbing the crowded root on a 4x-slower CPU). Parked by Bennett on 2026-09-28 until the Atlas is at a good V1; see `docs/cleanup/WP-26-the-party-the-clock-and-a-long-campaign.md`.
+- Show the day's allowance (Forge uses and voice recordings left) in the Forge panel and the voice controls before it runs out; the status routes already send `allowance`. Today the DM learns of the cap only when a call is refused.
+- Upload storage has no per-account ceiling: 10 MB per image, no quota, and no cap on how many worlds `POST /api/worlds` makes (only clones stop at 50).
 
 ## Never tested
 - The Player View in real WebKit (every iPhone and iPad browser).
-- The Forge's write path end to end against a sandbox with a scripted model.
+- The Forge's write path end to end against a sandbox with a scripted model. The local stack's paid server scripts a turn that paints (the spend probes in `e2e/server.mjs`), but nothing yet scripts nodes, maps, links or asks.
 
 ## Small known issues (judgment calls still open in `docs/cleanup/appendix.md`, re-checked 2026-09-29)
 - Hard-coded colours duplicate the style tokens (four reds for danger, two golds, `#38b6a3` beside `--party`).

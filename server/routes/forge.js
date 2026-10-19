@@ -13,17 +13,24 @@ const { resolveImageUrl } = require('../utils/imageUrl');
 const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
 const { discardBatch, allowAsks, paintAndStore } = require('../forge/contract');
+const spend = require('../lib/spend');
 const router = express.Router();
 
 router.use(authenticateToken);
 
-router.get('/status', (req, res) => res.json({ enabled: enabled() }));
+// `allowance` is today's Forge spend for this account (lib/spend.js); a database blip leaves it
+// out rather than switch the panel off
+router.get('/status', async (req, res) => {
+  const allowance = await spend.allowance(req.user, 'forge').catch(() => null);
+  res.json({ enabled: enabled(), allowance });
+});
 
 // The harness switch: everything below simply does not exist when the Forge is off.
 router.use((req, res, next) => (enabled() ? next() : res.status(404).json({ message: 'Route not found' })));
 
-// Generations call a paid API — keep an honest ceiling well above table use.
-router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120 }));
+// Generations call a paid API — keep an honest ceiling well above table use. The money itself
+// is capped per account per day by the spend guard (a turn and each painting count one).
+router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: { message: 'Too many Forge requests from here — try again in an hour' } }));
 
 // the raw error (provider JSON, SQL, a stack) goes to the log; the DM gets one plain sentence
 const wrap = wrapWith('forge', 'The Forge hit a problem — try again');
@@ -163,7 +170,8 @@ router.post('/worlds/:worldId/chat', wrap(async (req, res) => {
   }
   inFlight.add(worldId);
   try {
-    const out = await converse({ worldId: Number(worldId), userId: req.user.id, message, context });
+    if (!(await spend.charge(req, res, 'forge'))) return; // the turn is one use; its paintings are counted when the reply asks for them
+    const out = await converse({ worldId: Number(worldId), user: req.user, message, context });
     res.json(out);
   } finally {
     inFlight.delete(worldId);
@@ -217,6 +225,7 @@ router.post('/nodes/:id/art', wrap(async (req, res) => {
   const mind = await ensureMind(n.world_id);
   const guidance = typeof req.body?.guidance === 'string' ? req.body.guidance.slice(0, 500) : '';
   const prompt = [`${n.title} (${n.category})`, n.body, guidance].filter(Boolean).join('. ');
+  if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: n.world_id, userId: req.user.id, kind: 'art', prompt, artStyle: mind.art_style, name: `${n.title} — art` });
   // Fresh art on a bare node clearly wants to be seen: flip it to an image pin.
   // Replacing existing art keeps whatever pin the DM chose.
@@ -246,6 +255,7 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   // without one it is the base art
   const start = req.body?.start_time == null ? null : whole(req.body.start_time);
   if (start === undefined) return res.status(400).json({ message: 'A period starts at a whole number on the clock' });
+  if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt: start == null ? prompt : `${prompt}. This is how it looks in a later period`, artStyle: mind.art_style, name: `${m.title} — ${start == null ? 'backdrop' : `from ${start}`}` });
   if (start == null) {
     await pool.query('UPDATE maps SET image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [img.id, m.id]);

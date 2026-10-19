@@ -23,8 +23,11 @@ still unbuilt is in `docs/ROADMAP.md`. `docs/README.md` indexes the docs.
   devDependency of `e2e` only, never the server's), seeds a DM and a world laid out like the
   proving ground, and writes `e2e/local.config.json`; `E2E_CONFIG=e2e/local.config.json bash
   e2e/watch.sh` then runs every suite against it except the live secrecy suite. Outside services
-  (R2, Waypoint, the Forge, voices) are off there, and the database dies with the process. The
-  server reads `client/dist/index.html` once at boot: rebuild and restart after a client change.
+  (R2, Waypoint, the Forge, voices) are off there, and the database dies with the process. A
+  second server on the same database (`LOCAL_PORT` + 1) runs the Forge, voices and R2 against
+  stubs (`e2e/stubs.cjs`: nothing leaves the machine) with tiny caps, for the spend-guard probes
+  in `e2e/server.mjs`. The server reads `client/dist/index.html` once at boot: rebuild and
+  restart after a client change.
   In the desktop app's browser pane it is `atlas-local` in `~/repos/.claude/launch.json`
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
@@ -95,10 +98,10 @@ export like `~/atlas-backups/`). Undo and world clone both insert from ONE colum
 table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
 Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
 base64 rows are lifted into R2, and folders, the lantern and the mind travel too.
-Live tables (the 15 `schema.sql` creates, and exactly what production holds as of 2026-09-26):
+Live tables (the 16 `schema.sql` creates; production held the first 15 as of 2026-09-26):
 `users`, `worlds`, `image_folders`, `images`, `maps`, `nodes`, `placements`, `links`, `node_facts`,
-`eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`. The
-legacy tables (`events` and friends) are gone.
+`eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`, and
+`spend_counters` (the spend guard, below). The legacy tables (`events` and friends) are gone.
 
 ## Development Guidelines
 - Follow existing SCSS styling patterns in `client/src/styles/`. `atlas.scss` (the workspace and
@@ -350,8 +353,8 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   R2-uploaded first with rollback cleanup; the image picker's ✦ Paint routes in `forge.js`
   are direct DM acts outside any batch), `mind.js` (rulebook + per-turn world digest from
   the DB + `world_minds` lore/style + `mind_messages` tail). Routes in
-  `server/routes/forge.js` (auth + ownsWorld + 120/hr limiter; one chat turn per world at
-  a time — a second gets 409).
+  `server/routes/forge.js` (auth + ownsWorld + 120/hr limiter + the spend guard; one chat turn
+  per world at a time — a second gets 409).
 - New nodes and placements are **born DM-only**, and **nothing a PENDING batch wrote reaches
   players before Keep**: `share.js` loads the world's pending batches once per request
   (`pendingForge`, on `w.pending`) and hides their maps (even an interior hung on a shared
@@ -417,6 +420,29 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   20000)`) and fills `art_style` only when still empty at write time, so a "Save the
   mind" during the turn survives. The validator turns null/bare-string entries into
   errors, never a throw.
+
+## The spend guard (daily caps on paid calls)
+- `server/lib/spend.js`. Every paid call is counted per account per UTC day in `spend_counters`
+  (a row per day, kind and user; user 0 is everyone together), so a restart or a deploy never
+  resets it. Kinds: `forge` — a chat turn is one use and each painting one more (spent when the
+  reply proposes them; a proposal wanting more than is left changes nothing and its applyError
+  says how many are left), ✦ Paint on an entry or a map is one; `voice` — a line or an ambience
+  is one. Listing voices, Keep/Unmake/Allow and the panel's reads are free.
+- Caps by env (whole numbers, a typo keeps the default): `FORGE_DAILY_CAP` 40 per account,
+  `FORGE_DAILY_CAP_GUEST` 5 per guest, `FORGE_DAILY_CEILING` 150 for everyone together;
+  `VOICE_DAILY_CAP` 20, `VOICE_DAILY_CAP_GUEST` 3, `VOICE_DAILY_CEILING` 100. A cap of 0 shuts the
+  feature for that group. Admins (`isAdmin`) are never capped and never spend the ceiling; their
+  use is still counted on their own row. The defaults are a guess (a heavy turn with a full bible
+  is tens of cents, a painting about 4 cents).
+- A refused call is a **429** with one sentence that says when the uses come back (midnight UTC),
+  checked after every 400/404/409 so a refused input never spends, and before the provider is
+  called. The spend is an upsert that only adds while it stays under the cap, inside one
+  transaction with the ceiling row, so two calls racing for the last use never both get it. A call
+  counts when it is made, whether or not the provider then delivers. `/api/forge/status` and
+  `/api/voice/status` carry `allowance` ({limit, used, left, resetsAt}; limit and left null for
+  an admin), and the mind is told how many paintings are left on every turn (in the turn's message,
+  never the system prompt, so its long stable part stays cacheable). The per-IP limiters (120 an
+  hour) stay as the backstop and now answer with a sentence too.
 
 ## Voice (optional harness, three providers)
 - `server/voice/providers.js` chooses who speaks: `VOICE_PROVIDER` if pinned, else the
@@ -577,7 +603,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
 - Statuses: 400 with one plain sentence for input the server refuses; 404 for anything that
   is not the caller's (never a 403 hint that it exists); 409 for a duplicate; 401 for every
   dead session (no, bad, expired or revoked token, deleted user) — the client ends the
-  session on that status alone; 403 only for a live session without permission (admin).
+  session on that status alone; 403 only for a live session without permission (admin); 429
+  for a rate limit or a spent daily allowance (the spend guard), with a sentence.
 - Every router takes `wrap`, `ownsWorld` and `notFound` from `server/lib/route.js`.
 - The DM's map payload (`GET /maps/:id`) sends a node's long text (body, DM note, voice line
   and style) once, on its first placement — the Party stands once per footstep; its other

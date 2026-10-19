@@ -13,12 +13,18 @@ const { wrap: wrapWith, ownsWorld } = require('../lib/route');
 const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, putObject, deleteObject, keyFromUrl } = require('../storage');
 const voice = require('../voice/providers');
+const spend = require('../lib/spend');
 const router = express.Router();
 
 router.use(authenticateToken);
-router.get('/status', (req, res) => res.json(voice.status()));
+// `allowance` is today's voice spend for this account (lib/spend.js); a database blip leaves it out
+router.get('/status', async (req, res) => {
+  const allowance = await spend.allowance(req.user, 'voice').catch(() => null);
+  res.json({ ...voice.status(), allowance });
+});
 router.use((req, res, next) => (voice.status().enabled ? next() : res.status(404).json({ message: 'Route not found' })));
-router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120 }));
+// a line and an ambience are each one use of the daily allowance (the spend guard); this is the per-IP backstop
+router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: { message: 'Too many voice requests from here — try again in an hour' } }));
 
 // the raw error (provider body, SQL) goes to the log; the DM gets one plain sentence
 const wrap = wrapWith('voice', "Couldn't make the audio — try again");
@@ -58,6 +64,7 @@ router.post('/nodes/:id/line', wrap(async (req, res) => {
     style = req.body.voice_style.trim().slice(0, 400) || null;
     if (style !== n.voice_style) await pool.query('UPDATE nodes SET voice_style=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', [style, n.id]);
   }
+  if (!(await spend.charge(req, res, 'voice'))) return;
   const out = await voice.speak({ voiceId: n.voice_id, style, text });
   const key = `worlds/${n.world_id}/voice-${n.id}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${out.ext}`;
   const url = await putObject(key, out.bytes, out.mimeType);
@@ -82,9 +89,12 @@ router.post('/maps/:id/ambience', wrap(async (req, res) => {
   if (!r2Enabled) return needStorage(res);
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 400) : '';
   if (!prompt) return res.status(400).json({ message: 'Describe the sound of this place' });
+  // asked before anything is spent: without ElevenLabs there is no one to make it
+  if (!voice.status().ambience) return res.status(400).json({ message: 'Ambience needs an ElevenLabs key' });
   if (ambienceBusy.has(m.id)) return res.status(409).json({ message: 'An ambience is already being made for this map — wait for it' });
   ambienceBusy.add(m.id);
   try {
+    if (!(await spend.charge(req, res, 'voice'))) return;
     const out = await voice.ambience(prompt, Number(req.body?.seconds) || 20);
     const key = `worlds/${m.world_id}/ambience-${m.id}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${out.ext}`;
     const url = await putObject(key, out.bytes, out.mimeType);
