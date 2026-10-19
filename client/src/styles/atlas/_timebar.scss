@@ -84,6 +84,9 @@
 @media (max-width:600px){ // the era bar on its own two rows: the track wide, the clock under it
   .atlas .erabar{flex-wrap:wrap;height:auto;padding:6px 10px 8px;gap:4px 12px}
   .atlas .etrack{flex:1 1 100%;height:44px}
+  // the shorter track keeps the era names above the slider: bands at 4–24px, slider at 26–42px
+  .atlas .etrack .eseg{top:4px}
+  .atlas .etrack input[type=range]{bottom:2px}
   .atlas .ezone{width:100%;justify-content:space-between}
 }
 // a held period: the bounds are reversed, nothing is saved until they are in order
