@@ -317,11 +317,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   // lifespans CLAMPED to that envelope — the client then scrubs with zero round trips.
   // Nothing outside the allowed set is ever included, so secrecy still lives here.
   const windowed = req.query.window === '1' && w.timeline_enabled;
-  let ivs = null; let lo = null;
-  if (windowed) {
-    ivs = await allowedIntervals(w);
-    lo = ivs[0][0];
-  }
+  const ivs = windowed ? await allowedIntervals(w) : null;
 
   const map = (await pool.query(
     'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
@@ -366,7 +362,6 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
        ORDER BY p.id`, [mapId, t])).rows;
   }
 
-  const canonT = w.timeline_current_time ?? NEVER;
   // ◎ is offered only where it leads somewhere: each interior on this map is walked once
   const enterable = new Map();
   for (const r of rows) {
@@ -435,11 +430,17 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
     }
   }
 
-  // a focus window is a DM tool; players only get the part of it they may stand in
-  const clampT = (v) => (v == null || !w.timeline_enabled ? v : Math.min(Math.max(v, lo ?? v), canonT));
+  // a focus window is a DM tool; players only get the part of it they may stand in, snapped onto
+  // the revealed envelope like every other moment, in both forms (none when no part is allowed)
+  let focus = [map.focus_start, map.focus_end];
+  if (w.timeline_enabled) {
+    const env = ivs || await allowedIntervals(w);
+    const fs = snapStart(map.focus_start, env), fe = snapEnd(map.focus_end, env);
+    focus = fs != null && fe != null && fs > fe ? [null, null] : [fs, fe];
+  }
   res.json({
     map: { id: map.id, title: map.title, view: map.view,
-           focusStart: clampT(map.focus_start), focusEnd: clampT(map.focus_end),
+           focusStart: focus[0], focusEnd: focus[1],
            ambienceUrl: map.ambience_url || null,
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops, partyTrail } : {}),

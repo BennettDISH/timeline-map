@@ -197,9 +197,9 @@ legacy tables (`events` and friends) are gone.
   Threads name a node only when it (or an interior it owns) stands on a map that passes
   `walkUp`, through a non-DM placement alive inside the allowed envelope (the player-visible
   eras clipped to canon, plus canon). Being 'shared' alone is not enough — ids are guessable.
-  Windowed lifespans, backdrops, the party trail and a map's focus window are SNAPPED onto
-  that envelope (`snapStart`/`snapEnd`), so no moment inside hidden history leaves the
-  server. A clock with no canon fails closed (`NEVER`). Malformed ids 404.
+  Windowed lifespans, backdrops, the party trail and a map's focus window (in the one-moment
+  form too; none when no part of it is allowed) are SNAPPED onto that envelope
+  (`snapStart`/`snapEnd`), so no moment inside hidden history leaves the server. A clock with no canon fails closed (`NEVER`). Malformed ids 404.
 - Image ids are checked to belong to the world on every write (`imageInWorld` in
   `atlas.js`); R2 URLs are public, so this is what keeps one account's art out of another's.
 - **Every node is born DM-only** — manual ones (＋ Add node, right-click, ◌ Outline; POST
