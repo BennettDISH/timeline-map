@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../utils/AuthContext'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { safeNext } from '../utils/nextPath'
 
 function Login() {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
@@ -12,14 +13,14 @@ function Login() {
     return searchParams.get('reason') === 'expired'
   })
   // where to go after signing in: the page that bounced here, else the last map / dashboard
-  const next = location.state?.from?.pathname || searchParams.get('next') || '/'
+  const next = safeNext(location.state?.from?.pathname || searchParams.get('next') || '/')
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
   const [config, setConfig] = useState({ ssoEnabled: false, accountUrl: null })
   const [recovery, setRecovery] = useState(null) // the one-time recovery code a new account gets
   const { login, register, guestLogin, submitting, error, clearError } = useAuth()
   const navigate = useNavigate()
-  const go = () => navigate(next.startsWith('/') ? next : '/', { replace: true })
+  const go = () => navigate(next, { replace: true })
   useEffect(() => { document.title = 'Sign in · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
 
   const handleGuest = async () => {
