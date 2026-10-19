@@ -305,6 +305,14 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   // storage-amplification backstop: cloning duplicates base64 art rows per clone
   const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1', [req.user.id])).rows[0];
   if (parseInt(owned.count) >= 50) return res.status(400).json({ message: 'That is a lot of worlds — delete some first' });
+  // a pending Forge batch is only the DM's preview: the copy has no forge_batches rows, so its
+  // work would land there as kept work with no card to Unmake, and share.js would no longer
+  // hold it back from the copy's players. Settle the cards first.
+  if ((await pool.query(`SELECT 1 FROM forge_batches WHERE world_id=$1 AND status='pending' LIMIT 1`, [src.id])).rows.length) {
+    return res.status(409).json({ message: src.created_by === req.user.id
+      ? `Keep or Unmake the Forge's cards in “${src.name}” first — a copy would keep their work`
+      : 'That world is being changed right now — try again later, or start an empty world' });
+  }
 
   const client = await pool.connectTx();
   try {

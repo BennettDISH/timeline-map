@@ -341,6 +341,18 @@ if (cfg?.paid) {
     step('an admin is never capped, even past the ceiling, and does not spend it; their use is still counted', r.status === 200 && r.body?.batch && c1.image - c0.image === 2
       && aa?.limit === null && aa.used === 3 && still.status === 429, `${r.status} ${r.body?.applyError || ''} ${JSON.stringify(aa)} other ${still.status}`);
 
+    // a copy carries no Forge cards, so a pending batch's work would land in it as kept work that
+    // its players see at once: the copy waits until the card is kept or unmade
+    const pending = r.body?.batch?.batchId;
+    const copy = () => admin.call('POST', '/api/atlas/worlds/clone', { source_id: admin.wid, name: `copy-probe-${Date.now()}` });
+    let cp = await copy();
+    if (cp.body?.worldId) made.push([admin.call, cp.body.worldId]);
+    step("a world with a Forge card waiting can't be copied, and the DM is told why", pending && cp.status === 409 && /^Keep or Unmake the Forge's cards in /.test(said(cp)), `${cp.status} ${said(cp)}`);
+    const kept = await admin.call('POST', `/api/forge/worlds/${admin.wid}/batches/${pending}/keep`);
+    cp = await copy();
+    if (cp.body?.worldId) made.push([admin.call, cp.body.worldId]);
+    step('…and once the card is kept the copy is made', kept.status === 200 && cp.status === 201 && !!cp.body?.worldId, `${kept.status} then ${cp.status} ${said(cp)}`);
+
     // voice: a line and an ambience are one use each
     await dm.call('POST', `/api/voice/nodes/${dm.node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
     c0 = await ctl('/calls');

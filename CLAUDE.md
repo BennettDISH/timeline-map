@@ -97,7 +97,9 @@ EXISTS`), never a recreate, and anything destructive gets a snapshot first (`tom
 export like `~/atlas-backups/`). Undo and world clone both insert from ONE column list per
 table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
 Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
-base64 rows are lifted into R2, and folders, the lantern and the mind travel too.
+base64 rows are lifted into R2, and folders, the lantern and the mind travel too. A world with a
+pending Forge batch is not copied (409) until its cards are kept or unmade: a copy carries no
+cards, so their work would land there as kept work its players see at once.
 Live tables (the 16 `schema.sql` creates; production held the first 15 as of 2026-09-26):
 `users`, `worlds`, `image_folders`, `images`, `maps`, `nodes`, `placements`, `links`, `node_facts`,
 `eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`, and
