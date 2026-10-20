@@ -1,9 +1,11 @@
 // API check against the live deploy: Undo puts back EVERY column it snapshotted (DM note,
 // stance, body, the interior's notes and focus), and the delete impact tells the truth.
 // Needs dm.config.json (a throwaway DM account + world) — see README.md; E2E_CONFIG names another.
+import { liveOptIn } from './live.mjs';
 import { readFileSync } from 'fs';
 const cfg = JSON.parse(readFileSync(process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url)));
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
+liveOptIn(BASE);
 const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` };
 const api = async (method, path, body) => {
   const r = await fetch(`${BASE}/api/atlas${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });

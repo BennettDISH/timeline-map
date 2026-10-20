@@ -21,10 +21,9 @@ Content contract the tests depend on:
   links: Open Landmark -> Hidden Person (pruned), -> Brief Fair (kept)
 The full executable block lives in git history (seeded 2026-08-20); reconstruct from
 the contract above if it ever needs rebuilding.
-NOTE: each full test run leaves one 'probe-marker-<ts>' player node on the fixture
-root (the write-path test). Sweep occasionally:
-  DELETE FROM nodes WHERE world_id=(SELECT id FROM worlds WHERE name='Secrecy Fixture')
-    AND visibility='player';
+NOTE: until 2026-10-20 each full test run left one 'probe-marker-<ts>' player node on the
+fixture root (the write-path test, now e2e/server.mjs's on the throwaway world). The ones
+left are swept by the SQL under "Sweeping probe markers".
 
 Added 2026-09-26 (WP-25 B109): a PENDING Forge batch that must stay invisible to players.
   forge_batches row status 'pending' for the world, created = {
@@ -61,9 +60,9 @@ Added 2026-09-26 (WP-27): rows that make the suite go RED when a rule is removed
 
 ## Sweeping probe markers
 
-The marker test posts one `probe-marker-<timestamp>` player node per run and cannot delete it
-(the share API has no delete). The test skips itself once 20 sit on the root map; sweep them
-with:
+Until 2026-10-20 the marker test posted one `probe-marker-<timestamp>` player node per run and
+could not delete it (the share API has no delete); it skipped itself once 20 sat on the root
+map. The suite no longer writes. Sweep what is left, after counting it, with:
 
 ```sql
 DELETE FROM nodes WHERE world_id = 26 AND visibility = 'player' AND title LIKE 'probe-marker-%';

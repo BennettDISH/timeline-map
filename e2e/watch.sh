@@ -2,14 +2,20 @@
 # Wait for the live deploy to reach the local HEAD (the /health check names the deployed
 # commit), then run every suite against it: the local contract test, the API secrecy suite,
 # the Player View, DM, undo and server probes. Usage, from the repo root:
-#   bash e2e/watch.sh            # waits up to 20 minutes for the deploy, then runs everything
-#   SKIP_WAIT=1 bash e2e/watch.sh # runs against whatever is live right now
 #   E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh
 #                                # runs against the local stack (node e2e/local.mjs) before a push:
 #                                # no deploy to wait for, no live token to renew, and the API secrecy
 #                                # suite is left out (it reads the live fixture world)
+#   E2E_LIVE=1 bash e2e/watch.sh # the live Atlas, on purpose: waits up to 20 minutes for the deploy,
+#                                # then runs everything; the DM, undo, doors and server suites write
+#                                # on dm.config.json's throwaway world and remove what they made
+#   E2E_LIVE=1 SKIP_WAIT=1 bash e2e/watch.sh # against whatever is live right now
 R=$(cd "$(dirname "$0")/.." && pwd)
 BASE=${BASE_URL:-https://timeline-map-production.up.railway.app}
+if [ -z "$E2E_CONFIG" ] && [ "$E2E_LIVE" != 1 ]; then
+  echo "no target: E2E_CONFIG=e2e/local.config.json for the local stack, or E2E_LIVE=1 for the live Atlas" >&2
+  exit 2
+fi
 if [ -n "$E2E_CONFIG" ]; then
   E2E_CONFIG=$(cd "$R" && realpath "$E2E_CONFIG"); export E2E_CONFIG
   BASE=$(node -e "console.log(require('$E2E_CONFIG').baseUrl||'')")

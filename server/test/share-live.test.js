@@ -7,7 +7,12 @@
 // the fixture holds only fake test strings and exists to be read — rotate it in the
 // DB (and here) if that ever changes.
 //
+//   npm run test:live            (from server/; `npm test` is the local suites only)
 //   node --test server/test/share-live.test.js
+//
+// It only reads, and asks for writes the server must refuse. The marker that lands is
+// checked on the throwaway world by e2e/server.mjs, which removes it again; this suite used
+// to post one onto the fixture per run, and the share API cannot take it back.
 //
 // Override with BASE_URL / SHARE_TOKEN env vars to point elsewhere.
 const test = require('node:test');
@@ -39,7 +44,7 @@ const get = async (path) => {
   const res = await fetch(`${BASE}/api/share/${TOKEN}${path}`);
   return { status: res.status, body: res.status === 200 ? await res.json() : null };
 };
-// player markers accumulate in the fixture across runs; title assertions ignore them
+// player markers left by older runs sit on the fixture until swept; title assertions ignore them
 const titles = (map) => map.placements.filter((p) => !p.node.player).map((p) => p.node.title).sort();
 
 test('world payload: only player-visible eras, canon moment', async () => {
@@ -163,28 +168,8 @@ test('windowed backdrops list the allowed timed art; the base stays base', async
 });
 
 
-// ---- player markers: the anonymous write path ----
-
-test('a player can mark a reachable map; the marker is live, flagged, and signed', async (t) => {
-  const title = `probe-marker-${Date.now()}`;
-  // the fixture cannot clean up after itself (the share API has no delete): the test bows out
-  // long before the 200-marker cap, and FIXTURE.md has the sweep
-  const before = await get(`/maps/${IDS.root}?window=1`);
-  const probes = (before.body.placements || []).filter((p) => /^probe-marker-/.test(p.node.title)).length;
-  if (probes >= 20) { t.skip(`${probes} probe markers sit on the fixture — sweep them (SQL in server/test/FIXTURE.md)`); return; }
-  const res = await fetch(`${BASE}/api/share/${TOKEN}/maps/${IDS.root}/nodes`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, body: 'left by the test suite', category: 'note', author: 'The Probe', x: 90, y: 90 }),
-  });
-  // a full map (the 200-marker cap answers 400) is an operational signal to sweep, not a code failure
-  if (res.status === 400) { t.skip('fixture marker cap reached — sweep player nodes'); return; }
-  assert.equal(res.status, 201);
-  const { body } = await get(`/maps/${IDS.root}?window=1`);
-  const mine = body.placements.find((p) => p.node.title === title);
-  assert.ok(mine, 'the marker should appear in the payload');
-  assert.equal(mine.node.player, true, 'server must force the player tier');
-  assert.equal(mine.node.author, 'The Probe');
-});
+// ---- player markers: the anonymous write path (only the refusals here; one that lands is
+// e2e/server.mjs's, on the throwaway world) ----
 
 test('markers cannot be dropped into hidden branches', async () => {
   const res = await fetch(`${BASE}/api/share/${TOKEN}/maps/${IDS.hiddenMap}/nodes`, {

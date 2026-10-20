@@ -1,11 +1,13 @@
 // The DM workspace in a real browser, on a throwaway world: the footstep-link crash path,
 // the double-click guard, timebar ticks, and no error boundary anywhere.
 import { chromium } from 'playwright';
+import { liveOptIn } from './live.mjs';
 import { readFileSync } from 'fs';
 // config: dm.config.json beside this file (gitignored) — a throwaway DM account + world, see README.md;
 // E2E_CONFIG names another (e2e/local.config.json for the local stack, e2e/local.mjs)
 const cfg = JSON.parse(readFileSync(process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url)));
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
+liveOptIn(BASE);
 const out = { errors: [], steps: [] };
 const step = (name, ok, note = '') => { out.steps.push({ name, ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
 const browser = await chromium.launch();

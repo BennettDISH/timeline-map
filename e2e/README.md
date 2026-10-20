@@ -1,8 +1,9 @@
 # Browser suites
 
-Real-browser and API checks, run against the live deploy (Railway) after a push, and against
-the local stack (below) before one. They complement the API suite
-(`node --test server/test/share-live.test.js`, run from the repo root, live only).
+Real-browser and API checks, run against the local stack (below) before a push, and against the
+live deploy (Railway) only on purpose: `dm.mjs`, `undo.mjs`, `doors.mjs` and `server.mjs` write,
+and refuse any server off this machine unless `E2E_LIVE=1`. They complement the API suite
+(`npm run test:live` in `server/`, live only and read-only).
 
 ## The local stack: test before a push
 
@@ -61,7 +62,7 @@ every suite passed against it (player 17, dm 72, undo 17, doors 27, server 55, c
   period widens the bar (the clock and the interior's focus period are put back after). Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
-`bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order; `SKIP_WAIT=1` runs them at once; `E2E_CONFIG=e2e/local.config.json` runs them against the local stack (no wait, no token renewal, no live secrecy suite).
+`E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh` runs every suite against the local stack (no wait, no token renewal, no live secrecy suite). `E2E_LIVE=1 bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order there; `SKIP_WAIT=1` runs them at once. With neither, it stops.
 
 Both configs are gitignored — copy the `*.config.example.json` files. A FAIL step makes the run exit
 non-zero, so `npm run all` stops on the first red suite.

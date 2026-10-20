@@ -33,12 +33,15 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
 - **Always push changes to git when finished with a task** - commit and push automatically after completing work
-- After a push the suites run against the LIVE deploy (`bash e2e/watch.sh` waits for it): the
-  API secrecy suite is `node --test server/test/share-live.test.js` (from the repo root, live
-  only: it reads the production fixture world); the browser suites (Playwright) live in `e2e/` —
+- Nothing writes to the live Atlas by default. `npm test` (server/) is the local suites only;
+  the API secrecy suite is `npm run test:live` (server/) or `node --test
+  server/test/share-live.test.js` (from the repo root, live only: it reads the production
+  fixture world, and writes nothing). The browser suites (Playwright) live in `e2e/` —
   `player.mjs` for the Player View and `dm.mjs` for the DM workspace on a throwaway world — with
   the API probes `undo.mjs`, `doors.mjs` and `server.mjs` — see `e2e/README.md`. Every suite takes
-  `E2E_CONFIG` to read another config than `dm.config.json` / `player.config.json`
+  `E2E_CONFIG` to read another config than `dm.config.json` / `player.config.json`; the four that
+  write refuse any server off this machine unless `E2E_LIVE=1` (`E2E_LIVE=1 bash e2e/watch.sh`
+  waits for the deploy and runs them live, on the throwaway DM account, when Bennett asks)
 - The DB schema is ensured on every boot from `server/config/schema.sql` (idempotent statements,
   comment lines stripped before splitting on `;` — keep semicolons out of comments)
 

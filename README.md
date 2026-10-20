@@ -75,10 +75,12 @@ Names only; `.env.example` explains each.
 ## Tests
 Before a push, `node e2e/local.mjs --build` runs the real server on an in-memory Postgres
 (PGlite) with a seeded proving-ground world, and `E2E_CONFIG=e2e/local.config.json bash
-e2e/watch.sh` runs every suite against it but the live secrecy suite. After a push,
-`bash e2e/watch.sh` waits for the deploy of the local HEAD and runs every suite in order against
-it; `node --test server/test/share-live.test.js` is the secrecy suite on its own. Details and
-the config files in `e2e/README.md`.
+e2e/watch.sh` runs every suite against it but the live secrecy suite. `npm test` in `server/`
+runs the local suites only. Against the live deploy, only on purpose: `E2E_LIVE=1 bash
+e2e/watch.sh` waits for the deploy of the local HEAD and runs every suite in order against it
+(the writing suites work on a throwaway world and remove what they made); `npm run test:live`
+in `server/` is the read-only secrecy suite on its own. Details and the config files in
+`e2e/README.md`.
 
 ## Sign-in
 "Sign in with Waypoint" is wired entirely server-side (`AUTH_SERVICE_URL`, `SSO_CLIENT_ID`,

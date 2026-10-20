@@ -4,9 +4,11 @@
 // never renames or deletes it, players reach it only through a door they can see, the lantern
 // walks through the door, and every delete around it undoes whole. Runs on the throwaway world
 // in dm.config.json (E2E_CONFIG names another file) and deletes everything it made.
+import { liveOptIn } from './live.mjs';
 import { readFileSync } from 'fs';
 const cfg = JSON.parse(readFileSync(process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url)));
 const BASE = process.env.BASE_URL || cfg.baseUrl || 'https://timeline-map-production.up.railway.app';
+liveOptIn(BASE);
 const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` };
 const api = async (method, path, body) => {
   const r = await fetch(`${BASE}/api/atlas${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });

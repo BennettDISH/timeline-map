@@ -3,10 +3,12 @@
 // dm.config.json and are cleaned up through the DM API, so nothing lands on a real world.
 // E2E_CONFIG names another config; the local one (e2e/local.mjs) names its own world as the
 // fixture (`fixtureToken`), since the live fixture world is not there.
+import { liveOptIn } from './live.mjs';
 import { readFileSync, existsSync } from 'fs';
 const cfgUrl = process.env.E2E_CONFIG || new URL('./dm.config.json', import.meta.url);
 const cfg = existsSync(cfgUrl) ? JSON.parse(readFileSync(cfgUrl)) : null;
 const BASE = process.env.BASE_URL || cfg?.baseUrl || 'https://timeline-map-production.up.railway.app';
+liveOptIn(BASE);
 const FIXTURE = process.env.SHARE_TOKEN || cfg?.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337';
 const steps = [];
 const step = (name, ok, note = '') => { steps.push(!!ok); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
@@ -21,8 +23,8 @@ for (const id of ['60.0', '6e1', '060', 'abc', '-1']) {
 if (cfg?.shareToken && cfg?.token && cfg?.root) {
   const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` };
   const dm = (method, path, body) => fetch(`${BASE}/api/atlas${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
-  const mark = (mapId, title) => fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${mapId}/nodes`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, x: 1, y: 1 }),
+  const mark = (mapId, title, more = {}) => fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${mapId}/nodes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, x: 1, y: 1, ...more }),
   });
   // a signed-in answer is never cached, nor answered 304: a browser hands a stored response's
   // headers back on a 304, and a cached X-Refreshed-Token came back expired after every sign-in
@@ -50,9 +52,13 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     step(`a marker on a non-canonical map id (${spelled}) is refused before anything is written`, r.status === 404, String(r.status));
   }
   const title = `server-probe-${Date.now()}`;
-  const made = await mark(cfg.root, title);
+  const made = await mark(cfg.root, title, { author: 'The Probe' });
   const body = await json(made);
   step('a marker on the canonical id lands whole (node + placement in one statement)', made.status === 201 && body?.nodeId, `${made.status} ${JSON.stringify(body)}`);
+  // what players then see (this was the live share suite's one write, onto the fixture world)
+  const seen = (await json(await fetch(`${BASE}/api/share/${cfg.shareToken}/maps/${cfg.root}?window=1`)))
+    ?.placements?.find((p) => p.node?.title === title);
+  step('…players see it in the server-forced player tier, signed as sent', seen?.node?.player === true && seen?.node?.author === 'The Probe', JSON.stringify(seen?.node ?? null).slice(0, 160));
   // cleanup: every probe marker on the throwaway root, this run's and any stray from a failed run
   const map = await json(await dm('GET', `/maps/${cfg.root}`));
   const strays = (map?.placements || []).filter((p) => /^server-probe/.test(p.node?.title || ''));
