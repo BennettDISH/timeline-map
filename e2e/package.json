@@ -5,9 +5,10 @@
   "scripts": {
     "player": "node player.mjs",
     "dm": "node dm.mjs",
-    "all": "node player.mjs && node dm.mjs && node undo.mjs && node doors.mjs && node server.mjs",
+    "all": "node player.mjs && node dm.mjs && node undo.mjs && node doors.mjs && node server.mjs && node admin.mjs",
     "undo": "node undo.mjs",
     "server": "node server.mjs",
+    "admin": "node admin.mjs",
     "doors": "node doors.mjs",
     "local": "node local.mjs"
   },

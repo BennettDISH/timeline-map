@@ -63,7 +63,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
   all authed services share `services/http.js` (token header + dead-token redirect)
 - Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `Archive`
-  (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel`, `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
+  (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel` (`/admin`: every account, world, map, entry, era, image and Forge chat, look-only, searchable, 50 a page) and `AdminWorld` (`/admin/worlds/:id`: one world read-only, its maps with every pin, entries, eras, images and Forge history; the API is `GET /api/admin/*` in `admin.js`, gated by ADMIN_CENTRAL_USER_IDS), `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
   ensured on boot and admin is a Waypoint identity)
 
 ## Key invariants (the whole rule for each is in `docs/RULES.md`)

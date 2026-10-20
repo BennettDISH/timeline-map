@@ -33,7 +33,7 @@ if [ -z "$SKIP_WAIT" ]; then
   echo "live commit: $live ($([ "$live" = "$want" ] && echo match || echo NO MATCH after 20 min))"
 fi
 cd "$R"
-echo "--- contract, spend and image serving (local)"; node --test server/test/contract.test.js server/test/spend.test.js server/test/images-serve.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
+echo "--- contract, spend, image serving and admin gate (local)"; node --test server/test/contract.test.js server/test/spend.test.js server/test/images-serve.test.js server/test/admin.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
 if [ -z "$E2E_CONFIG" ]; then
   echo "--- share api"; node --test server/test/share-live.test.js 2>&1 | grep -E "^# (tests|pass|fail)|^not ok"
 fi
@@ -55,3 +55,4 @@ echo "--- dm suite"; node e2e/dm.mjs 2>&1 | grep -v "Skipping host"
 echo "--- undo api"; node e2e/undo.mjs 2>&1
 echo "--- doors api"; node e2e/doors.mjs 2>&1
 echo "--- server api"; node e2e/server.mjs 2>&1
+echo "--- admin api (local stack only)"; node e2e/admin.mjs 2>&1

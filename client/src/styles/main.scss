@@ -90,6 +90,105 @@ body {
     td { padding: 8px; border-bottom: 1px solid #3a3f47; }
   }
 }
+// the browse tabs, lists and the read-only world (AdminPanel, AdminWorld)
+.admin-container > p.admin-meta { margin-bottom: .35rem; }
+.admin-container > p.admin-meta:last-of-type { margin-bottom: 1.2rem; }
+.admin-meta .badge { margin-left: 6px; }
+.shellcrumb a { color: inherit; text-decoration: none; &:hover { color: #c9a35f; } }
+.admin-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 1.2rem 0 1rem;
+  button {
+    background: #1b1f25; border: 1px solid #3a3f47; color: #9a9a94; border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer;
+    &:hover { color: #e8e8e6; border-color: #9a9a94; }
+    &.on { color: #c9a35f; border-color: #c9a35f; background: rgba(201, 163, 95, .08); }
+  }
+  .admin-count { margin-left: 7px; font-size: 11px; opacity: .75; }
+}
+.admin-subtabs { margin-top: 1.6rem; }
+.admin-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 1rem; }
+.admin-search { flex: 1; min-width: 200px; max-width: 420px; }
+.admin-filter { cursor: pointer; font: inherit; font-size: 11.5px; }
+.admin-pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 1rem; font-size: 13px;
+  .admin-pages { display: inline-flex; align-items: center; gap: 10px; }
+}
+.admin-stale { opacity: .55; transition: opacity .15s; }
+.admin-error { color: #d0716b; }
+.admin-sub { color: #9a9a94; font-size: 12px; }
+.admin-clip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-clip2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.admin-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.admin-cat { display: inline-block; width: 1.1em; text-align: center; }
+.admin-link {
+  background: none; border: 0; padding: 0; font: inherit; color: #5b9bd5; cursor: pointer; text-align: left;
+  &:hover { text-decoration: underline; }
+}
+.admin-panel a { color: #5b9bd5; }
+.admin-panel .badge { margin-left: 4px; vertical-align: 1px; }
+.admin-thumbcell { width: 64px; }
+.admin-thumb { width: 56px; height: 36px; object-fit: cover; border-radius: 4px; display: block; background: #1b1f25; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.admin-img {
+  margin: 0; background: #1b1f25; border: 1px solid #3a3f47; border-radius: 8px; overflow: hidden; min-width: 0;
+  img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #12151a; }
+  figcaption { padding: 6px 8px; font-size: 12.5px; min-width: 0; }
+}
+.admin-chat {
+  list-style: none; display: flex; flex-direction: column; gap: 10px;
+  li { border: 1px solid #3a3f47; border-radius: 8px; padding: 8px 12px; background: #1b1f25; }
+  li.dm { border-left: 3px solid #c9a35f; }
+  li.mind { border-left: 3px solid #5b9bd5; }
+  .admin-text { margin-top: 4px; max-height: 18em; overflow: auto; }
+}
+.admin-db summary { cursor: pointer; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 1.4rem; }
+.admin-db[open] summary { margin-bottom: 1rem; }
+.admin-maps { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.admin-maplist {
+  list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 76vh; overflow: auto;
+  button {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 1px solid transparent;
+    border-radius: 8px; padding: 5px; color: #e8e8e6; font: inherit; cursor: pointer; min-width: 0;
+    > span { min-width: 0; display: flex; flex-direction: column; }
+    &:hover { border-color: #3a3f47; }
+    &.on { border-color: #c9a35f; background: rgba(201, 163, 95, .08); }
+  }
+  img, .admin-nothumb { width: 48px; height: 32px; object-fit: cover; border-radius: 4px; flex: none; background: #1b1f25; }
+}
+// the map plane outside the workspace: .atlas is the full-window page box there, here a framed panel
+.atlas.admin-map {
+  position: relative; inset: auto; display: block; height: min(62vh, 620px); border: 1px solid #3a3f47; border-radius: 10px; overflow: hidden;
+  .stage { height: 100%; }
+  .pin { cursor: pointer; }
+}
+.admin-mapview h2 .admin-sub { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 400; }
+.admin-mapview > .admin-sub { margin: 6px 0 0; }
+.admin-eras {
+  list-style: none; display: flex; flex-direction: column; gap: 10px;
+  li { border-bottom: 1px solid #3a3f47; padding-bottom: 8px; }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: #9a9a94; }
+}
+.admin-mind {
+  display: flex; gap: 16px; align-items: flex-start;
+  img { width: 120px; border-radius: 8px; border: 1px solid #3a3f47; }
+  > div { flex: 1; min-width: 0; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; }
+  .admin-text { margin-top: 4px; max-height: 24em; overflow: auto; background: #1b1f25; border-radius: 6px; padding: 8px 10px; }
+}
+.shell .smodal.admin-sheet {
+  width: min(640px, 94vw);
+  h4 { margin: 14px 0 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #9a9a94; }
+  .admin-sheetimg { max-width: 100%; max-height: 240px; border-radius: 8px; margin: 6px 0 10px; display: block; }
+  .admin-plain { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+}
+@media (max-width: 760px) {
+  .admin-panel { padding: 1rem; }
+  .admin-section { padding: 1rem; overflow-x: auto; }
+  .admin-maps { grid-template-columns: 1fr; }
+  .admin-maplist { max-height: 30vh; }
+}
+
 .db-status {
   background: #1b1f25; border-radius: 8px; padding: 1rem;
   p { margin: .5rem 0; font-family: ui-monospace, monospace; font-size: .9rem; strong { color: #e8e8e6; } }
