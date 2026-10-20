@@ -125,10 +125,9 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
   const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
 
   // SPA fallback: serve index.html for any client-route GET so client-side routes work on
-  // direct navigation / refresh (e.g. /auth/callback, /w/:id/m/:id). The API and file-like
-  // paths fall through to the JSON 404 instead (lib/spa.js). Express 5 names the wildcard;
-  // the braces make it match / too.
-  app.get('/{*path}', spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)));
+  // direct navigation / refresh (e.g. /auth/callback, /w/:id/m/:id). The API, file-like
+  // paths and other methods fall through to the JSON 404 instead (lib/spa.js).
+  app.use(spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)));
 }
 
 // Error handling middleware

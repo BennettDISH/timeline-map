@@ -32,7 +32,7 @@ test.before(async () => {
   const app = express();
   app.use(collapseLeadingSlashes);
   app.use('/api/images-base64', require('../routes/image-base64'));
-  app.get('/{*path}', spaFallback(() => PAGE));
+  app.use(spaFallback(() => PAGE));
   app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
@@ -99,4 +99,13 @@ test('client routes still get the page', async () => {
   assert.strictEqual(wantsPage('/w/3'), true);
   assert.strictEqual(wantsPage('/x.png'), false);
   assert.strictEqual(wantsPage('/api/x'), false);
+});
+
+test('only a GET or HEAD gets the page; a POST to a client route is the JSON 404', async () => {
+  const head = await fetch(`${base}/w/3/m/7`, { method: 'HEAD' });
+  assert.strictEqual(head.status, 200);
+  assert.match(head.headers.get('content-type'), /^text\/html/);
+  const r = await fetch(`${base}/w/3/m/7`, { method: 'POST' });
+  assert.strictEqual(r.status, 404);
+  assert.match(r.headers.get('content-type'), /^application\/json/);
 });

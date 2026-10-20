@@ -23,10 +23,12 @@ function wantsPage(path) {
 }
 
 // The fallback handler: the page for client routes, next() (the JSON 404) for the rest.
-// `pageFor(req)` picks which copy of index.html this request gets.
+// `pageFor(req)` picks which copy of index.html this request gets. Mounted with app.use and
+// no path, so it reads the same on every Express: '/{*path}' is Express 5's spelling, and on
+// a stale Express 4 install it matched no client route at all, / included.
 function spaFallback(pageFor) {
   return (req, res, next) => {
-    if (!wantsPage(req.path)) return next();
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || !wantsPage(req.path)) return next();
     res.type('html').send(pageFor(req));
   };
 }
