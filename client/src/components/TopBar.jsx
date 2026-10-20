@@ -57,6 +57,7 @@ function TopBar({ crumb }) {
       </Link>
       {crumb && <span className="shellcrumb"><span className="sep">▸</span>{crumb}</span>}
       <div className="spacer" />
+      <a className="arcadelink" href="https://quickplay-arcade-production.up.railway.app/">← All games</a>
       {user ? (
         <div className="usermenu" ref={ref}>
           <button className="userbtn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
