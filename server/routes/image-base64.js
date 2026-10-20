@@ -122,32 +122,40 @@ function sniff(buf) {
 }
 
 // GET /api/images-base64/serve/:filename - Serve image from base64 data (PUBLIC - no auth required)
+// Every answer is the image, a redirect to it, or JSON: never the app's page.
 router.get('/serve/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
-    
-    const result = await pool.query('SELECT base64_data, mime_type FROM images WHERE filename = $1', [filename]);
+
+    const result = await pool.query('SELECT base64_data, mime_type, file_path FROM images WHERE filename = $1', [filename]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    const { base64_data, mime_type } = result.rows[0];
+    const { base64_data, mime_type, file_path } = result.rows[0];
 
-    // only Postgres-fallback rows have bytes here; R2-backed rows are never referenced by this
-    // path (resolveImageUrl hands out their absolute URL), so there is nothing to redirect to
-    if (!base64_data) return res.status(404).json({ message: 'Image data not found' });
+    // An R2-backed row keeps no bytes here: its file_path is the absolute R2 URL, which is what
+    // the API hands out. A request for it by file name (an old link, a probe) is sent there.
+    if (!base64_data) {
+      const target = r2Target(file_path);
+      if (target) {
+        res.set('Cache-Control', 'public, max-age=3600');
+        return res.redirect(302, target);
+      }
+      return res.status(404).json({ message: 'Image data not found' });
+    }
 
     // Extract base64 data
-    const base64Match = base64_data.match(/^data:image\/[^;]+;base64,(.+)$/);
+    const base64Match = base64_data.match(/^data:(image\/[^;]+);base64,(.+)$/);
     if (!base64Match) {
       return res.status(500).json({ message: 'Invalid image data format' });
     }
 
-    const imageBuffer = Buffer.from(base64Match[1], 'base64');
-    
+    const imageBuffer = Buffer.from(base64Match[2], 'base64');
+
     res.set({
-      'Content-Type': mime_type,
+      'Content-Type': mime_type || base64Match[1],
       'Content-Length': imageBuffer.length,
       'Cache-Control': 'public, max-age=86400',
       'Access-Control-Allow-Origin': '*'
@@ -160,6 +168,16 @@ router.get('/serve/:filename', async (req, res) => {
     res.status(500).json({ message: 'Error serving image' });
   }
 });
+
+// Where an R2-backed row's bytes are: its absolute http(s) file_path, unless that points back at
+// this route (a redirect there could only loop).
+function r2Target(filePath) {
+  if (!/^https?:\/\//i.test(filePath || '')) return null;
+  try {
+    const u = new URL(filePath);
+    return u.pathname.includes('/api/images-base64/serve/') ? null : u.href;
+  } catch { return null; }
+}
 
 module.exports = router;
 module.exports.upload = upload;

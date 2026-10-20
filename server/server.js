@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3001;
 const pool = require('./config/database');
 const { applySchema } = require('./config/apply-schema');
 const { scheduleGuestSweep } = require('./lib/guests');
+const { collapseLeadingSlashes, spaFallback } = require('./lib/spa');
 const schemaReady = (async () => {
   try {
     // Loader lives in config/apply-schema.js so `npm run migrate` runs the identical statements.
@@ -55,6 +56,8 @@ const playerHelmet = helmet({
   xFrameOptions: false,
 });
 const isPlayerPath = (p) => p === '/p' || p.startsWith('/p/');
+// first of all: //api/... is /api/... (lib/spa.js), so every rule below sees the plain path
+app.use(collapseLeadingSlashes);
 app.use((req, res, next) => (isPlayerPath(req.path) ? playerHelmet(req, res, next) : dmHelmet(req, res, next)));
 app.use(compression());
 
@@ -121,14 +124,11 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
   const widgetTag = `<script src="https://bug-tracker-production-4ccb.up.railway.app/widget.js" data-api-key="${widgetKey}"></script>`;
   const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
 
-  // SPA fallback: serve index.html for any non-API GET so client-side routes work on direct
-  // navigation / refresh (e.g. /auth/callback, /w/:id/m/:id). Express 5 names the wildcard;
+  // SPA fallback: serve index.html for any client-route GET so client-side routes work on
+  // direct navigation / refresh (e.g. /auth/callback, /w/:id/m/:id). The API and file-like
+  // paths fall through to the JSON 404 instead (lib/spa.js). Express 5 names the wildcard;
   // the braces make it match / too.
-  app.get('/{*path}', (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    const isPlayer = req.path === '/p' || req.path.startsWith('/p/');
-    res.type('html').send(isPlayer ? indexHtml : withWidget);
-  });
+  app.get('/{*path}', spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)));
 }
 
 // Error handling middleware
