@@ -55,6 +55,10 @@ export function startWaypoint(next = '/', { prompt } = {}) {
   return state
 }
 
+/** "Sign out of all games": Waypoint's /logout, which ends its session and sends you on to
+ *  `back` (the arcade) — return_to is Waypoint's name for it. */
+export const waypointLogoutUrl = (accountUrl, back) => `${accountUrl}/logout?return_to=${encodeURIComponent(back)}`
+
 /** The callback's check before any code is spent: the state Waypoint hands back must be the
  *  one this tab made (login CSRF). A message when it isn't, else null. Either way the stored
  *  state is used up, and a refusal holds the sign-in page (no loop). */

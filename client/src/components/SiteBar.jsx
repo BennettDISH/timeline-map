@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
-import { nextFrom, startWaypoint } from '../utils/signIn'
-import GamesBar from './GamesBar'
+import { nextFrom, startWaypoint, waypointLogoutUrl } from '../utils/signIn'
+import GamesBar, { ARCADE_URL } from './GamesBar'
 
 // Never in the Player View (/p/…, the share link the players open) nor anywhere the Atlas is
 // framed: Spellforge embeds that view, and the DM's 🎭 Player posture is an iframe of it.
@@ -41,8 +41,8 @@ function Bar({ next }) {
   }
   // Waypoint asks for an account again (prompt=login); without Waypoint, sign out and pick on the form
   const switchAccount = () => (waypoint ? startWaypoint(next, { prompt: 'login' }) : signOut())
-  // Waypoint's own session ends at its /logout page, which says so
-  const signOutAll = async () => { if (await signOut() && config?.accountUrl) window.location.assign(`${config.accountUrl}/logout`) }
+  // Waypoint's own session ends at its /logout, which then sends you on to the arcade
+  const signOutAll = async () => { if (await signOut() && config?.accountUrl) window.location.assign(waypointLogoutUrl(config.accountUrl, ARCADE_URL)) }
 
   const account = loading ? undefined : user ? { name: user.isGuest ? 'Guest' : (user.username || 'Account') } : null
   return <GamesBar account={account} onSignIn={signIn} onSwitch={switchAccount} onSignOut={signOut} onSignOutAll={signOutAll} />
