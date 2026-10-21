@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "migrate": "node config/migrate.js",
-    "test": "node --test test/contract.test.js test/spend.test.js test/images-serve.test.js test/admin.test.js",
+    "test": "node --test test/contract.test.js test/spend.test.js test/images-serve.test.js test/admin.test.js test/sso.test.js test/sign-in.test.mjs",
     "test:live": "node --test test/share-live.test.js"
   },
   "dependencies": {

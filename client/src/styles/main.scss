@@ -12,6 +12,18 @@ body {
 
 .app { min-height: 100vh; }
 
+// The games' top bar (components/GamesBar.jsx, styles/gamesbar.css), on every page but the
+// Player View: over the shell's sticky bar (30) and its menus (40), under its dialogs (60) and
+// the Archive's drop veil. Full-height pages are its 40px shorter, the shell's own bar sticks
+// under it, and the workspace's full-window frame starts below it.
+:root { --gtb-z: 45; }
+body.gtb-on {
+  .app, .route-loading, .login-page, .shell { min-height: calc(100vh - 40px); }
+  .shell.arch { height: calc(100vh - 40px); }
+  .shell .shellbar { top: 40px; }
+  .app > .atlas { top: 40px; }
+}
+
 // the route guards' and lazy pages' placeholder: a quiet line on the dark page
 .route-loading {
   display: flex; justify-content: center; align-items: center;

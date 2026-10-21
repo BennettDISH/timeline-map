@@ -280,6 +280,8 @@ router.get('/sso/login', (req, res) => {
   url.searchParams.set('client_id', SSO_CLIENT_ID);
   url.searchParams.set('redirect_uri', `${baseUrl(req)}${CALLBACK_PATH}`);
   url.searchParams.set('state', state);
+  // "Switch account" on the games' top bar: Waypoint asks who you are instead of reusing its session
+  if (req.query.prompt === 'login') url.searchParams.set('prompt', 'login');
   res.redirect(url.toString());
 });
 

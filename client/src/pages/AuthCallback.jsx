@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
 import { errText } from '../services/http'
-import { safeNext } from '../utils/nextPath'
+import { checkCallback, takeNext, setHold } from '../utils/signIn'
 
 function AuthCallback() {
   const [searchParams] = useSearchParams()
@@ -10,29 +10,24 @@ function AuthCallback() {
   const { ssoLogin } = useAuth()
   const navigate = useNavigate()
 
+  const ran = useRef(false)
   useEffect(() => {
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const savedState = sessionStorage.getItem('sso_state')
-
-    if (!code) {
-      setError('No authorization code received')
+    // once: the state is used up by the first look, and a second run would call it forged
+    if (ran.current) return
+    ran.current = true
+    // the state must be the one this tab sent (utils/signIn.js); a refusal or a failed
+    // exchange holds the sign-in page, so a broken sign-in can't loop through Waypoint
+    const problem = checkCallback({ code: searchParams.get('code'), state: searchParams.get('state') })
+    if (problem) {
+      setError(problem)
       return
     }
-
-    if (!state || !savedState || state !== savedState) {
-      setError('Invalid state parameter')
-      return
-    }
-
-    sessionStorage.removeItem('sso_state')
 
     // back to where the person was going before the sign-in bounce, if anywhere
-    let next = '/'
-    try { next = sessionStorage.getItem('sso_next') || '/'; sessionStorage.removeItem('sso_next') } catch (e) { /* ignore */ }
-    ssoLogin(code, `${window.location.origin}/auth/callback`)
-      .then(() => navigate(safeNext(next), { replace: true }))
-      .catch(err => setError(errText(err, 'SSO login failed')))
+    const next = takeNext()
+    ssoLogin(searchParams.get('code'), `${window.location.origin}/auth/callback`)
+      .then(() => navigate(next, { replace: true }))
+      .catch(err => { setHold('failed'); setError(errText(err, 'SSO login failed')) })
   }, [])
 
   if (error) {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import authService from '../services/authService'
 import { errText } from '../services/http'
+import { setHold } from './signIn'
 
 const AuthContext = createContext()
 
@@ -123,8 +124,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_SUCCESS', payload: { user } })
   }
 
+  // the sign-in page then holds (utils/signIn.js) rather than going straight back to Waypoint
   const logout = async () => {
     await authService.logout()
+    setHold('signed-out')
     dispatch({ type: 'LOGOUT' })
   }
 

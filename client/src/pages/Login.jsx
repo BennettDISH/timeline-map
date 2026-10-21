@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../utils/AuthContext'
 import { useNavigate, useLocation, useSearchParams } from 'react-router'
 import { safeNext } from '../utils/nextPath'
+import { readHold, clearHold, goStraightToWaypoint, startWaypoint } from '../utils/signIn'
 
+// Signing in is Waypoint's: a page that needs an account lands here signed out and goes
+// straight on to Waypoint, whose page takes the password or offers "Continue as guest". After
+// Sign out, or a sign-in that came back failed, the page stays with one button instead (the
+// hold, utils/signIn.js). The Atlas's own forms and guest button are still here with ?local.
 function Login() {
-  const [credentials, setCredentials] = useState({ username: '', password: '' })
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const wantsLocal = searchParams.has('local')
+  const [hold] = useState(() => readHold())
   // why the DM is back here: the dead-session bounce says so (a flag, or ?reason=expired)
   const [sessionEnded] = useState(() => {
     try { const v = sessionStorage.getItem('atlas_session_ended'); sessionStorage.removeItem('atlas_session_ended'); if (v) return true } catch (e) { /* ignore */ }
@@ -14,47 +20,92 @@ function Login() {
   })
   // where to go after signing in: the page that bounced here, else the last map / dashboard
   const next = safeNext(location.state?.from?.pathname || searchParams.get('next') || '/')
+  // whether Waypoint is set up, and where it lives: null until the server says; unknown (the
+  // request failed) offers the Waypoint button without leaving for it
+  const [config, setConfig] = useState(null)
+  useEffect(() => { document.title = 'Sign in · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
+
+  // Ask the server whether SSO is configured — no build-time (VITE) vars needed.
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then(res => res.json())
+      .then(data => setConfig({ ssoEnabled: !!data.ssoEnabled, accountUrl: data.accountUrl || null, known: true }))
+      .catch(() => setConfig({ ssoEnabled: true, accountUrl: null, known: false }))
+  }, [])
+
+  const straight = !!config && goStraightToWaypoint({ ssoEnabled: config.known && config.ssoEnabled, hold, wantsLocal })
+  const started = useRef(false)
+  useEffect(() => {
+    if (straight && !started.current) { started.current = true; startWaypoint(next) }
+  })
+
+  if (!config || straight) {
+    return (
+      <div className="login-page">
+        <div className="login-container">
+          <h1>Fantasy Map Timeline</h1>
+          <p className="login-subtitle" role="status">{straight ? 'Taking you to Waypoint…' : 'Loading…'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (wantsLocal || !config.ssoEnabled) return <LocalSignIn config={config} next={next} sessionEnded={sessionEnded} />
+
+  return (
+    <div className="login-page">
+      <div className="login-container">
+        <h1>Fantasy Map Timeline</h1>
+        {hold === 'failed' ? (
+          <div className="error-message" role="alert">Waypoint sign-in did not finish. Try again.</div>
+        ) : hold === 'signed-out' ? (
+          <p className="login-subtitle" role="status">You are signed out.</p>
+        ) : sessionEnded ? (
+          <p className="session-ended" role="status" style={{ color: '#c9a35f', margin: '0 0 12px' }}>Your session ended — sign in again to pick up where you left off. Unsaved edits from the workspace were kept and will be restored.</p>
+        ) : (
+          <p className="login-subtitle">Sign in with your Waypoint account.</p>
+        )}
+        <div className="login-form">
+          <button type="button" className="login-button" onClick={() => startWaypoint(next)} autoFocus>Continue with Waypoint</button>
+        </div>
+        <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.75rem', opacity: 0.8 }}>
+          Waypoint is where you sign in, or play as a guest, for every game.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// The Atlas's own forms: a Waypoint password typed here and checked by Waypoint through this
+// server, a sign-up, and a guest of its own. Only with ?local now (or where Waypoint isn't set up).
+function LocalSignIn({ config, next, sessionEnded }) {
+  const [credentials, setCredentials] = useState({ username: '', password: '' })
   const [isRegistering, setIsRegistering] = useState(false)
   const [formData, setFormData] = useState({ username: '', email: '', password: '' })
-  const [config, setConfig] = useState({ ssoEnabled: false, accountUrl: null })
   const [recovery, setRecovery] = useState(null) // the one-time recovery code a new account gets
   const { login, register, guestLogin, submitting, error, clearError } = useAuth()
   const navigate = useNavigate()
   const go = () => navigate(next, { replace: true })
-  useEffect(() => { document.title = 'Sign in · Fantasy Map Timeline'; return () => { document.title = 'Fantasy Map Timeline' } }, [])
 
   const handleGuest = async () => {
     clearError()
     try {
       await guestLogin()
+      clearHold()
       go()
     } catch {
       // errors surfaced via context
     }
   }
 
-  // Ask the server whether SSO is configured — no build-time (VITE) vars needed.
-  useEffect(() => {
-    fetch('/api/auth/config')
-      .then(res => res.json())
-      .then(data => setConfig({ ssoEnabled: !!data.ssoEnabled, accountUrl: data.accountUrl || null }))
-      .catch(() => setConfig({ ssoEnabled: false, accountUrl: null }))
-  }, [])
-
-  // Start SSO: generate a random state, stash it for the callback to validate, then hand off to
-  // the server route that builds the authorize URL from server-held client_id / auth-service URL.
-  const startSso = () => {
-    const state = crypto.randomUUID()
-    sessionStorage.setItem('sso_state', state)
-    sessionStorage.setItem('sso_next', next)
-    window.location.href = `/api/auth/sso/login?state=${encodeURIComponent(state)}`
-  }
+  const startSso = () => startWaypoint(next)
 
   const handleLogin = async (e) => {
     e.preventDefault()
     clearError()
     try {
       await login(credentials.username, credentials.password)
+      clearHold()
       go()
     } catch (error) {
       // shown by the context; the form and its values stay put
@@ -66,6 +117,7 @@ function Login() {
     clearError()
     try {
       const r = await register(formData.username, formData.email, formData.password)
+      clearHold()
       if (r?.recoveryCode) setRecovery(r.recoveryCode) // shown once, before moving on
       else go()
     } catch (error) {

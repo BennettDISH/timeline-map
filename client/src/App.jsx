@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlayerView, { DeadLink } from './pages/PlayerView'
 import NotFound from './pages/NotFound'
+import SiteBar from './components/SiteBar'
 import worldService from './services/worldService'
 
 // The Player View and the 404 load with the entry bundle; the DM's pages arrive only when a
@@ -64,6 +65,7 @@ const Home = () => {
 function AppRoutes() {
   return (
     <div className="app">
+      <SiteBar />
       <Suspense fallback={<div className="route-loading">Loading…</div>}>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
