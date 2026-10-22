@@ -9,6 +9,8 @@ const pool = require('../config/database');
 // use together stops at the CEILING. An admin (ADMIN_CENTRAL_USER_IDS) is the one paying: their
 // use is counted on their own row but never capped and never spends the ceiling.
 // A call is counted when it is made, whether or not the provider then delivers.
+// `upload` is the same guard on what an image upload stores (R2, or Postgres without it): its
+// settings are megabytes and it counts kilobytes (`scale`), so a small image is not a whole MB.
 const KINDS = {
   forge: {
     env: 'FORGE', defaults: { cap: 40, guest: 5, ceiling: 150 },
@@ -18,7 +20,13 @@ const KINDS = {
     env: 'VOICE', defaults: { cap: 20, guest: 3, ceiling: 100 },
     name: 'Voice', units: (n) => `${n} voice recording${n === 1 ? '' : 's'}`, what: 'lines and ambiences',
   },
+  upload: {
+    env: 'UPLOAD', defaults: { cap: 250, guest: 25, ceiling: 2000 }, scale: 1024,
+    name: 'Uploading', units: (kb) => `${Math.round(kb / 1024)} MB of uploads`, what: 'images',
+  },
 };
+// spend_counters.used is an int: a setting scaled past it would make every upload a 500
+const INT_MAX = 2147483647;
 
 // A setting is a whole number of 0 or more; unset or blank keeps the default, and anything
 // else is logged once and ignored (a typo must never open the tap).
@@ -35,9 +43,10 @@ function setting(name, fallback, env = process.env) {
 // { cap, ceiling } for this user and kind; cap null means uncapped (an admin).
 function limitsFor(user, kind, env = process.env) {
   const k = KINDS[kind];
-  const ceiling = setting(`${k.env}_DAILY_CEILING`, k.defaults.ceiling, env);
+  const scaled = (n) => Math.min(n * (k.scale ?? 1), INT_MAX);
+  const ceiling = scaled(setting(`${k.env}_DAILY_CEILING`, k.defaults.ceiling, env));
   if (user?.isAdmin) return { cap: null, ceiling: null, admin: true };
-  const cap = user?.is_guest ? setting(`${k.env}_DAILY_CAP_GUEST`, k.defaults.guest, env) : setting(`${k.env}_DAILY_CAP`, k.defaults.cap, env);
+  const cap = scaled(user?.is_guest ? setting(`${k.env}_DAILY_CAP_GUEST`, k.defaults.guest, env) : setting(`${k.env}_DAILY_CAP`, k.defaults.cap, env));
   return { cap, ceiling, admin: false, guest: !!user?.is_guest };
 }
 

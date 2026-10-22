@@ -374,10 +374,13 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   resets it. Kinds: `forge` — a chat turn is one use and each painting one more (spent when the
   reply proposes them; a proposal wanting more than is left changes nothing and its applyError
   says how many are left), ✦ Paint on an entry or a map is one; `voice` — a line or an ambience
-  is one. Listing voices, Keep/Unmake/Allow and the panel's reads are free.
+  is one; `upload` — an image upload spends its size (counted in KB; the settings are MB), so
+  R2 (or Postgres without it) cannot be filled by one account or a stream of guests. Listing
+  voices, Keep/Unmake/Allow and the panel's reads are free.
 - Caps by env (whole numbers, a typo keeps the default): `FORGE_DAILY_CAP` 40 per account,
   `FORGE_DAILY_CAP_GUEST` 5 per guest, `FORGE_DAILY_CEILING` 150 for everyone together;
-  `VOICE_DAILY_CAP` 20, `VOICE_DAILY_CAP_GUEST` 3, `VOICE_DAILY_CEILING` 100. A cap of 0 shuts the
+  `VOICE_DAILY_CAP` 20, `VOICE_DAILY_CAP_GUEST` 3, `VOICE_DAILY_CEILING` 100; `UPLOAD_DAILY_CAP`
+  250 MB, `UPLOAD_DAILY_CAP_GUEST` 25 MB, `UPLOAD_DAILY_CEILING` 2000 MB. A cap of 0 shuts the
   feature for that group. Admins (`isAdmin`) are never capped and never spend the ceiling; their
   use is still counted on their own row. The defaults are a guess (a heavy turn with a full bible
   is tens of cents, a painting about 4 cents).
@@ -439,7 +442,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   called .png is refused with the formats named), names are clamped to 255, a folder can ride
   along (`folder_id`, checked against the world), and a failed insert deletes the R2 object it
   just wrote. The upload route has its own 14 MB JSON limit (base64 is 4/3 of the file); a
-  too-big body is a plain 413 sentence.
+  too-big body is a plain 413 sentence. Past every refusal, an upload spends the day's upload
+  allowance (The spend guard, kind `upload`): over it, a 429 sentence and nothing is stored.
 - Lists: `limit` 1–200 and `offset` whole, ids canonical, else 400; search matches `\`, `%`
   and `_` literally (ILIKE with ESCAPE). PUT /images/:id builds SET from the keys sent:
   `original_name` renames, `alt_text` '' or null clears the caption. PUT/DELETE

@@ -6,6 +6,7 @@ const { storeImage } = require('../lib/storeImage');
 const { isId } = require('../lib/validate');
 const { ownsWorld, notFound } = require('../lib/route');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const spend = require('../lib/spend');
 const router = express.Router();
 
 // POST /api/images/upload (and the older /api/images-base64/upload): the bytes arrive
@@ -51,6 +52,9 @@ const upload = async (req, res) => {
       }
       folderId = Number(folder_id);
     }
+    // the day's upload allowance (lib/spend.js), after every refusal above so a refused file
+    // never spends: an account, a guest and everyone together each have a daily number of MB
+    if (!(await spend.charge(req, res, 'upload', Math.max(1, Math.ceil(fileSize / 1024))))) return;
 
     // Generate unique filename
     const timestamp = Date.now();

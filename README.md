@@ -60,7 +60,8 @@ Names only; `.env.example` explains each.
   `VOICE_TTS_MODEL`, `VOICE_TTS_MODEL_GEMINI`, `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS`
 - Daily spend caps (per account, per guest, everyone together): `FORGE_DAILY_CAP`,
   `FORGE_DAILY_CAP_GUEST`, `FORGE_DAILY_CEILING`, `VOICE_DAILY_CAP`, `VOICE_DAILY_CAP_GUEST`,
-  `VOICE_DAILY_CEILING`
+  `VOICE_DAILY_CEILING`, and image uploads in MB: `UPLOAD_DAILY_CAP`, `UPLOAD_DAILY_CAP_GUEST`,
+  `UPLOAD_DAILY_CEILING`
 - Embedding and the bug widget: `EMBED_ORIGINS`, `BUG_WIDGET_KEY`
 
 ## Layout
