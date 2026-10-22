@@ -9,6 +9,7 @@ const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idPa
 const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
 const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
+const spend = require('../lib/spend');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -313,6 +314,12 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       ? `Keep or Unmake the Forge's cards in “${src.name}” first — a copy would keep their work`
       : 'That world is being changed right now — try again later, or start an empty world' });
   }
+  // the copy owns its art — every image is copied — so it adds the source's image bytes to
+  // storage, and spends them from the day's upload allowance as uploading them would
+  // (lib/spend.js): copy, delete, copy again went round the 50-worlds backstop above
+  const art = (await pool.query('SELECT COALESCE(SUM(file_size), 0) AS bytes FROM images WHERE world_id=$1', [src.id])).rows[0];
+  const artKb = Math.ceil(Number(art.bytes) / 1024);
+  if (artKb > 0 && !(await spend.charge(req, res, 'upload', artKb))) return;
 
   const client = await pool.connectTx();
   try {

@@ -374,8 +374,10 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   resets it. Kinds: `forge` — a chat turn is one use and each painting one more (spent when the
   reply proposes them; a proposal wanting more than is left changes nothing and its applyError
   says how many are left), ✦ Paint on an entry or a map is one; `voice` — a line or an ambience
-  is one; `upload` — an image upload spends its size (counted in KB; the settings are MB), so
-  R2 (or Postgres without it) cannot be filled by one account or a stream of guests. Listing
+  is one; `upload` — an image upload spends its size (counted in KB; the settings are MB), and a
+  world copy spends the sum of the source's image sizes (it copies every object), so R2 (or
+  Postgres without it) cannot be filled by one account, a stream of guests, or copy-delete-copy
+  past the 50-worlds backstop. Listing
   voices, Keep/Unmake/Allow and the panel's reads are free.
 - Caps by env (whole numbers, a typo keeps the default): `FORGE_DAILY_CAP` 40 per account,
   `FORGE_DAILY_CAP_GUEST` 5 per guest, `FORGE_DAILY_CEILING` 150 for everyone together;
