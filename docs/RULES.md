@@ -172,10 +172,12 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   Player View polls every 45s).
 - **The embed contract**: Spellforge's Map tab frames `/p/*` in an iframe. Only `/p` and
   `/p/*` may be framed, and only by the origins in `EMBED_ORIGINS` (comma-separated; default
-  the Spellforge origin) — a /p-only helmet CSP sets `frame-ancestors` and drops XFO; every
-  other path keeps `frame-ancestors 'self'` + `SAMEORIGIN`. A Spellforge domain change
-  means updating `EMBED_ORIGINS`; an Atlas domain change means updating Spellforge's
-  `MAP_SHARE_RE`. The API suite asserts the headers. Framed (`embedded` in MapPlane.jsx):
+  Spellforge's two addresses, its railway.app name and `spellforge.bennettdishman.com` at
+  the games' front door) — a /p-only helmet CSP sets `frame-ancestors` and drops XFO; every
+  other path keeps `frame-ancestors 'self'` + `SAMEORIGIN` (`server/lib/security.js`). A
+  Spellforge domain change means updating `EMBED_ORIGINS`; an Atlas domain change means
+  updating Spellforge's `MAP_SHARE_RE` (it takes `atlas.bennettdishman.com` too). The
+  local suite (`server/test/embed.test.js`) and the API suite assert the headers. Framed (`embedded` in MapPlane.jsx):
   map moves REPLACE history entries, a plain wheel scrolls the host page (Ctrl/⌘+wheel
   zooms), and a pan ends on `lostpointercapture`. The Player View fetches `/world` and the
   map in parallel; the DM pages are lazy chunks so `/p` never downloads them.

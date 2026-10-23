@@ -1,5 +1,4 @@
 const express = require('express');
-const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
@@ -27,39 +26,12 @@ const schemaReady = (async () => {
   } catch (e) { console.error('schema ensure skipped:', e.message); }
 })();
 
-// Security middleware. One set of CSP directives for the whole app; the public Player
-// View (/p, /p/*) additionally allows framing by the hosts in EMBED_ORIGINS — Spellforge's
-// Map tab by default — and drops X-Frame-Options (which cannot express an allowlist).
-// Everything else keeps helmet's defaults: frame-ancestors 'self' + XFO SAMEORIGIN, so
-// nobody can frame the DM UI. A Spellforge domain change means updating EMBED_ORIGINS
-// here; an Atlas domain change means updating Spellforge's MAP_SHARE_RE.
-const CSP_DIRECTIVES = {
-  // Helmet's default CSP is img-src 'self' data:, which blocks cross-origin R2 image URLs
-  // (pub-*.r2.dev / custom domain). Allow images from any https host (+ data/blob) while
-  // keeping scripts/styles on the locked-down defaults.
-  'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-  // Voice lines and ambience are audio objects on R2 — without this the browser
-  // renders the player and silently refuses to load the file.
-  'media-src': ["'self'", 'blob:', 'https:'],
-  // Bug-tracker feedback widget: loads widget.js and posts reports back to its API
-  'script-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
-  'connect-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
-};
-const EMBED_ORIGINS = (process.env.EMBED_ORIGINS || 'https://spellforge-production-1695.up.railway.app')
-  .split(',').map((s) => s.trim()).filter(Boolean);
-const dmHelmet = helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: { useDefaults: true, directives: CSP_DIRECTIVES },
-});
-const playerHelmet = helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: { useDefaults: true, directives: { ...CSP_DIRECTIVES, 'frame-ancestors': ["'self'", ...EMBED_ORIGINS] } },
-  xFrameOptions: false,
-});
-const isPlayerPath = (p) => p === '/p' || p.startsWith('/p/');
+// Security headers (lib/security.js): the CSP, and the embed contract — only the Player View
+// (/p, /p/*) may be framed, and only by EMBED_ORIGINS (Spellforge's Map tab by default).
+const { securityHeaders, isPlayerPath } = require('./lib/security');
 // first of all: //api/... is /api/... (lib/spa.js), so every rule below sees the plain path
 app.use(collapseLeadingSlashes);
-app.use((req, res, next) => (isPlayerPath(req.path) ? playerHelmet(req, res, next) : dmHelmet(req, res, next)));
+app.use(securityHeaders());
 app.use(compression());
 
 // Behind Railway's proxy — trust the first hop so req.ip is the real client (for rate limiting)
