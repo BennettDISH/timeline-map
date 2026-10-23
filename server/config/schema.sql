@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS images (
     folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL
 );
 
--- R2 object storage key for the uploaded image (NULL for Postgres-fallback rows, whose bytes are in base64_data)
+-- R2 object storage key for the uploaded image (NULL for old rows whose bytes are still in base64_data, until scripts/move-base64-to-r2.js has moved them)
 ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500);
 
 -- Maps table with hierarchical structure

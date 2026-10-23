@@ -24,7 +24,7 @@ every rule the code enforces.
 
 ## Stack
 React 18 + Vite + SASS (`client/`) · Express + Postgres (`server/`) · JWT auth with optional
-server-side Waypoint SSO and guest sign-in · Cloudflare R2 for art (base64-in-Postgres fallback)
+server-side Waypoint SSO and guest sign-in · Cloudflare R2 for art (nothing stored in Postgres)
 · optional Gemini "Forge" (a per-world mind) and Gemini/OpenAI/ElevenLabs voices.
 
 ## Getting started

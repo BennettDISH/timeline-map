@@ -2,7 +2,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { deleteObject } = require('../storage');
-const { storeImage } = require('../lib/storeImage');
+const { storeImage, refuseWithoutStorage } = require('../lib/storeImage');
 const { isId } = require('../lib/validate');
 const { ownsWorld, notFound } = require('../lib/route');
 const { resolveImageUrl } = require('../utils/imageUrl');
@@ -10,8 +10,9 @@ const spend = require('../lib/spend');
 const router = express.Router();
 
 // POST /api/images/upload (and the older /api/images-base64/upload): the bytes arrive
-// base64-encoded in a JSON body and land in R2 — or, with no R2 configured, in Postgres
-// (the fallback the /serve route below reads back).
+// base64-encoded in a JSON body and land in R2; the row keeps only the object key and the URL.
+// With no R2 configured the answer is 503 and nothing goes into Postgres. The /serve route
+// below still reads the old rows that hold base64_data.
 const upload = async (req, res) => {
   try {
     const { imageData, world_id, alt_text, folder_id } = req.body;
@@ -52,6 +53,8 @@ const upload = async (req, res) => {
       }
       folderId = Number(folder_id);
     }
+    // nowhere to keep it (R2 off): refused before it can spend anything
+    if (refuseWithoutStorage(res)) return;
     // the day's upload allowance (lib/spend.js), after every refusal above so a refused file
     // never spends: an account, a guest and everyone together each have a daily number of MB
     if (!(await spend.charge(req, res, 'upload', Math.max(1, Math.ceil(fileSize / 1024))))) return;
@@ -62,15 +65,14 @@ const upload = async (req, res) => {
     const extension = mimeType === 'jpeg' ? 'jpg' : mimeType;
     const filename = `img-${timestamp}-${randomString}.${extension}`;
 
-    // R2 when configured, else the Postgres fallback (lib/storeImage decides)
-    const { filePath: filePathValue, storageKey, base64ToStore } = await storeImage({ worldId: world_id, filename, buffer, mimeType: `image/${mimeType}`, dataUrl: imageData });
+    const { filePath: filePathValue, storageKey } = await storeImage({ worldId: world_id, filename, buffer, mimeType: `image/${mimeType}` });
 
     let result;
     try {
       result = await pool.query(`
-        INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key, folder_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING *
+        INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, storage_key, folder_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, filename, original_name, file_path, file_size, mime_type, alt_text, created_at
       `, [
         filename,
         originalName,
@@ -80,13 +82,12 @@ const upload = async (req, res) => {
         world_id,
         req.user.id,
         typeof alt_text === 'string' && alt_text.trim() ? alt_text.trim().slice(0, 2000) : null,
-        base64ToStore,
         storageKey,
         folderId,
       ]);
     } catch (e) {
       // the object went up before the row: a failed insert must not leave it behind
-      if (storageKey) await deleteObject(storageKey).catch((err) => console.error('R2 cleanup after failed insert:', err.message));
+      await deleteObject(storageKey).catch((err) => console.error('R2 cleanup after failed insert:', err.message));
       throw e;
     }
 

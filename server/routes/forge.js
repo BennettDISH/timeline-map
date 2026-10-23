@@ -14,6 +14,7 @@ const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
 const { discardBatch, allowAsks, paintAndStore } = require('../forge/contract');
 const spend = require('../lib/spend');
+const { refuseWithoutStorage } = require('../lib/storeImage');
 const router = express.Router();
 
 router.use(authenticateToken);
@@ -225,6 +226,7 @@ router.post('/nodes/:id/art', wrap(async (req, res) => {
   const mind = await ensureMind(n.world_id);
   const guidance = typeof req.body?.guidance === 'string' ? req.body.guidance.slice(0, 500) : '';
   const prompt = [`${n.title} (${n.category})`, n.body, guidance].filter(Boolean).join('. ');
+  if (refuseWithoutStorage(res)) return; // a painting with nowhere to be kept is never made or charged
   if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: n.world_id, userId: req.user.id, kind: 'art', prompt, artStyle: mind.art_style, name: `${n.title} — art` });
   // Fresh art on a bare node clearly wants to be seen: flip it to an image pin.
@@ -255,6 +257,7 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   // without one it is the base art
   const start = req.body?.start_time == null ? null : whole(req.body.start_time);
   if (start === undefined) return res.status(400).json({ message: 'A period starts at a whole number on the clock' });
+  if (refuseWithoutStorage(res)) return;
   if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt: start == null ? prompt : `${prompt}. This is how it looks in a later period`, artStyle: mind.art_style, name: `${m.title} — ${start == null ? 'backdrop' : `from ${start}`}` });
   if (start == null) {

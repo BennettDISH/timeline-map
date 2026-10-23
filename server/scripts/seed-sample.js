@@ -5,8 +5,9 @@
 //
 //   SEED_OWNER_ID=<users.id> node server/scripts/seed-sample.js
 //
-// The owner defaults to the lowest user id. Art is stored as base64 rows (the sample's two
-// SVGs), the same fallback the app uses without R2; a later clone lifts them into R2.
+// The owner defaults to the lowest user id. The sample's two SVGs ship with the client build
+// (client/public/sample/) and their rows point at those files: no bytes go into the database.
+// A clone of the template keeps pointing at the same files.
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const path = require('path');
 const pool = require('../config/database');
@@ -27,9 +28,9 @@ async function main() {
     const img = new Map(), maps = new Map(), nodes = new Map();
     for (const im of seed.images) {
       const r = (await client.query(
-        `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, base64_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-        [im.filename, im.original_name, `/api/images-base64/serve/${im.filename}`, im.file_size, im.mime_type, w.id, owner, im.base64_data])).rows[0];
+        `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [im.filename, im.original_name, im.file_path, im.file_size, im.mime_type, w.id, owner])).rows[0];
       img.set(im.id, r.id);
     }
     for (const n of seed.nodes) {

@@ -35,8 +35,12 @@ which is wrong before changing either.
   its email, since Waypoint never verifies an address and anyone could have claimed another
   person's worlds that way (B092). A row from before Waypoint is linked by hand.
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` (utils/imageUrl.js) passes
-  absolute R2 URLs through and prefixes relative paths; `/api/images/upload` takes the upload (base64 JSON; `/api/images-base64/upload` is its older alias) and `/api/images-base64/serve/:filename`
-  streams the Postgres-fallback rows (bytes in the table when R2 is not configured)
+  absolute R2 URLs through and prefixes relative paths; `/api/images/upload` takes the upload (base64 JSON; `/api/images-base64/upload` is its older alias).
+  **Images live on R2 only**: a row keeps the object key and the URL, never the bytes. With R2 off an
+  upload and a Forge painting answer 503 before anything is charged or painted. `/api/images-base64/serve/:filename`
+  only reads old rows that still hold `base64_data` (a row without bytes redirects to its R2 URL);
+  `node server/scripts/move-base64-to-r2.js` (dry run by default, `--apply` to copy) moves those rows
+  out, after which the column can be dropped. The sample world's art ships as files in `client/public/sample/`.
 
 ## Database
 **Production holds a real campaign** (Bennett's world 29: DM notes, R2 art, the Forge bible, a
@@ -45,7 +49,7 @@ EXISTS`), never a recreate, and anything destructive gets a snapshot first (`tom
 export like `~/atlas-backups/`). Undo and world clone both insert from ONE column list per
 table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
 Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
-base64 rows are lifted into R2, and folders, the lantern and the mind travel too. A world with a
+old base64 rows are lifted into R2, and folders, the lantern and the mind travel too. A world with a
 pending Forge batch is not copied (409) until its cards are kept or unmade: a copy carries no
 cards, so their work would land there as kept work its players see at once.
 Live tables (the 16 `schema.sql` creates; production held the first 15 as of 2026-09-26):

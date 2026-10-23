@@ -10,7 +10,9 @@ const express = require('express');
 const pool = require('../config/database');
 const spend = require('../lib/spend');
 
-for (const k of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL']) delete process.env[k];
+// uploads need R2 (nothing is stored in Postgres any more): switch it on and answer its S3 calls here
+Object.assign(process.env, { R2_ACCOUNT_ID: 'acct', R2_ACCESS_KEY_ID: 'key', R2_SECRET_ACCESS_KEY: 'secret', R2_BUCKET: 'bucket', R2_PUBLIC_URL: 'https://pub.test' });
+require('@aws-sdk/client-s3').S3Client.prototype.send = async () => ({});
 // small numbers so the files stay small: 1 MB an account, 1 MB a guest, 2 MB in all
 Object.assign(process.env, { UPLOAD_DAILY_CAP: '1', UPLOAD_DAILY_CAP_GUEST: '1', UPLOAD_DAILY_CEILING: '2' });
 

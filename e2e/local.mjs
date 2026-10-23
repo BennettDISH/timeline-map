@@ -43,7 +43,7 @@ const sock = new PGLiteSocketServer({ db, port: DB_PORT, host: '127.0.0.1', maxC
 await sock.start();
 say(`database on 127.0.0.1:${DB_PORT} (in memory)`);
 
-// every outside service is switched off, whatever the shell holds: images stay in the database
+// every outside service is switched off, whatever the shell holds: uploads answer 503
 // (no R2), no Waypoint sign-in, no Forge or voice calls, no bug widget
 const OFF = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL', 'AUTH_SERVICE_URL', 'SSO_CLIENT_ID',
   'SSO_CLIENT_SECRET', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'ELEVENLABS_API_KEY', 'BUG_WIDGET_KEY'];

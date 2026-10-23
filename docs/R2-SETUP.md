@@ -1,9 +1,10 @@
 # R2 Setup (click-by-click)
 
-Image upload works out of the box with **no setup** — bytes land in Postgres as base64 and are
-served by `/api/images-base64/serve/:filename`. To switch to **Cloudflare R2** (recommended for
-anything real), do the following once; uploads then go to R2 automatically. Existing base64 rows
-keep working at their old URLs — no migration needed.
+Images are stored on **Cloudflare R2** only — nothing is kept in Postgres. Without the R2 setup
+below, uploads and Forge paintings answer 503 ("this server has no image storage (R2) set up").
+Old rows that still hold base64 keep working at their old URLs (`/api/images-base64/serve/:filename`)
+until `node server/scripts/move-base64-to-r2.js --apply` copies them to R2 (dry run by default;
+take a database backup first).
 
 ## 1. Create the bucket
 1. Cloudflare dashboard → **R2 Object Storage** → **Create bucket**.
@@ -35,8 +36,8 @@ Railway redeploys automatically. New uploads now go to R2 with keys like
 `worlds/<worldId>/<filename>`, and image URLs become fast Cloudflare-edge URLs.
 
 ## How it behaves
-- **All five vars must be set** or the app stays on the Postgres base64 fallback (`server/storage.js`
-  `r2Enabled` gate). Check by uploading — R2 URLs start with your `R2_PUBLIC_URL`.
+- **All five vars must be set** or image storage is off (`server/storage.js` `r2Enabled` gate) and
+  uploads answer 503. Check by uploading — R2 URLs start with your `R2_PUBLIC_URL`.
 - Keys are prefixed per world (`worlds/<worldId>/...`).
 - Deleting an image removes its R2 object (`server/routes/images.js` DELETE).
 - Upload size is bounded by the upload route's own `express.json({ limit: '14mb' })` in

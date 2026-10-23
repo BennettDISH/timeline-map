@@ -8,7 +8,8 @@
 const crypto = require('crypto');
 const pool = require('../config/database');
 const { deleteObject } = require('./../storage');
-const { storeImage } = require('../lib/storeImage');
+const { storeImage, NO_STORAGE } = require('../lib/storeImage');
+const { r2Enabled } = require('../storage');
 const { generateImage } = require('./gemini');
 const { CATEGORIES: CATS } = require('../lib/vocab');
 
@@ -201,7 +202,7 @@ function validateBatch(batch, world) {
 // ---- images ----------------------------------------------------------------------
 
 // The style anchor: the world's first painted image, sent as a reference with every later
-// generation so the artwork stays one hand. Bytes come from R2 (or Postgres-fallback rows).
+// generation so the artwork stays one hand. Bytes come from R2 (or an old row that still holds base64).
 async function loadAnchor(worldId) {
   try {
     const r = await pool.query(
@@ -224,10 +225,12 @@ async function loadAnchor(worldId) {
   return null;
 }
 
-// Paint one image and store it through the same pipeline hand uploads use (R2 when
-// configured, base64-in-Postgres otherwise). Returns the images row (+ url).
+// Paint one image and store it through the same pipeline hand uploads use (on R2; the row
+// keeps only the key and the URL). Returns the images row (+ url).
 // If this world has no style anchor yet, the first painting becomes it.
 async function paintAndStore({ worldId, userId, kind, prompt, artStyle, name }) {
+  // checked before the paid call: a painting that cannot be kept is never made
+  if (!r2Enabled) throw Object.assign(new Error('R2 is not configured'), { userMessage: NO_STORAGE });
   const anchor = await loadAnchor(worldId);
   const style = (artStyle || '').trim();
   const full = [
@@ -242,11 +245,11 @@ async function paintAndStore({ worldId, userId, kind, prompt, artStyle, name }) 
   const ext = (img.mimeType.split('/')[1] || 'png').replace('jpeg', 'jpg');
   const filename = `forge-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
   const buffer = Buffer.from(img.data, 'base64');
-  const { filePath, storageKey, base64ToStore } = await storeImage({ worldId, filename, buffer, mimeType: img.mimeType, dataUrl: `data:${img.mimeType};base64,${img.data}` });
+  const { filePath, storageKey } = await storeImage({ worldId, filename, buffer, mimeType: img.mimeType });
   const row = (await pool.query(
-    `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, file_path`,
-    [filename, name || filename, filePath, buffer.length, img.mimeType, worldId, userId, 'Painted by the Forge', base64ToStore, storageKey])).rows[0];
+    `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, storage_key)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, file_path`,
+    [filename, name || filename, filePath, buffer.length, img.mimeType, worldId, userId, 'Painted by the Forge', storageKey])).rows[0];
   const anchored = (await pool.query(
     `UPDATE world_minds SET style_image_id=$1, updated_at=CURRENT_TIMESTAMP WHERE world_id=$2 AND style_image_id IS NULL RETURNING world_id`,
     [row.id, worldId])).rowCount > 0;

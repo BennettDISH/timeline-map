@@ -5,13 +5,15 @@ const {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  HeadObjectCommand,
 } = require('@aws-sdk/client-s3');
 
-// Object storage for uploaded images. The driver is picked by env: when all five R2_* vars are
-// set, files go to Cloudflare R2 (one bucket, per-world key prefixes) and are served from R2's
-// public URL; otherwise the app falls back to storing bytes as base64 in Postgres (images.base64_data)
-// served by /api/images-base64/serve. Swapping drivers changes only where bytes live — the images
-// table/API stay identical.
+// Object storage for uploaded images. When all five R2_* vars are set, files go to Cloudflare R2
+// (one bucket, per-world key prefixes) and are served from R2's public URL; the images table keeps
+// only the object key and the absolute URL. With any var missing R2 is off and nothing is stored:
+// uploads and Forge paintings answer 503 (lib/storeImage.js) instead of putting bytes in Postgres.
+// Old rows that still hold base64_data are read back by /api/images-base64/serve until
+// scripts/move-base64-to-r2.js has copied them out.
 //
 // Ported from content-platform/server/storage.js, which is ESM; this server is CommonJS, so it is
 // rewritten with require/module.exports rather than copied verbatim.
@@ -54,6 +56,18 @@ async function copyObject(srcKey, dstKey) {
   return `${cfg.publicUrl}/${dstKey}`;
 }
 
+// The size of an object in bytes, or null when it is not there (the old-row mover checks that a
+// copy landed before it clears the row's base64).
+async function objectSize(key) {
+  try {
+    const head = await client.send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
+    return head.ContentLength;
+  } catch (e) {
+    if (e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404) return null;
+    throw e;
+  }
+}
+
 // Delete one object from R2 (no-op if the key is missing or R2 is off).
 async function deleteObject(key) {
   if (!key || !client) return;
@@ -84,4 +98,4 @@ function keyFromUrl(url) {
   return String(url).slice(cfg.publicUrl.length + 1);
 }
 
-module.exports = { r2Enabled, putObject, copyObject, deleteObject, deletePrefix, keyFromUrl };
+module.exports = { r2Enabled, putObject, copyObject, objectSize, deleteObject, deletePrefix, keyFromUrl };
