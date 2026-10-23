@@ -84,8 +84,8 @@ test('a failed sign-in holds this tab; Sign out holds every tab of the browser; 
 })
 
 test('"Sign out of all games" ends at Waypoint\'s /logout, which returns you to the arcade', () => {
-  assert.strictEqual(s.waypointLogoutUrl('http://waypoint.test', 'https://quickplay-arcade-production.up.railway.app/'),
-    'http://waypoint.test/logout?return_to=https%3A%2F%2Fquickplay-arcade-production.up.railway.app%2F')
+  assert.strictEqual(s.waypointLogoutUrl('http://waypoint.test', 'https://games.bennettdishman.com/'),
+    'http://waypoint.test/logout?return_to=https%3A%2F%2Fgames.bennettdishman.com%2F')
 })
 
 test('the page to come back to: the sign-in page\'s own next, else where you are, without ?local', () => {

@@ -1,9 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import '../styles/gamesbar.css'
 
-// The way back to every game. It moves to the site's own address later: this is the one place
-// to change it.
-export const ARCADE_URL = 'https://quickplay-arcade-production.up.railway.app/'
+// The way back to every game. This is the one place to change it.
+export const ARCADE_URL = 'https://games.bennettdishman.com/'
 
 /** The bar every game shares: "◂ All games" and the account chip. `account` is undefined
  *  while the app is still asking who this is (no chip yet), null when signed out (the chip
