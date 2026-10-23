@@ -25,7 +25,10 @@ which is wrong before changing either.
   never holds a Waypoint session to claim it from). A guest nobody has seen for
   `GUEST_RETENTION_DAYS` (30 — the same setting and window Waypoint prunes its guests by) is
   removed with its worlds and their R2 objects: `lib/guests.js`, a minute after boot and then
-  daily, one sweeper at a time (advisory lock); "seen" is `users.last_seen_at`, stamped on every
+  daily, one sweeper at a time (advisory lock), and only after asking Waypoint which of them
+  may go (`lib/guestCheck.js`, `POST /api/auth/proxy/guests`: a guest that claimed its account
+  stays and stops being a guest, and nobody is removed while Waypoint does not answer);
+  "seen" is `users.last_seen_at`, stamped on every
   sign-in and, at most every six hours, on any signed-in request (`middleware/auth.js`). That
   same stamp tells Waypoint a guest is still here (`centralSeen` → `POST /proxy/seen`): the
   sliding session means a guest never signs in through Waypoint again, and Waypoint prunes a
