@@ -55,6 +55,7 @@ test('an upload goes to R2 and the row keeps only the key and the URL', async ()
   assert.strictEqual(put.input.Bucket, 'bucket');
   assert.match(put.input.Key, /^worlds\/5\/img-\d+-\d+\.png$/);
   assert.strictEqual(put.input.ContentType, 'image/png');
+  assert.strictEqual(put.input.CacheControl, 'public, max-age=31536000, immutable', 'the key is never written twice, so the edge may keep it for good');
   assert.deepStrictEqual(Buffer.from(put.input.Body), PNG);
 
   assert.strictEqual(inserts.length, 1);

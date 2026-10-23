@@ -58,7 +58,8 @@ Names only; `.env.example` explains each.
   `ADMIN_CENTRAL_USER_IDS`
 - Guests: `GUEST_RETENTION_DAYS`, `GUEST_CLEANUP_ENABLED`
 - Images (all five turn R2 on): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
-  `R2_BUCKET`, `R2_PUBLIC_URL`
+  `R2_BUCKET`, `R2_PUBLIC_URL` (the bucket's custom domain). `R2_LEGACY_PUBLIC_URLS` is optional: the old
+  r2.dev address, only while `server/scripts/rewrite-media-host.js` has not yet moved the stored URLs
 - The Forge: `GEMINI_API_KEY`, `FORGE_ENABLED`, `FORGE_TEXT_MODEL`, `FORGE_IMAGE_MODEL`
 - Voices: `VOICE_PROVIDER`, `VOICE_ENABLED`, `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`,
   `VOICE_TTS_MODEL`, `VOICE_TTS_MODEL_GEMINI`, `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS`

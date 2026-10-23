@@ -15,16 +15,30 @@ const {
 // Old rows that still hold base64_data are read back by /api/images-base64/serve until
 // scripts/move-base64-to-r2.js has copied them out.
 //
+// R2_PUBLIC_URL is the bucket's public address: the custom domain
+// (https://atlas-media.bennettdishmanmedia.com) or, before that, the rate-limited r2.dev one.
+// While stored URLs are being moved from the old address to the new (scripts/rewrite-media-host.js),
+// R2_LEGACY_PUBLIC_URLS lists the old address(es), comma separated, so keyFromUrl still finds the
+// object behind a row that has not been rewritten yet. Drop it once the rewrite has run.
+//
+// Every key is minted once and never written twice (a unique file name per upload, per Forge
+// painting, per voice line, per world copy), so each object is cached for good (immutable).
+//
 // Ported from content-platform/server/storage.js, which is ESM; this server is CommonJS, so it is
 // rewritten with require/module.exports rather than copied verbatim.
+
+const origin = (s) => String(s || '').trim().replace(/\/+$/, '');
 
 const cfg = {
   accountId: process.env.R2_ACCOUNT_ID || '',
   accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
   secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
   bucket: process.env.R2_BUCKET || '',
-  publicUrl: (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, ''),
+  publicUrl: origin(process.env.R2_PUBLIC_URL),
+  legacyUrls: (process.env.R2_LEGACY_PUBLIC_URLS || '').split(',').map(origin).filter(Boolean),
 };
+
+const CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 // True when R2 is fully configured and active.
 const r2Enabled = Boolean(
@@ -42,16 +56,18 @@ const client = r2Enabled
 // Upload a buffer to R2; returns the public URL.
 async function putObject(key, body, contentType) {
   await client.send(
-    new PutObjectCommand({ Bucket: cfg.bucket, Key: key, Body: body, ContentType: contentType })
+    new PutObjectCommand({ Bucket: cfg.bucket, Key: key, Body: body, ContentType: contentType, CacheControl: CACHE_CONTROL })
   );
   return `${cfg.publicUrl}/${key}`;
 }
 
 // Copy an object inside the bucket (a world clone taking ownership of its art); returns the
-// new public URL.
-async function copyObject(srcKey, dstKey) {
+// new public URL. With the type given, the copy is stored with the immutable Cache-Control too
+// (an object put before that header existed has none, and a plain copy would carry that over).
+async function copyObject(srcKey, dstKey, contentType) {
   await client.send(new CopyObjectCommand({
     Bucket: cfg.bucket, CopySource: `/${cfg.bucket}/${encodeURI(srcKey)}`, Key: dstKey,
+    ...(contentType ? { MetadataDirective: 'REPLACE', ContentType: contentType, CacheControl: CACHE_CONTROL } : {}),
   }));
   return `${cfg.publicUrl}/${dstKey}`;
 }
@@ -92,10 +108,15 @@ async function deletePrefix(prefix) {
   } while (token);
 }
 
-// The object key behind one of our public URLs (null for anything else).
+// The object key behind one of our public URLs (null for anything else): an address under
+// R2_PUBLIC_URL, or under one of R2_LEGACY_PUBLIC_URLS until the stored URLs are rewritten.
 function keyFromUrl(url) {
-  if (!url || !cfg.publicUrl || !String(url).startsWith(`${cfg.publicUrl}/`)) return null;
-  return String(url).slice(cfg.publicUrl.length + 1);
+  if (!url || !cfg.publicUrl) return null;
+  const s = String(url);
+  for (const base of [cfg.publicUrl, ...cfg.legacyUrls]) {
+    if (s.startsWith(`${base}/`)) return s.slice(base.length + 1);
+  }
+  return null;
 }
 
-module.exports = { r2Enabled, putObject, copyObject, objectSize, deleteObject, deletePrefix, keyFromUrl };
+module.exports = { r2Enabled, putObject, copyObject, objectSize, deleteObject, deletePrefix, keyFromUrl, CACHE_CONTROL };

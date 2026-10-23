@@ -353,7 +353,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
     let filePath = im.file_path, storageKey = null, base64 = im.base64_data;
     if (r2Enabled) {
       const key = `worlds/${w.id}/${fname}`;
-      if (im.storage_key) { filePath = await copyObject(im.storage_key, key); storageKey = key; }
+      if (im.storage_key) { filePath = await copyObject(im.storage_key, key, im.mime_type); storageKey = key; }
       else if (im.base64_data) {
         const m = /^data:[^;]+;base64,(.+)$/.exec(im.base64_data);
         filePath = await putObject(key, Buffer.from(m ? m[1] : im.base64_data, 'base64'), im.mime_type || 'image/png');

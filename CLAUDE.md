@@ -56,7 +56,8 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
   `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
-  `storage.js` (R2), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
+  `storage.js` (R2: immutable Cache-Control on every put; `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
+  domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
   `Pickers` = ImagePicker + NodePicker + MapPicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —

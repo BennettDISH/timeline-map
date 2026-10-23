@@ -13,7 +13,8 @@ take a database backup first).
 ## 2. Enable public access (so the app can load images)
 1. Open the bucket → **Settings** → **Public access** → **R2.dev subdomain** → **Allow Access**.
 2. Copy the URL it gives you, e.g. `https://pub-xxxxxxxxxxxx.r2.dev` — this is `R2_PUBLIC_URL`.
-   (Later you can attach a custom domain here instead; just update the env var.)
+   (Better: attach a custom domain instead, see "Serving from a custom domain" below. r2.dev is rate
+   limited and not meant for production traffic.)
 
 ## 3. Create an API token
 1. R2 overview page → **Manage R2 API Tokens** → **Create API Token**.
@@ -34,6 +35,29 @@ On the **timeline-map service** (not the database), add:
 
 Railway redeploys automatically. New uploads now go to R2 with keys like
 `worlds/<worldId>/<filename>`, and image URLs become fast Cloudflare-edge URLs.
+
+## Serving from a custom domain
+Production serves its media from `https://atlas-media.bennettdishmanmedia.com`, not r2.dev.
+1. Cloudflare dashboard → the bucket → **Settings** → **Custom Domains** → **Add** →
+   `atlas-media.bennettdishmanmedia.com`. Wait for it to say Active, then open
+   `https://atlas-media.bennettdishmanmedia.com/<any existing key>` (a `worlds/<id>/<file>` from the
+   Archive) to see it load. A custom domain makes the WHOLE bucket public: only this app's `worlds/`
+   keys may be in it.
+2. On the timeline-map service set `R2_PUBLIC_URL=https://atlas-media.bennettdishmanmedia.com` and
+   `R2_LEGACY_PUBLIC_URLS=<the old https://pub-….r2.dev>`. New uploads now get the new address, and
+   deleting a voice line or ambience still finds its object under either one.
+3. Stored rows still hold the old address. After a `pg_dump`, and with Bennett's OK, from `server/`:
+   `node scripts/rewrite-media-host.js` (the dry run: counts per column), then `--apply`. It rewrites the
+   leading address of `images.file_path`, `nodes.voice_url` and `maps.ambience_url` in one transaction,
+   touches nothing else, and a second run finds 0. `--from` defaults to the first
+   `R2_LEGACY_PUBLIC_URLS` and `--to` to `R2_PUBLIC_URL`.
+4. Remove `R2_LEGACY_PUBLIC_URLS`. Leave r2.dev enabled for a day more: undo snapshots (24 hours) and
+   browsers' caches may still hold the old addresses.
+
+Every object is put with `Cache-Control: public, max-age=31536000, immutable` (a key is never written
+twice). Objects put before that have no header; the edge's own caching still serves them, and a world
+copy re-stores its copies with it. New PNG and JPEG uploads are shrunk to WebP in the browser first
+(`client/src/utils/shrinkImage.js`: at most 4096 px, quality 0.85; GIFs and WebPs go up as they are).
 
 ## How it behaves
 - **All five vars must be set** or image storage is off (`server/storage.js` `r2Enabled` gate) and

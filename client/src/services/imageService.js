@@ -1,4 +1,5 @@
 import http from './http'
+import { shrinkImage } from '../utils/shrinkImage'
 
 // The one image client: upload, list, rename, move and delete through /api/images.
 const API_BASE = '/api/images'
@@ -16,10 +17,11 @@ const imageService = {
 
   // Upload an image (the bytes travel base64-encoded in a JSON body). onProgress(0..100)
   // follows the REAL transfer (the browser's upload progress), after a short read of the
-  // file; folderId files it in one request.
+  // file; folderId files it in one request. A PNG or JPEG goes up as a smaller WebP when the
+  // browser can make one (utils/shrinkImage.js); the name the DM gave it stays.
   async uploadImage(file, worldId, { onProgress = null, folderId = null } = {}) {
     if (onProgress) onProgress(2)
-    const base64Data = await this.fileToBase64(file)
+    const base64Data = await this.fileToBase64(await shrinkImage(file))
     const uploadData = { imageData: base64Data, originalName: file.name, world_id: worldId }
     if (folderId != null) uploadData.folder_id = folderId
     const response = await http.post(`${API_BASE}/upload`, uploadData, {
