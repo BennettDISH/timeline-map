@@ -52,7 +52,7 @@ const get = async (path, who) => {
 };
 const body = (r) => JSON.parse(r.text);
 const LISTS = ['/users', '/worlds', '/maps', '/nodes', '/eras', '/images', '/forge/messages', '/forge/batches'];
-const ONES = ['/summary', '/db-status', '/worlds/5', '/maps/5', '/nodes/5'];
+const ONES = ['/summary', '/site', '/db-status', '/worlds/5', '/maps/5', '/nodes/5'];
 
 test('signed out is a 401; a non-admin, a guest on an admin id and an account with no Waypoint id get 403, before any query', async () => {
   queries = [];
@@ -144,4 +144,46 @@ test('an id with another spelling is a 404 before any query runs', async () => {
   queries = [];
   for (const path of ['/worlds/5.0', '/maps/abc', '/nodes/-1', '/worlds/05']) assert.strictEqual((await get(path, 2)).status, 404, path);
   assert.deepStrictEqual(queries, []);
+});
+
+test('the site switches show read-only: on or off and plain numbers, never a key or a secret', async () => {
+  const keep = { ...process.env };
+  const names = ['GEMINI_API_KEY', 'FORGE_ENABLED', 'VOICE_ENABLED', 'OPENAI_API_KEY', 'ELEVENLABS_API_KEY', 'GUEST_CLEANUP_ENABLED', 'GUEST_RETENTION_DAYS',
+    'FORGE_DAILY_CAP', 'AUTH_SERVICE_URL', 'SSO_CLIENT_ID', 'SSO_CLIENT_SECRET'];
+  const by = (r) => Object.fromEntries(body(r).switches.map((w) => [w.label, w]));
+  try {
+    for (const n of names) delete process.env[n];
+    queries = [];
+    let s = by(await get('/site', 2));
+    assert.strictEqual(s['The Forge'].on, false, 'no key, no Forge');
+    assert.strictEqual(s['Voices'].on, false);
+    assert.strictEqual(s['Daily guest cleanup'].on, true);
+    assert.strictEqual(s['Guests kept after their last visit'].value, '30 days');
+    assert.match(s['Forge allowance'].value, /^40 an account, 5 a guest, 150 in all/);
+    assert.strictEqual(s['Waypoint sign-in set up'].on, false);
+
+    process.env.GEMINI_API_KEY = 'KEY-LEAK-GEMINI';
+    process.env.SSO_CLIENT_SECRET = 'SECRET-LEAK';
+    process.env.AUTH_SERVICE_URL = 'https://waypoint.example';
+    process.env.SSO_CLIENT_ID = 'client-leak';
+    process.env.GUEST_CLEANUP_ENABLED = 'false';
+    process.env.GUEST_RETENTION_DAYS = '90';
+    process.env.FORGE_DAILY_CAP = '12';
+    const r = await get('/site', 2);
+    s = by(r);
+    assert.strictEqual(s['The Forge'].on, true);
+    assert.strictEqual(s['Daily guest cleanup'].on, false);
+    assert.strictEqual(s['Guests kept after their last visit'].value, '90 days');
+    assert.match(s['Forge allowance'].value, /^12 an account/);
+    assert.strictEqual(s['Waypoint sign-in set up'].on, true);
+    for (const leak of ['KEY-LEAK-GEMINI', 'SECRET-LEAK', 'client-leak', 'waypoint.example']) assert.ok(!r.text.includes(leak), `no ${leak} in the answer`);
+
+    process.env.FORGE_ENABLED = '0';
+    assert.strictEqual(by(await get('/site', 2))['The Forge'].on, false, 'the kill switch');
+    assert.deepStrictEqual(queries, [], 'nothing is read from the database');
+    const post = await fetch(`${base}/site`, { method: 'POST', headers: { Authorization: `Bearer ${tokenOf(2)}` } });
+    assert.strictEqual(post.status, 404, 'it can be read and nothing else');
+  } finally {
+    for (const n of names) { if (keep[n] === undefined) delete process.env[n]; else process.env[n] = keep[n]; }
+  }
 });

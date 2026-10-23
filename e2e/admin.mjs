@@ -32,7 +32,7 @@ const A = as(admin);
 // who gets in
 {
   const outs = [];
-  for (const path of [...LISTS, '/summary', `/worlds/${cfg.worldId}`, `/maps/${cfg.root}`]) {
+  for (const path of [...LISTS, '/summary', '/site', `/worlds/${cfg.worldId}`, `/maps/${cfg.root}`]) {
     outs.push([path, (await as(null)(path)).status, (await as(dm)(path)).status, (await as(guest)(path)).status]);
   }
   step('signed out is a 401, a DM and a guest get 403, on every admin route', outs.every(([, a, b, c]) => a === 401 && b === 403 && c === 403),
@@ -94,7 +94,7 @@ const A = as(admin);
 // nothing secret in any answer
 {
   const texts = [];
-  for (const path of [...LISTS, '/summary', `/worlds/${cfg.worldId}`, `/maps/${cfg.root}`]) texts.push([path, (await A(path)).text]);
+  for (const path of [...LISTS, '/summary', '/site', `/worlds/${cfg.worldId}`, `/maps/${cfg.root}`]) texts.push([path, (await A(path)).text]);
   const leaks = texts.filter(([, t]) => t.includes(cfg.shareToken) || /password_hash|token_version|base64_data|storage_key|shareToken/.test(t) || t.includes('data:image'));
   step('no answer carries a password hash, a token, the share token or image bytes', leaks.length === 0, leaks.map(([p]) => p).join(', '));
 }

@@ -6,6 +6,11 @@ const { isId, idParam } = require('../lib/validate');
 const { wrap: wrapWith } = require('../lib/route');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { noteText } = require('../forge/notes');
+const { enabled: forgeOn } = require('../forge/gemini');
+const voice = require('../voice/providers');
+const { KINDS, setting } = require('../lib/spend');
+const { guestSweepOn } = require('../lib/guests');
+const { r2Enabled } = require('../storage');
 const router = express.Router();
 const wrap = wrapWith('admin');
 
@@ -64,6 +69,33 @@ router.get('/db-status', async (req, res) => {
       }
     });
   }
+});
+
+// GET /api/admin/site — the switches that live in Railway variables, as they stand: on or off, or
+// a plain number, never a key or a secret (a key shows only as set up or not). Changing one is
+// done in Railway; nothing here writes.
+router.get('/site', (req, res) => {
+  const days = Number(process.env.GUEST_RETENTION_DAYS || 30);
+  const caps = (kind, unit) => {
+    const k = KINDS[kind];
+    const n = (suffix, dflt) => setting(`${k.env}_DAILY_${suffix}`, dflt);
+    return `${n('CAP', k.defaults.cap)} an account, ${n('CAP_GUEST', k.defaults.guest)} a guest, ${n('CEILING', k.defaults.ceiling)} in all — ${unit} a day`;
+  };
+  res.json({
+    switches: [
+      { key: 'GEMINI_API_KEY, FORGE_ENABLED', label: 'The Forge', on: forgeOn() },
+      { key: 'VOICE_ENABLED, VOICE_PROVIDER, a voice key', label: 'Voices', on: !!voice.status().enabled },
+      { key: 'GUEST_CLEANUP_ENABLED', label: 'Daily guest cleanup', on: guestSweepOn() },
+      { key: 'GUEST_RETENTION_DAYS', label: 'Guests kept after their last visit',
+        value: Number.isFinite(days) && days >= 1 ? `${days} days` : 'not valid — the guest sweep will not run' },
+      { key: 'FORGE_DAILY_CAP, _CAP_GUEST, _CEILING', label: 'Forge allowance', value: caps('forge', 'uses') },
+      { key: 'VOICE_DAILY_CAP, _CAP_GUEST, _CEILING', label: 'Voice allowance', value: caps('voice', 'recordings') },
+      { key: 'UPLOAD_DAILY_CAP, _CAP_GUEST, _CEILING', label: 'Upload allowance', value: caps('upload', 'MB') },
+      { key: 'R2_*', label: 'Image storage (R2) set up', on: r2Enabled },
+      { key: 'AUTH_SERVICE_URL, SSO_CLIENT_ID, SSO_CLIENT_SECRET', label: 'Waypoint sign-in set up',
+        on: !!(process.env.AUTH_SERVICE_URL && process.env.SSO_CLIENT_ID && process.env.SSO_CLIENT_SECRET) },
+    ],
+  });
 });
 
 // ---- Browse: everything on the site, look-only -------------------------------------------------

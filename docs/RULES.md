@@ -10,8 +10,11 @@ which is wrong before changing either.
   (no VITE_ client vars; configured only when URL + client id + secret all exist).
   **Admin is a Waypoint identity**: `ADMIN_CENTRAL_USER_IDS` (unset = central id 1, Bennett;
   explicitly empty = nobody; guests never) — `isAdmin` in `server/middleware/auth.js`; the
-  local `users.role` grants nothing. `/me` and every sign-in return `{role: 'admin'|'dm',
-  isAdmin, isGuest}`. Sign-out POSTs `{}` (a `null` JSON body is a 400 before the route)
+  local `users.role` grants nothing. The admin's tools are all at `/admin` (the browse of
+  everything, the Railway switches read-only, the database check); the session is a bearer
+  token, so the server hands the page to everyone and refuses every `/api/admin` call to a
+  non-admin (403), and the page then says "This page is for the site admin." `/me` and every
+  sign-in return `{role: 'admin'|'dm', isAdmin, isGuest}`. Sign-out POSTs `{}` (a `null` JSON body is a 400 before the route)
   and bumps `token_version`; `clearLocalSession` in `http.js` also forgets the last map and
   current world. The first `/me` check clears the token ONLY when the server says the token
   is bad; a 5xx/429/network blip keeps it (cached user, or a retry screen). Sign-in and

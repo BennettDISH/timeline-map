@@ -44,8 +44,11 @@ async function sweepGuests({ days = Number(process.env.GUEST_RETENTION_DAYS || 3
   }
 }
 
+// on unless GUEST_CLEANUP_ENABLED=false (the admin page shows it, routes/admin.js)
+const guestSweepOn = () => process.env.GUEST_CLEANUP_ENABLED !== 'false';
+
 function scheduleGuestSweep() {
-  if (process.env.GUEST_CLEANUP_ENABLED === 'false') { console.log('Guest sweep off (GUEST_CLEANUP_ENABLED=false)'); return; }
+  if (!guestSweepOn()) { console.log('Guest sweep off (GUEST_CLEANUP_ENABLED=false)'); return; }
   const run = async () => {
     try {
       const r = await sweepGuests();
@@ -58,4 +61,4 @@ function scheduleGuestSweep() {
   setInterval(run, 24 * 60 * 60 * 1000).unref();
 }
 
-module.exports = { sweepGuests, scheduleGuestSweep };
+module.exports = { sweepGuests, scheduleGuestSweep, guestSweepOn };

@@ -154,6 +154,7 @@ body.gtb-on {
 }
 .admin-db summary { cursor: pointer; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 1.4rem; }
 .admin-db[open] summary { margin-bottom: 1rem; }
+.admin-switches code { font-size: 12px; color: #9a9a94; overflow-wrap: anywhere; }
 .admin-maps { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
 .admin-maplist {
   list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 76vh; overflow: auto;

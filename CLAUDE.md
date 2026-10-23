@@ -65,6 +65,14 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
 - Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `Archive`
   (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel` (`/admin`: every account, world, map, entry, era, image and Forge chat, look-only, searchable, 50 a page) and `AdminWorld` (`/admin/worlds/:id`: one world read-only, its maps with every pin, entries, eras, images and Forge history; the API is `GET /api/admin/*` in `admin.js`, gated by ADMIN_CENTRAL_USER_IDS), `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
   ensured on boot and admin is a Waypoint identity)
+- **Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1).** Everything the admin has is
+  there: `client/src/pages/AdminPanel.jsx` (the browse tabs, the Railway switches read-only, the
+  database check), `AdminWorld.jsx`, `components/admin/` (`AdminOnly.jsx` is what anyone else sees:
+  "This page is for the site admin."), and `GET /api/admin/*` in `server/routes/admin.js`
+  (`/site` = the switches, read-only), tested in `server/test/admin.test.js`. The session here is a
+  bearer token in the browser, so the server cannot see who asks for the page itself: every admin
+  API refuses a non-admin with a 403 and the page draws the refusal. The "Admin" link
+  (`components/TopBar.jsx`) shows to the admin only.
 
 ## Key invariants (the whole rule for each is in `docs/RULES.md`)
 - **All secrecy is enforced in `server/routes/share.js`, server-side**: DM-only nodes and

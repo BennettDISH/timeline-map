@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
-import TopBar, { Compass } from '../components/TopBar'
+import TopBar from '../components/TopBar'
+import AdminOnly from '../components/admin/AdminOnly'
 import MapPlane from '../components/MapPlane'
 import { PinBody, pinClass } from '../components/Pin'
 import { cat } from '../utils/categories'
@@ -26,19 +27,7 @@ function AdminWorld() {
   const set = (next) => setParams(Object.fromEntries(Object.entries({ ...Object.fromEntries(params), ...next }).filter(([, v]) => v)))
   const ws = useAdminGet(user?.isAdmin ? `/worlds/${worldId}` : null)
 
-  if (!user?.isAdmin) {
-    return (
-      <div className="shell">
-        <TopBar crumb="Admin" />
-        <div className="voidstate">
-          <Compass size={92} className="void-rose" />
-          <h2>This door is for the admin</h2>
-          <p>Nothing here is yours to change. Your worlds are where you left them.</p>
-          <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
-        </div>
-      </div>
-    )
-  }
+  if (!user?.isAdmin) return <AdminOnly />
   const w = ws.data?.world
   const tabs = w ? [
     ['maps', 'Maps', w.counts.maps], ['entries', 'Entries', w.counts.nodes], ['eras', 'Eras', w.counts.eras],

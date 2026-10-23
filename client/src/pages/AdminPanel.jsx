@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
 import http, { errText } from '../services/http'
-import TopBar, { Compass } from '../components/TopBar'
+import TopBar from '../components/TopBar'
+import AdminOnly from '../components/admin/AdminOnly'
 import { usePaged, SearchBox, Pager, ListState, when, seenBy } from '../components/admin/Browse'
 import { Images, Messages, Batches } from '../components/admin/Lists'
 import { cat } from '../utils/categories'
 import '../styles/shell.scss'
 
-// The admin's look-only window on everything: every account, world, map, entry, era, image and
-// Forge conversation, searchable, 50 a page; a world opens read-only (AdminWorld). Admin is a
+// /admin, the one place for the admin's tools: a look-only window on everything — every account,
+// world, map, entry, era, image and Forge conversation, searchable, 50 a page; a world opens
+// read-only (AdminWorld) — with the database check and the Railway switches below. Admin is a
 // Waypoint identity (ADMIN_CENTRAL_USER_IDS on the server); the server enforces it, this only
 // hides. Where you are (tab, search, page, filter) lives in the URL, so Back returns to it.
 const TABS = [
@@ -45,19 +47,7 @@ function AdminPanel() {
     setParams(Object.fromEntries(Object.entries(merged).filter(([k, v]) => v && !(k === 'page' && v === '1') && !(k === 'tab' && v === 'users'))))
   }
 
-  if (!user?.isAdmin) {
-    return (
-      <div className="shell">
-        <TopBar crumb="Admin" />
-        <div className="voidstate">
-          <Compass size={92} className="void-rose" />
-          <h2>This door is for the admin</h2>
-          <p>Nothing here is yours to change. Your worlds are where you left them.</p>
-          <Link to="/dashboard" className="sbtn primary">To your worlds</Link>
-        </div>
-      </div>
-    )
-  }
+  if (!user?.isAdmin) return <AdminOnly />
 
   return (
     <div className="shell">
@@ -82,6 +72,7 @@ function AdminPanel() {
             </div>
             <TabList tab={tab} q={q} page={page} world={world} owner={owner} go={go} />
           </div>
+          <SiteSwitches />
           <DbStatus />
         </div>
       </main>
@@ -186,6 +177,34 @@ function TabList({ tab, q, page, world, owner, go }) {
 }
 
 // the database's health, as before
+// The switches that live in Railway variables, as they stand: read-only, no key or secret.
+// Changing one is done in Railway.
+function SiteSwitches() {
+  const [site, setSite] = useState(null)
+  const [error, setError] = useState(null)
+  useEffect(() => {
+    http.get('/api/admin/site').then((r) => setSite(r.data)).catch((e) => setError(errText(e, "Couldn't read the site switches")))
+  }, [])
+  return (
+    <details className="admin-section admin-db admin-switches">
+      <summary>Site switches</summary>
+      <p className="admin-sub">Set in Railway; shown here as they stand.</p>
+      {error ? <p className="admin-error">{error}</p> : !site ? <p>Loading…</p> : (
+        <table>
+          <thead><tr><th>Switch</th><th>Now</th><th>Variable</th></tr></thead>
+          <tbody>{site.switches.map((w) => (
+            <tr key={w.key}>
+              <td>{w.label}</td>
+              <td>{w.value ?? <span className="badge">{w.on ? 'on' : 'off'}</span>}</td>
+              <td><code>{w.key}</code></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
+    </details>
+  )
+}
+
 function DbStatus() {
   const [db, setDb] = useState(null)
   const [error, setError] = useState(null)

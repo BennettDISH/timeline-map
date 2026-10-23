@@ -30,7 +30,7 @@ function TopBar({ crumb }) {
       </Link>
       {crumb && <span className="shellcrumb"><span className="sep">▸</span>{crumb}</span>}
       <div className="spacer" />
-      {user?.isAdmin && <Link to="/admin" className="userbtn">Admin panel</Link>}
+      {user?.isAdmin && <Link to="/admin" className="userbtn">Admin</Link>}
     </header>
   )
 }

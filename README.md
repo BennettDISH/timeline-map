@@ -48,6 +48,9 @@ Railway, the `timeline-map` service with its own Postgres. A push to `main` depl
 database (3 s limit), answers 503 when that fails, and reports the running commit. Production holds a real campaign, so
 schema changes are additive only (see Database in `docs/RULES.md`).
 
+Admin: `/admin`, Waypoint id 1 only (`ADMIN_CENTRAL_USER_IDS=1`) — every account, world, map,
+entry, era, image and Forge chat, look-only, and the Railway switches as they stand.
+
 ## Environment variables
 Names only; `.env.example` explains each.
 - Core: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `NODE_ENV`, `PORT`
