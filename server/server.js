@@ -17,6 +17,7 @@ const pool = require('./config/database');
 const { applySchema } = require('./config/apply-schema');
 const { scheduleGuestSweep } = require('./lib/guests');
 const { collapseLeadingSlashes, spaFallback } = require('./lib/spa');
+const { healthHandler } = require('./lib/health');
 const schemaReady = (async () => {
   try {
     // Loader lives in config/apply-schema.js so `npm run migrate` runs the identical statements.
@@ -104,11 +105,12 @@ app.use('/api/share', require('./routes/share')); // public Player View (tokened
 app.use('/api/forge', require('./routes/forge')); // per-world AI mind — inert without GEMINI_API_KEY
 app.use('/api/voice', require('./routes/voice')); // voices and ambience — inert with no voice key (Gemini/OpenAI/ElevenLabs) or VOICE_ENABLED=0
 
-// Health check endpoint (before the SPA fallback so it isn't swallowed)
-app.get('/health', (req, res) => {
-  // the deploy signal the live suites wait for: Railway's commit sha (null elsewhere)
-  res.json({ status: 'ok', commit: process.env.RAILWAY_GIT_COMMIT_SHA || null, timestamp: new Date().toISOString() });
-});
+// Health check endpoint (before the SPA fallback so it isn't swallowed): the commit, which the
+// live suites wait for, and a SELECT 1 on the pool (lib/health.js)
+app.get('/health', healthHandler({
+  query: (text) => pool.query(text),
+  commit: () => process.env.RAILWAY_GIT_COMMIT_SHA || null,
+}));
 
 // Serve the built React app whenever it exists — independent of NODE_ENV, so a missing
 // NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".

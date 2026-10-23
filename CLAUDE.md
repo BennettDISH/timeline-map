@@ -85,6 +85,15 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   (no exit on a pool error, `pool.connectTx()` for transactions). (Development Guidelines)
 - Every write route cleans its body with `server/lib/validate.js`: a refused input is a 400 with
   one plain sentence, anything not the caller's is a 404. (Input rules, API conventions)
+- **`GET /health` checks the database** (`server/lib/health.js`): `SELECT 1` on the pool with a 3 s
+  timeout, 200 `{status, commit, timestamp, db:'ok'}` or 503 `{status:'unavailable',
+  db:'not answering'}` with no database text, `Cache-Control: no-store`. `commit` is the deploy
+  signal the live suites wait for; keep it. It is Railway's healthcheck path (set on the service,
+  `railway.toml` is the record). `server/test/health.test.js` covers it, including the real
+  server against a refused database.
+- **Guests: yes, because** Spellforge's Map tab opens the Atlas for guests and a try-it door suits
+  a table game; their AI, voice and upload use is capped per guest and idle guests are swept (see
+  Sign-in in `docs/RULES.md`). Admin is Waypoint id 1 only (`ADMIN_CENTRAL_USER_IDS=1`).
 - One word for one thing in every string players or the DM read (map, entry, thread, canon …).
   (Vocabulary)
 - Mobile is view-only by design: editing happens on a PC. (Known gaps)
