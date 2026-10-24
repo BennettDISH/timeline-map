@@ -1,6 +1,7 @@
 const express = require('express');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { requestLog, scrubPath } = require('./middleware/requestLog');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -29,7 +30,9 @@ const schemaReady = (async () => {
 // Security headers (lib/security.js): the CSP, and the embed contract — only the Player View
 // (/p, /p/*) may be framed, and only by EMBED_ORIGINS (Spellforge's Map tab by default).
 const { securityHeaders, isPlayerPath } = require('./lib/security');
-// first of all: //api/... is /api/... (lib/spa.js), so every rule below sees the plain path
+// one line per request, with an id (middleware/requestLog.js)
+app.use(requestLog());
+// then: //api/... is /api/... (lib/spa.js), so every rule below sees the plain path
 app.use(collapseLeadingSlashes);
 app.use(securityHeaders());
 app.use(compression());
@@ -112,8 +115,8 @@ app.use((err, req, res, next) => {
     return res.status(status).json({ message: err.type === 'entity.parse.failed' ? 'The request body is not valid JSON'
       : err.type === 'entity.too.large' ? 'That is too big to send — images are limited to 10 MB' : (err.message || 'Bad request') });
   }
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error(req.id, req.method, scrubPath(req.originalUrl.split('?')[0]), err);
+  res.status(500).json({
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });

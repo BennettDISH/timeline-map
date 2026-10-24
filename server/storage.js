@@ -53,9 +53,14 @@ const client = r2Enabled
     })
   : null;
 
+// A call to the bucket that takes longer than this is given up on, so a bucket that stops
+// answering cannot hold a request (or a world delete) open for good.
+const R2_TIMEOUT_MS = 15_000;
+const send = (command) => client.send(command, { abortSignal: AbortSignal.timeout(R2_TIMEOUT_MS) });
+
 // Upload a buffer to R2; returns the public URL.
 async function putObject(key, body, contentType) {
-  await client.send(
+  await send(
     new PutObjectCommand({ Bucket: cfg.bucket, Key: key, Body: body, ContentType: contentType, CacheControl: CACHE_CONTROL })
   );
   return `${cfg.publicUrl}/${key}`;
@@ -65,7 +70,7 @@ async function putObject(key, body, contentType) {
 // new public URL. With the type given, the copy is stored with the immutable Cache-Control too
 // (an object put before that header existed has none, and a plain copy would carry that over).
 async function copyObject(srcKey, dstKey, contentType) {
-  await client.send(new CopyObjectCommand({
+  await send(new CopyObjectCommand({
     Bucket: cfg.bucket, CopySource: `/${cfg.bucket}/${encodeURI(srcKey)}`, Key: dstKey,
     ...(contentType ? { MetadataDirective: 'REPLACE', ContentType: contentType, CacheControl: CACHE_CONTROL } : {}),
   }));
@@ -76,7 +81,7 @@ async function copyObject(srcKey, dstKey, contentType) {
 // copy landed before it clears the row's base64).
 async function objectSize(key) {
   try {
-    const head = await client.send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
+    const head = await send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
     return head.ContentLength;
   } catch (e) {
     if (e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404) return null;
@@ -87,7 +92,7 @@ async function objectSize(key) {
 // Delete one object from R2 (no-op if the key is missing or R2 is off).
 async function deleteObject(key) {
   if (!key || !client) return;
-  await client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  await send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
 }
 
 // Delete every object under a prefix (world delete uses it).
@@ -95,12 +100,12 @@ async function deletePrefix(prefix) {
   if (!client) return;
   let token;
   do {
-    const page = await client.send(
+    const page = await send(
       new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token })
     );
     const keys = (page.Contents || []).map((o) => ({ Key: o.Key }));
     if (keys.length) {
-      await client.send(
+      await send(
         new DeleteObjectsCommand({ Bucket: cfg.bucket, Delete: { Objects: keys } })
       );
     }
@@ -119,4 +124,4 @@ function keyFromUrl(url) {
   return null;
 }
 
-module.exports = { r2Enabled, putObject, copyObject, objectSize, deleteObject, deletePrefix, keyFromUrl, CACHE_CONTROL };
+module.exports = { r2Enabled, putObject, copyObject, objectSize, deleteObject, deletePrefix, keyFromUrl, CACHE_CONTROL, R2_TIMEOUT_MS };

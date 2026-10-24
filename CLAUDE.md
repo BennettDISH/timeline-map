@@ -15,6 +15,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
 ## Key Commands
 - `npm run dev` - Start both client and server (for development structure reference only)
 - `npm run build` - Build for production
+- `npm test` at the root runs the server's local suites (`server/`'s `npm test`, no database or network)
 - `npm install` at the root installs both (its postinstall runs `install-all`); `npm run migrate`
   in `server/` is optional — the boot applies the schema
 
@@ -56,7 +57,9 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
   `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
-  `storage.js` (R2: immutable Cache-Control on every put; `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
+  `middleware/requestLog.js` (one log line per request: id, method, path with no query string and tokens as `:token`, status, time;
+  the id is `X-Request-Id` and the error handler logs with it),
+  `storage.js` (R2: every call is given up on after 15 s; immutable Cache-Control on every put; `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
   domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,

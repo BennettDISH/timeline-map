@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "migrate": "node config/migrate.js",
-    "test": "node --test test/contract.test.js test/spend.test.js test/embed.test.js test/upload-budget.test.js test/clone-budget.test.js test/images-serve.test.js test/image-storage.test.js test/image-storage-off.test.js test/move-base64.test.js test/admin.test.js test/sso.test.js test/sign-in.test.mjs test/health.test.js test/media-host.test.js test/shrink-image.test.js test/guestCheck.test.js test/guests.test.js",
+    "test": "node --test --test-concurrency=1 test/contract.test.js test/spend.test.js test/embed.test.js test/upload-budget.test.js test/clone-budget.test.js test/images-serve.test.js test/image-storage.test.js test/image-storage-off.test.js test/move-base64.test.js test/admin.test.js test/sso.test.js test/sign-in.test.mjs test/health.test.js test/media-host.test.js test/shrink-image.test.js test/guestCheck.test.js test/guests.test.js test/request-log.test.js test/sso-callback-limit.test.js test/r2-timeout.test.js",
     "test:live": "node --test test/share-live.test.js"
   },
   "dependencies": {

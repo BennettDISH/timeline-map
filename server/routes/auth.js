@@ -223,7 +223,9 @@ router.post('/login', authLimiter, async (req, res) => {
 });
 
 // POST /api/auth/sso-callback — exchange authorization code for user info
-router.post('/sso-callback', async (req, res) => {
+// Every code exchange is a call to Waypoint, which caps per calling address and sees only this
+// server's: counting each visitor first (authLimiter) keeps one of them from using it up for all.
+router.post('/sso-callback', authLimiter, async (req, res) => {
   try {
     const { code, redirect_uri } = req.body;
     if (!code) {
