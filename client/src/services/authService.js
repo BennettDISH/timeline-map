@@ -1,115 +1,77 @@
-// Session handling (token header + dead-token redirect) lives in the shared http instance.
-import api, { clearLocalSession, adoptToken } from './http'
+// The session is an httpOnly cookie the server sets with every sign-in (fleet-kit); the dead-
+// session redirect lives in the shared http instance. This browser remembers only the account
+// it last saw ('user'), so a server blip on load can carry on as that account.
+import api, { clearLocalSession } from './http'
+
+const remember = (user) => {
+  try { if (user) localStorage.setItem('user', JSON.stringify(user)) } catch (e) { /* a convenience */ }
+}
+
+// Until 2026-10 the session was a token kept in localStorage. A page that still holds one hands
+// it to the server once, with its first /me, and the server swaps it for the session cookie;
+// then it is deleted here, so nobody is signed out by the move.
+const OLD_TOKEN = 'auth_token'
 
 const authService = {
   // Register new user
   async register(username, email, password) {
-    const response = await api.post('/api/auth/register', {
-      username,
-      email,
-      password
-    })
-    
-    if (response.data.token) {
-      localStorage.setItem('auth_token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-    }
-    
+    const response = await api.post('/api/auth/register', { username, email, password })
+    remember(response.data.user)
     return response.data
   },
 
   // Login user
   async login(username, password) {
-    const response = await api.post('/api/auth/login', {
-      username,
-      password
-    })
-    
-    if (response.data.token) {
-      localStorage.setItem('auth_token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-    }
-    
+    const response = await api.post('/api/auth/login', { username, password })
+    remember(response.data.user)
     return response.data
   },
 
-  // Drop this browser's session without touching the server. For "the token we hold did
-  // not work" — a failed /me, an expired token — where revoking the user's OTHER devices
-  // over what may be a passing server error would be wrong.
+  // Forget what this browser remembers without touching the server. For "the session we had
+  // did not work" — never revoke the account's OTHER devices over what may be a passing error.
   clearSession() {
     clearLocalSession()
   },
 
-  // Logout user. Forgetting the token locally does not stop it working — it stays valid
-  // until it expires — so tell the server to bump this user's token_version, which makes
-  // every copy of it (including one already stolen) fail auth. That does end the session
-  // on their other devices too, which is the intended meaning of a deliberate sign-out.
-  // Local state goes first regardless, so a slow or down server can never leave this
-  // browser signed in.
+  // Logout user: the server ends the session on every device (token_version), which is the
+  // intended meaning of a deliberate sign-out, and clears the cookie. Throws when it could not:
+  // the cookie is still there, so this browser stays signed in and can try again.
   async logout() {
-    const token = localStorage.getItem('auth_token')
+    // an empty object, never null: a JSON body of `null` is rejected by the parser before
+    // the route runs
+    await api.post('/api/auth/logout', {})
     authService.clearSession()
-    if (!token) return
-    try {
-      // an empty object, never null: a JSON body of `null` is rejected by the parser before
-      // the route runs, which is why revoking on sign-out never worked from the UI
-      await api.post('/api/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } })
-    } catch (error) {
-      // Already signed out here; a dead or unreachable token just expires on its own.
-    }
   },
 
-  // Get current user
+  // The signed-in account, or null when nobody is
   async getCurrentUser() {
-    const response = await api.get('/api/auth/me')
-    // Sliding session: the server returns a fresh token once the current one is past
-    // halfway through its life, so an app that is actually being used never runs into
-    // the short expiry. Absent on every other call — only store one when it is there.
-    if (response.data.token) adoptToken(response.data.token)
-    return response.data.user
-  },
-
-  // Store a session minted outside the normal login flow (e.g. first-run setup)
-  setSession(token, user) {
-    localStorage.setItem('auth_token', token)
-    localStorage.setItem('user', JSON.stringify(user))
-  },
-
-  // Check if user is logged in
-  isAuthenticated() {
-    return !!localStorage.getItem('auth_token')
+    let old = null
+    try { old = localStorage.getItem(OLD_TOKEN) } catch (e) { /* storage blocked */ }
+    try {
+      const response = await api.get('/api/auth/me', old ? { headers: { Authorization: `Bearer ${old}` } } : undefined)
+      const user = response.data.user || null
+      if (user) remember(user)
+      return user
+    } finally {
+      if (old) { try { localStorage.removeItem(OLD_TOKEN) } catch (e) { /* ignore */ } }
+    }
   },
 
   // Get stored user data
   getUser() {
-    const user = localStorage.getItem('user')
-    return user ? JSON.parse(user) : null
+    try {
+      const user = localStorage.getItem('user')
+      return user ? JSON.parse(user) : null
+    } catch (e) {
+      return null
+    }
   },
 
-  // One-click guest sign-in — the server mints a central guest account and returns a token.
+  // One-click guest sign-in — the server mints a central guest account and sets the session.
   async guest() {
     const response = await api.post('/api/auth/guest')
-    if (response.data.token) {
-      localStorage.setItem('auth_token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-    }
+    remember(response.data.user)
     return response.data
-  },
-
-  // SSO login — exchange authorization code
-  async ssoLogin(code, redirectUri) {
-    try {
-      const response = await api.post('/api/auth/sso-callback', { code, redirect_uri: redirectUri })
-
-      if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-      }
-
-      return response.data
-    } catch (error) {
-      throw error // the same error shape everywhere: callers show errText(e, fallback)
-    }
   },
 }
 

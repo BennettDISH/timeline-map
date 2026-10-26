@@ -55,27 +55,38 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   not own (see Doors under Map surface rules in `docs/RULES.md`).
 - Server: `server/routes/atlas.js` (the whole Atlas API), `worlds.js` (world CRUD only),
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
-  `auth.js` (JWT + server-side SSO), `admin.js`, `share.js` (the public Player View API),
+  `auth.js` (the Atlas's own password forms, then fleet-kit's sign-in router), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
-  `middleware/requestLog.js` (one log line per request: id, method, path with no query string and tokens as `:token`, status, time;
-  the id is `X-Request-Id` and the error handler logs with it),
+  `config/auth.js` (fleet-kit's `createWaypoint`, app `atlas`: the users row by central id, the
+  `__Host-atlas_session` cookie read against the row, sign-out on every device, the daily renewal
+  that stamps `last_seen_at`, the old-token reader), `middleware/auth.js` (`authenticateToken` =
+  the kit's session check, `requireAdmin`), `lib/security.js` (the kit's headers with the Atlas's
+  CSP additions and the Player View's embed contract). From fleet-kit (vendored as
+  `server/vendor/fleet-kit-1.0.0.tgz`; the client installs the same file for its top bar; a kit
+  change is a new kit version, never a re-packed tarball, and never edited here): trust proxy 1,
+  the request log (one line per request: id, method, path with no query string and tokens as
+  `:token`, status, time; the id is `X-Request-Id` and the error handler logs with it), the
+  same-origin write guard, the rate limits, `/health`, the JSON 404 and the error handler,
+  `/auth/callback` and the `/admin` page gate (`server.js`),
   `storage.js` (R2: every call is given up on after 15 s; immutable Cache-Control on every put; `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
   domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
   `Pickers` = ImagePicker + NodePicker + MapPicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —
   pins are % of the backdrop image's plane, NOT the window) + `services/atlasService.js`;
-  all authed services share `services/http.js` (token header + dead-token redirect)
+  all authed services share `services/http.js` (the session is the cookie; a 401 is the
+  dead-session redirect). The games' top bar is fleet-kit's `<fleet-topbar>` (`components/GamesBar.jsx`,
+  driven by `SiteBar.jsx`, which takes over its menu)
 - Supporting pages: `Dashboard` (world select → Atlas), `PlayerView` (`/p/:token`), `Archive`
-  (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel` (`/admin`: every account, world, map, entry, era, image and Forge chat, look-only, searchable, 50 a page) and `AdminWorld` (`/admin/worlds/:id`: one world read-only, its maps with every pin, entries, eras, images and Forge history; the API is `GET /api/admin/*` in `admin.js`, gated by ADMIN_CENTRAL_USER_IDS), `Login`, `AuthCallback`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
+  (a world's images: `/worlds/:id/images`, root class `.arch`, `archive.scss`), `AdminPanel` (`/admin`: every account, world, map, entry, era, image and Forge chat, look-only, searchable, 50 a page) and `AdminWorld` (`/admin/worlds/:id`: one world read-only, its maps with every pin, entries, eras, images and Forge history; the API is `GET /api/admin/*` in `admin.js`, gated by ADMIN_CENTRAL_USER_IDS), `Login`, `NotFound` (the pre-SSO Setup/EnvSetup pages and `/api/setup` are gone: the schema is
   ensured on boot and admin is a Waypoint identity)
 - **Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1).** Everything the admin has is
   there: `client/src/pages/AdminPanel.jsx` (the browse tabs, the Railway switches read-only, the
   database check), `AdminWorld.jsx`, `components/admin/` (`AdminOnly.jsx` is what anyone else sees:
   "This page is for the site admin."), and `GET /api/admin/*` in `server/routes/admin.js`
-  (`/site` = the switches, read-only), tested in `server/test/admin.test.js`. The session here is a
-  bearer token in the browser, so the server cannot see who asks for the page itself: every admin
-  API refuses a non-admin with a 403 and the page draws the refusal. The "Admin" link
+  (`/site` = the switches, read-only), tested in `server/test/admin.test.js`. The server decides
+  the page before it goes out (fleet-kit's `adminPage`: signed out → sign in and back, anyone else
+  → a plain 403), and every admin API refuses a non-admin with a 403. The "Admin" link
   (`components/TopBar.jsx`) shows to the admin only.
 
 ## Key invariants (the whole rule for each is in `docs/RULES.md`)
@@ -97,9 +108,9 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   (no exit on a pool error, `pool.connectTx()` for transactions). (Development Guidelines)
 - Every write route cleans its body with `server/lib/validate.js`: a refused input is a 400 with
   one plain sentence, anything not the caller's is a 404. (Input rules, API conventions)
-- **`GET /health` checks the database** (`server/lib/health.js`): `SELECT 1` on the pool with a 3 s
-  timeout, 200 `{status, commit, timestamp, db:'ok'}` or 503 `{status:'unavailable',
-  db:'not answering'}` with no database text, `Cache-Control: no-store`. `commit` is the deploy
+- **`GET /health` checks the database** (fleet-kit's `health`, in `server.js`): `SELECT 1` on the
+  pool with a 3 s timeout, 200 `{status, db:'ok', commit, timestamp}` or 503 `{status:'unavailable',
+  db:'not answering', …}` with no database text, `Cache-Control: no-store`. `commit` is the deploy
   signal the live suites wait for; keep it. It is Railway's healthcheck path (set on the service,
   `railway.toml` is the record). `server/test/health.test.js` covers it, including the real
   server against a refused database.

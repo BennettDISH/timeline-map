@@ -1,11 +1,12 @@
 // Guests follow Waypoint's rule: an unclaimed guest nobody has seen for GUEST_RETENTION_DAYS
 // (30 by default, the same setting and the same window Waypoint prunes its own guests by) is
 // removed together with everything it made. "Seen" is users.last_seen_at — every sign-in, and
-// any signed-in request at most every six hours (middleware/auth.js, which also tells Waypoint,
-// so both sides forget an idle guest on the same day) — so a guest in use is never swept. A
-// guest who claimed their Waypoint account is no longer is_guest (the next sign-in syncs it)
-// and is never touched.
-// Waypoint has the last word, though: the idle guests are asked about first (guestCheck.js), because a
+// every daily renewal of a session in use (config/auth.js; fleet-kit also tells Waypoint then,
+// so both sides forget an idle guest on the same day) — so a guest in use is never swept, and a
+// session (30 days from its last renewal) never outlives its row being swept unseen. A guest who
+// claimed their Waypoint account is no longer is_guest (the next sign-in syncs it) and is never
+// touched.
+// Waypoint has the last word, though: the idle guests are asked about first (fleet-kit's checkGuests), because a
 // guest who claimed their account there keeps the same id yet stays is_guest here until the next
 // sign-in. One that claimed stays (and stops being a guest here); one Waypoint does not link to this
 // app stays and is logged; only an unclaimed guest, or an id no Waypoint account has any more, is
@@ -13,7 +14,7 @@
 // The sweep runs a minute after boot and then daily; GUEST_CLEANUP_ENABLED=false turns it off.
 const pool = require('../config/database');
 const { r2Enabled, deletePrefix } = require('../storage');
-const { checkGuests } = require('./guestCheck');
+const { checkGuests } = require('fleet-kit/server');
 
 const LOCK = 7300181; // one sweeper at a time, even while an old and a new deploy overlap
 

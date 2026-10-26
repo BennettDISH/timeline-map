@@ -1,22 +1,28 @@
-const helmet = require('helmet');
+const kit = require('fleet-kit/server');
 
-// The security headers. One set of CSP directives for the whole app; the public Player View
-// (/p, /p/*) additionally allows framing by the hosts in EMBED_ORIGINS — Spellforge's Map tab
-// — and drops X-Frame-Options (which cannot express an allowlist). Everything else keeps
-// helmet's defaults: frame-ancestors 'self' + XFO SAMEORIGIN, so nobody can frame the DM UI.
+// The security headers (fleet-kit's): one Content-Security-Policy for the whole app; the public
+// Player View (/p, /p/*) additionally allows framing by the hosts in EMBED_ORIGINS — Spellforge's
+// Map tab — and drops X-Frame-Options (which cannot express an allowlist). Everything else keeps
+// frame-ancestors 'self' + XFO SAMEORIGIN, so nobody can frame the DM UI.
 // A Spellforge address change means updating EMBED_ORIGINS here; an Atlas address change
 // means updating Spellforge's MAP_SHARE_RE.
-const CSP_DIRECTIVES = {
-  // Helmet's default CSP is img-src 'self' data:, which blocks cross-origin R2 image URLs
-  // (pub-*.r2.dev / custom domain). Allow images from any https host (+ data/blob) while
-  // keeping scripts/styles on the locked-down defaults.
-  'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-  // Voice lines and ambience are audio objects on R2 — without this the browser
-  // renders the player and silently refuses to load the file.
+
+// The bug-tracker feedback widget: loads widget.js and posts reports back to its API (the kit
+// puts it in script-src and connect-src).
+const WIDGET_ORIGIN = 'https://bug-tracker-production-4ccb.up.railway.app';
+
+// What the Atlas loads beyond the kit's strict defaults (this origin only, no inline script):
+const CSP_ADD = {
+  // images from any https host (+ data/blob): R2's public URL (pub-*.r2.dev / the custom domain)
+  'img-src': ['https:'],
+  // voice lines and ambience are audio objects on R2 — without this the browser renders the
+  // player and silently refuses to load the file
   'media-src': ["'self'", 'blob:', 'https:'],
-  // Bug-tracker feedback widget: loads widget.js and posts reports back to its API
-  'script-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
-  'connect-src': ["'self'", 'https://bug-tracker-production-4ccb.up.railway.app'],
+  // stylesheets and fonts from https hosts (Google Fonts), as before
+  'style-src': ['https:'],
+  'font-src': ['https:', 'data:'],
+  'script-src-attr': ["'none'"],
+  'upgrade-insecure-requests': [],
 };
 
 // Spellforge answers at its railway.app name and at the games' front door; a player on
@@ -34,16 +40,10 @@ const isPlayerPath = (p) => p === '/p' || p.startsWith('/p/');
 
 // The middleware: the Player View's headers on /p and /p/*, the DM app's everywhere else.
 function securityHeaders(env = process.env) {
-  const dmHelmet = helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-    contentSecurityPolicy: { useDefaults: true, directives: CSP_DIRECTIVES },
-  });
-  const playerHelmet = helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-    contentSecurityPolicy: { useDefaults: true, directives: { ...CSP_DIRECTIVES, 'frame-ancestors': ["'self'", ...embedOrigins(env)] } },
-    xFrameOptions: false,
-  });
-  return (req, res, next) => (isPlayerPath(req.path) ? playerHelmet(req, res, next) : dmHelmet(req, res, next));
+  const common = { widgetOrigin: WIDGET_ORIGIN, add: CSP_ADD, replace: { 'base-uri': ["'self'"] } };
+  const dm = kit.securityHeaders({ ...common, frameAncestors: "'self'" });
+  const player = kit.securityHeaders({ ...common, frameAncestors: ["'self'", ...embedOrigins(env)].join(' ') });
+  return (req, res, next) => (isPlayerPath(req.path) ? player(req, res, next) : dm(req, res, next));
 }
 
-module.exports = { CSP_DIRECTIVES, DEFAULT_EMBED_ORIGINS, embedOrigins, isPlayerPath, securityHeaders };
+module.exports = { CSP_ADD, WIDGET_ORIGIN, DEFAULT_EMBED_ORIGINS, embedOrigins, isPlayerPath, securityHeaders };

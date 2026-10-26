@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 const pool = require('../config/database');
-const { generateToken } = require('../utils/token');
+const { wp } = require('../config/auth');
 
 process.env.JWT_SECRET ||= 'clone-budget-test';
 for (const k of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL']) delete process.env[k];
@@ -61,7 +61,7 @@ test.after(() => { server.close(); pool.end().catch(() => {}); });
 const copy = async (userId, name) => {
   const r = await fetch(`${base}/api/atlas/worlds/clone`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${generateToken(userId, 0)}` },
+    headers: { 'content-type': 'application/json', cookie: `${wp.session.name}=${wp.session.mint({ id: userId })}` },
     body: JSON.stringify({ source_id: 7, name }),
   });
   return { status: r.status, body: await r.json() };

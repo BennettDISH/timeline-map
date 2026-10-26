@@ -701,8 +701,7 @@ function AtlasWorkspace() {
   // leaving the page (reload, Back, tab close) flushes what is pending with keepalive fetches
   useEffect(() => {
     const flushBeacon = () => {
-      const token = localStorage.getItem('auth_token')
-      const send = (url, body) => { try { fetch(url, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }) } catch (e) { /* best effort */ } }
+      const send = (url, body) => { try { fetch(url, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) } catch (e) { /* best effort */ } }
       const p = pendingPatch.current
       if (p.nodeId != null) { send(`/api/atlas/nodes/${p.nodeId}`, p.patch); pendingPatch.current = { nodeId: null, patch: {} } }
       for (const [nodeId, patch] of failedPatches.current) send(`/api/atlas/nodes/${nodeId}`, patch)

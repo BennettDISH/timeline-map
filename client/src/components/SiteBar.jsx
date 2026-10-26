@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../utils/AuthContext'
-import { nextFrom, startWaypoint, waypointLogoutUrl } from '../utils/signIn'
+import { nextFrom, startWaypoint, logoutAllPath } from '../utils/signIn'
 import GamesBar, { ARCADE_URL } from './GamesBar'
 
 // Never in the Player View (/p/…, the share link the players open) nor anywhere the Atlas is
@@ -35,14 +35,21 @@ function Bar({ next }) {
   const signOut = async () => {
     // a guest's only credential is this browser's session: signing out ends the account
     if (user?.isGuest && !window.confirm(GUEST_WARNING)) return false
-    await logout()
+    try {
+      await logout()
+    } catch (e) {
+      // the server could not end the session: this browser is still signed in, and can try again
+      window.alert('Could not sign out. Try again.')
+      return false
+    }
     navigate('/login', { replace: true })
     return true
   }
   // Waypoint asks for an account again (prompt=login); without Waypoint, sign out and pick on the form
   const switchAccount = () => (waypoint ? startWaypoint(next, { prompt: 'login' }) : signOut())
-  // Waypoint's own session ends at its /logout, which then sends you on to the arcade
-  const signOutAll = async () => { if (await signOut() && config?.accountUrl) window.location.assign(waypointLogoutUrl(config.accountUrl, ARCADE_URL)) }
+  // Waypoint's own session ends at its /logout (through the server's route), which then sends
+  // you on to the arcade
+  const signOutAll = async () => { if (await signOut() && config?.accountUrl) window.location.assign(logoutAllPath(ARCADE_URL)) }
 
   const account = loading ? undefined : user ? { name: user.isGuest ? 'Guest' : (user.username || 'Account') } : null
   return <GamesBar account={account} onSignIn={signIn} onSwitch={switchAccount} onSignOut={signOut} onSignOutAll={signOutAll} />

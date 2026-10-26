@@ -29,7 +29,9 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.env.LOCAL_PORT || 5099), DB_PORT = Number(process.env.LOCAL_DB_PORT || 5433);
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = 'local-only-not-a-secret';
-const jwt = createRequire(`${root}server/package.json`)('jsonwebtoken'); // the server's own, so tokens match
+// the server's own signer (fleet-kit): the DM's token is the old bearer format the server's legacy reader
+// still takes (server/config/auth.js), so the suites sign in as before
+const { signJwt } = createRequire(`${root}server/package.json`)('fleet-kit/server');
 const say = (s) => console.log(`[local] ${s}`);
 
 if (process.argv.includes('--build')) {
@@ -88,7 +90,7 @@ say(`paid server (stubbed Forge, voices, R2) on ${PAID_BASE}`);
 const u = (await db.query(
   `INSERT INTO users (username, email, password_hash) VALUES ('local-dm', 'local-dm@example.invalid', 'x')
    RETURNING id, token_version`)).rows[0];
-const token = jwt.sign({ userId: u.id, tv: u.token_version }, SECRET, { expiresIn: '30d' });
+const token = signJwt({ userId: u.id, tv: u.token_version }, SECRET, { ttlMs: 30 * 24 * 60 * 60 * 1000 });
 const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 const call = async (method, path, body) => {
   const r = await fetch(`${BASE}${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });

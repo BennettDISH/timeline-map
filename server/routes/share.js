@@ -1,5 +1,5 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('fleet-kit/server');
 const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { CATEGORIES } = require('../lib/vocab');

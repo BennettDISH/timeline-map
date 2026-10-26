@@ -6,34 +6,50 @@ behaviour changes, update this file in the same commit; where it and the code di
 which is wrong before changing either.
 
 ## Sign-in, accounts and image storage
-- Authentication context in `client/src/utils/AuthContext.jsx`; SSO is built server-side
-  (no VITE_ client vars; configured only when URL + client id + secret all exist).
+- Sign-in and the session are fleet-kit's (`server/config/auth.js`, vendored as
+  `server/vendor/fleet-kit-1.0.0.tgz`; the server `require`s its CommonJS build). SSO is built
+  server-side (no VITE_ client vars; configured only when URL + client id + secret all exist):
+  `/api/auth/sso/login?next=&prompt=login` keeps the OAuth state in an httpOnly cookie of the
+  server's own, Waypoint comes back to `/auth/callback` (the address it has registered), and the
+  server exchanges the code, sets the session and sends the browser on to `next`; a failure goes
+  to `/login?error=<code>`, which holds the sign-in page. **The session is an httpOnly
+  `__Host-atlas_session` cookie**: 30 days, renewed once a day while in use (`/me`, which every
+  page load asks), read against the account's row on every request; never a token the page can
+  read. The Atlas's own password forms (`/api/auth/login`, `/register`, behind `?local`) set the
+  same cookie. Authentication context in `client/src/utils/AuthContext.jsx`.
   **Admin is a Waypoint identity**: `ADMIN_CENTRAL_USER_IDS` (unset = central id 1, Bennett;
-  explicitly empty = nobody; guests never) — `isAdmin` in `server/middleware/auth.js`; the
+  explicitly empty = nobody; guests never) — the kit's `isAdmin`, read on every check; the
   local `users.role` grants nothing. The admin's tools are all at `/admin` (the browse of
-  everything, the Railway switches read-only, the database check); the session is a bearer
-  token, so the server hands the page to everyone and refuses every `/api/admin` call to a
-  non-admin (403), and the page then says "This page is for the site admin." `/me` and every
+  everything, the Railway switches read-only, the database check); the server decides the page
+  before it goes out (signed out → sign in and back, anyone else → a plain 403 "This page is for
+  the site admin.") and refuses every `/api/admin` call to a non-admin (403). `/me` and every
   sign-in return `{role: 'admin'|'dm', isAdmin, isGuest}`. Sign-out POSTs `{}` (a `null` JSON body is a 400 before the route)
-  and bumps `token_version`; `clearLocalSession` in `http.js` also forgets the last map and
-  current world. The first `/me` check clears the token ONLY when the server says the token
-  is bad; a 5xx/429/network blip keeps it (cached user, or a retry screen). Sign-in and
-  sign-up are `submitting`, the initial check is `initializing` — the login card never
-  unmounts mid-request. Guards bounce with `replace` + `state.from` (SSO: `sso_next`).
+  and bumps `token_version`, which ends the session on every device; a sign-out the server could
+  not do leaves this browser signed in and says so. `clearLocalSession` in `http.js` also
+  forgets the last map and current world. A 5xx/429/network blip on the first `/me` keeps the
+  session (cached user, or a retry screen). Sign-in and sign-up are `submitting`, the initial
+  check is `initializing` — the login card never unmounts mid-request. Guards bounce with
+  `replace` + `state.from` (SSO: the server's `next`). Every write under `/api` must come from the
+  Atlas's own pages (`sameOriginWrites`, by `Sec-Fetch-Site`), except the Player View's
+  `/api/share`, which reads no session. Until 2026-10 the session was a JWT (`{ userId, tv }`)
+  in localStorage (`auth_token`): a page that still holds one hands it over once with its first
+  `/me` and is moved onto the cookie with the end it had (the `legacy` reader in
+  `server/config/auth.js`), and a revoked one is refused as before. The local e2e stack signs its
+  DM in with that format too (`e2e/local.mjs`, `e2e/stubs.cjs`), so the reader goes when they
+  move to the cookie.
   Guests (`users.is_guest`, from Waypoint) are named "Guest" in the menu and warned before
   sign-out; the app's guest is browser-bound (made through Waypoint's proxy, so the browser
   never holds a Waypoint session to claim it from). A guest nobody has seen for
   `GUEST_RETENTION_DAYS` (30 — the same setting and window Waypoint prunes its guests by) is
   removed with its worlds and their R2 objects: `lib/guests.js`, a minute after boot and then
   daily, one sweeper at a time (advisory lock), and only after asking Waypoint which of them
-  may go (`lib/guestCheck.js`, `POST /api/auth/proxy/guests`: a guest that claimed its account
-  stays and stops being a guest, and nobody is removed while Waypoint does not answer);
-  "seen" is `users.last_seen_at`, stamped on every
-  sign-in and, at most every six hours, on any signed-in request (`middleware/auth.js`). That
-  same stamp tells Waypoint a guest is still here (`centralSeen` → `POST /proxy/seen`): the
-  sliding session means a guest never signs in through Waypoint again, and Waypoint prunes a
-  guest by its sign-ins, so without it Waypoint would drop an active guest 30 days after it
-  was made. `GUEST_CLEANUP_ENABLED=false` turns the sweep off.
+  may go (fleet-kit's `checkGuests`, `POST /api/auth/proxy/guests`: a guest that claimed its
+  account stays and stops being a guest, and nobody is removed while Waypoint does not answer);
+  "seen" is `users.last_seen_at`, stamped on every sign-in and on the daily renewal of a session
+  in use (`server/config/auth.js`). The kit tells Waypoint a guest is still here at that renewal
+  too (`POST /proxy/seen`): the sliding session means a guest never signs in through Waypoint
+  again, and Waypoint prunes a guest by its sign-ins, so without it Waypoint would drop an
+  active guest 30 days after it was made. `GUEST_CLEANUP_ENABLED=false` turns the sweep off.
   **A first Waypoint sign-in always gets a fresh local row**: an older row is never adopted by
   its email, since Waypoint never verifies an address and anyone could have claimed another
   person's worlds that way (B092). A row from before Waypoint is linked by hand.

@@ -10,7 +10,7 @@ process.env.ADMIN_CENTRAL_USER_IDS = '7';
 const test = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
-const jwt = require('jsonwebtoken');
+const { wp } = require('../config/auth');
 const pool = require('../config/database');
 
 const account = (id, central, guest = false) => ({
@@ -18,7 +18,8 @@ const account = (id, central, guest = false) => ({
   central_user_id: central, is_guest: guest, unseen: false,
 });
 const ACCOUNTS = { 1: account(1, 3), 2: account(2, 7), 3: account(3, 7, true), 4: account(4, null) };
-const tokenOf = (id) => jwt.sign({ userId: id, tv: 0 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+// the session cookie a sign-in would set for this account (fleet-kit's session)
+const sessionOf = (id) => `${wp.session.name}=${wp.session.mint(ACCOUNTS[id] || { id })}`;
 
 // what a careless SELECT would bring along: none of it may ever reach an answer
 const LEAKS = { password_hash: 'HASH-LEAK', share_token: 'SHARE-LEAK', base64_data: 'BYTES-LEAK', storage_key: 'KEY-LEAK', token_version: 31337 };
@@ -47,7 +48,7 @@ test.before(async () => {
 test.after(() => { server.close(); pool.end().catch(() => {}); });
 
 const get = async (path, who) => {
-  const r = await fetch(base + path, { headers: who ? { Authorization: `Bearer ${tokenOf(who)}` } : {} });
+  const r = await fetch(base + path, { headers: who ? { Cookie: sessionOf(who) } : {} });
   return { status: r.status, text: await r.text() };
 };
 const body = (r) => JSON.parse(r.text);
@@ -181,7 +182,7 @@ test('the site switches show read-only: on or off and plain numbers, never a key
     process.env.FORGE_ENABLED = '0';
     assert.strictEqual(by(await get('/site', 2))['The Forge'].on, false, 'the kill switch');
     assert.deepStrictEqual(queries, [], 'nothing is read from the database');
-    const post = await fetch(`${base}/site`, { method: 'POST', headers: { Authorization: `Bearer ${tokenOf(2)}` } });
+    const post = await fetch(`${base}/site`, { method: 'POST', headers: { Cookie: sessionOf(2) } });
     assert.strictEqual(post.status, 404, 'it can be read and nothing else');
   } finally {
     for (const n of names) { if (keep[n] === undefined) delete process.env[n]; else process.env[n] = keep[n]; }

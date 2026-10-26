@@ -1,5 +1,5 @@
 // The guest sweep (lib/guests.js) with Waypoint's word, run locally: a stand-in Waypoint
-// (fakeWaypoint.js) answers the guest check, and the database is a small table of users
+// (fleet-kit's fakeWaypoint) answers the guest check, and the database is a small table of users
 // that answers just the four statements the sweep makes. The real SQL runs against the
 // local stack.
 //
@@ -7,12 +7,17 @@
 const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const pool = require('../config/database');
-const { startWaypoint } = require('./fakeWaypoint');
-const { checkGuests } = require('../lib/guestCheck');
+let startFakeWaypoint;
+const { checkGuests } = require('fleet-kit/server');
 const { sweepGuests, scheduleGuestSweep } = require('../lib/guests');
 
 let waypoint;
-before(async () => { waypoint = await startWaypoint(); });
+before(async () => {
+  ({ startFakeWaypoint } = await import('fleet-kit/test/fakeWaypoint'));
+  waypoint = await startFakeWaypoint();
+});
+/** The id lists the sweep sent Waypoint's guest check. */
+const asked = () => waypoint.requests.filter((r) => r.path === '/api/auth/proxy/guests').map((r) => r.body);
 after(async () => { await waypoint.close(); pool.end().catch(() => {}); });
 beforeEach(() => {
   waypoint.reset();
@@ -73,12 +78,12 @@ test('a guest who claimed on Waypoint stays and stops being a guest; one Waypoin
   assert.deepEqual(present(claimed, forgotten, plain, active), [true, false, false, true]);
   assert.equal(claimed.is_guest, false);
   assert.deepEqual([r.removed, r.worlds, r.claimed, r.stale.map((g) => g.id)], [2, 2, 1, [forgotten.id, plain.id]]);
-  assert.equal(waypoint.requests.length, 1);
-  assert.deepEqual(waypoint.requests[0].ids.sort(), [claimed, forgotten, plain].map((g) => g.central_user_id).sort(), 'only the idle were asked');
+  assert.equal(asked().length, 1);
+  assert.deepEqual(asked()[0].ids.sort(), [claimed, forgotten, plain].map((g) => g.central_user_id).sort(), 'only the idle were asked');
   // the claimed one is a guest no more, so it is not asked about again
   waypoint.reset();
   assert.deepEqual((await sweepGuests({ days: 30 })).stale, []);
-  assert.equal(waypoint.requests.length, 0);
+  assert.equal(asked().length, 0);
 });
 
 test('a guest Waypoint does not link to this app stays, and is logged', async () => {
@@ -98,7 +103,7 @@ test('a guest with no central id is never asked about and never removed', async 
   const { result: r } = await quiet(() => sweepGuests({ days: 30 }));
   assert.deepEqual(present(local, plain), [true, false]);
   assert.equal(r.unknown, 1);
-  assert.deepEqual(waypoint.requests[0].ids, [plain.central_user_id]);
+  assert.deepEqual(asked()[0].ids, [plain.central_user_id]);
 });
 
 for (const [what, set] of [
@@ -127,7 +132,7 @@ test('no answer in time, an unreachable Waypoint and no configuration mean nobod
   assert.match(slow.held, /did not answer/);
   const off = await sweepGuests({ days: 30, check: (ids) => checkGuests(ids, { env: {} }) });
   assert.match(off.held, /not configured/);
-  const dead = await startWaypoint();
+  const dead = await startFakeWaypoint();
   const env = dead.env();
   await dead.close();
   const down = await sweepGuests({ days: 30, check: (ids) => checkGuests(ids, { env }) });

@@ -5,7 +5,7 @@
 // hands players a node's line only when the node itself is visible to them.
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('fleet-kit/server');
 const crypto = require('crypto');
 const pool = require('../config/database');
 const { idParam } = require('../lib/validate');
@@ -24,7 +24,7 @@ router.get('/status', async (req, res) => {
 });
 router.use((req, res, next) => (voice.status().enabled ? next() : res.status(404).json({ message: 'Route not found' })));
 // a line and an ambience are each one use of the daily allowance (the spend guard); this is the per-IP backstop
-router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: { message: 'Too many voice requests from here — try again in an hour' } }));
+router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: 'Too many voice requests from here — try again in an hour' }));
 
 // the raw error (provider body, SQL) goes to the log; the DM gets one plain sentence
 const wrap = wrapWith('voice', "Couldn't make the audio — try again");

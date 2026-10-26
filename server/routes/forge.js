@@ -4,7 +4,7 @@
 // to worlds the caller owns; nothing Forge-related is ever reachable from the share link.
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('fleet-kit/server');
 const pool = require('../config/database');
 const { idParam, whole } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld } = require('../lib/route');
@@ -31,7 +31,7 @@ router.use((req, res, next) => (enabled() ? next() : res.status(404).json({ mess
 
 // Generations call a paid API — keep an honest ceiling well above table use. The money itself
 // is capped per account per day by the spend guard (a turn and each painting count one).
-router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: { message: 'Too many Forge requests from here — try again in an hour' } }));
+router.use(rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: 'Too many Forge requests from here — try again in an hour' }));
 
 // the raw error (provider JSON, SQL, a stack) goes to the log; the DM gets one plain sentence
 const wrap = wrapWith('forge', 'The Forge hit a problem — try again');

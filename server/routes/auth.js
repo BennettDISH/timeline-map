@@ -1,118 +1,26 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const { rateLimit, waypointUser } = require('fleet-kit/server');
 const pool = require('../config/database');
-const { authenticateToken, isAdmin } = require('../middleware/auth');
-const { AUTH_SERVICE_URL, SSO_CLIENT_ID, centralRegister, centralLogin, centralGuest, exchangeCode } = require('../config/sso');
-const rateLimit = require('express-rate-limit');
-const { generateToken, refreshIfStale } = require('../utils/token');
+const { wp, findOrCreateLocalUser, shape } = require('../config/auth');
 const router = express.Router();
 
-// SSO is configured only when all three of URL / client id / client secret exist
-const SSO_ENABLED = !!(process.env.AUTH_SERVICE_URL && process.env.SSO_CLIENT_ID && process.env.SSO_CLIENT_SECRET);
-// what the client learns about an account: admin is computed from the Waypoint identity,
-// every DM is a 'dm', and a guest is flagged so the UI can say so
-const shape = (u) => ({ id: u.id, username: u.username, email: u.email, role: isAdmin(u) ? 'admin' : 'dm', isAdmin: isAdmin(u), isGuest: !!u.is_guest });
+// The Atlas's own email-or-username and password forms (register and login): through Waypoint's
+// proxy when SSO is on, against the local table only in the no-Waypoint dev mode. Everything else
+// about signing in is fleet-kit's router, mounted below: /config, /sso/login (?prompt=login is
+// "Switch account"), /me, /logout (every device), /logout-all and /guest. Waypoint comes back to
+// /auth/callback (server.js). Every answer that signs someone in sets the session cookie.
 
-// The client OAuth callback route (a client-side React route). Both the authorize redirect_uri
-// and the token-exchange redirect_uri point here.
-const CALLBACK_PATH = '/auth/callback';
+// Throttle credential endpoints (login/register) to blunt brute-forcing: each is a call to
+// Waypoint, which caps per calling address and sees only this server's. (The kit limits its own:
+// the code exchange and the guest button.)
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many attempts. Please try again in a few minutes.' });
 
-// Absolute base URL of this app — prefer an explicit env (exact match to the registered
-// redirect_uri), else the request origin (correct in prod behind Railway with trust proxy set).
-const baseUrl = (req) => (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-
-// Throttle credential endpoints (login/register) to blunt brute-forcing, without touching the
-// frequently-hit /me check that the app calls on every load.
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { message: 'Too many attempts. Please try again in a few minutes.' }
-});
-// Guest sign-in mints a central Waypoint user AND a local row per call, and Waypoint caps the
-// whole app at 500 guests an hour — one IP must not be able to spend that for everyone.
-const guestLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  message: { message: 'Too many guest sign-ins from here. Please try again in an hour.' }
-});
-
-// Find or create a local user from central auth data, sync profile on login
-async function findOrCreateLocalUser(centralUser) {
-  // Check if we already have this central user linked
-  const existing = await pool.query(
-    'SELECT * FROM users WHERE central_user_id = $1',
-    [centralUser.central_user_id]
-  );
-
-  if (existing.rows.length > 0) {
-    const local = existing.rows[0];
-    // Sync profile data from central on each login — but a username or email another local
-    // row holds, or one wider than the column, is skipped rather than allowed to 500 the
-    // sign-in forever (the central id is the identity; these are just labels)
-    const want = {};
-    if (centralUser.username && centralUser.username !== local.username) {
-      const u = String(centralUser.username).slice(0, 100);
-      const taken = (await pool.query('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) AND id <> $2', [u, local.id])).rows.length > 0;
-      if (!taken) want.username = u;
-    }
-    if (centralUser.email && centralUser.email !== local.email) {
-      const e = String(centralUser.email).slice(0, 255);
-      const taken = (await pool.query('SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2', [e, local.id])).rows.length > 0;
-      if (!taken) want.email = e;
-    }
-    if (typeof centralUser.is_guest === 'boolean' && centralUser.is_guest !== !!local.is_guest) want.is_guest = centralUser.is_guest;
-    // every sign-in is a sighting: a guest unseen for GUEST_RETENTION_DAYS is swept (lib/guests.js)
-    await pool.query('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [local.id]);
-    const keys = Object.keys(want);
-    if (keys.length) {
-      try {
-        await pool.query(
-          `UPDATE users SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${keys.length + 1}`,
-          [...keys.map((k) => want[k]), local.id]);
-        return { ...local, ...want };
-      } catch (e) {
-        if (e.code === '23505' || e.code === '22001') { console.warn('profile sync skipped:', e.message); return local; }
-        throw e;
-      }
-    }
-    return local;
-  }
-
-  // A first Waypoint sign-in always gets a FRESH row. An older local row is never adopted by
-  // its email: Waypoint never verifies an address, so anyone who signed up there with someone
-  // else's email was handed that person's worlds — the first-run admin row included (B092). A
-  // row from before Waypoint is linked by hand (set its users.central_user_id).
-  //
-  // The email or username may still be held by another row (an older local account, or a
-  // profile sync that skipped it). `users.username` is UNIQUE NOT NULL and `users.email` is
-  // UNIQUE, so reusing either verbatim would raise 23505 and 500 the sign-in. Give up the email
-  // (NULL never collides) and disambiguate the username with the central id, which is itself
-  // unique.
-  const username = await freeUsername(centralUser.username, centralUser.central_user_id);
-  const email = centralUser.email ? await freeEmail(centralUser.email) : null;
-
-  const result = await pool.query(
-    `INSERT INTO users (username, email, password_hash, role, central_user_id, is_guest, last_seen_at)
-     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-     RETURNING *`,
-    [username, email, '', 'viewer', centralUser.central_user_id, !!centralUser.is_guest]
-  );
-
-  return result.rows[0];
-}
-
-// Returns `desired` if no other local row holds it, otherwise a central-id-suffixed variant.
-async function freeUsername(desired, centralUserId) {
-  const taken = await pool.query('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1)', [desired]);
-  return taken.rows.length === 0 ? desired : `${desired}#${centralUserId}`;
-}
-
-// Returns `desired` only if no other local row holds it; NULL otherwise, since a duplicate
-// would violate users_email_key. The address stays on whoever already had it.
-async function freeEmail(desired) {
-  const taken = await pool.query('SELECT 1 FROM users WHERE email = $1', [desired]);
-  return taken.rows.length === 0 ? desired : null;
-}
+// The session for an account, and the account for the page.
+const signIn = (res, user) => {
+  wp.session.set(res, user);
+  return shape(user);
+};
 
 // POST /api/auth/register
 router.post('/register', authLimiter, async (req, res) => {
@@ -120,7 +28,7 @@ router.post('/register', authLimiter, async (req, res) => {
     const { username, email, password } = req.body;
 
     // Validation
-    if (!username || !email || !password) {
+    if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -128,20 +36,18 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    if (SSO_ENABLED) {
-      const centralRes = await centralRegister({ username, email, password });
-      if (!centralRes.ok) {
-        return res.status(centralRes.status).json({ message: centralRes.data.error || 'Registration failed' });
+    if (wp.client.configured()) {
+      const r = await wp.client.register({ username, email, password });
+      if ((r.status !== 200 && r.status !== 201) || !r.json?.central_user_id) {
+        return res.status(r.status >= 400 ? r.status : 502).json({ message: r.json?.error || 'Registration failed' });
       }
-      const localUser = await findOrCreateLocalUser(centralRes.data);
-      const token = generateToken(localUser.id, localUser.token_version);
+      const localUser = await findOrCreateLocalUser(waypointUser(r.json, { guest: false }));
       // Waypoint hands the one-time recovery code back exactly once: pass it on, so the new
       // account is recoverable without the person ever having heard of Waypoint
       return res.status(201).json({
         message: 'User created successfully',
-        token,
-        user: shape(localUser),
-        recoveryCode: centralRes.data.recovery_code || null,
+        user: signIn(res, localUser),
+        recoveryCode: r.json.recovery_code || null,
       });
     }
 
@@ -157,17 +63,14 @@ router.post('/register', authLimiter, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at, token_version',
+      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at, token_version, central_user_id, is_guest',
       [username, email, hashedPassword, 'viewer']
     );
 
     const user = result.rows[0];
-    const token = generateToken(user.id, user.token_version);
-
     res.status(201).json({
       message: 'User created successfully',
-      token,
-      user: { ...shape(user), createdAt: user.created_at }
+      user: { ...signIn(res, user), createdAt: user.created_at }
     });
 
   } catch (error) {
@@ -181,23 +84,22 @@ router.post('/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    if (!username || !password) {
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ message: 'Username and password are required' });
     }
 
-    if (SSO_ENABLED) {
-      const centralRes = await centralLogin({ email: username, password });
-      if (!centralRes.ok) {
-        return res.status(centralRes.status).json({ message: centralRes.data.error || 'Invalid credentials' });
+    if (wp.client.configured()) {
+      const r = await wp.client.login(username, password);
+      if (r.status !== 200 || !r.json?.central_user_id) {
+        return res.status(r.status >= 400 ? r.status : 502).json({ message: r.json?.error || 'Invalid credentials' });
       }
-      const localUser = await findOrCreateLocalUser(centralRes.data);
-      const token = generateToken(localUser.id, localUser.token_version);
-      return res.json({ message: 'Login successful', token, user: shape(localUser) });
+      const localUser = await findOrCreateLocalUser(waypointUser(r.json));
+      return res.json({ message: 'Login successful', user: signIn(res, localUser) });
     }
 
     // Fallback: local auth
     const result = await pool.query(
-      'SELECT id, username, email, password_hash, role, token_version FROM users WHERE username = $1 OR email = $1',
+      'SELECT id, username, email, password_hash, role, token_version, central_user_id, is_guest FROM users WHERE username = $1 OR email = $1',
       [username]
     );
 
@@ -205,16 +107,14 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const user = result.rows[0];
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const { password_hash: hash, ...user } = result.rows[0];
+    const isValidPassword = await bcrypt.compare(password, hash);
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = generateToken(user.id, user.token_version);
     await pool.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
-
-    res.json({ message: 'Login successful', token, user: shape(user) });
+    res.json({ message: 'Login successful', user: signIn(res, user) });
 
   } catch (error) {
     console.error('Login error:', error);
@@ -222,106 +122,6 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// POST /api/auth/sso-callback — exchange authorization code for user info
-// Every code exchange is a call to Waypoint, which caps per calling address and sees only this
-// server's: counting each visitor first (authLimiter) keeps one of them from using it up for all.
-router.post('/sso-callback', authLimiter, async (req, res) => {
-  try {
-    const { code, redirect_uri } = req.body;
-    if (!code) {
-      return res.status(400).json({ message: 'Authorization code is required' });
-    }
-
-    const result = await exchangeCode(code, redirect_uri);
-    if (!result.ok) {
-      return res.status(result.status).json({ message: result.data.error || 'SSO login failed' });
-    }
-
-    const localUser = await findOrCreateLocalUser(result.data);
-    const token = generateToken(localUser.id, localUser.token_version);
-
-    res.json({ message: 'SSO login successful', token, user: shape(localUser) });
-  } catch (error) {
-    console.error('SSO callback error:', error);
-    res.status(500).json({ message: 'SSO login failed' });
-  }
-});
-
-// POST /api/auth/guest — one-click guest: mint a central guest account and sign in as it.
-router.post('/guest', guestLimiter, async (req, res) => {
-  if (!SSO_ENABLED) return res.status(503).json({ message: 'Guest sign-in is not available' });
-  try {
-    const result = await centralGuest();
-    if (!result.ok) {
-      return res.status(result.status).json({ message: result.data.error || 'Could not start a guest session' });
-    }
-    const localUser = await findOrCreateLocalUser(result.data);
-    const token = generateToken(localUser.id, localUser.token_version);
-    res.json({ message: 'Guest session started', token, user: shape(localUser) });
-  } catch (error) {
-    console.error('Guest login error:', error);
-    res.status(500).json({ message: 'Could not start a guest session' });
-  }
-});
-
-// GET /api/auth/config — public. Lets the client decide whether to show the SSO button
-// without any build-time (VITE) vars; SSO is configured entirely server-side now.
-router.get('/config', (req, res) => {
-  // accountUrl: where passwords are reset and accounts managed — Waypoint, when SSO is on
-  res.json({ ssoEnabled: SSO_ENABLED, accountUrl: SSO_ENABLED ? AUTH_SERVICE_URL : null });
-});
-
-// GET /api/auth/sso/login — begin SSO. Bounce to the auth-service authorize endpoint with the
-// SERVER-held client_id, so the client_id / auth-service URL never get baked into the browser
-// bundle. State is generated client-side and stored in sessionStorage before landing here; it is
-// echoed back to the callback for validation.
-router.get('/sso/login', (req, res) => {
-  if (!SSO_ENABLED) return res.status(503).send('SSO is not configured');
-  const state = req.query.state || '';
-  const url = new URL(`${AUTH_SERVICE_URL}/oauth/authorize`);
-  url.searchParams.set('client_id', SSO_CLIENT_ID);
-  url.searchParams.set('redirect_uri', `${baseUrl(req)}${CALLBACK_PATH}`);
-  url.searchParams.set('state', state);
-  // "Switch account" on the games' top bar: Waypoint asks who you are instead of reusing its session
-  if (req.query.prompt === 'login') url.searchParams.set('prompt', 'login');
-  res.redirect(url.toString());
-});
-
-// POST /api/auth/logout — actually ends the session instead of only forgetting it.
-// Clearing localStorage leaves the token itself valid until it expires, so a copy taken
-// before sign-out keeps working. Bumping token_version makes the middleware refuse it.
-// This signs the user out of every device, which is the point: it is the lever you pull
-// when you think a token has escaped.
-router.post('/logout', authenticateToken, async (req, res) => {
-  try {
-    await pool.query(
-      'UPDATE users SET token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [req.user.id]
-    );
-    res.json({ message: 'Signed out' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ message: 'Server error during sign out' });
-  }
-});
-
-// GET /api/auth/me
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const body = { user: shape(req.user) };
-
-    // The app calls this on every load, which makes it the natural place to slide the
-    // session forward: past the halfway mark, hand back a fresh token. Without it the
-    // short TTL would sign an active user out mid-campaign; with it only a browser left
-    // idle for a whole window has to log in again.
-    const refreshed = refreshIfStale(req.tokenPayload, req.tokenVersion);
-    if (refreshed) body.token = refreshed;
-
-    res.json(body);
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+router.use(wp.router);
 
 module.exports = router;

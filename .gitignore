@@ -41,6 +41,8 @@ jspm_packages/
 
 # Output of 'npm pack'
 *.tgz
+# except the vendored fleet-kit, which the server and the client install from (until it is published)
+!server/vendor/*.tgz
 
 # Yarn Integrity file
 .yarn-integrity

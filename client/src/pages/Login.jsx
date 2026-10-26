@@ -2,17 +2,22 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../utils/AuthContext'
 import { useNavigate, useLocation, useSearchParams } from 'react-router'
 import { safeNext } from '../utils/nextPath'
-import { readHold, clearHold, goStraightToWaypoint, startWaypoint } from '../utils/signIn'
+import { readHold, setHold, clearHold, goStraightToWaypoint, startWaypoint, signInError } from '../utils/signIn'
 
 // Signing in is Waypoint's: a page that needs an account lands here signed out and goes
 // straight on to Waypoint, whose page takes the password or offers "Continue as guest". After
-// Sign out, or a sign-in that came back failed, the page stays with one button instead (the
-// hold, utils/signIn.js). The Atlas's own forms and guest button are still here with ?local.
+// Sign out, or a sign-in that came back failed (the server's callback sends it here as
+// ?error=…), the page stays with one button instead (the hold, utils/signIn.js). The Atlas's
+// own forms and guest button are still here with ?local.
 function Login() {
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const wantsLocal = searchParams.has('local')
-  const [hold] = useState(() => readHold())
+  const [failure] = useState(() => signInError(searchParams.get('error')))
+  const [hold] = useState(() => {
+    if (failure) setHold('failed')
+    return readHold()
+  })
   // why the DM is back here: the dead-session bounce says so (a flag, or ?reason=expired)
   const [sessionEnded] = useState(() => {
     try { const v = sessionStorage.getItem('atlas_session_ended'); sessionStorage.removeItem('atlas_session_ended'); if (v) return true } catch (e) { /* ignore */ }
@@ -57,7 +62,7 @@ function Login() {
       <div className="login-container">
         <h1>Fantasy Map Timeline</h1>
         {hold === 'failed' ? (
-          <div className="error-message" role="alert">Waypoint sign-in did not finish. Try again.</div>
+          <div className="error-message" role="alert">{failure || 'Waypoint sign-in did not finish. Try again.'}</div>
         ) : hold === 'signed-out' ? (
           <p className="login-subtitle" role="status">You are signed out.</p>
         ) : sessionEnded ? (

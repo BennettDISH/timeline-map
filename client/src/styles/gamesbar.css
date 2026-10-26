@@ -1,87 +1,9 @@
-/* The games' shared top bar: the same 40px strip in every game (plus the notch on phones that
-   draw under it: the viewport meta says viewport-fit=cover), "◂ All games" on the left and the
-   account chip on the right. The page under it moves down by its height (body.gtb-on). */
-:root { --gtb-height: calc(40px + env(safe-area-inset-top, 0px)); }
-.gtb {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--gtb-z, 1000);
-  height: var(--gtb-height);
-  box-sizing: border-box;
-  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: rgba(17, 24, 39, 0.92);
-  color: #f9fafb;
-  font: 400 14px/1.2 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: normal;
-  text-align: left;
+/* The games' shared top bar is fleet-kit's <fleet-topbar> (components/GamesBar.jsx), which draws
+   itself: the same 40px strip in every game (plus the notch on phones that draw under it: the
+   viewport meta says viewport-fit=cover). The Atlas lays its pages out under it: the page moves
+   down by its height (body.gtb-on), and --gtb-height and --gtb-z are the names main.scss reads. */
+:root {
+  --gtb-height: var(--fleet-topbar-height, calc(40px + env(safe-area-inset-top, 0px)));
+  --fleet-topbar-z: var(--gtb-z, 1000);
 }
-.gtb *, .gtb *::before, .gtb *::after { box-sizing: border-box; }
 body.gtb-on { padding-top: var(--gtb-height); }
-.gtb[hidden] { display: none; }
-
-.gtb-home {
-  flex-shrink: 0;
-  margin-left: -8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  color: #f9fafb;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.gtb-home:hover { background: rgba(255, 255, 255, 0.1); color: #f9fafb; text-decoration: none; }
-.gtb a:focus-visible, .gtb button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
-
-.gtb-acct { position: relative; min-width: 0; display: flex; }
-.gtb-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: min(55vw, 260px);
-  height: 28px;
-  margin: 0;
-  padding: 0 10px;
-  border: 1px solid rgba(249, 250, 251, 0.4);
-  border-radius: 999px;
-  background: transparent;
-  color: #f9fafb;
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-}
-.gtb-chip:hover { background: rgba(255, 255, 255, 0.1); }
-.gtb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.gtb-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 210px;
-  max-width: calc(100vw - 32px);
-  padding: 4px;
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-.gtb-menu button {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 9px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #f9fafb;
-  font: inherit;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.gtb-menu button:hover, .gtb-menu button:focus-visible { background: #374151; outline: none; }

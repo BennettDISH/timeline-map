@@ -13,7 +13,6 @@ const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AdminPanel = lazy(() => import('./pages/AdminPanel'))
 const AdminWorld = lazy(() => import('./pages/AdminWorld'))
-const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const Archive = lazy(() => import('./pages/Archive'))
 const AtlasWorkspace = lazy(() => import('./pages/AtlasWorkspace'))
 
@@ -68,7 +67,6 @@ function AppRoutes() {
       <SiteBar />
       <Suspense fallback={<div className="route-loading">Loading…</div>}>
       <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           path="/login"
           element={

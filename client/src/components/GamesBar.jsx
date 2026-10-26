@@ -1,77 +1,47 @@
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
+import 'fleet-kit/client/topbar'
+import 'fleet-kit/client/topbar.css'
 import '../styles/gamesbar.css'
 
 // The way back to every game. This is the one place to change it.
 export const ARCADE_URL = 'https://games.bennettdishman.com/'
 
-/** The bar every game shares: "◂ All games" and the account chip. `account` is undefined
- *  while the app is still asking who this is (no chip yet), null when signed out (the chip
- *  says "Sign in"), else { name }. */
+/** The bar every game shares: fleet-kit's <fleet-topbar>, "◂ All games" and the account chip.
+ *  `account` is undefined while the app is still asking who this is (no chip yet), null when
+ *  signed out (the chip says "Sign in"), else { name }. The Atlas says who it is (`manual`) and
+ *  takes over the menu (SiteBar.jsx: a guest is warned before signing out, and the sign-in page
+ *  holds after it); it lays its pages out under the bar itself (`no-pad`, body.gtb-on). */
 export default function GamesBar({ account, onSignIn, onSwitch, onSignOut, onSignOutAll }) {
+  const bar = useRef(null)
+
   useEffect(() => {
     document.body.classList.add('gtb-on')
     return () => document.body.classList.remove('gtb-on')
   }, [])
-  return (
-    <nav className="gtb" aria-label="Games and account">
-      <a className="gtb-home" href={ARCADE_URL}><span aria-hidden="true">◂</span> All games</a>
-      {account === null ? (
-        <div className="gtb-acct">
-          <button type="button" className="gtb-chip" aria-label="Sign in with Waypoint" onClick={onSignIn}>Sign in</button>
-        </div>
-      ) : account ? (
-        <AccountMenu name={account.name} onSwitch={onSwitch} onSignOut={onSignOut} onSignOutAll={onSignOutAll} />
-      ) : null}
-    </nav>
-  )
-}
 
-function AccountMenu({ name, onSwitch, onSignOut, onSignOutAll }) {
-  const [open, setOpen] = useState(false)
-  const box = useRef(null)
-  const chip = useRef(null)
-  const menuId = useId()
-  const items = () => [...(box.current?.querySelectorAll('[role="menuitem"]') ?? [])]
-
-  // open: the first choice has the focus; a press anywhere else closes it
   useEffect(() => {
-    if (!open) return undefined
-    items()[0]?.focus()
-    const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('pointerdown', away)
-    return () => document.removeEventListener('pointerdown', away)
-  }, [open])
+    if (bar.current) bar.current.account = account
+  }, [account])
 
-  const onKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown' && e.target === chip.current) { e.preventDefault(); setOpen(true) }
-      return
+  useEffect(() => {
+    const el = bar.current
+    if (!el) return undefined
+    const take = (run) => (e) => {
+      if (!run) return
+      e.preventDefault()
+      run()
     }
-    const list = items()
-    const at = list.indexOf(document.activeElement)
-    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); chip.current?.focus() }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); list[(at + 1) % list.length]?.focus() }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); list[(at - 1 + list.length) % list.length]?.focus() }
-    else if (e.key === 'Home') { e.preventDefault(); list[0]?.focus() }
-    else if (e.key === 'End') { e.preventDefault(); list[list.length - 1]?.focus() }
-    else if (e.key === 'Tab') setOpen(false)
-  }
-  const pick = (act) => () => { setOpen(false); act?.() }
+    const handlers = {
+      'fleet-topbar-signin': take(onSignIn),
+      'fleet-topbar-switch': take(onSwitch),
+      'fleet-topbar-signout': take(onSignOut),
+      'fleet-topbar-signout-all': take(onSignOutAll),
+    }
+    for (const [name, fn] of Object.entries(handlers)) el.addEventListener(name, fn)
+    return () => {
+      for (const [name, fn] of Object.entries(handlers)) el.removeEventListener(name, fn)
+    }
+  }, [onSignIn, onSwitch, onSignOut, onSignOutAll])
 
-  return (
-    <div className="gtb-acct" ref={box} onKeyDown={onKeyDown}>
-      <button ref={chip} type="button" className="gtb-chip" aria-label={`Account: ${name}`}
-        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((o) => !o)}>
-        <span className="gtb-name">{name}</span><span aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div className="gtb-menu" role="menu" id={menuId} aria-label="Account menu">
-          <button type="button" role="menuitem" tabIndex={-1} onClick={pick(onSwitch)}>Switch account</button>
-          <button type="button" role="menuitem" tabIndex={-1} onClick={pick(onSignOut)}>Sign out</button>
-          <button type="button" role="menuitem" tabIndex={-1} onClick={pick(onSignOutAll)}>Sign out of all games</button>
-        </div>
-      )}
-    </div>
-  )
+  return <fleet-topbar ref={bar} home={ARCADE_URL} manual="" no-pad="" />
 }

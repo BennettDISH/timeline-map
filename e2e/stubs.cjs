@@ -74,7 +74,7 @@ pg.Pool = OnePool;
 // ---- the control port ----
 if (process.env.STUB_PORT) {
   const pool = fromServer(path.join(process.cwd(), 'config/database'));
-  const jwt = fromServer('jsonwebtoken');
+  const { signJwt } = fromServer('fleet-kit/server'); // the old bearer format the legacy reader takes
   const admin = Number((process.env.ADMIN_CENTRAL_USER_IDS || '').split(',')[0]) || null;
   const read = (req) => new Promise((ok) => { let s = ''; req.on('data', (c) => { s += c; }); req.on('end', () => { try { ok(JSON.parse(s || '{}')); } catch (e) { ok({}); } }); });
   http.createServer(async (req, res) => {
@@ -93,7 +93,7 @@ if (process.env.STUB_PORT) {
         const u = (await pool.query(
           `INSERT INTO users (username, email, password_hash, is_guest, central_user_id) VALUES ($1, $2, 'x', $3, $4) RETURNING id, token_version`,
           [name, `${name}@example.invalid`, !!b.guest, b.admin ? admin : null])).rows[0];
-        return send(200, { id: u.id, token: jwt.sign({ userId: u.id, tv: u.token_version }, process.env.JWT_SECRET, { expiresIn: '1h' }) });
+        return send(200, { id: u.id, token: signJwt({ userId: u.id, tv: u.token_version }, process.env.JWT_SECRET, { ttlMs: 60 * 60 * 1000 }) });
       }
       send(404, { message: 'no such stub route' });
     } catch (e) { send(500, { message: e.message }); }
