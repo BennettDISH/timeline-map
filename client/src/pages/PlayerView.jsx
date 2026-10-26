@@ -13,6 +13,10 @@ import EraScrub from '../components/EraScrub'
 import AudioClip from '../components/AudioClip'
 import PartyTrail, { trailSteps } from '../components/PartyTrail'
 import { useFlag } from '../hooks/prefs'
+import SpeakerButton from '../components/SpeakerButton'
+import { getAudio, cue } from '../audio'
+import { bedFor, titlesOf } from '../audio/beds'
+import { levelOf, rampTo } from '../audio/elementBed'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors, latestSession } from '../utils/moment'
 import { isPresent, pickCovering } from '../utils/timeline'
@@ -75,15 +79,65 @@ function PlayerView() {
   const helpRef = useRef(null)
   const loadSeq = useRef(0) // only the reply for the map the player is looking at now is painted
   const nodeSeq = useRef(0) // the last pin tapped owns the sheet
-  const [ambOn, setAmbOn] = useState(false) // the space's ambience loop, started by a tap
+  const [ambOn, setAmbOn] = useFlag('atlas_pv_amb', true) // the ambience: on until someone turns it off, remembered on this device
   const [printsOn, setPrintsOn] = useFlag('atlas_pv_prints', false) // 👣 where the party has been: off until asked for
-  const ambienceUrl = data?.map?.ambienceUrl || null
-  // a new map, or an ambience the DM changed or removed: the loop stops and the toggle resets
-  useEffect(() => { const a = ambRef.current; if (a) { a.pause(); a.currentTime = 0 } setAmbOn(false) }, [mapId, ambienceUrl])
-  const toggleAmb = () => {
+  const audio = getAudio()
+  const ambienceUrl = data?.map?.ambienceUrl || null // an ambience the DM made for this map: plays in the <audio> element below
+  // …else the bed for the kind of place the map is, crossfaded in as the player moves between maps
+  // (audio/beds.js). Nothing sounds until the page's first tap or key; the bed starts then.
+  const bed = data?.map ? bedFor(titlesOf(data.map, data.breadcrumb)) : null
+  useEffect(() => { audio.bed('ambience', ambOn && !ambienceUrl ? bed : null, 2.4) }, [audio, ambOn, ambienceUrl, bed])
+  // the DM's own ambience: in as the map opens (after the first gesture the browser lets it), out as it closes
+  const fading = useRef(null)
+  useEffect(() => {
     const a = ambRef.current
-    if (!a) return
-    if (ambOn) { a.pause(); setAmbOn(false) } else { a.play().then(() => { setAmbOn(true); setAmbErr(false) }).catch(() => { setAmbOn(false); setAmbErr(true) }) }
+    if (!a || !ambOn || !ambienceUrl) return undefined
+    let off = false
+    const start = () => {
+      if (off) return
+      fading.current = null // a fade-out still running (the same element moving to another map) is cancelled
+      if (!a.paused) { rampTo(a, levelOf(audio.prefs), 1800); return }
+      a.volume = 0
+      a.play().then(() => { if (!off) { rampTo(a, levelOf(audio.prefs), 1800); setAmbErr(false) } }).catch(() => setAmbErr(true))
+    }
+    start()
+    document.addEventListener('pointerdown', start, true)
+    document.addEventListener('keydown', start, true)
+    return () => {
+      off = true
+      document.removeEventListener('pointerdown', start, true)
+      document.removeEventListener('keydown', start, true)
+      const token = {}
+      fading.current = token
+      rampTo(a, 0, 600, () => { if (fading.current === token) a.pause() })
+    }
+  }, [audio, ambOn, ambienceUrl, mapId])
+  // mute and the levels reach the DM's ambience at once
+  const ambLevels = (p) => { const a = ambRef.current; if (a && !a.paused) rampTo(a, levelOf(p), 150) }
+  // a new pin on this map (the DM revealed it, or the clock moved on) gets a soft cue — not on
+  // opening a map, and not while the player is scrubbing, which has its own sounds
+  const revealed = useRef({ mapId: null, viewT: null, ids: null })
+  useEffect(() => {
+    if (!data?.map || !world) return
+    const tl = world.timeline
+    const at = viewT != null ? viewT : (tl?.current ?? 0)
+    const ids = new Set((data.placements || []).filter((p) => p.node?.category !== 'party' && (!tl?.enabled || isPresent(p, at))).map((p) => p.id))
+    const prev = revealed.current
+    if (prev.ids && prev.mapId === data.map.id && prev.viewT === viewT) {
+      for (const id of ids) if (!prev.ids.has(id)) { cue('ui.reveal'); break }
+    }
+    revealed.current = { mapId: data.map.id, viewT, ids }
+  }, [data, world, viewT])
+  // the era bar: a tick for every step, a bell on crossing into another era, a rush back to now
+  const lastEra = useRef(null)
+  const eraAt = (t) => (world?.eras || []).find((e) => t >= e.start && t <= e.end)?.name ?? null
+  const moveTo = (t) => {
+    if (t == null) { cue('ui.now'); lastEra.current = null } else {
+      const era = eraAt(t)
+      if (era !== lastEra.current) cue('ui.era'); else cue('ui.scrub', { throttleMs: 60 })
+      lastEra.current = era
+    }
+    setViewT(t)
   }
   const say = (text, kind = 'err') => setFlash({ kind, text })
 
@@ -304,11 +358,7 @@ function PlayerView() {
             🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
           </span>
         )}
-        {ambienceUrl && (
-          <button className={`ambbtn ${ambOn ? 'on' : ''}${ambErr ? ' err' : ''}`} onClick={toggleAmb} title={ambErr ? "The ambience wouldn't play — tap again, or check the sound" : ambOn ? 'Stop the ambience' : 'Play the ambience'}>
-            {ambOn ? '🔊 Playing' : '🔈 Ambience'}
-          </button>
-        )}
+        <SpeakerButton ambience={ambOn} onAmbience={setAmbOn} onLevels={ambLevels} trouble={ambErr} />
         {ambienceUrl && <audio ref={ambRef} loop preload="none" src={ambienceUrl} />}
       </div>
 
@@ -346,7 +396,7 @@ function PlayerView() {
             >
               {printsOn && (
                 <PartyTrail placements={data.placements} t={shownAt} eras={world.eras} unit={tl?.unit}
-                  onStep={(st) => { if (tl?.current == null || st <= tl.current) setViewT(toViewT(st, tl)) }} />
+                  onStep={(st) => { if (tl?.current == null || st <= tl.current) moveTo(toViewT(st, tl)) }} />
               )}
               <Regions inert={marking} hoverId={hovId} onHover={setHovId} backdropUrl={backdropUrl} onEnter={(it) => enter(it.node)} onSelect={(it) => openNode(it.node.id)}
                 items={shownPlacements.filter((p) => p.shape && p.node.category !== 'party').map((p) => ({
@@ -435,7 +485,7 @@ function PlayerView() {
           </div>
         </div>
         {tl?.enabled && (
-          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={setViewT} />
+          <EraScrub tl={tl} eras={world.eras || []} value={viewT} onChange={moveTo} />
         )}
         </div>
 

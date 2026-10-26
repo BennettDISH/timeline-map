@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "sounds": {
+    "amb.wilds": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.wilds-f9a8f4b6.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.forest": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.forest-29d94136.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.town": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.town-43efa0ca.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.sea": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.sea-00640137.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.dungeon": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.dungeon-0ec99a12.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.mountain": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.mountain-5eb02ce4.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "amb.storm": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/amb.storm-f3316b7d.mp3",
+      "gain": 1,
+      "loopStart": 2,
+      "loopEnd": 40
+    },
+    "ui.reveal": {
+      "src": [
+        "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.reveal-765a04ea.mp3",
+        "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.reveal.2-c9d6e2b6.mp3"
+      ],
+      "gain": 0.9
+    },
+    "ui.scrub": {
+      "src": [
+        "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.scrub-936d9801.mp3",
+        "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.scrub.2-ec9c4e4b.mp3",
+        "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.scrub.3-a1846522.mp3"
+      ],
+      "gain": 0.8
+    },
+    "ui.era": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.era-56751e86.mp3",
+      "gain": 0.8
+    },
+    "ui.now": {
+      "src": "https://media.bennettdishmanmedia.com/atlas/audio/eleven/ui.now-830cffd5.mp3",
+      "gain": 0.8
+    }
+  }
+}

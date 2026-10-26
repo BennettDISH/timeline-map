@@ -11,6 +11,11 @@ const kit = require('fleet-kit/server');
 // puts it in script-src and connect-src).
 const WIDGET_ORIGIN = 'https://bug-tracker-production-4ccb.up.railway.app';
 
+// The games' media bucket: the Player View's ambience beds and cues (client/public/audio/manifest.json)
+// are fetched from here and decoded in Web Audio, which only connect-src has to allow (the kit
+// merges this with its own: this origin and the widget).
+const MEDIA_ORIGIN = 'https://media.bennettdishmanmedia.com';
+
 // What the Atlas loads beyond the kit's strict defaults (this origin only, no inline script):
 const CSP_ADD = {
   // images from any https host (+ data/blob): R2's public URL (pub-*.r2.dev / the custom domain)
@@ -18,6 +23,7 @@ const CSP_ADD = {
   // voice lines and ambience are audio objects on R2 — without this the browser renders the
   // player and silently refuses to load the file
   'media-src': ["'self'", 'blob:', 'https:'],
+  'connect-src': [MEDIA_ORIGIN],
   // stylesheets and fonts from https hosts (Google Fonts), as before
   'style-src': ['https:'],
   'font-src': ['https:', 'data:'],
@@ -46,4 +52,4 @@ function securityHeaders(env = process.env) {
   return (req, res, next) => (isPlayerPath(req.path) ? player(req, res, next) : dm(req, res, next));
 }
 
-module.exports = { CSP_ADD, WIDGET_ORIGIN, DEFAULT_EMBED_ORIGINS, embedOrigins, isPlayerPath, securityHeaders };
+module.exports = { CSP_ADD, WIDGET_ORIGIN, MEDIA_ORIGIN, DEFAULT_EMBED_ORIGINS, embedOrigins, isPlayerPath, securityHeaders };

@@ -1,5 +1,6 @@
 // Voice lines and ambience: the themed player (components/AudioClip).
 // Pages: AtlasWorkspace and PlayerView.
+@use '../z' as *;
 
 // ---- themed audio: a lantern-gold play button, a thin track, a small readout ----
 .atlas .aclip{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:6px 0;min-width:0;
@@ -15,3 +16,13 @@
   .atime{font:500 10.5px/1 ui-monospace,monospace;color:var(--muted);flex:none;letter-spacing:.04em}
   &.on .atime{color:#d9b64e}}
 .atlas .vrow .aclip{flex:1;margin:0}
+
+// ---- the speaker button in the Player View's top bar: the ambience's switch, mute and levels ----
+.atlas.pview .speaker{position:relative;flex:none}
+.atlas.pview .speaker-btn{display:flex;align-items:center;justify-content:center;padding:4px 8px;line-height:1;
+  svg{width:18px;height:18px;display:block}}
+.atlas.pview .speaker-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:$z-popover;width:min(240px,calc(100vw - 24px));display:flex;flex-direction:column;gap:9px;padding:11px 12px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px #0009;font-size:13px}
+.atlas.pview .speaker-row{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:8px;color:var(--ink)
+  input[type=range]{width:100%;min-width:0;accent-color:#d9b64e}
+  input[type=checkbox]{justify-self:start;width:16px;height:16px;accent-color:#d9b64e}}

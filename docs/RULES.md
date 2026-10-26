@@ -437,11 +437,10 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   R2 object (`keyFromUrl`). `POST /nodes/:id/line` accepts `voice_style` so the style shown
   in the box is the one used. Model overrides: `VOICE_TTS_MODEL_GEMINI`,
   `VOICE_TTS_MODEL_OPENAI`, `VOICE_TTS_MODEL_ELEVENLABS` (one per provider). Player View: a visible node's line plays
-  on its sheet; a map's ambience is a tap-to-play toggle in the top bar. Voice lines play through
-  `components/AudioClip.jsx` (themed; the native controls ignore the palette); the Player View's
-  ambience is a tap-to-play toggle in the top bar over a hidden audio element. helmet's CSP
-  carries `media-src 'self' blob: https:` — without it the browser renders the player but
-  refuses to load R2 audio.
+  on its sheet. Voice lines play through `components/AudioClip.jsx` (themed; the native controls
+  ignore the palette). The Player View's ambience is described under Sound (Player View) below.
+  helmet's CSP carries `media-src 'self' blob: https:` — without it the browser renders the
+  player but refuses to load R2 audio.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
   visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
 - **The Player View never strands a player**: only an unknown TOKEN shows "This link isn't
@@ -457,6 +456,29 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   somewhere (`{mapId, t}` — the era bar moves there). Windowed backdrops carry `rank`
   (the DM's latest-start-then-newest rule on unclamped starts). Node categories come from
   one list: `server/lib/vocab.js` (mirrored by `MARKABLE` in `utils/categories.js`).
+
+## Sound (Player View)
+- `client/src/audio/` is the games' shared player (`audio.js`, copied between the games): one
+  AudioContext, three buses (sfx, music, ambience) into a master and a soft limiter, remembered
+  mute and levels (`atlas_audio_prefs`), crossfaded beds. Nothing sounds before the page's first
+  tap or key (the browsers' rule); a bed asked for before that starts then. A name with no file
+  is silence, never an error.
+- **Ambience is on by default** and remembered: `atlas_pv_amb` ('on' until someone turns it off).
+  The speaker button in the Player View's top bar holds Play ambience, Mute and the Ambience and
+  Effects levels. A map the DM made an ambience for (`maps.ambience_url`, above) plays that, in an
+  `<audio>` element (its host sends no CORS headers Web Audio could read), faded in and out and
+  held to the same mute and levels. Every other map is heard as the kind of place its name says:
+  one of seven stock beds (wilds, forest, town, sea, dungeon, mountain, storm) chosen by
+  `client/src/audio/beds.js` from the map's title, then its parents' (the open country when none
+  names a place), and moving between maps crossfades. No saved map changes. Not a column: a DM who
+  wants exact control makes the map an ambience.
+- Cues: `ui.reveal` when a pin newly appears on the map being looked at (the DM revealed it, or
+  the clock moved on; not on opening a map, not while scrubbing), `ui.scrub` for each step of the
+  era bar, `ui.era` on crossing into another era, `ui.now` for ⦿ Now.
+- The files are on the games' media bucket (`https://media.bennettdishmanmedia.com/atlas/audio/…`,
+  hashed and immutable), named in `client/public/audio/manifest.json`; the CSP's `connect-src`
+  names that one host (`server/lib/security.js`). Sources, prompts and the steps to make more:
+  `CREDITS.md` and `tools/sounds/`. The DM workspace makes no sound of its own.
 
 ## Cleanup list
 `docs/cleanup/` holds the verified punch list from the 2026-09-26 audit — start at its
