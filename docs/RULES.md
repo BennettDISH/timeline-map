@@ -511,6 +511,18 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   sits above the dialog that opened it, and ✦ Paint from the period picker ADDS a timed
   backdrop (`start_time` on the forge route) instead of replacing the base art. The backdrop
   controls say which art is on screen (a period's, or the base) and change that one.
+- Stock: an entry's art picker (only that one) offers the stock library under a **Stock**
+  heading, Tokens or Portraits, filtered by the same search, with its credit line under it
+  (`GET /api/images/stock`, signed in). Picking one is `POST /api/images/stock {world_id, name}`:
+  only a name in `server/stock/library.json`, only into the caller's own world (else 400 / 404,
+  before anything is fetched). The picture is fetched from the games' media bucket and must
+  hash to the 8 hex in its own name (else 502, nothing stored or spent); it then spends the
+  upload allowance like an upload and lands as an ordinary image of that world
+  (`worlds/<id>/stock-<name>-<hash>.webp`, named "<Title> (stock)", captioned with the credit),
+  so the Archive, clone and delete treat it like any other. The name is the same for every
+  pick of the same picture, so a second pick hands back the first copy (nothing fetched, put or
+  spent), and a key is only ever written with those exact bytes. A stock **token** also turns
+  the entry's pin into the image (the inspector's "Pin: icon + name" turns it back).
 - `utils/images.js` (`usesOf`, `describeUse`, `ACCEPT`) is the one vocabulary for an image's
   uses: base art of N maps · art for N timed periods · art of N nodes · the Forge's anchor.
 

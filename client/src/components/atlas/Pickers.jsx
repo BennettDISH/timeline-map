@@ -8,8 +8,10 @@ import { usesOf, describeUse, ACCEPT } from '../../utils/images'
 
 // Upload a new image (to R2 via the existing pipeline), pick an existing one from this
 // world, or — when the Forge is on — paint one for exactly the thing being decorated.
+// With `stock` (an entry's art), the stock library's tokens and portraits are offered too:
+// a pick copies the picture into this world's Archive, and onPick gets { stock: 'token' | 'portrait' }.
 const PICK_PAGE = 60
-export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerated, title = 'Choose image', currentId = null, removeLabel = 'Remove current image' }) {
+export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, onGenerated, title = 'Choose image', currentId = null, removeLabel = 'Remove current image', stock = false }) {
   const [images, setImages] = useState(null) // null = loading
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -42,6 +44,22 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
       .finally(() => { if (my === seq.current) setMore(false) })
   }
   useEffect(() => { load(true) }, [worldId, needle]) // eslint-disable-line
+
+  // the stock library: null = loading, false = failed (with Retry)
+  const [lib, setLib] = useState(null)
+  const [stockKind, setStockKind] = useState('token')
+  const [adding, setAdding] = useState('') // the stock picture being copied in
+  const loadStock = () => { setLib(null); imageService.getStock().then(setLib).catch(() => setLib(false)) }
+  useEffect(() => { if (stock) loadStock() }, [stock]) // eslint-disable-line
+  const pickStock = (it) => {
+    if (adding || busy) return
+    setAdding(it.name); setErr('')
+    imageService.addStock(worldId, it.name)
+      .then((r) => onPick(r.image.id, r.image.url, { stock: it.kind }))
+      .catch((e) => setErr(errText(e, "Couldn't add that picture")))
+      .finally(() => setAdding(''))
+  }
+  const stockShown = (lib?.items || []).filter((it) => it.kind === stockKind && (!needle || it.title.toLowerCase().includes(needle.toLowerCase())))
 
   const upload = async (file) => {
     if (!file) return
@@ -87,10 +105,36 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
                 : <span className="puse" title="Not used anywhere yet">○</span>}
             </button>
           ))}
-          {images !== null && images.length === 0 && !err && <div className="muted">{needle ? `Nothing named like “${needle}”.` : 'No images in this world yet — upload one above.'}</div>}
+          {images !== null && images.length === 0 && !err && <div className="muted">{needle ? `Nothing named like “${needle}”.` : `No images in this world yet — upload one above${stock ? ', or pick one from the stock below' : ''}.`}</div>}
         </div>
         {images !== null && images.length < total && (
           <button type="button" className="btn block" disabled={more} onClick={() => load(false)}>{more ? 'Loading…' : `Show more (${total - images.length} remain)`}</button>
+        )}
+        {stock && (
+          <div className="pstock">
+            <div className="pstock-head">
+              <span className="pstock-title">Stock</span>
+              <button className={`chip ${stockKind === 'token' ? 'on' : ''}`} aria-pressed={stockKind === 'token'} onClick={() => setStockKind('token')}>Tokens</button>
+              <button className={`chip ${stockKind === 'portrait' ? 'on' : ''}`} aria-pressed={stockKind === 'portrait'} onClick={() => setStockKind('portrait')}>Portraits</button>
+            </div>
+            {lib === null && <div className="muted">Loading…</div>}
+            {lib === false && <div className="muted">Couldn't load the stock library. <button type="button" className="btn" onClick={loadStock}>Retry</button></div>}
+            {lib && (
+              <>
+                <div className="pick-grid">
+                  {stockShown.map((it) => (
+                    <button key={it.name} className={`pick${it.kind === 'token' ? ' tok' : ''}`} disabled={!!adding || busy} onClick={() => pickStock(it)}
+                      title={`${it.title} — copied into this world's Archive when you pick it`}>
+                      <img src={it.url} alt={it.title} loading="lazy" />
+                      <span className="pname">{adding === it.name ? 'Adding…' : it.title}</span>
+                    </button>
+                  ))}
+                  {stockShown.length === 0 && <div className="muted">{needle ? `No stock ${stockKind}s named like “${needle}”.` : 'Nothing here yet.'}</div>}
+                </div>
+                {lib.credit && <div className="pcredit">{lib.credit}</div>}
+              </>
+            )}
+          </div>
         )}
     </Modal>
   )

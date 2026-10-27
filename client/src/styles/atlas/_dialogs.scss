@@ -94,3 +94,11 @@
 .atlas .modal-back.top{z-index:$z-modal-over}
 .atlas .pick.current{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
 .atlas .modal .nsearch{margin:8px 0 0}
+// the stock library under an entry's picker: a token is a cut-out, shown whole on the panel colour
+.atlas .pick-grid > .muted{grid-column:1/-1} // an empty grid's sentence spans the row, not one tile
+.atlas .pstock{margin-top:14px}
+.atlas .pstock-head{display:flex;align-items:center;gap:6px}
+.atlas .pstock-title{@include section-label;flex:1}
+.atlas .pick.tok img{object-fit:contain;padding:6px 6px 14px}
+.atlas .pick:disabled{cursor:progress;opacity:.7}
+.atlas .pcredit{margin-top:8px;font-size:11px;color:var(--muted)}

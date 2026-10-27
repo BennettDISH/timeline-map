@@ -1,0 +1,9 @@
+{
+  "name": "atlas-stock-tools",
+  "private": true,
+  "description": "Paints, finishes and uploads the Atlas' stock tokens and portraits (see README.md); never deployed",
+  "type": "module",
+  "dependencies": {
+    "sharp": "^0.34.4"
+  }
+}

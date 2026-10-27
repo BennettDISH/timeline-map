@@ -9,7 +9,6 @@ ships, delete its line (git keeps the history).
 - @-mention an entry while writing to make a thread to it.
 - A create-world wizard (name → backdrop → land on a real map).
 - Portals: threads that carry a kind or a moment in the UI.
-- A stock library of 24 tokens and 12 portraits, so an empty world is not bare: painted once with the Forge's style anchor (a world-less anchor, since today it is a world's first painting) and offered in the picker. Needs the Atlas' own Gemini key on the machine that paints them; the sound pass found none wired outside Railway.
 - A DM-chosen ambience bed per map (Auto, one of the seven, or Silent) in the inspector, beside "Make it": today a map is heard as the kind of place its title says (`client/src/audio/beds.js`), which a wrongly named map gets wrong until the DM makes it an ambience.
 - Copy a world with its pending Forge cards (the batches' ids remapped, so Keep and Unmake work in the copy) instead of refusing the copy until they are settled; a pending card on the sample template blocks newcomers from starting from it today.
 

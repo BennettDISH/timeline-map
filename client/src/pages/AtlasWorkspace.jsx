@@ -871,12 +871,16 @@ function AtlasWorkspace() {
       .then(() => { refreshMap(); refreshTree(); if (imageId == null && prev != null) undoable('Backdrop removed', { undo: () => setBackdrop(prev) }) })
       .catch(() => {})
   }
-  const handlePick = (imageId, imageUrl) => {
+  const handlePick = (imageId, imageUrl, { stock } = {}) => {
     const pk = picker; setPicker(null); if (!pk) return
     if (pk.kind === 'backdrop') setBackdrop(imageId)
     else if (pk.kind === 'backdrop-timed') { if (imageId) addTimedBackdrop(imageId) }
     else if (pk.kind === 'backdrop-row') { if (imageId) patchBackdrop(pk.rowId, { image_id: imageId }) }
-    else if (pk.nodeId) setNodeImage(pk.nodeId, imageId, imageUrl)
+    else if (pk.nodeId) {
+      setNodeImage(pk.nodeId, imageId, imageUrl)
+      // a stock token is made to stand on the map: it becomes the pin (the inspector switches it back)
+      if (stock === 'token') saveNode(pk.nodeId, { pin: 'image' })
+    }
   }
 
   const toggleLabels = () => setLabelsOn((v) => !v)
@@ -2096,7 +2100,7 @@ function AtlasWorkspace() {
           <ImagePicker worldId={worldId} hasCurrent={picker.hasCurrent} title={title} currentId={currentId}
             removeLabel={picker.kind === 'node' ? 'Remove the art from this entry' : 'Remove the base art'}
             onPick={handlePick} onClose={() => setPicker(null)}
-            generate={generate}
+            generate={generate} stock={picker.kind === 'node'}
             onGenerated={() => { const k = picker.kind; setPicker(null); setFlash({ kind: 'ok', text: k === 'backdrop-timed' ? `Painted — a new period from ${periodAt} on this map` : 'Painted and attached' }); forgeRefresh() }} />
         )
       })()}

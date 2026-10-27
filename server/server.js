@@ -74,6 +74,7 @@ app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next();
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/worlds', require('./routes/worlds'));
+app.use('/api/images/stock', require('./routes/stock')); // the stock tokens and portraits, copied into a world on a pick
 app.use('/api/images', require('./routes/images'));
 app.use('/api/images-base64', require('./routes/image-base64'));
 app.use('/api/image-folders', require('./routes/imageFolders'));

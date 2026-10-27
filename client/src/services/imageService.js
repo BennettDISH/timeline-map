@@ -62,6 +62,17 @@ const imageService = {
   },
 
 
+  // The stock library (tokens and portraits for any world) and its credit line; asked once a page load
+  getStock() {
+    if (!this._stock) this._stock = http.get(`${API_BASE}/stock`).then((r) => r.data).catch((e) => { this._stock = null; throw e })
+    return this._stock
+  },
+  // Copy one stock picture into a world's Archive (a second pick hands back the same image)
+  async addStock(worldId, name) {
+    const response = await http.post(`${API_BASE}/stock`, { world_id: worldId, name })
+    return response.data
+  },
+
   // Update image metadata (name, caption, folder)
   async updateImage(id, updateData) {
     const response = await http.put(`/api/images/${id}`, updateData)

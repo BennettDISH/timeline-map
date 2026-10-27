@@ -1,0 +1,366 @@
+{
+  "version": 1,
+  "credit": "Painted for the Atlas with Google Gemini 2.5 Flash Image, October 2026. Free to use in any world.",
+  "items": [
+    {
+      "name": "wolf",
+      "title": "Wolf",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/wolf-9975b147.webp",
+      "bytes": 48480,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "goblin",
+      "title": "Goblin",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/goblin-853d726b.webp",
+      "bytes": 35676,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "orc",
+      "title": "Orc",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/orc-3cb90ec4.webp",
+      "bytes": 47134,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "skeleton",
+      "title": "Skeleton",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/skeleton-333b03a4.webp",
+      "bytes": 42332,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "troll",
+      "title": "Troll",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/troll-0e09b274.webp",
+      "bytes": 51604,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "dragon",
+      "title": "Dragon",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/dragon-de7ea774.webp",
+      "bytes": 62034,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "spider",
+      "title": "Giant spider",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/spider-cc2e8b5f.webp",
+      "bytes": 40014,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "wraith",
+      "title": "Wraith",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/wraith-127720c9.webp",
+      "bytes": 28412,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "bear",
+      "title": "Bear",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/bear-970974c7.webp",
+      "bytes": 44976,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "griffon",
+      "title": "Griffon",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/griffon-edd6f8c1.webp",
+      "bytes": 53452,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "sea-serpent",
+      "title": "Sea serpent",
+      "kind": "token",
+      "group": "creatures",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/sea-serpent-a6843e7f.webp",
+      "bytes": 38960,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "knight",
+      "title": "Knight",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/knight-47343499.webp",
+      "bytes": 35844,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "wizard",
+      "title": "Wizard",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/wizard-7f9b4bbe.webp",
+      "bytes": 35920,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "rogue",
+      "title": "Rogue",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/rogue-9fb7e76c.webp",
+      "bytes": 33328,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "cleric",
+      "title": "Cleric",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/cleric-03aae1bb.webp",
+      "bytes": 43468,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "ranger",
+      "title": "Ranger",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/ranger-c47bd0f1.webp",
+      "bytes": 32874,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "merchant",
+      "title": "Merchant",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/merchant-83c56cd9.webp",
+      "bytes": 45510,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "guard",
+      "title": "Guard",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/guard-056690a2.webp",
+      "bytes": 29254,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "noble",
+      "title": "Noble",
+      "kind": "token",
+      "group": "people",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/noble-47ec581e.webp",
+      "bytes": 25382,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "camp",
+      "title": "Camp",
+      "kind": "token",
+      "group": "places",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/camp-256d36c9.webp",
+      "bytes": 41532,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "treasure",
+      "title": "Treasure",
+      "kind": "token",
+      "group": "places",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/treasure-7e6bf61b.webp",
+      "bytes": 58590,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "ship",
+      "title": "Ship",
+      "kind": "token",
+      "group": "places",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/ship-b530c4e2.webp",
+      "bytes": 42716,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "tower",
+      "title": "Tower",
+      "kind": "token",
+      "group": "places",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/tower-70838b96.webp",
+      "bytes": 39354,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "portal",
+      "title": "Portal",
+      "kind": "token",
+      "group": "places",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/tokens/portal-d01c90c6.webp",
+      "bytes": 44160,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "dwarf-smith",
+      "title": "Dwarf smith",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/dwarf-smith-d02d6c04.webp",
+      "bytes": 62348,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "elf-archivist",
+      "title": "Elf archivist",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/elf-archivist-76d45b98.webp",
+      "bytes": 58192,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "queen",
+      "title": "Queen",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/queen-e89e8dc5.webp",
+      "bytes": 23028,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "mercenary",
+      "title": "Mercenary",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/mercenary-995cba67.webp",
+      "bytes": 37092,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "hedge-witch",
+      "title": "Hedge witch",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/hedge-witch-dbf6338d.webp",
+      "bytes": 47170,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "squire",
+      "title": "Squire",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/squire-06211a7e.webp",
+      "bytes": 45152,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "pirate-captain",
+      "title": "Pirate captain",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/pirate-captain-87bd7ba0.webp",
+      "bytes": 58554,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "spy",
+      "title": "Spy",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/spy-a3afaf9f.webp",
+      "bytes": 35884,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "priest",
+      "title": "Priest",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/priest-db4b4918.webp",
+      "bytes": 44902,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "innkeeper",
+      "title": "Innkeeper",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/innkeeper-d8564b01.webp",
+      "bytes": 50262,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "warlord",
+      "title": "Warlord",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/warlord-2de84522.webp",
+      "bytes": 44432,
+      "width": 768,
+      "height": 768
+    },
+    {
+      "name": "caravan-trader",
+      "title": "Caravan trader",
+      "kind": "portrait",
+      "group": "portraits",
+      "src": "https://media.bennettdishmanmedia.com/atlas/stock/portraits/caravan-trader-4e999b10.webp",
+      "bytes": 44288,
+      "width": 768,
+      "height": 768
+    }
+  ]
+}

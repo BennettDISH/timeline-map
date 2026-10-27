@@ -54,7 +54,9 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   player reachability, what a delete takes). They usually match; a DOOR leads to a map it does
   not own (see Doors under Map surface rules in `docs/RULES.md`).
 - Server: `server/routes/atlas.js` (the whole Atlas API), `worlds.js` (world CRUD only),
-  `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline),
+  `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline), `stock.js` +
+  `lib/stock.js` (the stock tokens and portraits in `server/stock/library.json`, made by `tools/stock/`;
+  a pick copies one into the world),
   `auth.js` (the Atlas's own password forms, then fleet-kit's sign-in router), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
   `config/auth.js` (fleet-kit's `createWaypoint`, app `atlas`: the users row by central id, the

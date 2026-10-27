@@ -1,5 +1,23 @@
 # Credits and licences
 
+## Stock art
+
+The stock library under an entry's art picker (24 tokens and 12 portraits) was painted in
+October 2026 with **Google Gemini 2.5 Flash Image** on Bennett's own API key; Google's terms leave
+the output to the user. The house style, the one style anchor (the knight) and the words for each
+picture are in `tools/stock/prompts.mjs`, and `tools/stock/README.md` has the steps that remake
+them. The files are served from the games' media bucket,
+`https://media.bennettdishmanmedia.com/atlas/stock/<tokens|portraits>/<name>-<hash>.webp`, with
+content-hashed, immutable names; `server/stock/library.json` lists them, with the credit line the
+picker shows. A picked picture is copied into the world, captioned with that line.
+
+| Group | Pictures |
+|---|---|
+| Tokens: creatures | wolf, goblin, orc, skeleton, troll, dragon, giant spider, wraith, bear, griffon, sea serpent |
+| Tokens: people | knight, wizard, rogue, cleric, ranger, merchant, guard, noble |
+| Tokens: places | camp, treasure, ship, tower, portal |
+| Portraits | dwarf smith, elf archivist, queen, mercenary, hedge witch, squire, pirate captain, spy, priest, innkeeper, warlord, caravan trader |
+
 ## Sound
 
 Every sound file was generated with **ElevenLabs Sound Effects** on Bennett's paid (Starter) plan,
