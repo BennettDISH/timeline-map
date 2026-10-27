@@ -1,5 +1,5 @@
 // Serving media from the bucket's custom domain, run locally (no network, no production):
-//  - every object is put (and copied, when its type is known) with the immutable Cache-Control;
+//  - every object is put and copied with the immutable Cache-Control (fleet-kit's R2 store);
 //  - keyFromUrl finds the object behind an address on the new domain AND, while the stored URLs
 //    are being moved, behind one on the old r2.dev address (R2_LEGACY_PUBLIC_URLS);
 //  - scripts/rewrite-media-host.js: the dry run writes nothing, apply rewrites the leading address
@@ -17,7 +17,11 @@ Object.assign(process.env, {
   R2_LEGACY_PUBLIC_URLS: 'https://pub-0123abcd.r2.dev/, https://pub-old.r2.dev',
 });
 const sent = [];
-require('@aws-sdk/client-s3').S3Client.prototype.send = async (cmd) => { sent.push(cmd); return {}; };
+// a head answers as R2 does for an object that is there
+require('@aws-sdk/client-s3').S3Client.prototype.send = async (cmd) => {
+  sent.push(cmd);
+  return cmd.constructor.name === 'HeadObjectCommand' ? { ContentType: 'image/webp', ContentLength: 3 } : {};
+};
 const storage = require('../storage');
 const { rewriteHost, bareOrigin } = require('../scripts/rewrite-media-host');
 
@@ -36,19 +40,23 @@ test('a put carries the immutable Cache-Control and answers the public URL', asy
   assert.strictEqual(storage.CACHE_CONTROL, CACHE);
 });
 
-test('a copy with a known type is stored with the Cache-Control too; without one it copies as is', async () => {
+test('a copy is stored with the Cache-Control too, under the type given or, without one, the source\'s own', async () => {
   sent.length = 0;
   await storage.copyObject('worlds/5/a.png', 'worlds/6/b.png', 'image/png');
+  assert.deepStrictEqual(sent.map((c) => c.constructor.name), ['CopyObjectCommand'], 'a type given needs no look first');
   assert.strictEqual(lastSent().input.MetadataDirective, 'REPLACE');
   assert.strictEqual(lastSent().input.CacheControl, CACHE);
   assert.strictEqual(lastSent().input.ContentType, 'image/png');
-  assert.strictEqual(lastSent().input.CopySource, '/bucket/worlds/5/a.png');
+  assert.strictEqual(lastSent().input.CopySource, 'bucket/worlds/5/a.png');
 
   sent.length = 0;
-  const url = await storage.copyObject('worlds/5/a.png', 'worlds/6/c.png');
-  assert.strictEqual(url, `${NEW}/worlds/6/c.png`);
-  assert.strictEqual(lastSent().input.MetadataDirective, undefined);
-  assert.strictEqual(lastSent().input.CacheControl, undefined);
+  const url = await storage.copyObject('worlds/5/a b.webp', 'worlds/6/c.webp');
+  assert.strictEqual(url, `${NEW}/worlds/6/c.webp`);
+  assert.deepStrictEqual(sent.map((c) => c.constructor.name), ['HeadObjectCommand', 'CopyObjectCommand']);
+  assert.strictEqual(lastSent().input.MetadataDirective, 'REPLACE');
+  assert.strictEqual(lastSent().input.CacheControl, CACHE);
+  assert.strictEqual(lastSent().input.ContentType, 'image/webp', 'the source\'s own type');
+  assert.strictEqual(lastSent().input.CopySource, 'bucket/worlds/5/a%20b.webp', 'the source key URL-encoded');
 });
 
 test('keyFromUrl reads the new domain and the old addresses, and nothing else', () => {

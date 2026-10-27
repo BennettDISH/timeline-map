@@ -62,13 +62,14 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   that stamps `last_seen_at`, the old-token reader), `middleware/auth.js` (`authenticateToken` =
   the kit's session check, `requireAdmin`), `lib/security.js` (the kit's headers with the Atlas's
   CSP additions and the Player View's embed contract). From fleet-kit (vendored as
-  `server/vendor/fleet-kit-1.0.0.tgz`; the client installs the same file for its top bar; a kit
+  `server/vendor/fleet-kit-1.0.6.tgz`; the client installs the same file for its top bar; a kit
   change is a new kit version, never a re-packed tarball, and never edited here): trust proxy 1,
   the request log (one line per request: id, method, path with no query string and tokens as
   `:token`, status, time; the id is `X-Request-Id` and the error handler logs with it), the
   same-origin write guard, the rate limits, `/health`, the JSON 404 and the error handler,
   `/auth/callback` and the `/admin` page gate (`server.js`),
-  `storage.js` (R2: every call is given up on after 15 s; immutable Cache-Control on every put; `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
+  the R2 store under `storage.js` (every call is given up on after 15 s; immutable Cache-Control on every put and copy; `storage.js` keeps
+  the public URLs and `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
   domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
