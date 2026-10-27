@@ -222,6 +222,40 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     } else step('a focus period reaching into hidden time (needs the clock on the throwaway world)', !tl?.enabled, 'skipped');
     if (n?.nodeId) step('the hide-here probe entry is removed again', (await dm('DELETE', `/nodes/${n.nodeId}`)).ok);
   }
+  // @-mentions: players read a mention of an entry they can see as a mention with no moment, and
+  // one of a DM-only entry as its bare name; locate with a moment finds where the Party stood then
+  {
+    const shown = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-said', x: 6, y: 6 }));
+    const seen = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-seen', x: 7, y: 7 }));
+    const secret = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-secret', x: 8, y: 8 }));
+    if (shown?.nodeId && seen?.nodeId && secret?.nodeId) {
+      await dm('PATCH', `/nodes/${shown.nodeId}`, { visibility: 'shared',
+        body: `Met @[Seen One](node:${seen.nodeId}@12) and @[Hidden One](node:${secret.nodeId}@30).` });
+      await dm('PATCH', `/nodes/${seen.nodeId}`, { visibility: 'shared' });
+      const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));
+      if (wj?.world?.timeline?.enabled) { // the probes stand for all time, whatever canon is
+        for (const p of [shown, seen]) await dm('PATCH', `/placements/${p.placementId}`, { start_time: null, end_time: null });
+      }
+      const sheet = await json(await fetch(`${BASE}/api/share/${cfg.shareToken}/nodes/${shown.nodeId}`));
+      step('players read a mention of what they can see, with no moment, and a hidden one as its name',
+        sheet?.node?.body === `Met @[Seen One](node:${seen.nodeId}) and Hidden One.`, JSON.stringify(sheet?.node?.body));
+      const dmSide = await json(await dm('GET', `/nodes/${shown.nodeId}`));
+      step('…while the DM keeps both, moments included', /@\[Hidden One\]\(node:\d+@30\)/.test(dmSide?.node?.body || ''), JSON.stringify(dmSide?.node?.body));
+      let gone = 0; for (const x of [shown, seen, secret]) { const r = await dm('DELETE', `/nodes/${x.nodeId}`); if (r.ok) gone++; }
+      step('the mention probe entries are removed again', gone === 3, `${gone} removed`);
+    } else step('probe entries for mentions', false, JSON.stringify([shown, seen, secret]));
+    const trail = await json(await dm('GET', `/worlds/${cfg.worldId}/trail`));
+    const steps = (trail?.steps || []).filter((s) => s.start != null);
+    if (steps.length >= 2) {
+      const [first, last] = [steps[0], steps[steps.length - 1]];
+      const at = async (t) => json(await dm('GET', `/nodes/${first.nodeId}/locate?t=${t}`));
+      const a = await at(first.start), b = await at(last.start);
+      step("locate at a mention's moment finds the Party's footstep then", a?.placementId === first.id && b?.placementId === last.id,
+        `${a?.placementId}/${first.id} then ${b?.placementId}/${last.id}`);
+      const badT = await dm('GET', `/nodes/${first.nodeId}/locate?t=1.5`);
+      step('…and a moment that is not whole is a 400', badT.status === 400, String(badT.status));
+    } else step('locate at a moment (needs two timed footsteps on the throwaway world)', true, 'skipped');
+  }
   // images and folders: the bytes decide, names are clamped, list parameters are checked,
   // search is literal, bulk moves and deletes are one request, folder names have one rule
   {

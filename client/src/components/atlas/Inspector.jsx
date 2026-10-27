@@ -4,11 +4,12 @@ import { STYLE_KEYS, STYLE_LABELS } from '../Regions'
 import { CATS, cat } from '../../utils/categories'
 import { spanLabel } from '../../utils/moment'
 import { wholeOr, REVERSED, coveringFact, periodBlur } from './helpers'
+import { MentionBox, MentionChips } from './Mentions'
 
 // The editor (the right-hand panel in Edit posture): one selected placement and its node.
 // Every save goes through the callbacks the workspace passes in; this file holds no service calls.
 
-export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, leadsTo, onLeadTo, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle }) {
+export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, leadsTo, onLeadTo, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle, worldId, moment, onMention, onGoMention, mentionLabel }) {
   const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
@@ -145,11 +146,17 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
       {n.category === 'party' && timeBlock}
       <div className="isect">Description</div>
       <div className="fld"><label htmlFor={`${fid}-body`}>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
-        <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+        <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'public')}>
+          <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} placeholder="Type @ to mention another entry" onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+        </MentionBox>
+        <MentionChips text={body} onGo={onGoMention} label={mentionLabel} />
       </div>
       <div className="fld dmnotes"><label htmlFor={`${fid}-note`}>🔒 DM notes — players never see this</label>
-        <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Only you see this — not players, not the Forge's painter."
-          onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
+        <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'secret')}>
+          <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Only you see this — not players, not the Forge's painter."
+            onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
+        </MentionBox>
+        <MentionChips text={note} onGo={onGoMention} label={mentionLabel} />
         {note.trim() && (() => {
           // players read the period text covering CANON when there is one: the secret goes there
           const covering = timeline?.enabled ? coveringFact(facts, timeline.current) : null
@@ -188,8 +195,11 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
                 <button className="lx" title="Remove this period's text" aria-label="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
               </div>
               {factHint === f.id && <div className="muted warn">{REVERSED}</div>}
-              <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
-                onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
+              <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'public')}>
+                <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
+                  onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
+              </MentionBox>
+              <MentionChips text={f.body} onGo={onGoMention} label={mentionLabel} />
             </div>
                 ))}
               </>

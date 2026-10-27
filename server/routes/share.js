@@ -3,6 +3,7 @@ const { rateLimit } = require('fleet-kit/server');
 const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { CATEGORIES } = require('../lib/vocab');
+const { mentionIds, mentionsForPlayers } = require('../lib/mentions');
 const router = express.Router();
 
 // The public Player View API (UX-REDESIGN Phase 4's "shareable link"). No auth — the token in
@@ -514,6 +515,13 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
          AND (end_time IS NULL OR end_time >= $2) AND NOT (id = ANY($3::int[]))
        ORDER BY start_time DESC NULLS LAST, id DESC LIMIT 1`, [n.id, t, [...pend.facts]])).rows[0];
     if (fact) n.body = fact.body;
+  }
+  // @-mentions: one of an entry the player may know exists (the threads' rule, below) stays a
+  // mention without its moment; any other is its name, so no id or moment of a hidden thing leaves
+  const named = mentionIds(n.body);
+  if (named.length) {
+    const shared = (await pool.query(`SELECT id FROM nodes WHERE id = ANY($1::int[]) AND world_id = $2 AND visibility != 'dm'`, [named, w.id])).rows.map((r) => r.id);
+    n.body = mentionsForPlayers(n.body, await reachableIds(shared, w, t));
   }
 
   const linkSql = (dir) => `

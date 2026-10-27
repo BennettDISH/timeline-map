@@ -20,6 +20,8 @@ import { ago } from '../utils/format'
 import MapTree from '../components/atlas/MapTree'
 import SessionNotes from '../components/atlas/SessionNotes'
 import LooseEnds from '../components/atlas/LooseEnds'
+import MentionText from '../components/MentionText'
+import { plainMentions } from '../utils/mentions'
 import DeleteImpact, { doorsLine } from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
@@ -470,6 +472,17 @@ function AtlasWorkspace() {
     await track(atlasService.addLink({ from_node_id: fid, to_node_id: toId }), "Couldn't link").catch(() => {})
     reloadNodeDetail(fid)
   }
+  // A mention in public text (a description, a period text) threads the two entries, as players
+  // read both; one in the DM notes stays a note — a thread would show players what the note keeps.
+  const mentioned = async (node, where) => {
+    const fid = focusIdRef.current
+    if (where !== 'public' || !fid || node.id === fid) return
+    if ([...(nodeDetail.out || []), ...(nodeDetail.in || [])].some((l) => l.otherId === node.id)) return
+    const r = await track(atlasService.addLink({ from_node_id: fid, to_node_id: node.id }), `Couldn't thread to “${node.title}”`).catch(() => null)
+    if (r) { setFlash({ kind: 'ok', text: `Threaded to “${node.title}”` }); reloadNodeDetail(fid) }
+  }
+  const mentionLabel = (m) => (m.t != null && world?.timeline?.enabled
+    ? `Go to “${m.name}” as at ${momentLabel(m.t, world?.eras, world.timeline.unit)}` : `Go to “${m.name}”`)
   const removeLink = async (id) => {
     const r = await track(atlasService.deleteLink(id), "Couldn't remove the link").catch(() => null)
     if (focusIdRef.current) reloadNodeDetail(focusIdRef.current)
@@ -487,14 +500,18 @@ function AtlasWorkspace() {
     setSelId(null); setStray(d.node); setInspOpen(true)
     if (mode !== 'edit') setMode('edit')
   }
-  const jump = async (nodeId) => {
+  // t: a mention's moment — the lens goes there and the entry is shown where it stands then
+  const jump = async (nodeId, t = null) => {
+    const clock = world?.timeline
+    const at = t != null && clock?.enabled ? Math.min(Math.max(t, clock.min ?? t), clock.max ?? t) : null
     let loc
-    try { loc = await atlasService.locateNode(nodeId, mapId) } catch (e) {
+    try { loc = await atlasService.locateNode(nodeId, mapId, at) } catch (e) {
       // a failed lookup is a failure, not "unplaced" — never invite a second placement
       setFlash({ kind: 'err', text: e?.response?.status === 404 ? 'That entry no longer exists' : "Couldn't find where that is — try again." })
       return
     }
     if (!loc || !loc.mapId) { openStray(nodeId); return }
+    if (at != null) { goToMoment(at, loc.mapId, loc.placementId ?? null); return }
     // the thing is SHOWN — its pin, framed, story open; ◎ is the explicit way inside
     if (String(loc.mapId) === String(mapId)) { if (loc.placementId) { setSelId(loc.placementId); frame(loc.placementId) } return }
     if (loc.placementId) { pendingSelect.current = loc.placementId; frameNext.current = loc.placementId }
@@ -1573,7 +1590,7 @@ function AtlasWorkspace() {
                     <div className="lstitle">{p.node.title}
                       {p.node.visibility === 'dm' && <span className="lock" title="DM only"> 🔒</span>}
                     </div>
-                    {p.node.body && <div className="lsdesc">{p.node.body}</div>}
+                    {p.node.body && <div className="lsdesc">{plainMentions(p.node.body)}</div>}
                   </div>
                   {p.node.hasInterior && <span className="open" title="Has an interior" aria-hidden="true">◎</span>}
                 </div>
@@ -1905,10 +1922,10 @@ function AtlasWorkspace() {
                 )}
                 {(() => {
                   const story = tl?.enabled ? (resolveFact(nodeDetail.facts, lens) ?? sel.node.body) : sel.node.body
-                  return story ? <p className="rbody">{story}</p> : null
+                  return story ? <p className="rbody"><MentionText text={story} onGo={jump} label={mentionLabel} /></p> : null
                 })()}
                 {sel.node.dmNote && (
-                  <div className="dmnote"><div className="dmnl">🔒 DM notes</div>{sel.node.dmNote}</div>
+                  <div className="dmnote"><div className="dmnl">🔒 DM notes</div><MentionText text={sel.node.dmNote} onGo={jump} label={mentionLabel} /></div>
                 )}
                 {sel.node.voiceUrl && <AudioClip className="rvoice" src={sel.node.voiceUrl} caption={sel.node.voiceLine ? `“${sel.node.voiceLine}”` : 'In their own voice'} />}
                 {sel.node.category === 'party' && tl?.enabled && (() => {
@@ -2042,6 +2059,7 @@ function AtlasWorkspace() {
               onImage={() => setPicker({ kind: 'node', nodeId: fn.id, hasCurrent: !!fn.imageUrl })}
               onRemoveImage={() => setNodeImage(fn.id, null, null)}
               timeline={tl} onLifespan={sel ? (which, v) => setLifespan(sel.id, which, v) : undefined}
+              worldId={worldId} moment={tl?.enabled ? Math.round(lens) : null} onMention={mentioned} onGoMention={jump} mentionLabel={mentionLabel}
               facts={nodeDetail.facts} nowT={Math.round(lens)} nowLabel={momentLabel(Math.round(lens), world?.eras, tl?.unit)} eras={world?.eras || []}
               hiddenHere={sel ? sel.visibility === 'dm' : false} onHideHere={sel ? (h) => setPlacementVis(sel.id, h) : undefined}
               onFootstep={sel && fn.category === 'party' && tl?.enabled ? () => partyMoveHere(sel.x, sel.y) : undefined}

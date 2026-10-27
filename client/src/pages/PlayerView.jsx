@@ -18,6 +18,7 @@ import { getAudio, cue } from '../audio'
 import { bedFor, titlesOf } from '../audio/beds'
 import { levelOf, rampTo } from '../audio/elementBed'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
+import MentionText from '../components/MentionText'
 import { momentLabel, sessionOf, sessionColor, sessionLabel, stepTag, partyNeighbors, latestSession } from '../utils/moment'
 import { isPresent, pickCovering } from '../utils/timeline'
 import { CATS, MARKABLE, cat } from '../utils/categories'
@@ -506,7 +507,7 @@ function PlayerView() {
               {detail.node.player && (
                 <div className="sby">✍ a player's marker{detail.node.author ? `, signed “${detail.node.author}”` : ''}</div>
               )}
-              {detail.node.body && <p className="sbody">{detail.node.body}</p>}
+              {detail.node.body && <p className="sbody"><MentionText text={detail.node.body} onGo={(id) => goTo(id)} /></p>}
               {detail.node.voiceUrl && (
                 <div className="svoice">
                   <div className="rk">Voice line</div>

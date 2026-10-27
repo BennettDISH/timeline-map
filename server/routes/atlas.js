@@ -761,10 +761,15 @@ router.get('/nodes/:id/locate', wrap(async (req, res) => {
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   // a thread or a search result SHOWS the thing: its pin on a map (the one the DM is on,
   // when it stands there), story open. Its interior is the explicit way in (◎), named
-  // alongside; only an unplaced owner lands inside.
+  // alongside; only an unplaced owner lands inside. With ?t= (a mention's moment) a placement
+  // standing at that moment comes first: the Party's footstep then, not its first one.
   const here = isId(req.query.map) ? Number(req.query.map) : null;
+  const at = whole(req.query.t);
+  if (at === undefined) return bad(res, 'A moment is a whole number on the clock');
   const n = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
-  const p = (await pool.query('SELECT id, map_id FROM placements WHERE node_id=$1 ORDER BY (map_id = $2) DESC NULLS LAST, id LIMIT 1', [req.params.id, here])).rows[0];
+  const p = (await pool.query(`SELECT id, map_id FROM placements WHERE node_id=$1
+    ORDER BY ($3::int IS NULL OR ((start_time IS NULL OR start_time <= $3::int) AND (end_time IS NULL OR end_time >= $3::int))) DESC,
+      (map_id = $2) DESC NULLS LAST, id LIMIT 1`, [req.params.id, here, at])).rows[0];
   if (p) return res.json({ mapId: p.map_id, placementId: p.id, interiorMapId: n?.interior_map_id ?? null });
   if (n?.interior_map_id) return res.json({ mapId: n.interior_map_id, interiorMapId: n.interior_map_id });
   res.json({});

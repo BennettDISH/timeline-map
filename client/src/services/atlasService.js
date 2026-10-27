@@ -28,7 +28,8 @@ const atlasService = {
   placeNode: (mapId, data) => http.post(`${B}/maps/${mapId}/placements`, data).then((r) => r.data),
 
   getNode: (id) => http.get(`${B}/nodes/${id}`).then((r) => r.data),
-  locateNode: (id, mapId) => http.get(`${B}/nodes/${id}/locate${mapId != null ? `?map=${mapId}` : ''}`).then((r) => r.data),
+  // t: a mention's moment — where it stands then comes first
+  locateNode: (id, mapId, t = null) => http.get(`${B}/nodes/${id}/locate`, { params: { ...(mapId != null && { map: mapId }), ...(t != null && { t }) } }).then((r) => r.data),
   nodeImpact: (id, scope) => http.get(`${B}/nodes/${id}/impact${scope ? `?scope=${scope}` : ''}`).then((r) => r.data),
   patchNode: (id, data) => http.patch(`${B}/nodes/${id}`, data).then((r) => r.data),
   // besideMapId: a new map beside that one (the room next door) instead of one inside the node

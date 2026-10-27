@@ -619,6 +619,23 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   focused and selected; the editor scrolls to the top for each newly selected thing.
 - Pickers say what they left out ("Already on this map: …", "Already threaded: …") and
   show a loading line, never an empty-state lie.
+- **@-mentions**: typing @ in a description, a DM note or a period text opens a picker of the
+  world's entries under the box (`components/atlas/Mentions.jsx`: names starting with the search
+  first, ↑ ↓, Enter or Tab, Esc). A pick writes `@[Name](node:12)` where the @ was, and with the
+  clock on `@[Name](node:12@37)`: the lens moment it was written at, kept out of sight (the chips
+  under the box mark it 🕓, their tooltip names it; editing the text changes or drops it). A
+  mention in a description or a period text also threads the two entries if they are not
+  already: players read that text, so the thread says nothing new. One in the DM notes never
+  threads, since a thread would show players what the note keeps. The chips under each box and
+  the reader (`components/MentionText.jsx`) go to the entry; one with a moment moves the lens
+  there first and shows the entry where it stood then (`GET /nodes/:id/locate?t=` puts the
+  placement standing at that moment first: the Party's footstep then). The text keeps the name
+  as written: a rename does not rewrite it. `utils/mentions.js` and `server/lib/mentions.js`
+  hold the one pattern.
+- Players read mentions through `share.js`: one of an entry the threads' rule lets them know
+  exists stays a mention without its moment (its link is the sheet's ⌖ go there), and any other
+  is its bare name, so neither an id nor a moment of a hidden entry leaves the server. The
+  painter reads a mention as its name.
 
 ## API conventions
 - Request bodies and query strings are snake_case (`node_id`, `start_time`, `shape_kind`);

@@ -10,6 +10,7 @@ const { idParam, whole } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld } = require('../lib/route');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
+const { plainMentions } = require('../lib/mentions');
 const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
 const { discardBatch, allowAsks, paintAndStore } = require('../forge/contract');
@@ -225,7 +226,7 @@ router.post('/nodes/:id/art', wrap(async (req, res) => {
   if (!n || !(await ownsWorld(n.world_id, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   const mind = await ensureMind(n.world_id);
   const guidance = typeof req.body?.guidance === 'string' ? req.body.guidance.slice(0, 500) : '';
-  const prompt = [`${n.title} (${n.category})`, n.body, guidance].filter(Boolean).join('. ');
+  const prompt = [`${n.title} (${n.category})`, plainMentions(n.body), guidance].filter(Boolean).join('. '); // a mention paints as its name
   if (refuseWithoutStorage(res)) return; // a painting with nowhere to be kept is never made or charged
   if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: n.world_id, userId: req.user.id, kind: 'art', prompt, artStyle: mind.art_style, name: `${n.title} — art` });
