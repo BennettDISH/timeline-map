@@ -19,6 +19,7 @@ import { isPresent, pickCovering } from '../utils/timeline'
 import { ago } from '../utils/format'
 import MapTree from '../components/atlas/MapTree'
 import SessionNotes from '../components/atlas/SessionNotes'
+import LooseEnds from '../components/atlas/LooseEnds'
 import DeleteImpact, { doorsLine } from '../components/atlas/DeleteImpact'
 import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
@@ -1467,6 +1468,7 @@ function AtlasWorkspace() {
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))}
               onFile={fileMap} onOrder={orderMaps} />
             {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
+            <LooseEnds key={`loose${worldId}`} worldId={worldId} onJump={jump} />
           </div>
         )}
 

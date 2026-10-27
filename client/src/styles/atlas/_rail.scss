@@ -68,3 +68,24 @@
 .atlas .sntext:focus{outline:none;border-color:var(--accent)}
 .atlas .snmodal .modal{width:min(860px,94vw)}
 .atlas .snmodal .sntext{min-height:62vh}
+
+// ---- loose ends, under the session notes: the rail's button, and its list in a dialog ----
+.atlas .loose{margin-top:12px;padding:0 2px}
+.atlas .loosebtn{display:flex;align-items:center;gap:6px;width:100%;background:none;border:1px solid var(--line);border-radius:6px;
+  color:var(--ink);font:inherit;font-size:12px;padding:5px 8px;cursor:pointer;text-align:left;
+  .loosename{flex:1;min-width:0}
+  .tcount{font:500 10px/1 ui-monospace,monospace;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:2px 5px;flex:none}}
+.atlas .loosebtn:hover{border-color:var(--accent)}
+.atlas .loosemodal .modal{width:min(620px,94vw);min-height:min(440px,72vh)} // a steady height: the chips stay put as the list grows and shrinks
+.atlas .loosedays{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:10px 0 4px}
+.atlas .loosenone{margin-top:10px}
+.atlas .looselist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:58vh;overflow-y:auto;
+  li{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #ffffff0c}
+  .loosewhat{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .loosetitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .glock{font-size:11px;color:var(--muted)}
+  .tool{padding:3px 9px;font-size:12px;flex:none}}
+@media (max-width:520px){
+  .atlas .looselist li{flex-wrap:wrap}
+  .atlas .looselist .loosewhat{flex-basis:calc(100% - 30px)}
+  .atlas .looselist .tool:first-of-type{margin-left:24px}}

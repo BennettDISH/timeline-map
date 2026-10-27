@@ -142,6 +142,37 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       step('the thread probe nodes are removed again', gone === 3, `${gone} removed`);
     } else step('probe nodes for the thread rules', false, JSON.stringify([a, b, c]));
   }
+  // loose ends: a new entry has just come up; the Party is never listed; with the clock on, an
+  // entry whose every placement ended before canon is tied off; a period text counts as work on it
+  {
+    const n = await json(await dm('POST', `/maps/${cfg.root}/nodes`, { title: 'server-probe-loose', x: 4, y: 4 }));
+    const loose = async () => json(await dm('GET', `/worlds/${cfg.worldId}/loose-ends`));
+    if (n?.nodeId) {
+      const l1 = await loose();
+      const mine = (l1?.entries || []).find((e) => e.id === n.nodeId);
+      step('loose ends list a new entry as just come up, on a map', mine && Date.parse(l1.now) - Date.parse(mine.lastUp) < 120000 && mine.placed === true,
+        JSON.stringify(mine ?? null));
+      step('…and never the Party', !(l1?.entries || []).some((e) => e.category === 'party'));
+      const sorted = (l1?.entries || []).every((e, i, a) => !i || a[i - 1].lastUp <= e.lastUp);
+      step('…oldest first', sorted);
+      const wj = await json(await dm('GET', `/worlds/${cfg.worldId}`));
+      const tl = wj?.world?.timeline;
+      if (tl?.enabled && tl.current != null && tl.current > (tl.min ?? 0)) {
+        await dm('PATCH', `/placements/${n.placementId}`, { start_time: tl.min ?? 0, end_time: tl.current - 1 });
+        const l2 = await loose();
+        step('an entry whose every placement ended before canon is not a loose end', !(l2?.entries || []).some((e) => e.id === n.nodeId));
+        await dm('PATCH', `/placements/${n.placementId}`, { start_time: null, end_time: null });
+        const fact = await json(await dm('POST', `/nodes/${n.nodeId}/facts`, { body: 'Later.', start_time: tl.current, end_time: null }));
+        const back = ((await loose())?.entries || []).find((e) => e.id === n.nodeId);
+        await new Promise((r) => setTimeout(r, 1100));
+        await dm('PATCH', `/facts/${fact?.id}`, { body: 'Later still.' });
+        const after = ((await loose())?.entries || []).find((e) => e.id === n.nodeId);
+        step('…back once it stands again, and editing a period text brings it up', back && after && Date.parse(after.lastUp) > Date.parse(back.lastUp),
+          `${back?.lastUp} → ${after?.lastUp}`);
+      } else step('loose ends with the clock (needs the clock on the throwaway world)', !tl?.enabled, 'skipped');
+      step('the loose-ends probe entry is removed again', (await dm('DELETE', `/nodes/${n.nodeId}`)).ok);
+    } else step('a probe entry for loose ends', false, JSON.stringify(n));
+  }
   // secrecy through the DM's own acts: a placement hidden on one map stays hidden when 👁 Players
   // is pressed again on an entry players already see (or a marker is kept as canon); only an entry
   // that was DM-only brings its DM-only placements out with it

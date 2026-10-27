@@ -10,6 +10,7 @@ const atlasService = {
   getMaps: (worldId) => http.get(`${B}/worlds/${worldId}/maps`).then((r) => r.data.maps),
   getNodes: (worldId) => http.get(`${B}/worlds/${worldId}/nodes`).then((r) => r.data.nodes),
   getTrail: (worldId) => http.get(`${B}/worlds/${worldId}/trail`).then((r) => r.data.steps),
+  getLooseEnds: (worldId) => http.get(`${B}/worlds/${worldId}/loose-ends`).then((r) => r.data), // { entries, now }
   patchWorld: (worldId, data) => http.patch(`${B}/worlds/${worldId}`, data).then((r) => r.data),
   createShare: (worldId) => http.post(`${B}/worlds/${worldId}/share`).then((r) => r.data),
   deleteShare: (worldId) => http.delete(`${B}/worlds/${worldId}/share`).then((r) => r.data),

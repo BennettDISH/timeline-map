@@ -295,6 +295,18 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   headings, `· ` lines as bullets and `12 · ` footsteps in bold. The workspace's shortcuts (`/`,
   `N`, Ctrl+Z) treat a contentEditable target as typing. Undo, world copies and the Forge's Unmake of a
   dropped era carry the notes.
+- **Loose ends** (🧵 under the session notes, `components/atlas/LooseEnds.jsx`, with or without
+  the clock): the entries that have not come up for a spell the DM picks (a week, 2 weeks, a
+  month, 3 months; 2 weeks until changed), oldest first. An entry comes up when it is edited
+  (`nodes.updated_at`, which a period text's add or edit also stamps), gains a period text, a
+  thread or a placement, or is named in a session's prep or recap (the whole title in any case,
+  not inside a longer word, three letters at least; that era's `created_at` stands in for when it
+  was played). The Party is never listed, and with the clock on neither is an entry whose every
+  placement ended before canon. `GET /worlds/:id/loose-ends` sends every entry with its `lastUp`
+  and the database's `now` (the timestamps carry no zone; ages are read against the same clock);
+  `server/lib/looseEnds.js` holds the rule. "Go" shows the entry like a search hit; "Not now"
+  sets it aside in this browser (`atlas_loose_<world>`) until it comes up again or stays quiet for
+  another spell. The phone never opens the rail, so the list is a PC tool like the editor.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or

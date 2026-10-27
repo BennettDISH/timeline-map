@@ -10,6 +10,7 @@ const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
 const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const spend = require('../lib/spend');
+const { looseEnds } = require('../lib/looseEnds');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -487,6 +488,30 @@ router.get('/worlds/:worldId/nodes', wrap(async (req, res) => {
   res.json({ nodes: rows.map((n) => ({ id: n.id, title: n.title, category: n.category, visibility: n.visibility, hasInterior: !!n.interior_map_id, placed: n.placed })) });
 }));
 
+// GET /worlds/:worldId/loose-ends — every entry with when it last came up, oldest first: the
+// rail's Loose ends list, which picks how long is too quiet. The rule is lib/looseEnds.js.
+router.get('/worlds/:worldId/loose-ends', wrap(async (req, res) => {
+  const wid = req.params.worldId;
+  if (!(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'World not found' });
+  // `now` is the database's clock with no zone, read the way the stored timestamps are (they carry
+  // none): a server process in another zone than the database would otherwise age every entry by hours
+  const w = (await pool.query('SELECT timeline_enabled, timeline_current_time, LOCALTIMESTAMP AS now FROM worlds WHERE id=$1', [wid])).rows[0];
+  const canon = w?.timeline_enabled && w.timeline_current_time != null ? w.timeline_current_time : null;
+  // GREATEST skips NULLs: an entry with no period text, thread or placement is judged by its own edits
+  const rows = (await pool.query(`
+    SELECT n.id, n.title, n.category, n.visibility, n.interior_map_id,
+      GREATEST(n.created_at, n.updated_at,
+        (SELECT MAX(f.created_at) FROM node_facts f WHERE f.node_id = n.id),
+        (SELECT MAX(l.created_at) FROM links l WHERE l.from_node_id = n.id OR l.to_node_id = n.id),
+        (SELECT MAX(p.created_at) FROM placements p WHERE p.node_id = n.id)) AS touched,
+      (SELECT COUNT(*)::int FROM placements p WHERE p.node_id = n.id) AS placed,
+      (SELECT COUNT(*)::int FROM placements p WHERE p.node_id = n.id
+        AND ($2::int IS NULL OR p.end_time IS NULL OR p.end_time >= $2::int)) AS live
+    FROM nodes n WHERE n.world_id = $1 AND n.category <> 'party'`, [wid, canon])).rows;
+  const eras = (await pool.query('SELECT name, start_time, prep_note, recap_note, created_at FROM eras WHERE world_id=$1', [wid])).rows;
+  res.json({ entries: looseEnds(rows, eras, { clockOn: canon != null }), now: new Date(w.now).toISOString() });
+}));
+
 // GET /maps/:mapId — everything the canvas needs: the map, its placements+nodes, links among them, breadcrumb.
 router.get('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
@@ -700,6 +725,7 @@ router.post('/nodes/:id/facts', wrap(async (req, res) => {
   const r = (await pool.query(
     'INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
     [req.params.id, body, st, en])).rows[0];
+  await pool.query('UPDATE nodes SET updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.id]); // a period text is work on the entry
   res.status(201).json({ id: r.id });
 }));
 const worldIdOfFact = async (id) =>
@@ -715,6 +741,7 @@ router.patch('/facts/:id', wrap(async (req, res) => {
   if (c.bad) return bad(res, c.bad);
   if (!(await pairOk('node_facts', req.params.id, c.vals))) return bad(res, 'A period ends after it starts');
   await updateCols('node_facts', req.params.id, c.vals);
+  if (Object.keys(c.vals).length) await pool.query('UPDATE nodes SET updated_at=CURRENT_TIMESTAMP WHERE id=(SELECT node_id FROM node_facts WHERE id=$1)', [req.params.id]);
   res.json({ ok: true });
 }));
 router.delete('/facts/:id', wrap(async (req, res) => {
