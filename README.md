@@ -43,8 +43,8 @@ migrate` runs the same statements by hand if you want to see them land first.
 Production: `npm run build` then `npm start` (Railway runs both from `main`).
 
 ## Deploy
-Railway, the `timeline-map` service with its own Postgres. A push to `main` deploys (nixpacks,
-`npm start`, health check `/health`, see `railway.toml`). `/health` runs `SELECT 1` against the
+Railway, the `timeline-map` service with its own Postgres. A push to `main` deploys (Railpack,
+`npm start`, health check `/health`, all saved on the service). `/health` runs `SELECT 1` against the
 database (3 s limit), answers 503 when that fails, and reports the running commit. Production holds a real campaign, so
 schema changes are additive only (see Database in `docs/RULES.md`).
 

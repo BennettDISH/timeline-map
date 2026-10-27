@@ -114,8 +114,8 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
 - **`GET /health` checks the database** (fleet-kit's `health`, in `server.js`): `SELECT 1` on the
   pool with a 3 s timeout, 200 `{status, db:'ok', commit, timestamp}` or 503 `{status:'unavailable',
   db:'not answering', …}` with no database text, `Cache-Control: no-store`. `commit` is the deploy
-  signal the live suites wait for; keep it. It is Railway's healthcheck path (set on the service,
-  `railway.toml` is the record). `server/test/health.test.js` covers it, including the real
+  signal the live suites wait for; keep it. It is Railway's healthcheck path (saved on the
+  service). `server/test/health.test.js` covers it, including the real
   server against a refused database.
 - **Guests: yes, because** Spellforge's Map tab opens the Atlas for guests and a try-it door suits
   a table game; their AI, voice and upload use is capped per guest and idle guests are swept (see
