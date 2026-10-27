@@ -2,11 +2,14 @@ import React, { useRef, useState } from 'react'
 import atlasService from '../../services/atlasService'
 import { cat } from '../../utils/categories'
 import { atQuery, insertMention, mentionToken, mentionsIn, rankEntries } from '../../utils/mentions'
+import { useFlag } from '../../hooks/prefs'
 
 // @-mentions (utils/mentions.js has the pattern). MentionBox wraps one textarea of the editor:
 // typing @ opens a picker of the world's entries under it (↑ ↓ to choose, Enter or Tab to take,
 // Esc to close), and a pick writes the mention where the @ was, with the lens moment when the
-// clock is on. MentionChips lists the mentions under a box the DM is typing in, since a textarea
+// clock is on. A mention is a jump link; "🧵 Also thread them" under the list (off until ticked,
+// remembered in this browser) makes the pick a thread too. The DM notes never offer it: a thread
+// would show players what the note keeps. MentionChips lists the mentions under a box the DM is typing in, since a textarea
 // can't hold a button; MentionText (components/MentionText.jsx) draws them in read text.
 
 // a value set the way typing sets it, so a controlled box's onChange hears it
@@ -18,8 +21,9 @@ function typeInto(el, value) {
 
 const PICK_KEYS = ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape']
 
-export function MentionBox({ worldId, exclude, moment = null, onPicked, children }) {
+export function MentionBox({ worldId, exclude, moment = null, canThread = false, onPicked, children }) {
   const box = useRef(null)
+  const [threadToo, setThreadToo] = useFlag('atlas_mention_thread', false)
   const [at, setAt] = useState(null) // { start, query } while an @search is open
   const [nodes, setNodes] = useState(undefined) // the world's entries: undefined until the first @, then loading, a list, or null (failed)
   const [hi, setHi] = useState(0)
@@ -47,7 +51,7 @@ export function MentionBox({ worldId, exclude, moment = null, onPicked, children
     typeInto(el, r.text)
     el.setSelectionRange(r.caret, r.caret)
     setAt(null)
-    onPicked?.(node)
+    onPicked?.(node, { thread: canThread && threadToo })
   }
   const onKeyDown = (e) => {
     if (at && PICK_KEYS.includes(e.key)) {
@@ -86,6 +90,13 @@ export function MentionBox({ worldId, exclude, moment = null, onPicked, children
                 {n.visibility === 'dm' && <span className="glock" title="DM only">🔒</span>}
               </button>
             ))}
+          {canThread && (
+            <button type="button" className={`mthread ${threadToo ? 'on' : ''}`} aria-pressed={threadToo}
+              title="Also make a thread between the two entries — players see threads between things they can see"
+              onMouseDown={(e) => { e.preventDefault(); setThreadToo((v) => !v) }}>
+              {threadToo ? '☑' : '☐'} 🧵 Also thread them
+            </button>
+          )}
           <div className="mhint muted">↑ ↓ to choose · Enter to mention · Esc to close</div>
         </div>
       )}

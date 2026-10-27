@@ -472,11 +472,11 @@ function AtlasWorkspace() {
     await track(atlasService.addLink({ from_node_id: fid, to_node_id: toId }), "Couldn't link").catch(() => {})
     reloadNodeDetail(fid)
   }
-  // A mention in public text (a description, a period text) threads the two entries, as players
-  // read both; one in the DM notes stays a note — a thread would show players what the note keeps.
-  const mentioned = async (node, where) => {
+  // A mention is a jump link; with "Also thread them" ticked in the picker (never offered in the
+  // DM notes) it threads the two entries too, unless they already are.
+  const mentioned = async (node, { thread = false } = {}) => {
     const fid = focusIdRef.current
-    if (where !== 'public' || !fid || node.id === fid) return
+    if (!thread || !fid || node.id === fid) return
     if ([...(nodeDetail.out || []), ...(nodeDetail.in || [])].some((l) => l.otherId === node.id)) return
     const r = await track(atlasService.addLink({ from_node_id: fid, to_node_id: node.id }), `Couldn't thread to “${node.title}”`).catch(() => null)
     if (r) { setFlash({ kind: 'ok', text: `Threaded to “${node.title}”` }); reloadNodeDetail(fid) }

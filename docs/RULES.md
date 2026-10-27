@@ -624,9 +624,10 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   first, ↑ ↓, Enter or Tab, Esc). A pick writes `@[Name](node:12)` where the @ was, and with the
   clock on `@[Name](node:12@37)`: the lens moment it was written at, kept out of sight (the chips
   under the box mark it 🕓, their tooltip names it; editing the text changes or drops it). A
-  mention in a description or a period text also threads the two entries if they are not
-  already: players read that text, so the thread says nothing new. One in the DM notes never
-  threads, since a thread would show players what the note keeps. The chips under each box and
+  mention is a jump link only. In a description or a period text the picker offers "🧵 Also
+  thread them" (off until ticked, remembered in this browser as `atlas_mention_thread`), which
+  threads the two entries too if they are not already. The DM notes never offer it, since a
+  thread would show players what the note keeps. The chips under each box and
   the reader (`components/MentionText.jsx`) go to the entry; one with a moment moves the lens
   there first and shows the entry where it stood then (`GET /nodes/:id/locate?t=` puts the
   placement standing at that moment first: the Party's footstep then). The text keeps the name

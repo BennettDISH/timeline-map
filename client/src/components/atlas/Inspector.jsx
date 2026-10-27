@@ -146,13 +146,13 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
       {n.category === 'party' && timeBlock}
       <div className="isect">Description</div>
       <div className="fld"><label htmlFor={`${fid}-body`}>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
-        <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'public')}>
+        <MentionBox worldId={worldId} exclude={n.id} moment={moment} canThread onPicked={onMention}>
           <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} placeholder="Type @ to mention another entry" onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
         </MentionBox>
         <MentionChips text={body} onGo={onGoMention} label={mentionLabel} />
       </div>
       <div className="fld dmnotes"><label htmlFor={`${fid}-note`}>🔒 DM notes — players never see this</label>
-        <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'secret')}>
+        <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={onMention}>
           <textarea id={`${fid}-note`} data-fld="note" rows="3" value={note} placeholder="Only you see this — not players, not the Forge's painter."
             onChange={(e) => { setNote(e.target.value); onSave(n.id, { dm_note: e.target.value }) }} />
         </MentionBox>
@@ -195,7 +195,7 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
                 <button className="lx" title="Remove this period's text" aria-label="Remove this period's text" onClick={() => onFactDelete(f.id)}>✕</button>
               </div>
               {factHint === f.id && <div className="muted warn">{REVERSED}</div>}
-              <MentionBox worldId={worldId} exclude={n.id} moment={moment} onPicked={(m) => onMention(m, 'public')}>
+              <MentionBox worldId={worldId} exclude={n.id} moment={moment} canThread onPicked={onMention}>
                 <textarea key={`b${f.body}`} rows="2" defaultValue={f.body} placeholder="How it reads during this period…"
                   onBlur={(e) => { if (e.target.value !== f.body) onFactPatch(f.id, { body: e.target.value }) }} />
               </MentionBox>
