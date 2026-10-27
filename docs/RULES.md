@@ -296,7 +296,8 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   `N`, Ctrl+Z) treat a contentEditable target as typing. Undo, world copies and the Forge's Unmake of a
   dropped era carry the notes.
 - **Loose ends** (🧵 under the session notes, `components/atlas/LooseEnds.jsx`, with or without
-  the clock): the entries that have not come up for a spell the DM picks (a week, 2 weeks, a
+  the clock) is a world setting, off until the DM turns it on in Map ▾ → This world → 🧵 Loose
+  ends (`worlds.loose_ends`, sent as the world's `looseEnds`, kept by a world copy). It lists the entries that have not come up for a spell the DM picks (a week, 2 weeks, a
   month, 3 months; 2 weeks until changed), oldest first. An entry comes up when it is edited
   (`nodes.updated_at`, which a period text's add or edit also stamps), gains a period text, a
   thread or a placement, or is named in a session's prep or recap (the whole title in any case,

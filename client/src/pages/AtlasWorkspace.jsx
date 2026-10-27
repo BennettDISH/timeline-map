@@ -966,6 +966,14 @@ function AtlasWorkspace() {
     } catch (e) { /* track already told the DM */ }
   })
 
+  // the Loose ends list is a world setting, off until the DM turns it on (a refused save puts it back)
+  const toggleLooseEnds = async () => {
+    const on = !world?.looseEnds
+    setWorld((w) => w && ({ ...w, looseEnds: on }))
+    const ok = await track(atlasService.patchWorld(worldId, { loose_ends: on }), "Couldn't save the Loose ends setting").then(() => true, () => false)
+    if (!ok) { setWorld((w) => w && ({ ...w, looseEnds: !on })); return }
+    if (on) setFlash({ kind: 'ok', text: railOpen ? 'Loose ends are on: 🧵 under the session notes' : 'Loose ends are on: 🧵 in the map tree (☰)' })
+  }
   const enableTimeline = () => {
     // the clock survives being switched off: keep the stored range, unit and canon unless
     // this world never had one (the untouched schema defaults, and no eras)
@@ -1468,7 +1476,7 @@ function AtlasWorkspace() {
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))}
               onFile={fileMap} onOrder={orderMaps} />
             {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
-            <LooseEnds key={`loose${worldId}`} worldId={worldId} onJump={jump} />
+            {world?.looseEnds && <LooseEnds key={`loose${worldId}`} worldId={worldId} onJump={jump} />}
           </div>
         )}
 
@@ -1642,6 +1650,9 @@ function AtlasWorkspace() {
                       <button className={!isList ? 'on' : ''} onClick={() => { setMapMenu(false); setMapView('map') }}>🗺 Map</button>
                       <button className={isList ? 'on' : ''} onClick={() => { setMapMenu(false); setMapView('list') }}>☰ List</button>
                     </div>
+                    <div className="apop-sep" title="These belong to the whole world and are kept with it">This world</div>
+                    <button title="Entries that have not come up in a while, listed under the session notes — off until you turn it on"
+                      role="menuitemcheckbox" aria-checked={!!world?.looseEnds} onClick={() => { setMapMenu(false); toggleLooseEnds() }}>🧵 Loose ends {world?.looseEnds ? '✓' : ''}</button>
                     <button title="Everything deleted in this world in the last 24 hours, each with ↩ Undo"
                       onClick={() => { setMapMenu(false); openBin() }}>🗑 Recently deleted…</button>
                   </div>

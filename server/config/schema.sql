@@ -355,6 +355,10 @@ CREATE TABLE IF NOT EXISTS spend_counters (
 -- for it by design.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
 
+-- The Loose ends list (the rail's 🧵, entries that have not come up in a while) is off until
+-- the DM turns it on for the world in Map ▾. A copy of the world keeps the setting.
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS loose_ends BOOLEAN NOT NULL DEFAULT false;
+
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
 CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);

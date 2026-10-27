@@ -1,6 +1,7 @@
 // Loose ends, run locally (no database, no network): when an entry last came up (its own work,
 // or its name in a session's prep or recap), who is never a loose end (the Party, an entry whose
-// story ended before canon), the route's ownership rule, and the list's own choices in the client
+// story ended before canon), the route's ownership rule, the world setting that turns the list
+// on (off until the DM asks), and the list's own choices in the client
 // (how long is quiet, how it reads, "Not now"). The real SQL runs against the local stack in
 // e2e/server.mjs.
 //
@@ -82,6 +83,7 @@ test('a session that names an entry is when it came up; the latest one wins, a r
 // ---- the route: the caller's own world only, canon handed to the query only with the clock on ----
 const WORLDS = { 7: { owner: 21, timeline_enabled: true, timeline_current_time: 37 }, 8: { owner: 21, timeline_enabled: false, timeline_current_time: 37 } };
 let nodeQuery = null;
+let worldUpdate = null;
 pool.query = async (sql, params = []) => {
   const s = sql.trim();
   if (/FROM users WHERE id = \$1/.test(s)) return { rows: [{ id: params[0], central_user_id: 5000 + params[0], is_guest: false, username: 'dm', email: null, role: 'user', token_version: 0, unseen: false }] };
@@ -92,6 +94,7 @@ pool.query = async (sql, params = []) => {
     return { rows: [row(1, 'Baron Vex', 40), row(4, 'Dead King', 200, { placed: 1, live: 0 })] };
   }
   if (/^SELECT name, start_time, prep_note, recap_note, created_at FROM eras/.test(s)) return { rows: [] };
+  if (/^UPDATE worlds SET/.test(s)) { worldUpdate = { sql: s, params }; return { rows: [], rowCount: 1 }; }
   throw new Error(`unexpected query: ${s}`);
 };
 
@@ -122,6 +125,23 @@ test('the route: your own world only, and canon reaches the query only with the 
   const off = await get(21, 8);
   assert.deepStrictEqual(nodeQuery.params, ['8', null]);
   assert.deepStrictEqual(off.body.entries.map((e) => e.id), [4, 1], 'with no clock, nothing is over');
+});
+
+test('the list is a world setting the DM turns on and off; anything but true or false is a 400', async () => {
+  const patch = (body) => fetch(`${base}/api/atlas/worlds/7`, {
+    method: 'PATCH', body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json', cookie: `${wp.session.name}=${wp.session.mint({ id: 21 })}` },
+  });
+  assert.strictEqual((await patch({ loose_ends: true })).status, 200);
+  assert.strictEqual(worldUpdate.sql, 'UPDATE worlds SET loose_ends=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2');
+  assert.deepStrictEqual(worldUpdate.params, [true, '7']);
+  await patch({ loose_ends: false });
+  assert.deepStrictEqual(worldUpdate.params, [false, '7']);
+  worldUpdate = null;
+  const bad = await patch({ loose_ends: 'yes' });
+  assert.strictEqual(bad.status, 400);
+  assert.strictEqual((await bad.json()).message, 'Loose ends are on or off');
+  assert.strictEqual(worldUpdate, null, 'nothing written');
 });
 
 // ---- the client's side of the list (client/src/utils/looseEnds.js) ----

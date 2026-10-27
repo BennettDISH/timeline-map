@@ -185,6 +185,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
     shareToken: w.share_token || null,
     spotlightNodeId: w.spotlight_node_id ?? null,
+    looseEnds: !!w.loose_ends,
     timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time,
                 current: w.timeline_current_time, unit: w.timeline_time_unit },
     eras,
@@ -236,6 +237,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
     description: [(v) => text(v, 2000), 'The description is text'],
     timeline_time_unit: [(v) => text(v, 50, { required: true }), 'The unit is a word of 1 to 50 characters'],
     timeline_enabled: [bool, 'The timeline is on or off'],
+    loose_ends: [bool, 'Loose ends are on or off'],
   });
   if (c.bad) return bad(res, c.bad);
   Object.assign(req.body, c.vals);
@@ -269,7 +271,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
     name: 'name', description: 'description',
     timeline_enabled: 'timeline_enabled', timeline_min_time: 'timeline_min_time',
     timeline_max_time: 'timeline_max_time', timeline_current_time: 'timeline_current_time',
-    timeline_time_unit: 'timeline_time_unit',
+    timeline_time_unit: 'timeline_time_unit', loose_ends: 'loose_ends',
   };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
@@ -329,10 +331,10 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   // the caller's description wins, even an empty one — a template's blurb never lands on their world
   const desc = description === undefined ? src.description : (String(description || '').trim().slice(0, 2000) || null);
   const w = (await client.query(
-    `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, loose_ends)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
     [cleanName, desc, req.user.id, src.timeline_enabled,
-     src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit])).rows[0];
+     src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit, !!src.loose_ends])).rows[0];
 
   const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
   const folders = await rowsOfC('SELECT * FROM image_folders WHERE world_id=$1 ORDER BY id', [src.id]);

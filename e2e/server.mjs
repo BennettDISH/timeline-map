@@ -171,6 +171,12 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
           `${back?.lastUp} → ${after?.lastUp}`);
       } else step('loose ends with the clock (needs the clock on the throwaway world)', !tl?.enabled, 'skipped');
       step('the loose-ends probe entry is removed again', (await dm('DELETE', `/nodes/${n.nodeId}`)).ok);
+      // the list is a world setting, off until the DM turns it on; the probe puts it back as it found it
+      const was = (await json(await dm('GET', `/worlds/${cfg.worldId}`)))?.world?.looseEnds;
+      await dm('PATCH', `/worlds/${cfg.worldId}`, { loose_ends: !was });
+      const now = (await json(await dm('GET', `/worlds/${cfg.worldId}`)))?.world?.looseEnds;
+      const back = await dm('PATCH', `/worlds/${cfg.worldId}`, { loose_ends: !!was });
+      step('the Loose ends setting is kept with the world and switches both ways', typeof was === 'boolean' && now === !was && back.ok, `${was} → ${now}`);
     } else step('a probe entry for loose ends', false, JSON.stringify(n));
   }
   // secrecy through the DM's own acts: a placement hidden on one map stays hidden when 👁 Players
