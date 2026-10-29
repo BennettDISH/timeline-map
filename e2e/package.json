@@ -10,7 +10,8 @@
     "server": "node server.mjs",
     "admin": "node admin.mjs",
     "doors": "node doors.mjs",
-    "local": "node local.mjs"
+    "local": "node local.mjs",
+    "seed": "node seed.mjs"
   },
   "dependencies": {
     "playwright": "1.64.1"

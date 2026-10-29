@@ -31,6 +31,9 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   in `e2e/server.mjs`. The server reads `client/dist/index.html` once at boot: rebuild and
   restart after a client change.
   In the desktop app's browser pane it is `atlas-local` in `~/repos/.claude/launch.json`
+- A schema change that drops or renames a column: `npm test` checks the sample seed
+  (`server/scripts/seed-sample.js`) against the columns a fresh `schema.sql` leaves, and
+  `node e2e/seed.mjs` runs it on a fresh in-memory Postgres
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
 - **Always push changes to git when finished with a task** - commit and push automatically after completing work

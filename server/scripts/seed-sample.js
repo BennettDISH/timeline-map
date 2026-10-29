@@ -8,15 +8,15 @@
 // The owner defaults to the lowest user id. The sample's two SVGs ship with the client build
 // (client/public/sample/) and their rows point at those files: no bytes go into the database.
 // A clone of the template keeps pointing at the same files.
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+//
+// Every column it writes must exist in a fresh schema.sql: server/test/seed-sample.test.js checks
+// that in `npm test`, and `node e2e/seed.mjs` runs this script on a fresh in-memory Postgres.
 const path = require('path');
-const pool = require('../config/database');
-const seed = require(path.join(__dirname, '..', 'test', 'sample-world.json'));
 
-async function main() {
+async function seedSample({ pool, seed = require(path.join(__dirname, '..', 'test', 'sample-world.json')), owner, log = console.log }) {
   const existing = (await pool.query('SELECT id FROM worlds WHERE is_template = true AND name = $1', [seed.world.name])).rows[0];
-  if (existing) { console.log(`template already present: world ${existing.id}`); return; }
-  const owner = Number(process.env.SEED_OWNER_ID) || (await pool.query('SELECT id FROM users ORDER BY id LIMIT 1')).rows[0]?.id;
+  if (existing) { log(`template already present: world ${existing.id}`); return { worldId: existing.id, created: false }; }
+  owner = owner || (await pool.query('SELECT id FROM users ORDER BY id LIMIT 1')).rows[0]?.id;
   if (!owner) throw new Error('no user to own the template — sign in once first, or set SEED_OWNER_ID');
   const client = await pool.connectTx();
   try {
@@ -53,7 +53,7 @@ async function main() {
         [nodes.get(p.node_id), maps.get(p.map_id), p.x, p.y, p.start_time ?? null, p.end_time ?? null, p.visibility || 'shared']);
     }
     for (const l of seed.links) {
-      await client.query(`INSERT INTO links (world_id, from_node_id, to_node_id, kind, label) VALUES ($1,$2,$3,'reference',$4)`,
+      await client.query(`INSERT INTO links (world_id, from_node_id, to_node_id, label) VALUES ($1,$2,$3,$4)`,
         [w.id, nodes.get(l.from_node_id), nodes.get(l.to_node_id), l.label || null]);
     }
     for (const e of seed.eras) {
@@ -69,7 +69,8 @@ async function main() {
         [maps.get(b.map_id), img.get(b.image_id), b.start_time ?? null, b.end_time ?? null]);
     }
     await client.query('COMMIT');
-    console.log(`seeded template world ${w.id}: ${seed.nodes.length} nodes, ${seed.maps.length} maps, ${seed.placements.length} placements`);
+    log(`seeded template world ${w.id}: ${seed.nodes.length} nodes, ${seed.maps.length} maps, ${seed.placements.length} placements`);
+    return { worldId: w.id, created: true };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     throw e;
@@ -78,4 +79,12 @@ async function main() {
   }
 }
 
-main().then(() => pool.end()).catch((e) => { console.error(e); pool.end(); process.exit(1); });
+module.exports = { seedSample };
+
+if (require.main === module) {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+  const pool = require('../config/database');
+  seedSample({ pool, owner: Number(process.env.SEED_OWNER_ID) || undefined })
+    .then(() => pool.end())
+    .catch((e) => { console.error(e); pool.end(); process.exit(1); });
+}

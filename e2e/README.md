@@ -35,6 +35,12 @@ at the printed `/w/…` URL once the browser holds the config's token
 app's browser pane it starts as `atlas-local` from `~/repos/.claude/launch.json`. On 2026-10-17
 every suite passed against it (player 17, dm 72, undo 17, doors 27, server 55, contract 5).
 
+`node e2e/seed.mjs` (`npm run seed` here) checks the sample world's seed on its own: a fresh
+in-memory Postgres gets `schema.sql` and one account, then `server/scripts/seed-sample.js` runs
+twice, unmodified. The first run must build the whole template, the second must add nothing.
+It needs no server and no config (`SEED_DB_PORT`, 5434, moves the port). The server's `npm test`
+checks the same seed against the columns `schema.sql` leaves (`server/test/seed-sample.test.js`).
+
 ## The suites
 
 - `player.mjs` — the public Player View: pins and outlined places open sheets, the party pin
