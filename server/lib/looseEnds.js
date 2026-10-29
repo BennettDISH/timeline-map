@@ -18,10 +18,17 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Is the entry named in this text? The whole title, any case, not inside a longer word ("Mill"
 // is not named by "Millbrook"). A title under three letters or a default one names nothing.
-function names(title, text) {
+// namer(title) is that test for one title, built once (null when the title names nothing), so
+// a world's every entry against its every session note doesn't rebuild the pattern each time.
+function namer(title) {
   const t = String(title || '').trim().replace(/\s+/g, ' ');
-  if (t.length < 3 || NAMELESS.has(t.toLowerCase()) || !text) return false;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escape(t)}(?=$|[^\\p{L}\\p{N}])`, 'iu').test(text);
+  if (t.length < 3 || NAMELESS.has(t.toLowerCase())) return null;
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escape(t)}(?=$|[^\\p{L}\\p{N}])`, 'iu');
+  return (text) => !!text && re.test(text);
+}
+
+function names(title, text) {
+  return namer(title)?.(text) ?? false;
 }
 
 const time = (v) => (v == null ? null : new Date(v).getTime());
@@ -38,8 +45,9 @@ function looseEnds(rows, eras, { clockOn = false } = {}) {
     if (clockOn && Number(r.placed) > 0 && Number(r.live) === 0) continue;
     // the latest session that names it; a recap beats a prep (it was played, not just planned)
     let named = null;
-    for (const e of notes) {
-      const note = names(r.title, e.recap) ? 'recap' : names(r.title, e.prep) ? 'prep' : null;
+    const isNamed = namer(r.title);
+    for (const e of isNamed ? notes : []) {
+      const note = isNamed(e.recap) ? 'recap' : isNamed(e.prep) ? 'prep' : null;
       if (!note) continue;
       if (!named || e.at > named.at || (e.at === named.at && e.start > named.start)) named = { era: e.name, note, at: e.at, start: e.start };
     }
