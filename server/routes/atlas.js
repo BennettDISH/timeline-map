@@ -511,7 +511,17 @@ router.get('/worlds/:worldId/loose-ends', wrap(async (req, res) => {
         AND ($2::int IS NULL OR p.end_time IS NULL OR p.end_time >= $2::int)) AS live
     FROM nodes n WHERE n.world_id = $1 AND n.category <> 'party'`, [wid, canon])).rows;
   const eras = (await pool.query('SELECT name, start_time, prep_note, recap_note, created_at FROM eras WHERE world_id=$1', [wid])).rows;
-  res.json({ entries: looseEnds(rows, eras, { clockOn: canon != null }), now: new Date(w.now).toISOString() });
+  // One query for the whole world, the entries above only, and only the texts holding a mention
+  // leave the database. A period text's add or edit stamps its entry's updated_at too. The Party
+  // stays out: its period texts pile up under one updated_at, so every footstep would bring up
+  // all they ever mentioned.
+  const mentions = (await pool.query(`
+    SELECT n.id, n.updated_at, t.text
+    FROM nodes n CROSS JOIN LATERAL (
+      SELECT n.body AS text UNION ALL SELECT n.dm_note UNION ALL SELECT f.body FROM node_facts f WHERE f.node_id = n.id
+    ) t
+    WHERE n.world_id = $1 AND n.category <> 'party' AND t.text LIKE '%](node:%'`, [wid])).rows;
+  res.json({ entries: looseEnds(rows, eras, { clockOn: canon != null, mentions }), now: new Date(w.now).toISOString() });
 }));
 
 // GET /maps/:mapId — everything the canvas needs: the map, its placements+nodes, links among them, breadcrumb.

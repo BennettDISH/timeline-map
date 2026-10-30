@@ -6,9 +6,10 @@ import { cat } from '../../utils/categories'
 import { QUIET, quietEntries, whyLine, readAside, writeAside, readDays, writeDays } from '../../utils/looseEnds'
 
 // Loose ends, under the session notes: the entries that have not come up in a while (no edit,
-// period text, thread or placement, and not named in a session's notes), oldest first, so the DM
-// can bring them back or tie them off. "Go" shows the entry; "Not now" sets it aside in this
-// browser until it comes up again or stays quiet for another spell. DM-only: nothing here is shared.
+// period text, thread or placement, not mentioned by another entry and not named in a session's
+// notes), oldest first, so the DM can bring them back or tie them off. "Go" shows the entry; "Not
+// now" sets it aside in this browser until it comes up again or stays quiet for another spell.
+// DM-only: nothing here is shared.
 export default function LooseEnds({ worldId, onJump }) {
   const [data, setData] = useState(null) // null = loading, false = failed, else { entries, now }
   const [open, setOpen] = useState(false)
@@ -42,7 +43,7 @@ export default function LooseEnds({ worldId, onJump }) {
       </button>
       {open && (
         <Modal title="Loose ends" className="loosemodal" onClose={() => setOpen(false)}>
-          <div className="muted esmall">Entries with no edit, period text, thread or placement for {label}, and not named in a session’s notes since. Oldest first.</div>
+          <div className="muted esmall">Entries with no edit, period text, thread or placement for {label}, and not mentioned by another entry or named in a session’s notes since. Oldest first.</div>
           <div className="loosedays" role="group" aria-label="Quiet for at least">
             <span className="muted esmall">Quiet for</span>
             {QUIET.map((q) => (

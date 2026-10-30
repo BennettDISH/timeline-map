@@ -1,7 +1,7 @@
 // Loose ends, run locally (no database, no network): when an entry last came up (its own work,
-// or its name in a session's prep or recap), who is never a loose end (the Party, an entry whose
-// story ended before canon), the route's ownership rule, the world setting that turns the list
-// on (off until the DM asks), and the list's own choices in the client
+// another entry's mention of it, or its name in a session's prep or recap), who is never a loose
+// end (the Party, an entry whose story ended before canon), the route's ownership rule, the world
+// setting that turns the list on (off until the DM asks), and the list's own choices in the client
 // (how long is quiet, how it reads, "Not now"). The real SQL runs against the local stack in
 // e2e/server.mjs.
 //
@@ -22,6 +22,8 @@ const daysAgo = (d) => new Date(NOW - d * DAY);
 const row = (id, title, touchedDaysAgo, more = {}) => ({
   id, title, category: 'person', visibility: 'shared', interior_map_id: null, touched: daysAgo(touchedDaysAgo), placed: 1, live: 1, ...more,
 });
+// the client's side of the list (client/src/utils/looseEnds.js)
+const load = () => import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'looseEnds.js')).href);
 
 test('a name is the whole title, any case, never inside a longer word', () => {
   assert.ok(names('Old Mill', 'they burned the old mill down'));
@@ -231,9 +233,61 @@ test('a session that names an entry is when it came up; the latest one wins, a r
   assert.deepStrictEqual(edited.named, { era: 'Session 2', note: 'recap' }, 'the mention still says where it was last named');
 });
 
+const said = (id, days, text) => ({ id, updated_at: daysAgo(days), text });
+
+test("another entry's mention is when it came up: newer, reordered, off the quiet list", async () => {
+  // the Mill's text is the newest thing written, so its own work is its last time up
+  const rows = [row(1, 'Baron Vex', 100), row(4, 'Quiet Keep', 80), row(3, 'Lost Ring', 50), row(2, 'Old Mill', 10)];
+  assert.deepStrictEqual(looseEnds(rows, []).map((e) => e.id), [1, 4, 3, 2]);
+  const out = looseEnds(rows, [], { mentions: [
+    said(2, 10, 'Word of @[Baron](node:1@37) from @[The Ring](node:3).'), // any name, and with a moment
+    said(3, 50, 'An older one: @[Baron Vex](node:1).'),
+  ] });
+  const by = Object.fromEntries(out.map((e) => [e.id, e]));
+  assert.strictEqual(by[1].lastUp, daysAgo(10).toISOString(), 'the latest mention wins, in any order');
+  assert.strictEqual(by[3].lastUp, daysAgo(10).toISOString());
+  assert.strictEqual(by[4].lastUp, daysAgo(80).toISOString(), 'nobody wrote of the Keep');
+  assert.strictEqual(by[1].named, null, 'a mention is no session naming it');
+  assert.deepStrictEqual(out.map((e) => e.id), [4, 1, 3, 2]);
+  assert.deepStrictEqual(Object.keys(by[1]).sort(), ['category', 'hasInterior', 'id', 'lastUp', 'named', 'placed', 'title', 'visibility'], 'who wrote it stays out of the answer');
+
+  const { quietEntries } = await load();
+  const quiet = (entries) => quietEntries(entries, { now: NOW, days: 14, aside: {} }).shown.map((e) => e.id);
+  assert.deepStrictEqual(quiet(looseEnds(rows, [])), [1, 4, 3]);
+  assert.deepStrictEqual(quiet(out), [4], 'just written about: no longer a loose end');
+
+  // an old mention never pulls an entry back past its own work
+  const worked = looseEnds([row(1, 'Baron Vex', 2)], [], { mentions: [said(3, 10, '@[Baron Vex](node:1)')] })[0];
+  assert.strictEqual(worked.lastUp, daysAgo(2).toISOString());
+});
+
+test('what is no mention of an entry does not bring it up', () => {
+  const lastUp = (mentions) => looseEnds([row(1, 'Baron Vex', 100), row(2, 'Old Mill', 50)], [], { mentions }).find((e) => e.id === 1).lastUp;
+  const before = daysAgo(100).toISOString();
+  assert.strictEqual(lastUp([said(1, 1, 'Me again: @[Baron Vex](node:1) and @[Baron Vex](node:1@37).')]), before, 'its own text mentioning itself');
+  assert.strictEqual(lastUp([said(1, 1, '@[Baron Vex](node:1)'), said(2, 60, '@[Baron Vex](node:1)')]), daysAgo(60).toISOString(), 'its own mention does not hide another entry’s');
+  assert.strictEqual(lastUp([said(2, 1, '@[Baron Vex](node:'), said(2, 1, 'Baron Vex [x](node:1)'), said(2, 1, '')]), before, 'a broken mention, or the name in words, is text');
+  assert.strictEqual(lastUp([said(2, 1, null), { id: 2, updated_at: null, text: '@[Baron Vex](node:1)' }]), before, 'no text, or no time for it');
+  assert.strictEqual(lastUp([said(2, 1, '@[Someone else](node:99)')]), before, 'a mention of an entry not on the list is nobody’s');
+});
+
+test('a session naming an entry in plain words still counts, and the later of the two wins', () => {
+  const eras = [{ name: 'Session 2', start_time: 20, created_at: daysAgo(30), prep_note: '', recap_note: '<p>Baron Vex fled.</p>' }];
+  const rows = [row(1, 'Baron Vex', 100)];
+  const named = { era: 'Session 2', note: 'recap' };
+  const older = looseEnds(rows, eras, { mentions: [said(3, 60, '@[Baron Vex](node:1)')] })[0];
+  assert.strictEqual(older.lastUp, daysAgo(30).toISOString(), 'the session is later');
+  assert.deepStrictEqual(older.named, named);
+  const newer = looseEnds(rows, eras, { mentions: [said(3, 5, '@[Baron Vex](node:1)')] })[0];
+  assert.strictEqual(newer.lastUp, daysAgo(5).toISOString(), 'the mention is later');
+  assert.deepStrictEqual(newer.named, named, 'and the list still says where it was last named');
+});
+
 // ---- the route: the caller's own world only, canon handed to the query only with the clock on ----
-const WORLDS = { 7: { owner: 21, timeline_enabled: true, timeline_current_time: 37 }, 8: { owner: 21, timeline_enabled: false, timeline_current_time: 37 } };
+const WORLDS = { 7: { owner: 21, timeline_enabled: true, timeline_current_time: 37 }, 8: { owner: 21, timeline_enabled: false, timeline_current_time: 37 }, 9: { owner: 21, timeline_enabled: false, timeline_current_time: 37 } };
+const TEXTS = { 9: [said(4, 2, 'Word of @[Baron Vex](node:1).')] };
 let nodeQuery = null;
+let mentionQueries = [];
 let worldUpdate = null;
 pool.query = async (sql, params = []) => {
   const s = sql.trim();
@@ -243,6 +297,10 @@ pool.query = async (sql, params = []) => {
   if (/FROM nodes n WHERE n\.world_id = \$1 AND n\.category <> 'party'/.test(s)) {
     nodeQuery = { sql: s, params };
     return { rows: [row(1, 'Baron Vex', 40), row(4, 'Dead King', 200, { placed: 1, live: 0 })] };
+  }
+  if (/FROM nodes n CROSS JOIN LATERAL/.test(s)) {
+    mentionQueries.push({ sql: s, params });
+    return { rows: TEXTS[params[0]] || [] };
   }
   if (/^SELECT name, start_time, prep_note, recap_note, created_at FROM eras/.test(s)) return { rows: [] };
   if (/^UPDATE worlds SET/.test(s)) { worldUpdate = { sql: s, params }; return { rows: [], rowCount: 1 }; }
@@ -278,6 +336,26 @@ test('the route: your own world only, and canon reaches the query only with the 
   assert.deepStrictEqual(off.body.entries.map((e) => e.id), [4, 1], 'with no clock, nothing is over');
 });
 
+test('the route reads mentions from the one world asked for, the same entries as the list, in one query', async () => {
+  mentionQueries = [];
+  const asked = await get(21, 9);
+  assert.strictEqual(mentionQueries.length, 1, 'one query however many entries the world holds');
+  assert.deepStrictEqual(mentionQueries[0].params, ['9']);
+  const { sql } = mentionQueries[0];
+  assert.match(sql, /WHERE n\.world_id = \$1 AND n\.category <> 'party' AND t\.text LIKE '%\]\(node:%'/, 'that world, the entries the list reads, and no other text leaves the database');
+  for (const text of ['n.body', 'n.dm_note', 'f.body']) assert.ok(sql.includes(text), `reads ${text}`);
+  assert.strictEqual(asked.body.entries.find((e) => e.id === 1).lastUp, daysAgo(2).toISOString(), 'the mention brought it up');
+
+  // the same entry in another world's list: a mention in world 9 is nothing to world 8
+  const other = await get(21, 8);
+  assert.deepStrictEqual(mentionQueries[1].params, ['8']);
+  assert.strictEqual(other.body.entries.find((e) => e.id === 1).lastUp, daysAgo(40).toISOString());
+
+  mentionQueries = [];
+  assert.strictEqual((await get(22, 9)).status, 404);
+  assert.strictEqual(mentionQueries.length, 0, "someone else's world is never read");
+});
+
 test('the list is a world setting the DM turns on and off; anything but true or false is a 400', async () => {
   const patch = (body) => fetch(`${base}/api/atlas/worlds/7`, {
     method: 'PATCH', body: JSON.stringify(body),
@@ -295,9 +373,7 @@ test('the list is a world setting the DM turns on and off; anything but true or 
   assert.strictEqual(worldUpdate, null, 'nothing written');
 });
 
-// ---- the client's side of the list (client/src/utils/looseEnds.js) ----
-const load = () => import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'looseEnds.js')).href);
-
+// ---- the client's side of the list ----
 test('a quiet spell reads in plain words', async () => {
   const { quietFor } = await load();
   assert.strictEqual(quietFor(3 * 60 * 60 * 1000), 'less than a day');

@@ -179,6 +179,39 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
       step('the Loose ends setting is kept with the world and switches both ways', typeof was === 'boolean' && now === !was && back.ok, `${was} → ${now}`);
     } else step('a probe entry for loose ends', false, JSON.stringify(n));
   }
+  // a mention in another entry's text brings an entry up, at that entry's updated_at, whichever text
+  // holds it; one written in another world, or in the Party's text, does not
+  {
+    const probe = async (title, mapId = cfg.root, more = {}) => (await json(await dm('POST', `/maps/${mapId}/nodes`, { title, x: 4, y: 4, ...more })))?.nodeId;
+    const lastUp = async () => Object.fromEntries(((await json(await dm('GET', `/worlds/${cfg.worldId}/loose-ends`)))?.entries || []).map((e) => [e.id, e.lastUp]));
+    const wait = () => new Promise((r) => setTimeout(r, 1100));
+    const inBody = await probe('server-probe-in-body'), inNote = await probe('server-probe-in-note'), inPeriod = await probe('server-probe-in-period');
+    const writer = await probe('server-probe-writer');
+    const before = await lastUp();
+    await wait();
+    await dm('PATCH', `/nodes/${writer}`, { body: `Saw @[One](node:${inBody}).`, dm_note: `And @[Two](node:${inNote}@3).` });
+    await dm('POST', `/nodes/${writer}/facts`, { body: `Then @[Three](node:${inPeriod}).`, start_time: null, end_time: null });
+    const after = await lastUp();
+    step('a mention in a description, a DM note or a period text brings an entry up', [inBody, inNote, inPeriod].every((id) => Date.parse(after[id]) > Date.parse(before[id])),
+      [inBody, inNote, inPeriod].map((id) => `${before[id]} → ${after[id]}`).join(', '));
+    step('…to when the entry that wrote it last changed', [inBody, inNote, inPeriod].every((id) => after[id] === after[writer]), `${after[inBody]} / ${after[writer]}`);
+    const other = (await json(await fetch(`${BASE}/api/worlds`, { method: 'POST', headers: H, body: JSON.stringify({ name: `server-probe-${Date.now()}` }) })))?.world?.id;
+    const otherRoot = other && (await json(await dm('GET', `/worlds/${other}`)))?.world?.rootMapId;
+    await wait();
+    const foreign = otherRoot && await probe('server-probe-foreign', otherRoot, { body: `From afar: @[One](node:${inBody}).` });
+    const afar = await lastUp();
+    step('…and one written in another world does not', foreign && afar[inBody] === after[inBody], `${after[inBody]} → ${afar[inBody]}`);
+    if (other) await fetch(`${BASE}/api/worlds/${other}`, { method: 'DELETE', headers: H });
+    const party = (await json(await dm('GET', `/worlds/${cfg.worldId}/nodes`)))?.nodes?.find((x) => x.category === 'party');
+    if (party) {
+      const fact = await json(await dm('POST', `/nodes/${party.id}/facts`, { body: `On the road: @[One](node:${inBody}).`, start_time: null, end_time: null }));
+      const walked = await lastUp();
+      step('…nor one in the Party’s text', fact?.id && walked[inBody] === after[inBody], `${after[inBody]} → ${walked[inBody]}`);
+      await dm('DELETE', `/facts/${fact?.id}`);
+    }
+    let gone = 0; for (const id of [inBody, inNote, inPeriod, writer]) { if ((await dm('DELETE', `/nodes/${id}`)).ok) gone++; }
+    step('the mention probe entries are removed again', gone === 4, `${gone} removed`);
+  }
   // secrecy through the DM's own acts: a placement hidden on one map stays hidden when 👁 Players
   // is pressed again on an entry players already see (or a marker is kept as canon); only an entry
   // that was DM-only brings its DM-only placements out with it

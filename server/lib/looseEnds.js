@@ -1,8 +1,11 @@
 // Loose ends: the entries that have not come up in a while, so the DM can tie them up. An entry
 // comes up when the DM works on it (an edit, a period text, a thread, a placement: the route's
-// `touched`) or names it in a session's prep or recap (the era's created_at stands in for when
-// that session was played). The Party is never a loose end, and with the clock on, neither is an
-// entry whose every placement ended before canon: its story is over. Oldest first.
+// `touched`), when another entry's text @-mentions it (that entry's updated_at stands in for when
+// it was written), or when a session's prep or recap names it (the era's created_at stands in for
+// when that session was played). The Party is never a loose end, and with the clock on, neither is
+// an entry whose every placement ended before canon: its story is over. Oldest first.
+
+const { mentionIds } = require('./mentions');
 
 const NAMELESS = new Set(['untitled', 'new entry', 'new node']);
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", apos: "'", nbsp: ' ' };
@@ -58,14 +61,28 @@ function names(title, text) {
 
 const time = (v) => (v == null ? null : new Date(v).getTime());
 
+// when each entry was last mentioned by another: an entry mentioning itself says nothing new of it
+function lastMentioned(texts) {
+  const at = new Map();
+  for (const t of texts || []) {
+    const when = time(t.updated_at) ?? 0;
+    for (const id of mentionIds(t.text)) {
+      if (id !== t.id && when > (at.get(id) ?? 0)) at.set(id, when);
+    }
+  }
+  return at;
+}
+
 // rows: { id, title, category, visibility, interior_map_id, touched, placed, live } from the route
 // eras: { name, start_time, prep_note, recap_note, created_at }
-function looseEnds(rows, eras, { clockOn = false } = {}) {
+// mentions: { id, updated_at, text }, one row per text of an entry that holds a mention
+function looseEnds(rows, eras, { clockOn = false, mentions = [] } = {}) {
   const notes = (eras || []).map((e) => {
     const prep = plain(e.prep_note);
     const recap = plain(e.recap_note);
     return { name: e.name, start: e.start_time ?? 0, at: time(e.created_at) ?? 0, prep, recap, prepWords: wordsOf(prep), recapWords: wordsOf(recap) };
   });
+  const mentioned = lastMentioned(mentions);
   const out = [];
   for (const r of rows || []) {
     if (r.category === 'party') continue;
@@ -79,7 +96,7 @@ function looseEnds(rows, eras, { clockOn = false } = {}) {
       if (!named || e.at > named.at || (e.at === named.at && e.start > named.start)) named = { era: e.name, note, at: e.at, start: e.start };
     }
     const touched = time(r.touched) ?? 0;
-    const last = Math.max(touched, named?.at ?? 0);
+    const last = Math.max(touched, named?.at ?? 0, mentioned.get(r.id) ?? 0);
     out.push({
       id: r.id, title: r.title, category: r.category, visibility: r.visibility, hasInterior: !!r.interior_map_id,
       placed: Number(r.placed) > 0, lastUp: new Date(last).toISOString(),

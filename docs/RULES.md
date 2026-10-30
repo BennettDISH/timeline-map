@@ -300,10 +300,12 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   ends (`worlds.loose_ends`, sent as the world's `looseEnds`, kept by a world copy). It lists the entries that have not come up for a spell the DM picks (a week, 2 weeks, a
   month, 3 months; 2 weeks until changed), oldest first. An entry comes up when it is edited
   (`nodes.updated_at`, which a period text's add or edit also stamps), gains a period text, a
-  thread or a placement, or is named in a session's prep or recap (the whole title in any case,
-  not inside a longer word, three letters at least; that era's `created_at` stands in for when it
-  was played). The Party is never listed, and with the clock on neither is an entry whose every
-  placement ended before canon. `GET /worlds/:id/loose-ends` sends every entry with its `lastUp`
+  thread or a placement, is @-mentioned in another entry's description, DM note or period text in
+  the same world (that entry's `updated_at` stands in for when it was written; its own mention of
+  itself and the Party's text do not count), or is named in a session's prep or recap (the whole
+  title in any case, not inside a longer word, three letters at least; that era's `created_at`
+  stands in for when it was played). The Party is never listed, and with the clock on neither is
+  an entry whose every placement ended before canon. `GET /worlds/:id/loose-ends` sends every entry with its `lastUp`
   and the database's `now` (the timestamps carry no zone; ages are read against the same clock);
   `server/lib/looseEnds.js` holds the rule. "Go" shows the entry like a search hit; "Not now"
   sets it aside in this browser (`atlas_loose_<world>`) until it comes up again or stays quiet for
@@ -624,8 +626,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   first, ↑ ↓, Enter or Tab, Esc). A pick writes `@[Name](node:12)` where the @ was, and with the
   clock on `@[Name](node:12@37)`: the lens moment it was written at, kept out of sight (the chips
   under the box mark it 🕓, their tooltip names it; editing the text changes or drops it). A
-  mention is a jump link only. In a description or a period text the picker offers "🧵 Also
-  thread them" (off until ticked, remembered in this browser as `atlas_mention_thread`), which
+  mention is a jump link, and counts as the entry coming up in Loose ends; it makes no thread. In
+  a description or a period text the picker offers "🧵 Also thread them" (off until ticked, remembered in this browser as `atlas_mention_thread`), which
   threads the two entries too if they are not already. The DM notes never offer it, since a
   thread would show players what the note keeps. The chips under each box and
   the reader (`components/MentionText.jsx`) go to the entry; one with a moment moves the lens
