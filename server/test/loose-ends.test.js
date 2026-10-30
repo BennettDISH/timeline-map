@@ -14,7 +14,7 @@ const express = require('express');
 const { pathToFileURL } = require('node:url');
 const pool = require('../config/database');
 const { wp } = require('../config/auth');
-const { looseEnds, names, plain } = require('../lib/looseEnds');
+const { looseEnds, names, plain, fold } = require('../lib/looseEnds');
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.parse('2026-10-27T12:00:00Z');
@@ -34,6 +34,157 @@ test('a name is the whole title, any case, never inside a longer word', () => {
   assert.ok(!names('Untitled', 'Untitled'), 'a default title names nothing');
   assert.ok(!names('New entry', 'a new entry'));
   assert.ok(names('Cult (of) Ash?', 'the cult (of) ash? returns'), 'a title is text, never a pattern');
+});
+
+// ---- the word check in front of the pattern never changes an answer ----
+const escapeForTest = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const patternFor = (title) => {
+  const t = title.trim().replace(/\s+/g, ' ');
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeForTest(t)}(?=$|[^\\p{L}\\p{N}])`, 'iu');
+};
+const patternSays = (title, text) => patternFor(title).test(text);
+
+test('every pair of letters the pattern counts as one case folds the same, and sits on the same side of a word edge', () => {
+  // Every code point with any case behaviour. Two different code points can only count as one if at
+  // least one of them changes when case folded, so the first check closes the list.
+  const cased = [];
+  for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    const c = String.fromCodePoint(cp);
+    if (/\p{Changes_When_Casefolded}|\p{Changes_When_Casemapped}/u.test(c)) cased.push(c);
+  }
+  const anyCased = new RegExp(`[${cased.map(escapeForTest).join('').replace(/[-/]/g, '\\$&')}]`, 'iu');
+  const listed = new Set(cased);
+  for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    const c = String.fromCodePoint(cp);
+    if (!listed.has(c)) assert.ok(!anyCased.test(c), `U+${cp.toString(16)} counts as a cased letter`);
+  }
+  const all = cased.join('');
+  const edge = /^[^\p{L}\p{N}]$/iu;
+  let joined = 0;
+  for (const c of cased) {
+    for (const [other] of all.matchAll(new RegExp(escapeForTest(c), 'giu'))) {
+      if (other === c) continue;
+      joined += 1;
+      assert.strictEqual(fold(other), fold(c), `U+${other.codePointAt(0).toString(16)} and U+${c.codePointAt(0).toString(16)}`);
+      assert.strictEqual(edge.test(other), edge.test(c), `U+${other.codePointAt(0).toString(16)} and U+${c.codePointAt(0).toString(16)} at a word edge`);
+    }
+  }
+  assert.ok(joined > 2000, `checked ${joined} pairs`);
+});
+
+test('the rare Unicode cases read as the pattern reads them', () => {
+  const pairs = [
+    ['Stark', 'the ſtark lord'], // ſ is s
+    ['Kyle', 'Kyle came'], // the Kelvin sign is k
+    ['Kyle', 'kyle came'],
+    ['Ångström', 'the Kngström ruler'], // the Angstrom sign is Å
+    ['Σίσυφος', 'ο σίσυφοσ ήρθε'], // final and plain sigma
+    ['ΣΊΣΥΦΟΣ', 'ο σίσυφος ήρθε'],
+    ['Στρας', 'ΣΤΡΑΣ'],
+    ['Ας', 'ασπίς'], // inside a longer word, so no
+    ['Straße', 'die STRAẞE'], // ẞ is ß
+    ['Straße', 'die STRASSE'], // the pattern's folding is one letter to one, so no
+    ['µon', 'the μon'], // the micro sign is μ
+    ['Ιωάννης', 'ο ιͅωάννης'],
+    ['aιb', 'aͅb'], // a combining mark that folds to a letter
+    ['Aldric', 'Aldricͅ stood'], // and so is no word edge
+    ['ǅur', 'the ǆur and'],
+    ['Stﬅ', 'the STﬆ'], // two ligatures that fold as one
+    ['İstanbul', 'old i̇stanbul'], // no: dotted capital I has no plain fold
+    ['İstanbul', 'old İstanbul'],
+    ['Isle', 'the ısle'], // no: dotless i is its own letter
+    ['𐐀lbin', 'and 𐐨lbin'], // beyond the basic plane
+    ['Élodie', 'met élodie'], // no: the two spellings of é are different text, today too
+    ['Cult (of) Ash?', 'the CULT (OF) ASH? returns'],
+    ['???', 'who? ??? no'], // a title with no words at all
+    ['Tom & Jerry', 'tom & jerry'],
+    ['Ser Aldric', 'aldric, ser'], // every word is there, not in that order
+    ['a a', 'xa a a'], // the fit at a word's start begins inside the first try
+    ['aba', 'ababa'],
+    ['aba', 'xaba aba'],
+    ['𐐀 𐐀', 'x𐐀 𐐀 𐐀'], // the same, beyond the basic plane
+    ['𐐨 𐐨', 'x𐐀 𐐀 𐐀'],
+    ['Mill', '𐐀Mill'], // a letter beyond the basic plane is a letter
+    ['Mill', 'Mill𐐀'],
+    ['Mill', '😀Mill😀'], // an emoji is not
+    ['Mill', '１Mill'], // nor is a wide digit an edge
+    ['Mill', 'mill'],
+    ['Mill', '(mill)'],
+    ['(Mill)', '((mill))'],
+    ['(Mill)', 'x(mill)y'],
+    ['Mill.', 'the mill.'],
+    ['Mill.', 'the mill.x'],
+    ['-- --', 'a -- -- b'],
+  ];
+  for (const [title, text] of pairs) {
+    assert.strictEqual(names(title, text), patternSays(title, text), `${title} in ${text}`);
+  }
+  assert.ok(names('Stark', 'the ſtark lord'), 'the check really does let ſ through');
+  assert.ok(names('Σίσυφος', 'ο σίσυφοσ ήρθε'));
+  assert.ok(!names('Στρας', 'στρασια'));
+});
+
+test('random titles and notes from the awkward letters: the same answer as the pattern alone', () => {
+  const letters = ['s', 'S', 'ſ', 'k', 'K', 'K', 'å', 'Å', 'Å', 'σ', 'Σ', 'ς', 'ß', 'ẞ', 'µ', 'μ', 'ι', 'ͅ', 'ı', 'İ', 'i', 'I', 'ǆ', 'ǅ', 'ﬅ', 'ﬆ', 'a', 'b', '1', '𐐀', '𐐨'];
+  const gaps = [' ', ' ', '-', "'", '(', '.'];
+  let seed = 20261030;
+  const next = (n) => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return (seed >>> 16) % n; };
+  const few = ['a', 'b', '𐐀', ' '];
+  const word = () => Array.from({ length: 1 + next(4) }, () => letters[next(letters.length)]).join('');
+  const phrase = (n) => Array.from({ length: n }, (_, i) => (i ? gaps[next(gaps.length)] : '') + word()).join('');
+  // a run of very few letters, for titles that overlap themselves in the note
+  const run = (n) => Array.from({ length: n }, () => few[next(few.length)]).join('');
+  let yes = 0;
+  for (let i = 0; i < 1500; i += 1) {
+    const small = run(3 + next(4));
+    const bigger = `${run(next(3))}${small}${run(next(4))}${small}${run(next(3))}`;
+    if (small.trim().replace(/\s+/g, ' ').length >= 3) assert.strictEqual(names(small, bigger), patternSays(small, bigger), JSON.stringify([small, bigger]));
+    const title = phrase(1 + next(2));
+    if (title.trim().replace(/\s+/g, ' ').length < 3) continue;
+    // half the notes hold the title in some other case, so plenty of answers are yes
+    const inNote = next(2) ? title.toUpperCase() : next(2) ? title.toLowerCase() : title;
+    const text = `${phrase(1 + next(3))} ${next(2) ? inNote : ''} ${phrase(1 + next(3))}`.replace(/\s+/g, ' ').trim();
+    const said = patternSays(title, text);
+    if (said) yes += 1;
+    assert.strictEqual(names(title, text), said, JSON.stringify([title, text]));
+  }
+  assert.ok(yes > 100, `${yes} yes answers`);
+});
+
+test('a big world gets the same list, far faster than the pattern alone', (t) => {
+  const words = ['river', 'keep', 'stark', 'Baron', 'moon', 'gate', 'Élodie', 'ash', 'tower', 'road', 'Σίσυφος', 'mill', 'king', 'the', 'and', 'of', 'they', 'burned', 'found', 'lost'];
+  const say = (i, n) => Array.from({ length: n }, (_, k) => words[(i * 7 + k * k * 3 + (i * k) % 11) % words.length]).join(' ');
+  const rows = Array.from({ length: 150 }, (_, i) => row(i + 1, `${words[i % words.length]} Name${i}${i % 9 ? '' : ` ${words[(i + 3) % words.length]}`}`, 100 + i));
+  const eras = Array.from({ length: 20 }, (_, i) => ({
+    name: `Session ${i}`, start_time: i, created_at: daysAgo(90 - i),
+    prep_note: `<p>${say(i, 150)} ${rows[i * 7].title}</p>`,
+    recap_note: `<p>${say(i + 100, 150)} ${rows[i * 7 + 1].title.toUpperCase()}</p>`,
+  }));
+  const started = process.hrtime.bigint();
+  const fast = looseEnds(rows, eras);
+  const fastMs = Number(process.hrtime.bigint() - started) / 1e6;
+
+  // the same walk with the pattern alone, as it was before the word check
+  const slowStarted = process.hrtime.bigint();
+  const notes = eras.map((e) => ({ ...e, prep: plain(e.prep_note), recap: plain(e.recap_note), at: new Date(e.created_at).getTime() }));
+  const byPattern = new Map();
+  for (const r of rows) {
+    let named = null;
+    const re = patternFor(r.title);
+    for (const e of notes) {
+      const note = re.test(e.recap) ? 'recap' : re.test(e.prep) ? 'prep' : null;
+      if (note && (!named || e.at > named.at)) named = { era: e.name, note, at: e.at };
+    }
+    byPattern.set(r.id, named && { era: named.era, note: named.note });
+  }
+  const slowMs = Number(process.hrtime.bigint() - slowStarted) / 1e6;
+
+  for (const e of fast) assert.deepStrictEqual(e.named, byPattern.get(e.id), e.title);
+  assert.ok(fast.some((e) => e.named), 'some entries are named');
+  t.diagnostic(`${fastMs.toFixed(1)} ms with the word check, ${slowMs.toFixed(1)} ms without`);
+  assert.ok(fastMs * 3 < slowMs, `${fastMs.toFixed(1)} ms with the word check, ${slowMs.toFixed(1)} ms without`);
 });
 
 test('a session note is read as words: tags out, entities back', () => {
