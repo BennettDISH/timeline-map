@@ -7,7 +7,7 @@ which is wrong before changing either.
 
 ## Sign-in, accounts and image storage
 - Sign-in and the session are fleet-kit's (`server/config/auth.js`, vendored as
-  `server/vendor/fleet-kit-1.0.0.tgz`; the server `require`s its CommonJS build). SSO is built
+  `server/vendor/fleet-kit-1.0.7.tgz`; the server `require`s its CommonJS build). SSO is built
   server-side (no VITE_ client vars; configured only when URL + client id + secret all exist):
   `/api/auth/sso/login?next=&prompt=login` keeps the OAuth state in an httpOnly cookie of the
   server's own, Waypoint comes back to `/auth/callback` (the address it has registered), and the
