@@ -16,6 +16,15 @@ if (process.env.ADMIN_CENTRAL_USER_IDS === undefined) process.env.ADMIN_CENTRAL_
 
 const ACCOUNT = 'id, username, email, role, token_version, central_user_id, is_guest';
 
+// Is this path one of the admin's pages (/admin, /admin/worlds/:id) as the page's own router reads
+// it? That is any case (/ADMIN) and with its letters percent-encoded (/%61dmin): React Router
+// decodes them, Express's path does not, so the gate in server.js asks this, not a plain pattern.
+function isAdminPath(p) {
+  let decoded = String(p || '');
+  try { decoded = decodeURIComponent(decoded); } catch (e) { /* a malformed escape: read as it is */ }
+  return /^\/admin(?:\/|$)/i.test(decoded);
+}
+
 /** The account a session names, or null when it is gone. */
 async function account(id) {
   if (!Number.isInteger(id) || id <= 0) return null;
@@ -146,4 +155,4 @@ const wp = createWaypoint({
   },
 });
 
-module.exports = { wp, account, findOrCreateLocalUser, shape };
+module.exports = { wp, account, findOrCreateLocalUser, shape, isAdminPath };

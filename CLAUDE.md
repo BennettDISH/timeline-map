@@ -91,8 +91,10 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   database check), `AdminWorld.jsx`, `components/admin/` (`AdminOnly.jsx` is what anyone else sees:
   "This page is for the site admin."), and `GET /api/admin/*` in `server/routes/admin.js`
   (`/site` = the switches, read-only), tested in `server/test/admin.test.js`. The server decides
-  the page before it goes out (fleet-kit's `adminPage`: signed out → sign in and back, anyone else
-  → a plain 403), and every admin API refuses a non-admin with a 403. The "Admin" link
+  the page before it goes out (fleet-kit's `adminPage`, run for every path `isAdminPath` in
+  `config/auth.js` calls an admin page as the page's router reads it, so `/ADMIN` and `/%61dmin`
+  too: signed out → sign in and back, anyone else → a plain 403; `server/test/admin-page.test.js`),
+  and every admin API refuses a non-admin with a 403. The "Admin" link
   (`components/TopBar.jsx`) shows to the admin only.
 
 ## Key invariants (the whole rule for each is in `docs/RULES.md`)

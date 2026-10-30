@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 // name a column the ALTER has not added yet.
 const pool = require('./config/database');
 const { applySchema } = require('./config/apply-schema');
-const { wp } = require('./config/auth');
+const { wp, isAdminPath } = require('./config/auth');
 const { scheduleGuestSweep } = require('./lib/guests');
 const { collapseLeadingSlashes, spaFallback } = require('./lib/spa');
 const schemaReady = (async () => {
@@ -100,8 +100,10 @@ app.get('/auth/callback', wp.callback);
 
 // The admin's pages (/admin, /admin/worlds/:id), decided on the server before the page goes out:
 // signed out → sign in and back, anyone else → a plain 403 with nothing of the admin area in it.
-// Their data asks again (/api/admin).
-app.use(wp.adminPage({ pages: /^\/admin(?:\/.*)?$/ }));
+// Their data asks again (/api/admin). Every spelling the page's router reads as /admin is gated
+// (isAdminPath: any case, /%61dmin too), not only the ones a plain pattern on req.path matches.
+const adminGate = wp.adminPage();
+app.use((req, res, next) => (isAdminPath(req.path) ? adminGate(req, res, next) : next()));
 
 // Serve the built React app whenever it exists — independent of NODE_ENV, so a missing
 // NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".
