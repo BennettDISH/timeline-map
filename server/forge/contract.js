@@ -202,18 +202,14 @@ function validateBatch(batch, world) {
 // ---- images ----------------------------------------------------------------------
 
 // The style anchor: the world's first painted image, sent as a reference with every later
-// generation so the artwork stays one hand. Bytes come from R2 (or an old row that still holds base64).
+// generation so the artwork stays one hand. Bytes come from R2.
 async function loadAnchor(worldId) {
   try {
     const r = await pool.query(
-      `SELECT i.mime_type, i.base64_data, i.file_path FROM world_minds wm
+      `SELECT i.mime_type, i.file_path FROM world_minds wm
        JOIN images i ON i.id = wm.style_image_id WHERE wm.world_id=$1`, [worldId]);
     const row = r.rows[0];
     if (!row) return null;
-    if (row.base64_data) {
-      const m = row.base64_data.match(/^data:image\/[^;]+;base64,(.+)$/);
-      if (m) return { mimeType: row.mime_type || 'image/png', data: m[1] };
-    }
     if (/^https?:\/\//i.test(row.file_path || '')) {
       const res = await fetch(row.file_path, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) return null;

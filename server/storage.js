@@ -4,8 +4,6 @@ const { createR2Store, PUBLIC_CACHE, R2_TIMEOUT_MS } = require('fleet-kit/server
 // (one bucket, per-world key prefixes) and are served from R2's public URL; the images table keeps
 // only the object key and the absolute URL. With any var missing R2 is off and nothing is stored:
 // uploads and Forge paintings answer 503 (lib/storeImage.js) instead of putting bytes in Postgres.
-// Old rows that still hold base64_data are read back by /api/images-base64/serve until
-// scripts/move-base64-to-r2.js has copied them out.
 //
 // The bucket itself is fleet-kit's R2 store: every call is given up on after 15 s, so a bucket that
 // stops answering cannot hold a request (or a world delete) open for good, and every object is put

@@ -29,7 +29,27 @@ async function applySchema(pool, { onError } = {}) {
       if (onError) onError(statement, e);
     }
   }
+  try {
+    await dropOldImageBytes(pool);
+  } catch (e) {
+    failed.push({ statement: DROP_OLD_BYTES, message: e.message });
+    if (onError) onError(DROP_OLD_BYTES, e);
+  }
   return { total: statements.length, applied, failed };
+}
+
+// Images live on R2 only, so the column that held the old base64 goes. A row still holding bytes
+// keeps the column and is reported as a failed step. This sits here and not in schema.sql because
+// a check needs a DO block, and readStatements would shear one apart at its semicolons.
+const DROP_OLD_BYTES = 'ALTER TABLE images DROP COLUMN base64_data';
+async function dropOldImageBytes(pool) {
+  const column = await pool.query(
+    `SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'images' AND column_name = 'base64_data'`);
+  if (!column.rows.length) return;
+  const held = await pool.query('SELECT count(*)::int AS n FROM images WHERE base64_data IS NOT NULL');
+  if (held.rows[0].n) throw new Error(`${held.rows[0].n} image row(s) still hold base64_data; not dropping it`);
+  await pool.query(DROP_OLD_BYTES);
 }
 
 module.exports = { readStatements, applySchema };

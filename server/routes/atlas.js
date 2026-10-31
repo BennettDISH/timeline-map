@@ -3,7 +3,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
-const { r2Enabled, putObject, copyObject } = require('../storage');
+const { r2Enabled, copyObject } = require('../storage');
 const { spotlightTrail, pendingForge } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
@@ -353,20 +353,15 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   for (const im of await rowsOfC('SELECT * FROM images WHERE world_id=$1 ORDER BY id', [src.id])) {
     const ext = im.filename.includes('.') ? im.filename.split('.').pop() : 'png';
     const fname = `clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
-    let filePath = im.file_path, storageKey = null, base64 = im.base64_data;
-    if (r2Enabled) {
+    let filePath = im.file_path, storageKey = null;
+    if (r2Enabled && im.storage_key) {
       const key = `worlds/${w.id}/${fname}`;
-      if (im.storage_key) { filePath = await copyObject(im.storage_key, key, im.mime_type); storageKey = key; }
-      else if (im.base64_data) {
-        const m = /^data:[^;]+;base64,(.+)$/.exec(im.base64_data);
-        filePath = await putObject(key, Buffer.from(m ? m[1] : im.base64_data, 'base64'), im.mime_type || 'image/png');
-        storageKey = key; base64 = null;
-      }
-    } else if (im.base64_data) filePath = `/api/images-base64/serve/${fname}`;
+      filePath = await copyObject(im.storage_key, key, im.mime_type); storageKey = key;
+    }
     const r = (await client.query(
-      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, base64_data, storage_key, folder_id, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12, CURRENT_TIMESTAMP)) RETURNING id`,
-      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, base64, storageKey,
+      `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, storage_key, folder_id, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11, CURRENT_TIMESTAMP)) RETURNING id`,
+      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, storageKey,
        im.folder_id ? (folderMap.get(im.folder_id) || null) : null, im.created_at || null])).rows[0];
     imgMap.set(im.id, r.id);
   }

@@ -132,8 +132,6 @@ test('the security checks', async (t) => {
       // owner, and it asks for no session. Own checks below hold what these hand out.
       'GET /api/share/:token/world', 'GET /api/share/:token/maps/:mapId', 'GET /api/share/:token/nodes/:id', 'GET /api/share/:token/nodes/:id/locate',
       'POST /api/share/:token/maps/:mapId/nodes',
-      // the art, for every phone at the table: an image by its random file name, like the public R2 URL it sends you to
-      'GET /api/images-base64/serve/:filename',
     ],
     admin: ['/api/admin/*'],
     adminPages: ['/admin', `/admin/worlds/${A}`],

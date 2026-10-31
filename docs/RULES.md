@@ -56,10 +56,8 @@ which is wrong before changing either.
 - Images upload to Cloudflare R2 (`R2_*` env vars); `resolveImageUrl` (utils/imageUrl.js) passes
   absolute R2 URLs through and prefixes relative paths; `/api/images/upload` takes the upload (base64 JSON; `/api/images-base64/upload` is its older alias).
   **Images live on R2 only**: a row keeps the object key and the URL, never the bytes. With R2 off an
-  upload and a Forge painting answer 503 before anything is charged or painted. `/api/images-base64/serve/:filename`
-  only reads old rows that still hold `base64_data` (a row without bytes redirects to its R2 URL);
-  `node server/scripts/move-base64-to-r2.js` (dry run by default, `--apply` to copy) moves those rows
-  out, after which the column can be dropped. The sample world's art ships as files in `client/public/sample/`.
+  upload and a Forge painting answer 503 before anything is charged or painted. The sample world's art
+  ships as files in `client/public/sample/`.
 
 ## Database
 **Production holds a real campaign** (Bennett's world 29: DM notes, R2 art, the Forge bible, a
@@ -129,7 +127,7 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   `pool.connectTx()` (an error listener + a release that discards a broken client). First-run
   setup holds an advisory lock. SSO profile sync skips a username/email another row holds
   (never a 500). Share map ids are parsed once (`intId`) and a player marker lands in one
-  statement. Image list/metadata queries never select `base64_data`.
+  statement.
 - **Autosave contract** (`AtlasWorkspace.jsx`): every write goes through `track()` so the
   header chip is honest. Node fields, lifespans and map notes each have their OWN debounce
   clock and pending payload (`flushSave`/`flushLife`/`flushNote`, `flushAll` on unmount and

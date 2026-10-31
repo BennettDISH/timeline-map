@@ -45,13 +45,10 @@ app.use(compression());
 // gets its own generous bucket too — it autosaves on every typing pause, and a long prep
 // session under the 300-cap was silently dropping writes into the client's error path.
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }); // each IP, 300 per 15 minutes
-const ownBucket = (p) => p.startsWith('/share') || p.startsWith('/atlas') || p.startsWith('/images-base64/serve');
+const ownBucket = (p) => p.startsWith('/share') || p.startsWith('/atlas');
 app.use('/api/', (req, res, next) => (ownBucket(req.path) ? next() : limiter(req, res, next)));
 app.use('/api/share', rateLimit({ windowMs: 15 * 60 * 1000, max: 2400 }));
 app.use('/api/atlas', rateLimit({ windowMs: 15 * 60 * 1000, max: 6000 }));
-// public art loads (every phone at the table, through one venue IP) never count against the
-// DM's own bucket
-app.use('/api/images-base64/serve', rateLimit({ windowMs: 15 * 60 * 1000, max: 4000 }));
 
 // The session is a cookie, so a write sent by another site's page would carry it: every write
 // under /api has to come from the Atlas's own pages. The Player View's API (/api/share) is made

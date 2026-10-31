@@ -2,9 +2,6 @@
 
 Images are stored on **Cloudflare R2** only — nothing is kept in Postgres. Without the R2 setup
 below, uploads and Forge paintings answer 503 ("this server has no image storage (R2) set up").
-Old rows that still hold base64 keep working at their old URLs (`/api/images-base64/serve/:filename`)
-until `node server/scripts/move-base64-to-r2.js --apply` copies them to R2 (dry run by default;
-take a database backup first).
 
 ## 1. Create the bucket
 1. Cloudflare dashboard → **R2 Object Storage** → **Create bucket**.

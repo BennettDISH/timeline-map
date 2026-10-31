@@ -5,7 +5,7 @@
 // that is not in the build) get a JSON 404 instead: an <img> pointed at a wrong URL, or a
 // probe, must never get the app's HTML back as if it were the file.
 
-// //api/images-base64/serve/x.png is the same request as /api/images-base64/serve/x.png (a
+// //api/images is the same request as /api/images (a
 // base URL ending in / joined to a path starting with /). Without this it missed every API
 // route and fell to the page. Runs first, so the routers and helmet see the plain path.
 function collapseLeadingSlashes(req, res, next) {

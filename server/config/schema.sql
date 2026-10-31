@@ -72,11 +72,10 @@ CREATE TABLE IF NOT EXISTS images (
     uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     alt_text TEXT,
-    base64_data TEXT,
     folder_id INTEGER REFERENCES image_folders(id) ON DELETE SET NULL
 );
 
--- R2 object storage key for the uploaded image (NULL for old rows whose bytes are still in base64_data, until scripts/move-base64-to-r2.js has moved them)
+-- R2 object storage key for the uploaded image (NULL for the sample world's art, which ships as files)
 ALTER TABLE images ADD COLUMN IF NOT EXISTS storage_key VARCHAR(500);
 
 -- Maps table with hierarchical structure
