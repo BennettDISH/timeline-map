@@ -4,8 +4,8 @@
 //    are being moved, behind one on the old r2.dev address (R2_LEGACY_PUBLIC_URLS);
 //  - scripts/rewrite-media-host.js: the dry run writes nothing, apply rewrites the leading address
 //    of images.file_path, nodes.voice_url and maps.ambience_url in one transaction (or none), and a
-//    second run finds nothing. The SQL also runs for real on PGlite when it can be found (the
-//    server does not depend on it; e2e/ does, or point NODE_PATH at a folder that has it).
+//    second run finds nothing. The SQL also runs for real on PGlite when it can be found (a
+//    devDependency here and in e2e/; the running server never loads it).
 //
 //   node --test server/test/media-host.test.js
 const test = require('node:test');

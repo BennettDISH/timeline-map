@@ -4,8 +4,7 @@
 // footsteps, two player-visible sessions and a DM-only era, revealed places, an interior, and the
 // Party's footsteps from the world map into it). It writes e2e/local.config.json (gitignored),
 // which every suite reads when E2E_CONFIG points at it. Nothing here touches Railway, and the
-// database lives exactly as long as this process. PGlite is a devDependency of e2e, never of the
-// server.
+// database lives exactly as long as this process. The running server never loads PGlite.
 //
 //   cd e2e && npm install            once
 //   node e2e/local.mjs --build       from the repo root; --build rebuilds client/dist first (the

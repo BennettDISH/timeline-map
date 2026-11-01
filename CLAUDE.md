@@ -15,14 +15,15 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
 ## Key Commands
 - `npm run dev` - Start both client and server (for development structure reference only)
 - `npm run build` - Build for production
-- `npm test` at the root runs the server's local suites (`server/`'s `npm test`, no database or network)
+- `npm test` at the root runs the server's local suites (`server/`'s `npm test`, no outside database or network)
 - `npm install` at the root installs both (its postinstall runs `install-all`); `npm run migrate`
   in `server/` is optional — the boot applies the schema
 
 ## Testing & Deployment
 - **Test locally before a push** on the local stack: `node e2e/local.mjs --build` (after `cd e2e &&
   npm install` once) runs the real server against an in-memory Postgres (PGlite on a socket, a
-  devDependency of `e2e` only, never the server's), seeds a DM and a world laid out like the
+  devDependency of `e2e`; the server's tests have their own copy, and the running server never
+  loads it), seeds a DM and a world laid out like the
   proving ground, and writes `e2e/local.config.json`; `E2E_CONFIG=e2e/local.config.json bash
   e2e/watch.sh` then runs every suite against it except the live secrecy suite. Outside services
   (R2, Waypoint, the Forge, voices) are off there, and the database dies with the process. A
@@ -31,6 +32,9 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   in `e2e/server.mjs`. The server reads `client/dist/index.html` once at boot: rebuild and
   restart after a client change.
   In the desktop app's browser pane it is `atlas-local` in `~/repos/.claude/launch.json`
+- **A new route has to be decided**: `server/test/security.test.js` runs fleet-kit's security checks
+  on the real `server.js` over PGlite, in `npm test`. A route that is not public, the admin's, or
+  reached by an id its owner holds fails there until it is named; so does a repeat of a known flaw
 - A schema change that drops or renames a column: `npm test` checks the sample seed
   (`server/scripts/seed-sample.js`) against the columns a fresh `schema.sql` leaves, and
   `node e2e/seed.mjs` runs it on a fresh in-memory Postgres
@@ -67,7 +71,8 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   that stamps `last_seen_at`, the old-token reader), `middleware/auth.js` (`authenticateToken` =
   the kit's session check, `requireAdmin`), `lib/security.js` (the kit's headers with the Atlas's
   CSP additions and the Player View's embed contract). From fleet-kit (vendored as
-  `server/vendor/fleet-kit-1.0.7.tgz`; the client installs the same file for its top bar; a kit
+  `server/vendor/fleet-kit-1.0.8.tgz`; the client installs `fleet-kit-1.0.7.tgz` beside it for its
+  top bar until it is moved too, so that file stays; a kit
   change is a new kit version, never a re-packed tarball, and never edited here): trust proxy 1,
   the request log (one line per request: id, method, path with no query string and tokens as
   `:token`, status, time; the id is `X-Request-Id` and the error handler logs with it), the
