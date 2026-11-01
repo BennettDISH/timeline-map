@@ -181,6 +181,60 @@ try {
       step('dragging the map keeps the open sheet', (await page.locator('.pview .sheet').count()) === 1);
     } else step('a sheet opened before the drag check', false, `sheets: ${before}`);
   } else skip('dragging the map keeps the open sheet', 'no pin or outlined place to open a sheet from');
+  // a mention opens its entry's own sheet, whether its pin is on this map or another map's (the
+  // local stack seeds both on Old Mill)
+  {
+    const pins = page.locator('.pview .pin:not(.party)');
+    const toWorldMap = async () => { await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 }); await page.waitForSelector(SHOWN, { timeout: 30000 }); };
+    await toWorldMap();
+    let source = -1, names = [];
+    for (let i = 0; i < (await pins.count()) && source < 0; i++) {
+      await pins.nth(i).click({ force: true }); await page.waitForTimeout(600);
+      names = await page.locator('.pview .sheet .sbody button.mention').allTextContents();
+      if (names.length) source = i;
+    }
+    if (source < 0) skip('a mention opens its entry', 'no sheet on the world map holds a mention');
+    for (const name of source < 0 ? [] : names) {
+      await toWorldMap();
+      await pins.nth(source).click({ force: true });
+      await page.locator('.pview .sheet button.mention').first().waitFor({ timeout: 8000 });
+      const from = (await page.locator('.pview .sheet h3').textContent()).trim(), url = page.url();
+      await page.locator('.pview .sheet button.mention', { hasText: name }).first().click();
+      await page.locator('.pview .sheet h3').filter({ hasNotText: from }).waitFor({ timeout: 8000 }).catch(() => {});
+      const to = (await page.locator('.pview .sheet h3').textContent().catch(() => '')).trim();
+      step(`the mention of “${name}” opens its sheet`, !!to && to !== from, `${from} → ${to || 'no sheet'}${page.url() === url ? ', same map' : ', another map'}`);
+    }
+  }
+  // the zoom buttons read at full strength with the pointer elsewhere, and show the keyboard's ring
+  {
+    await page.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await page.waitForSelector('.pview .mp-controls button', { timeout: 30000 });
+    await page.mouse.move(2, 2);
+    const rest = await page.locator('.pview .mp-controls').evaluate((e) => getComputedStyle(e).opacity);
+    await page.locator('.pview .mp-controls button').first().focus();
+    await page.keyboard.press('Tab');
+    const ring = await page.evaluate(() => { const e = document.activeElement, c = getComputedStyle(e); return { on: !!e.closest('.mp-controls'), outline: `${c.outlineStyle} ${c.outlineWidth}` }; });
+    step('the zoom buttons are not dimmed and show a keyboard focus ring', rest === '1' && ring.on && ring.outline === 'solid 2px', `opacity ${rest}, ${ring.outline}`);
+  }
+  // the sound panel folds away on a press on a pin, which stops its own press going further
+  {
+    const pin = page.locator('.pview .pin').first();
+    await page.locator('.pview .speaker-btn').click(); await page.waitForTimeout(200);
+    const opened = await page.locator('.pview .speaker-panel').count();
+    if (await pin.count()) {
+      await pin.click({ force: true }); await page.waitForTimeout(300);
+      step('a press on a pin folds the sound panel away', opened === 1 && (await page.locator('.pview .speaker-panel').count()) === 0);
+    } else skip('a press on a pin folds the sound panel away', 'no pin on the world map');
+  }
+  // on a phone the speaker wraps along the top bar: its panel stays on the screen wherever it lands
+  {
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await phone.locator('.pview .speaker-btn').click(); await phone.waitForTimeout(200);
+    const controls = await phone.locator('.pview .speaker-panel input').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }));
+    step('on a phone every control in the sound panel is on the screen', controls.length === 4 && controls.every(Boolean), `${controls.filter(Boolean).length} of ${controls.length}`);
+    await phone.close();
+  }
   // a hidden or missing place under a WORKING link is not a dead link; an unknown token is
   // the public secrecy fixture, where map 61 is a DM-only interior; the local stack names its own
   const FIX = cfg.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337', HIDDEN = cfg.hiddenMap ?? 61;

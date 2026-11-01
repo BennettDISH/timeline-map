@@ -13,5 +13,10 @@
   // the wrapped top bar is taller than 46px, so the Player View's map column takes the grid's
   // second row instead of its fixed 46px offset, which hid the crumbs under the lantern bar
   .atlas.pview .main{position:relative;inset:auto;min-height:0}
+  // the speaker keeps to the right edge of whichever row it wraps to: its panel hangs from that
+  // edge, so from anywhere further left it would open off the screen
+  .atlas.pview .speaker{margin-left:auto}
+  // the editor squeezes the stage until ☰ and the ? button overlap: ☰ stays the one to be pressed
+  .atlas .railtoggle{z-index:$z-grip + 1}
   .atlas .spaceinfo{position:absolute;right:10px;top:52px;z-index:$z-hud;width:32px;height:32px;border-radius:50%;padding:0}
 }

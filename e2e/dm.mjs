@@ -22,9 +22,10 @@ try {
   await page.waitForSelector('.atlas .pin', { timeout: 30000 });
   step('workspace opens with pins', (await page.locator('.atlas .pin').count()) > 0);
   // the sliding session adopts only a LATER token for the same account: the browser's cache once
-  // replayed a refresh from days ago on a 304, and the expired token ended every fresh sign-in
-  {
-    const held = await page.evaluate(() => localStorage.getItem('auth_token'));
+  // replayed a refresh from days ago on a 304, and the expired token ended every fresh sign-in.
+  // (The session is a cookie since 2026-10: the first /me spends a stored token, leaving none to try.)
+  const held = await page.evaluate(() => localStorage.getItem('auth_token'));
+  if (held) {
     const [h, p, s] = held.split('.'), c = JSON.parse(Buffer.from(p, 'base64url'));
     const older = [h, Buffer.from(JSON.stringify({ ...c, iat: c.iat - 172800, exp: c.exp - 172800 })).toString('base64url'), s].join('.');
     const world = `**/api/atlas/worlds/${cfg.worldId}`;
@@ -527,6 +528,58 @@ try {
       await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     } finally {
       for (const n of [A, B]) if (n.nodeId) await fetch(`${BASE}/api/atlas/nodes/${n.nodeId}`, { method: 'DELETE', headers: J }).catch(() => {});
+    }
+  }
+  // the @ picker under the DM notes runs off a short window: ↑ ↓ bring the highlighted row into view
+  {
+    await page.setViewportSize({ width: 1280, height: 560 });
+    await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+    await page.waitForSelector('.atlas .pin', { timeout: 30000 });
+    if (!(await page.locator('.mode button.on', { hasText: 'Edit' }).count())) { await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400); }
+    await page.locator('.atlas .pin:not(.party)').first().focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+    const note = page.locator('[data-fld=note]');
+    const was = await note.inputValue();
+    await note.click(); await page.keyboard.press('Control+End'); await page.keyboard.type(' @'); await page.waitForTimeout(500);
+    const rows = await page.locator('.mpick [role=option]').count();
+    let unseen = 0;
+    for (let i = 0; i < rows; i++) {
+      await page.keyboard.press('ArrowDown'); await page.waitForTimeout(80);
+      const seen = await page.locator('.mpick [aria-selected="true"]').evaluate((e) => { const r = e.getBoundingClientRect(), b = e.closest('.mpick').getBoundingClientRect(); return r.top >= Math.max(0, b.top) - 1 && r.bottom <= Math.min(innerHeight, b.bottom) + 1; });
+      if (!seen) unseen++;
+    }
+    step('↑ ↓ keep the highlighted row of the @ picker in view', rows >= 2 && unseen === 0, `${rows} rows, ${unseen} out of view`);
+    await page.keyboard.press('Escape'); await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace'); await page.waitForTimeout(1200);
+    step('…and Esc leaves the text as it was', (await note.inputValue()) === was);
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
+  // a phone lands on the map; ☰ opens the tree over it, and Loose ends with it
+  {
+    const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
+    const setLoose = (on) => fetch(`${BASE}/api/atlas/worlds/${cfg.worldId}`, { method: 'PATCH', headers: J, body: JSON.stringify({ loose_ends: on }) });
+    await setLoose(true);
+    const ctxP = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await ctxP.addInitScript(({ token, user }) => { localStorage.setItem('auth_token', token); localStorage.setItem('user', JSON.stringify(user)); }, { token: cfg.token, user: cfg.user });
+    const ph = await ctxP.newPage();
+    try {
+      await ph.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await ph.waitForSelector('.atlas .pin', { timeout: 30000 });
+      step('a phone lands on the map with the tree shut', (await ph.locator('.rail').count()) === 0);
+      await ph.locator('.railtoggle').click(); await ph.waitForTimeout(300);
+      step('…☰ opens it, with Loose ends in it', await ph.locator('.rail .loosebtn').isVisible().catch(() => false));
+      await ph.locator('.loosebtn').click(); await ph.waitForTimeout(600);
+      const box = await ph.locator('.loosemodal').boundingBox().catch(() => null);
+      step('…and the list opens on the screen', !!box && box.x >= 0 && box.x + box.width <= 390, box ? `${Math.round(box.x)}–${Math.round(box.x + box.width)}px` : 'no list');
+      await ph.keyboard.press('Escape'); await ph.waitForTimeout(200);
+      await ph.locator('.railtoggle').click(); await ph.waitForTimeout(300);
+      step('…☰ shuts it again', (await ph.locator('.rail').count()) === 0);
+      await ph.reload({ waitUntil: 'networkidle' }); await ph.waitForSelector('.atlas .pin', { timeout: 30000 });
+      await ph.locator('.mode button', { hasText: 'Edit' }).click(); await ph.waitForTimeout(500);
+      const topmost = await ph.locator('.railtoggle').evaluate((t) => { const b = t.getBoundingClientRect(); return document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) === t; });
+      step('…and stays the one to press beside the editor', topmost);
+      await ph.locator('.mode button', { hasText: 'View' }).click(); await ph.waitForTimeout(200);
+    } finally {
+      await ctxP.close();
+      await setLoose(false);
     }
   }
   step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));

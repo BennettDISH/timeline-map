@@ -45,7 +45,9 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
 
 - `player.mjs` — the public Player View: pins and outlined places open sheets, the party pin
   reads its footstep story, ◎ enters an interior and ⬆ comes back, a ghost footprint is
-  clickable, the era bar scrubs into the past, no page errors. When canon has no footstep yet
+  clickable, the era bar scrubs into the past, a mention opens its entry's sheet on this map or
+  another, the zoom buttons show a keyboard ring, the sound panel folds on a press on a pin and
+  stays on a phone's screen, no page errors. When canon has no footstep yet
   (a new session), the party checks run at the party's last footstep in a revealed era, and
   with none there they are skipped, named as such. Needs a share token of a world that has a
   party trail and at least one player-visible era (`player.config.json` or `SHARE_TOKEN`).
@@ -66,8 +68,9 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
   selection while a clean tap clears it, a search hit is framed, an outline ends with the
   posture, Fit swallows its double-click, a pin's right-click menu is its own, Ctrl+Shift+B reaches the
   bug widget from inside the 🎭 frame, the ⚙ timeline panel (Edit only) saves as it goes and holds a
-  range that would move canon, an era outside the clock is flagged, and a lens outside a map's focus
-  period widens the bar (the clock and the interior's focus period are put back after). Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
+  range that would move canon, an era outside the clock is flagged, a lens outside a map's focus
+  period widens the bar (the clock and the interior's focus period are put back after), ↑ ↓ keep
+  the @ picker's highlighted row in view, and on a phone ☰ opens the tree with Loose ends. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
 `E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh` runs every suite against the local stack (no wait, no token renewal, no live secrecy suite). `E2E_LIVE=1 bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order there; `SKIP_WAIT=1` runs them at once. With neither, it stops.

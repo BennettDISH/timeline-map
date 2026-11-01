@@ -79,7 +79,7 @@
   &:hover{color:#c9a35f}}
 .atlas .timebar .tstep{position:absolute;top:2px;width:8px;height:8px;border-radius:50%;background:var(--sc,#38b6a3);border:1px solid #0d0f13;transform:translateX(-50%);padding:0;cursor:pointer;z-index:4}
 .atlas .timebar .tstep:hover{transform:translateX(-50%) scale(1.5)}
-.atlas .tbtn.off{opacity:.4}
+.atlas .tbtn.off{filter:grayscale(1)}
 .atlas .timebar .tstep.grp{width:10px;height:10px;border-width:2px}
 @media (max-width:600px){ // the era bar on its own two rows: the track wide, the clock under it
   .atlas .erabar{flex-wrap:wrap;height:auto;padding:6px 10px 8px;gap:4px 12px}

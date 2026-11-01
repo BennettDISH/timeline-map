@@ -26,9 +26,9 @@
   .lrow .llabel-input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;font:inherit;font-size:11px}
   // inspector: one-row category dots + primary actions row + compact footer
   .catrow{display:flex;align-items:center;gap:6px;margin-bottom:12px;
-    .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#fff;font-size:12px;
-      line-height:22px;text-align:center;cursor:pointer;opacity:.4;padding:0;flex:none}
-    .cdot:hover{opacity:.85}
+    .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#0d0f13;font-size:12px;
+      line-height:22px;text-align:center;cursor:pointer;opacity:.85;padding:0;flex:none}
+    .cdot:hover{opacity:1}
     .cdot.on{opacity:1;border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
     .catname{color:var(--muted);font-size:11.5px;margin-left:3px}}
   .primrow{display:flex;gap:6px;align-items:stretch;margin-bottom:6px;

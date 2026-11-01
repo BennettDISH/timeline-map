@@ -309,7 +309,8 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   and the database's `now` (the timestamps carry no zone; ages are read against the same clock);
   `server/lib/looseEnds.js` holds the rule. "Go" shows the entry like a search hit; "Not now"
   sets it aside in this browser (`atlas_loose_<world>`) until it comes up again or stays quiet for
-  another spell. The phone never opens the rail, so the list is a PC tool like the editor.
+  another spell. A phone lands on the map with the rail shut: ☰ opens it (the editor folds), and a
+  move to another map or "Go" shuts it again; nothing about it is remembered.
 - `eras` are named periods; ones marked `player_visible` let players scrub that stretch of
   the PAST in the Player View (`?t=` on the share map/locate endpoints). `allowedTime` in
   `share.js` enforces the rule server-side: a requested moment outside a revealed era, or
@@ -636,8 +637,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
   as written: a rename does not rewrite it. `utils/mentions.js` and `server/lib/mentions.js`
   hold the one pattern.
 - Players read mentions through `share.js`: one of an entry the threads' rule lets them know
-  exists stays a mention without its moment (its link is the sheet's ⌖ go there), and any other
-  is its bare name, so neither an id nor a moment of a hidden entry leaves the server. The
+  exists stays a mention without its moment (its link opens that entry's sheet: right there when
+  its pin is on the map, else on the map ⌖ would go to), and any other is its bare name, so neither an id nor a moment of a hidden entry leaves the server. The
   painter reads a mention as its name.
 
 ## API conventions

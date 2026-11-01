@@ -100,7 +100,10 @@ function AtlasWorkspace() {
   const [momentEdit, setMomentEdit] = useState(null) // string while typing an exact moment
   const [phone] = useState(isPhone)
   const [railPref, setRailOpen] = useFlag('atlas_rail', true)
-  const railOpen = railPref && !phone // a phone never opens the tree over the map
+  // a phone lands on the map: the tree opens on ☰ and shuts again on a move, remembered nowhere
+  const [phoneRail, setPhoneRail] = useState(false)
+  useEffect(() => { setPhoneRail(false) }, [mapId])
+  const railOpen = phone ? phoneRail : railPref
   const [inspOpen, setInspOpen] = useFlag('atlas_insp', true)
   const [stray, setStray] = useState(null)      // a node opened WITHOUT a placement (unplaced, or an orphaned interior's owner)
   const [refreshVer, setRefreshVer] = useState(0) // bumps after a Forge turn / Allow / Unmake: the inspector reseeds from the server
@@ -931,7 +934,12 @@ function AtlasWorkspace() {
     setDrawing(null); setCtx(null); setBdsOpen(false); setFocusEdit(null); setRenaming(null) // edit-only tools end with the posture
     writePref('atlas_mode', m)
   }
-  const toggleRail = () => setRailOpen((v) => !v)
+  const toggleRail = () => {
+    if (!phone) { setRailOpen((v) => !v); return }
+    // a narrow screen cannot hold tree, map and editor: the editor folds as the tree opens (▸ brings it back)
+    if (!phoneRail && !wide && inspOpen) setInspOpen(false)
+    setPhoneRail((v) => !v)
+  }
   const toggleInsp = () => setInspOpen((v) => !v)
 
   // drag the tree's right edge, twin of the editor handle
@@ -1493,7 +1501,7 @@ function AtlasWorkspace() {
               onGo={(id) => (String(id) === String(mapId) ? refreshMap() : navigate(`/w/${worldId}/m/${id}`))}
               onFile={fileMap} onOrder={orderMaps} />
             {tl?.enabled && <SessionNotes key={`notes${worldId}`} eras={world?.eras} lens={lens} canon={canon} onSave={eraPatch} />}
-            {world?.looseEnds && <LooseEnds key={`loose${worldId}`} worldId={worldId} onJump={jump} />}
+            {world?.looseEnds && <LooseEnds key={`loose${worldId}`} worldId={worldId} onJump={(id) => { setPhoneRail(false); jump(id) }} />}
           </div>
         )}
 

@@ -11,7 +11,7 @@
 }
 // ---- keyboard, dialogs and screen readers ----
 .atlas .top .brandsel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.atlas .pin:focus-visible,.atlas .trow:focus-visible,.atlas .lsrow:focus-visible,.atlas .crumbs a:focus-visible,.atlas .rtrail a:focus-visible,.atlas .lgo:focus-visible,.atlas .dmtrail a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.atlas .pin:focus-visible,.atlas .trow:focus-visible,.atlas .lsrow:focus-visible,.atlas .crumbs a:focus-visible,.atlas .rtrail a:focus-visible,.atlas .lgo:focus-visible,.atlas .dmtrail a:focus-visible,.atlas .mp-controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 // a clicked outline takes focus, and SVG draws its own ring on any :focus (not only :focus-visible,
 // as HTML does) in the map's 0–100 units: a thick black-and-white frame round the whole outline
 .atlas .region:focus{outline:none}

@@ -80,6 +80,7 @@ function PlayerView() {
   const helpRef = useRef(null)
   const loadSeq = useRef(0) // only the reply for the map the player is looking at now is painted
   const nodeSeq = useRef(0) // the last pin tapped owns the sheet
+  const sheetNext = useRef(null) // a mention's entry on another map: its sheet opens as that map does
   const [ambOn, setAmbOn] = useFlag('atlas_pv_amb', true) // the ambience: on until someone turns it off, remembered on this device
   const [printsOn, setPrintsOn] = useFlag('atlas_pv_prints', false) // 👣 where the party has been: off until asked for
   const audio = getAudio()
@@ -201,6 +202,9 @@ function PlayerView() {
     nodeSeq.current++ // a sheet asked for on the previous map never opens on this one
     setDetail(null); setLost(null); setLoadErr(null); setMarking(false); setMarkForm(null); setHelp(false)
     load()
+    const next = sheetNext.current
+    sheetNext.current = null
+    if (next != null) fetchSheet(next, viewTRef.current, () => say("Couldn't load that — tap it again."))
   }, [load])
 
   // Keep the view current without the player doing anything.
@@ -238,16 +242,26 @@ function PlayerView() {
   const goMap = (id) => { if (here(id)) load(); else navigate(`/p/${token}/m/${id}`) } // the URL already open refetches instead of a no-op
   // ⌖ "go there": where it stands now — or, if it only stood somewhere in the revealed past,
   // the era bar moves to that moment (the server says which) and the map follows
-  const goTo = (nodeId) =>
+  const goTo = (nodeId, go = goMap) =>
     shareService.locateNode(token, nodeId, viewT)
       .then(({ mapId: target, t }) => {
         if (t != null && t !== viewT) {
           setViewT(t)
           say(`Looking back to ${momentLabel(t, world?.eras || [], world?.timeline?.unit)} — that is when it was there`, 'info')
         }
-        if (target) goMap(target)
+        if (target) go(target, t ?? viewT)
       })
       .catch((e) => say(e?.response?.status === 404 ? 'Not on any map at this moment' : "Couldn't find where that is — try again."))
+  // a mention opens its entry: the sheet right here when its pin is on this map, else on the map
+  // ⌖ would go to, as that map opens
+  const openMention = (nodeId) => {
+    if (shownPlacements.some((p) => p.node.id === nodeId)) return openNode(nodeId)
+    return goTo(nodeId, (target, t) => {
+      if (t !== viewT) setDetail(null) // an open sheet follows the era bar, and would land over this one
+      if (here(target)) fetchSheet(nodeId, t, () => say("Couldn't load that — tap it again."))
+      else { sheetNext.current = nodeId; navigate(`/p/${token}/m/${target}`) }
+    })
+  }
   const enter = (node) => { if (node.hasInterior) goMap(node.interiorMapId) }
   // a tap on an outlined region (resolved under the pointer — see Regions.jsx)
   const regionAt = (e) => { const id = regionIdAt(e); return id == null ? null : ((data?.placements || []).find((p) => p.id === id) || null) }
@@ -507,7 +521,7 @@ function PlayerView() {
               {detail.node.player && (
                 <div className="sby">✍ a player's marker{detail.node.author ? `, signed “${detail.node.author}”` : ''}</div>
               )}
-              {detail.node.body && <p className="sbody"><MentionText text={detail.node.body} onGo={(id) => goTo(id)} /></p>}
+              {detail.node.body && <p className="sbody"><MentionText text={detail.node.body} onGo={(id) => openMention(id)} /></p>}
               {detail.node.voiceUrl && (
                 <div className="svoice">
                   <div className="rk">Voice line</div>

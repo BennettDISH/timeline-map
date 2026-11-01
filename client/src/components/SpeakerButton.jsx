@@ -28,9 +28,9 @@ export default function SpeakerButton({ ambience, onAmbience, onLevels, trouble 
     if (!open) return undefined
     const away = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false) }
     const esc = (e) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('pointerdown', away)
+    document.addEventListener('pointerdown', away, true) // capture: a pin stops its own press going further
     document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc) }
+    return () => { document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc) }
   }, [open])
 
   const silent = prefs.muted || !ambience

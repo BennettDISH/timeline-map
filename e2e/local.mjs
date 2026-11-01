@@ -114,8 +114,10 @@ const node = async (mapId, title, category, x, y, body) => {
 };
 const keep = await node(rootMap, 'The Keep', 'place', 60, 40, 'A grey keep on the hill.');
 const interior = (await A('POST', `/nodes/${keep.nodeId}/interior`, {})).mapId;
-await node(rootMap, 'Old Mill', 'place', 25, 70, 'The wheel still turns.');
-await node(interior, 'The Steward', 'person', 50, 40, 'She keeps the keys.');
+const mill = await node(rootMap, 'Old Mill', 'place', 25, 70, 'The wheel still turns.');
+const steward = await node(interior, 'The Steward', 'person', 50, 40, 'She keeps the keys.');
+// mentions for the Player View's checks: an entry on the same map, and one on another
+await A('PATCH', `/nodes/${mill.nodeId}`, { body: `The wheel still turns. The road runs up to @[The Keep](node:${keep.nodeId}), where @[The Steward](node:${steward.nodeId}) waits.` });
 // the party: a footstep on the world map from 15, then inside the keep from Session 3
 const party = await node(rootMap, 'The Party', 'party', 40, 55, 'Four travellers.');
 await A('PATCH', `/placements/${party.placementId}`, { start_time: 15, end_time: 29 });

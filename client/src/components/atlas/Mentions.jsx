@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import atlasService from '../../services/atlasService'
 import { cat } from '../../utils/categories'
 import { atQuery, insertMention, mentionToken, mentionsIn, rankEntries } from '../../utils/mentions'
@@ -28,6 +28,12 @@ export function MentionBox({ worldId, exclude, moment = null, canThread = false,
   const [nodes, setNodes] = useState(undefined) // the world's entries: undefined until the first @, then loading, a list, or null (failed)
   const [hi, setHi] = useState(0)
   const closed = useRef(null) // the @ that Esc closed: it stays closed until the caret leaves it
+  const pickBox = useRef(null)
+  const byKeys = useRef(false) // ↑ ↓ moved the highlight: it is scrolled to, as a row under the mouse never is
+  useEffect(() => {
+    if (byKeys.current) pickBox.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+    byKeys.current = false
+  }, [hi])
   const child = React.Children.only(children)
   const scan = () => {
     const el = box.current
@@ -58,6 +64,7 @@ export function MentionBox({ worldId, exclude, moment = null, canThread = false,
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closed.current = at.start; setAt(null); return }
       if (list.length) {
         e.preventDefault()
+        byKeys.current = true
         if (e.key === 'ArrowDown') setHi((h) => (h + 1) % list.length)
         else if (e.key === 'ArrowUp') setHi((h) => (h - 1 + list.length) % list.length)
         else pick(list[Math.min(hi, list.length - 1)])
@@ -77,14 +84,14 @@ export function MentionBox({ worldId, exclude, moment = null, canThread = false,
         onBlur: (e) => { setAt(null); child.props.onBlur?.(e) },
       })}
       {at && (
-        <div className="mpick" role="listbox" aria-label="Mention an entry">
+        <div className="mpick" ref={pickBox} role="listbox" aria-label="Mention an entry">
           {nodes === null ? <div className="muted esmall">Couldn't load the entries</div>
             : !Array.isArray(nodes) ? <div className="muted esmall">Loading…</div>
             : !list.length ? <div className="muted esmall">{at.query ? `No entry named like “${at.query}”` : 'No other entries yet'}</div>
             : list.map((n, i) => (
               // mousedown keeps the caret in the box, so the pick lands where the @ was
               <button key={n.id} type="button" role="option" aria-selected={i === hi} className={i === hi ? 'on' : ''}
-                onMouseDown={(e) => { e.preventDefault(); pick(n) }} onMouseEnter={() => setHi(i)}>
+                onMouseDown={(e) => { e.preventDefault(); pick(n) }} onMouseEnter={() => { byKeys.current = false; setHi(i) }}>
                 <span className="ic" style={{ background: cat(n.category).c }}>{cat(n.category).i}</span>
                 <span className="mname">{n.title}</span>
                 {n.visibility === 'dm' && <span className="glock" title="DM only">🔒</span>}

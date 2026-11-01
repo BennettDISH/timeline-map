@@ -23,8 +23,8 @@
   .markhint{position:absolute;left:10px;bottom:46px;z-index:$z-hud;color:#6fcf97;font-size:11.5px;font-style:italic;
     background:#0d0f13cc;border:1px dashed #6fcf9755;border-radius:6px;padding:4px 9px;pointer-events:none}
   .mcats{display:flex;align-items:center;gap:6px;margin:10px 0;
-    .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#fff;font-size:12px;
-      line-height:22px;text-align:center;cursor:pointer;opacity:.4;padding:0;flex:none}
+    .cdot{width:26px;height:26px;border-radius:50%;border:2px solid transparent;color:#0d0f13;font-size:12px;
+      line-height:22px;text-align:center;cursor:pointer;opacity:.85;padding:0;flex:none}
     .cdot.on{opacity:1;border-color:#fff;box-shadow:0 0 0 2px #6fcf97}
     .mcatname{color:var(--muted);font-size:11.5px}}
   .mnotearea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;
