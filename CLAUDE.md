@@ -71,8 +71,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   that stamps `last_seen_at`, the old-token reader), `middleware/auth.js` (`authenticateToken` =
   the kit's session check, `requireAdmin`), `lib/security.js` (the kit's headers with the Atlas's
   CSP additions and the Player View's embed contract). From fleet-kit (vendored as
-  `server/vendor/fleet-kit-1.0.8.tgz`; the client installs `fleet-kit-1.0.7.tgz` beside it for its
-  top bar until it is moved too, so that file stays; a kit
+  `server/vendor/fleet-kit-1.0.8.tgz`; the client installs the same file for its top bar; a kit
   change is a new kit version, never a re-packed tarball, and never edited here): trust proxy 1,
   the request log (one line per request: id, method, path with no query string and tokens as
   `:token`, status, time; the id is `X-Request-Id` and the error handler logs with it), the
