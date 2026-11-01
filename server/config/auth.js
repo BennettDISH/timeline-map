@@ -4,7 +4,7 @@
 // session is an httpOnly __Host-atlas_session cookie the browser sends with every call. What is
 // the Atlas's own is here: the users row, the admin rule's default, and moving browsers off the
 // old token.
-const { createWaypoint, verifyJwt, isAdmin } = require('fleet-kit/server');
+const { createWaypoint, verifyJwt, isAdmin, pathMatcher } = require('fleet-kit/server');
 const pool = require('./database');
 
 // Admin is a Waypoint IDENTITY, never a local role: the central ids in ADMIN_CENTRAL_USER_IDS.
@@ -19,11 +19,7 @@ const ACCOUNT = 'id, username, email, role, token_version, central_user_id, is_g
 // Is this path one of the admin's pages (/admin, /admin/worlds/:id) as the page's own router reads
 // it? That is any case (/ADMIN) and with its letters percent-encoded (/%61dmin): React Router
 // decodes them, Express's path does not, so the gate in server.js asks this, not a plain pattern.
-function isAdminPath(p) {
-  let decoded = String(p || '');
-  try { decoded = decodeURIComponent(decoded); } catch (e) { /* a malformed escape: read as it is */ }
-  return /^\/admin(?:\/|$)/i.test(decoded);
-}
+const isAdminPath = pathMatcher(/^\/admin(?:\/|$)/);
 
 /** The account a session names, or null when it is gone. */
 async function account(id) {
