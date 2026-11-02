@@ -823,6 +823,128 @@ try {
       await setLoose(false);
     }
   }
+  // a heads-up before the daily caps. On the local stack's second server (stubbed Forge and voices,
+  // tiny caps), each person a fresh account: their own count, read again after each use
+  if (cfg.paid) {
+    const P = cfg.paid, caps = P.caps;
+    const ctl = async (p, body) => (await fetch(`${P.stubUrl}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    await ctl('/reset', {});
+    const person = async (kind = {}) => {
+      const u = await ctl('/user', kind);
+      const call = (method, p, body) => fetch(`${P.baseUrl}${p}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${u.token}` }, body: body ? JSON.stringify(body) : undefined }).then((r) => r.json());
+      const world = (await call('POST', '/api/worlds', { name: `caps-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })).world.id;
+      const root = (await call('GET', `/api/atlas/worlds/${world}`)).world.rootMapId;
+      const node = (await call('POST', `/api/atlas/maps/${root}/nodes`, { title: 'Cap probe', x: 50, y: 50 })).nodeId;
+      await call('POST', `/api/voice/nodes/${node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
+      return { ...u, call, world, root, node };
+    };
+    const openAs = async (u, viewport = { width: 1400, height: 900 }) => {
+      const c = await browser.newContext({ viewport });
+      await c.addInitScript((token) => { localStorage.setItem('auth_token', token); }, u.token);
+      const p = await c.newPage();
+      await p.goto(`${P.baseUrl}/w/${u.world}/m/${u.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await p.waitForSelector('.atlas .pin', { timeout: 30000 });
+      if (!(await p.locator('.mode button.on', { hasText: 'Edit' }).count())) { await p.locator('.mode button', { hasText: 'Edit' }).click(); await p.waitForTimeout(400); }
+      return { c, p };
+    };
+    const openForge = async (p) => { await p.locator('.forgebtn').click(); await p.locator('.forge .fsend textarea').waitFor({ timeout: 20000 }); await p.waitForTimeout(500); };
+    const uses = async (p) => ((await p.locator('.forge .fuses').count()) ? (await p.locator('.forge .fuses').textContent()).trim() : null);
+    const readsOn = (loc) => loc.evaluate((el) => {
+      const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const lum = ([r, g, b]) => { const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+      let bg = el; while (bg && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(bg).backgroundColor)) bg = bg.parentElement;
+      const a = lum(rgb(getComputedStyle(el).color)), b = lum(rgb(getComputedStyle(bg || document.body).backgroundColor));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+    // the Forge, as an account: its own count falls with each use
+    const ann = await person();
+    {
+      const { c, p } = await openAs(ann);
+      try {
+        await openForge(p);
+        const start = await uses(p);
+        step('the Forge warns when one message may cost more than what is left', new RegExp(`^${caps.FORGE_DAILY_CAP} of ${caps.FORGE_DAILY_CAP} left today\\. One message can use up to 9`).test(start || ''), start || 'no line');
+        step('…in a colour that reads', (await readsOn(p.locator('.forge .fuses'))) >= 4.5, `${(await readsOn(p.locator('.forge .fuses'))).toFixed(2)}:1`);
+        await p.locator('.forge .fsend textarea').fill('hello');
+        await p.keyboard.press('Enter');
+        await p.locator('.forge .fmsg.mind').first().waitFor({ timeout: 30000 }); await p.waitForTimeout(1200);
+        const after = await uses(p);
+        step('…and the count falls after a message', new RegExp(`^${caps.FORGE_DAILY_CAP - 1} of ${caps.FORGE_DAILY_CAP} left today`).test(after || ''), after || 'no line');
+      } finally { await c.close(); }
+    }
+    // another account's page is not moved by Ann's use
+    const bob = await person();
+    {
+      const { c, p } = await openAs(bob);
+      try {
+        await openForge(p);
+        const line = await uses(p);
+        step("another DM's count starts whole, whatever Ann has used", new RegExp(`^${caps.FORGE_DAILY_CAP} of ${caps.FORGE_DAILY_CAP} left today`).test(line || ''), line || 'no line');
+        // the thresholds, with the numbers a real account would have
+        const fake = (allowance) => p.route('**/api/forge/status', (route) => route.fulfill({ json: { enabled: true, allowance, perMessage: 9 } }));
+        await p.unroute('**/api/forge/status').catch(() => {});
+        await fake({ limit: 40, used: 10, left: 30, resetsAt: '2030-01-01T00:00:00.000Z' });
+        await p.locator('.forgebtn').click(); await p.waitForTimeout(200); await openForge(p);
+        step('with plenty left the Forge says nothing', (await uses(p)) === null, (await uses(p)) || '');
+        await p.unroute('**/api/forge/status');
+        await fake({ limit: 40, used: 32, left: 8, resetsAt: '2030-01-01T00:00:00.000Z' });
+        await p.locator('.forgebtn').click(); await p.waitForTimeout(200); await openForge(p);
+        const near = await uses(p);
+        step('…and from 80% used it shows the count', /^8 of 40 left today\./.test(near || ''), near || 'no line');
+        await p.unroute('**/api/forge/status');
+      } finally { await c.close(); }
+    }
+    // voice: the count in the editor, falling after a recording
+    {
+      const { c, p } = await openAs(bob);
+      try {
+        await p.locator('.atlas .pin').first().focus(); await p.keyboard.press('Enter'); await p.locator('.insp [data-fld=line]').waitFor({ timeout: 20000 });
+        const vuses = () => p.locator('.insp .vuses').textContent().then((t) => t.trim());
+        const v0 = await vuses();
+        step('the editor shows voice recordings left today', v0 === `${caps.VOICE_DAILY_CAP} of ${caps.VOICE_DAILY_CAP} left today`, v0);
+        step('…in a colour that reads', (await readsOn(p.locator('.insp .vuses'))) >= 4.5, `${(await readsOn(p.locator('.insp .vuses'))).toFixed(2)}:1`);
+        await p.locator('.insp [data-fld=line]').fill('Thirty gold a head.');
+        await p.locator('.insp button', { hasText: 'Say it' }).click(); await p.waitForTimeout(1500);
+        const v1 = await vuses();
+        step('…and the count falls after a recording', v1.startsWith(`${caps.VOICE_DAILY_CAP - 1} of ${caps.VOICE_DAILY_CAP} left today`), v1);
+      } finally { await c.close(); }
+    }
+    // a guest gets theirs; here voice is shut for guests, and the editor says so before they try
+    const gale = await person({ guest: true });
+    {
+      const { c, p } = await openAs(gale);
+      try {
+        await openForge(p);
+        const line = await uses(p);
+        step('a guest is warned from the start, with their own count', new RegExp(`^${caps.FORGE_DAILY_CAP_GUEST} of ${caps.FORGE_DAILY_CAP_GUEST} left today\\. One message can use up to 9`).test(line || ''), line || 'no line');
+        await p.locator('.forgebtn').click(); await p.waitForTimeout(300);
+        await p.locator('.atlas .pin').first().focus(); await p.keyboard.press('Enter'); await p.locator('.insp [data-fld=line]').waitFor({ timeout: 20000 });
+        const v = (await p.locator('.insp .vuses').textContent()).trim();
+        step('…and told when voice is shut for them', /^Voice isn't open to this account$/.test(v), v);
+      } finally { await c.close(); }
+    }
+    // a phone: both lines stay on the screen
+    {
+      const { c, p } = await openAs(ann, { width: 375, height: 812 });
+      try {
+        await p.locator('.atlas .pin').first().focus(); await p.keyboard.press('Enter'); await p.locator('.insp .vuses').waitFor({ timeout: 20000 });
+        await p.locator('.insp .vuses').scrollIntoViewIfNeeded();
+        const v = await p.locator('.insp .vuses').boundingBox();
+        const sideways = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+        step('on a phone the voice count stays on the screen, with no sideways scroll', !!v && v.x >= 0 && v.x + v.width <= 375 && !sideways, v ? `${Math.round(v.x)}–${Math.round(v.x + v.width)}px of 375` : 'no line');
+        if (process.env.E2E_SHOTS) await p.screenshot({ path: `${process.env.E2E_SHOTS}/voice-phone.png` });
+        if (await p.locator('.forgebtn').isVisible().catch(() => false)) {
+          await openForge(p);
+          const f = await p.locator('.forge .fuses').boundingBox();
+          const across = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+          step('…and so does the Forge line', !!f && f.x >= 0 && f.x + f.width <= 375 && !across, f ? `${Math.round(f.x)}–${Math.round(f.x + f.width)}px of 375` : 'no line');
+          if (process.env.E2E_SHOTS) await p.screenshot({ path: `${process.env.E2E_SHOTS}/forge-phone.png` });
+        } else console.log('skip the ✦ Forge button is not on a phone');
+      } finally { await c.close(); }
+    }
+    for (const u of [ann, bob, gale]) await u.call('DELETE', `/api/worlds/${u.world}`).catch(() => {});
+    await ctl('/reset', {});
+  }
   step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();

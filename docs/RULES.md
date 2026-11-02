@@ -428,6 +428,13 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   feature for that group. Admins (`isAdmin`) are never capped and never spend the ceiling; their
   use is still counted on their own row. The defaults are a guess (a heavy turn with a full bible
   is tens of cents, a painting about 4 cents).
+- **A heads-up before the cap** (`client/src/utils/allowance.js`; each `/status` sends the signed-in
+  account's own `allowance`, guests' too): under the Forge's message box "N of 40 left today" from
+  about 80% used, and as soon as one message may cost more than what is left (`perMessage`: the turn
+  plus `CAPS.images` paintings, so a guest's 5 warns from the start); under Say it in the editor's
+  voice section "N of 20 left today", always. The count is this account's `limit - used`; `left` also
+  holds everyone's ceiling, which gets its own words with no number. An admin sees neither. Both read
+  today's again after anything that can spend a use.
 - A refused call is a **429** with one sentence that says when the uses come back (midnight UTC),
   checked after every 400/404/409 so a refused input never spends, and before the provider is
   called. The spend is an upsert that only adds while it stays under the cap, inside one

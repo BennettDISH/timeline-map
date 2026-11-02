@@ -272,13 +272,15 @@ function AtlasWorkspace() {
   }, [worldId, mapId, navigate])
   const refreshMap = () => loadMap(false) // background refresh: keeps the canvas up while fetching
 
-  useEffect(() => { forgeService.status().then(setForgeOn) }, [])
+  useEffect(() => { forgeService.status().then((s) => setForgeOn(!!s.enabled)) }, [])
   useEffect(() => {
     voiceService.status().then((m) => {
       setVoiceMeta(m || { enabled: false })
       if (m?.enabled) loadVoices()
     })
   }, [])
+  // a line or an ambience was asked for: the editor's count reads today's again
+  useEffect(() => voiceService.onSpend(() => voiceService.status().then((m) => { if (m?.allowance) setVoiceMeta((v) => ({ ...v, allowance: m.allowance })) })), [])
   // every write goes through track(): the header chip and the error toast stay honest
   const setNodeVoice = (nodeId, voiceId, voiceName, voiceStyle) =>
     track(voiceService.setVoice(nodeId, voiceId, voiceName, voiceStyle), "Couldn't set the voice")

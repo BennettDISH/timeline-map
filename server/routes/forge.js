@@ -13,7 +13,7 @@ const { resolveImageUrl } = require('../utils/imageUrl');
 const { plainMentions } = require('../lib/mentions');
 const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
-const { discardBatch, allowAsks, paintAndStore } = require('../forge/contract');
+const { discardBatch, allowAsks, paintAndStore, CAPS } = require('../forge/contract');
 const spend = require('../lib/spend');
 const { refuseWithoutStorage } = require('../lib/storeImage');
 const router = express.Router();
@@ -21,10 +21,11 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // `allowance` is today's Forge spend for this account (lib/spend.js); a database blip leaves it
-// out rather than switch the panel off
+// out rather than switch the panel off. `perMessage` is the most one message can use: the turn,
+// and one for each painting a proposal may hold.
 router.get('/status', async (req, res) => {
   const allowance = await spend.allowance(req.user, 'forge').catch(() => null);
-  res.json({ enabled: enabled(), allowance });
+  res.json({ enabled: enabled(), allowance, perMessage: 1 + CAPS.images });
 });
 
 // The harness switch: everything below simply does not exist when the Forge is off.

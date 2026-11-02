@@ -6,6 +6,7 @@ import { spanLabel } from '../../utils/moment'
 import { descriptionWarning } from '../../utils/timeline'
 import { wholeOr, REVERSED, coveringFact, periodBlur } from './helpers'
 import { MentionBox, MentionChips } from './Mentions'
+import { voiceLine } from '../../utils/allowance'
 
 // The editor (the right-hand panel in Edit posture): one selected placement and its node.
 // Every save goes through the callbacks the workspace passes in; this file holds no service calls.
@@ -284,6 +285,10 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
               {n.voiceUrl && <button className="lx" title="Remove the line — its audio is deleted; recording again costs a new generation"
                 onClick={() => { if (window.confirm('Remove this recorded line? Its audio is deleted, and recording again costs a new generation.')) onClearLine() }}>✕</button>}
             </div>
+            {(() => {
+              const uses = voiceLine(voiceMeta?.allowance)
+              return uses && <div className={`muted esmall vuses${uses.warn ? ' warn' : ''}`} role="status" title="Each line and each ambience is one recording, counted for your account">{uses.text}</div>
+            })()}
           </div>
         </>
       )}

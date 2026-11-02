@@ -54,6 +54,9 @@
 .atlas .fmsg.failed{opacity:.8;border:1px dashed #b07bd0}
 .atlas .ffail{font-size:11px;color:#c9a35f;margin-top:4px}
 .atlas .fcount{font-size:11px;color:var(--muted);margin-left:6px;align-self:center}
+// today's Forge uses, under the box: from about 80% used, or when a message may cost more than is left
+.atlas .forge .fuses{padding:0 12px 10px;font-size:12px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere;
+  &.warn{color:#d9a441}}
 .atlas .forge .gear.dirty{color:#c9a35f}
 .atlas .fask.gone{opacity:.6;text-decoration:line-through}
 // the Forge column resizes from its left edge, like the editor and the tree

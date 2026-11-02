@@ -429,8 +429,14 @@ if (cfg?.paid) {
     const a2 = await allowance(dm, 'forge', BASE);
     step('the count is in the database: the other server process (never sent a call) reads the same uses, so a restart keeps them',
       a1?.used === caps.FORGE_DAILY_CAP && a1.left === 0 && a2?.used === caps.FORGE_DAILY_CAP, `paid ${JSON.stringify(a1)} / other ${JSON.stringify(a2)}`);
+    const bystander = await account();
+    const by = await allowance(bystander);
+    const perMessage = (await bystander.call('GET', '/api/forge/status')).body?.perMessage;
+    step("one account's uses are not in another's count, and the status says the most one message can use", by?.used === 0 && by.limit === caps.FORGE_DAILY_CAP && perMessage === 9, `${JSON.stringify(by)} perMessage ${perMessage}`);
 
     const guest = await account({ guest: true });
+    const g0 = [await allowance(guest), await allowance(guest, 'voice')];
+    step('a guest is told their own allowances', g0[0]?.limit === caps.FORGE_DAILY_CAP_GUEST && g0[0].used === 0 && g0[1]?.limit === caps.VOICE_DAILY_CAP_GUEST, JSON.stringify(g0));
     const g = [await chat(guest, 'hello'), await chat(guest, 'hello again')];
     step(`a guest gets the guest cap (${caps.FORGE_DAILY_CAP_GUEST}) and its own sentence`, g[0].status === 200 && g[1].status === 429
       && new RegExp(`^Guests get ${caps.FORGE_DAILY_CAP_GUEST} Forge use${caps.FORGE_DAILY_CAP_GUEST === 1 ? '' : 's'} a day, and today's are used`).test(said(g[1])), `${g.map((x) => x.status).join('/')} ${said(g[1])}`);

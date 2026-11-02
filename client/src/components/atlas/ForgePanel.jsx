@@ -3,6 +3,7 @@ import forgeService from '../../services/forgeService'
 import { errText } from '../../services/http'
 import { ImagePicker } from './Pickers'
 import { trunc } from './helpers'
+import { forgeLine } from '../../utils/allowance'
 
 // ---- The Forge: the world's mind, as a conversation ------------------------------
 // One box, no modes: the mind reads what the DM wants — a question, a session recap, a
@@ -37,6 +38,14 @@ export default function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onCl
   const bibleRef = useRef(null)
   const logRef = useRef(null)
   useEffect(() => { setOmitSel(false) }, [sel?.node?.id])
+  // today's uses for whoever is signed in, read again after anything that can spend one (a message here, ✦ Paint anywhere)
+  const [uses, setUses] = useState(null)
+  useEffect(() => {
+    const read = () => forgeService.status().then(setUses)
+    read()
+    return forgeService.onSpend(read)
+  }, [])
+  const usesLine = forgeLine(uses?.allowance, uses?.perMessage)
 
   const fromServer = (d) => ({ artStyle: d.artStyle || '', lore: d.lore || '', bible: d.bible || '', genSize: d.genSize || 'medium', styleImage: d.styleImage || null })
   // the mind's state is refreshed after every reply (a recap appends memory): fields the DM
@@ -311,6 +320,7 @@ export default function ForgePanel({ worldId, map, sel, onFlash, onRefresh, onCl
           <button className="btn primary" disabled={!!busy || !text.trim()} onClick={send}>Send</button>
           {text.length > 9000 && <span className="fcount">{text.length.toLocaleString()} / 12,000</span>}
         </div>
+        {usesLine && <div className={`fuses${usesLine.warn ? ' warn' : ''}`} role="status">{usesLine.text}</div>}
       </div>
       </>)}
       {anchorPick && (
