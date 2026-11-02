@@ -128,6 +128,10 @@ await A('POST', `/nodes/${party.nodeId}/facts`, { body: 'Inside the keep, the st
 const vault = (await A('POST', `/maps/${rootMap}/nodes`, { title: 'Sealed Vault', category: 'place', x: 80, y: 80 })).nodeId;
 const hiddenMap = (await A('POST', `/nodes/${vault}/interior`, {})).mapId;
 const shareToken = (await A('POST', `/worlds/${worldId}/share`)).token;
+// sound is the DM's choice: the world map has a stock bed and the world its cues, for the Player View's
+// sound panel checks; the Keep's interior is left silent
+await A('PATCH', `/maps/${rootMap}`, { ambience_bed: 'amb.wilds' });
+await A('PATCH', `/worlds/${worldId}`, { sound_cues: true });
 
 const cfg = { baseUrl: BASE, token, user, worldId, root: rootMap, interior, shareToken, fixtureToken: shareToken, hiddenMap, local: true,
   paid: { baseUrl: PAID_BASE, stubUrl: `http://127.0.0.1:${STUB_PORT}`, caps: PAID_CAPS } };

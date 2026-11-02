@@ -14,8 +14,8 @@ import AudioClip from '../components/AudioClip'
 import PartyTrail, { trailSteps } from '../components/PartyTrail'
 import { useFlag } from '../hooks/prefs'
 import SpeakerButton from '../components/SpeakerButton'
-import { getAudio, cue } from '../audio'
-import { bedFor, titlesOf } from '../audio/beds'
+import { getAudio, cue, loadStock } from '../audio'
+import { chosenSound } from '../audio/names'
 import { levelOf, rampTo } from '../audio/elementBed'
 import Regions, { regionIdAt, styleOf } from '../components/Regions'
 import MentionText from '../components/MentionText'
@@ -81,13 +81,16 @@ function PlayerView() {
   const loadSeq = useRef(0) // only the reply for the map the player is looking at now is painted
   const nodeSeq = useRef(0) // the last pin tapped owns the sheet
   const sheetNext = useRef(null) // a mention's entry on another map: its sheet opens as that map does
-  const [ambOn, setAmbOn] = useFlag('atlas_pv_amb', true) // the ambience: on until someone turns it off, remembered on this device
+  const [ambOn, setAmbOn] = useFlag('atlas_pv_amb', true) // the DM's ambience, once they chose one: this device can turn it off
   const [printsOn, setPrintsOn] = useFlag('atlas_pv_prints', false) // 👣 where the party has been: off until asked for
   const audio = getAudio()
-  const ambienceUrl = data?.map?.ambienceUrl || null // an ambience the DM made for this map: plays in the <audio> element below
-  // …else the bed for the kind of place the map is, crossfaded in as the player moves between maps
-  // (audio/beds.js). Nothing sounds until the page's first tap or key; the bed starts then.
-  const bed = data?.map ? bedFor(titlesOf(data.map, data.breadcrumb)) : null
+  // Only what the DM chose sounds here. A map starts silent, and so do the cues: a silent page opens
+  // no sound and fetches no file. `ambienceUrl` is the DM's own, in the <audio> element below; `bed`
+  // a stock bed they picked, crossfaded as the player moves between maps. Nothing sounds until the
+  // page's first tap or key; a bed starts then.
+  const { url: ambienceUrl, bed, cues: cuesOn, any: soundChosen } = chosenSound(data?.map, world)
+  const stockChosen = !!bed || cuesOn
+  useEffect(() => { if (stockChosen) loadStock() }, [stockChosen])
   useEffect(() => { audio.bed('ambience', ambOn && !ambienceUrl ? bed : null, 2.4) }, [audio, ambOn, ambienceUrl, bed])
   // the DM's own ambience: in as the map opens (after the first gesture the browser lets it), out as it closes
   const fading = useRef(null)
@@ -116,8 +119,8 @@ function PlayerView() {
   }, [audio, ambOn, ambienceUrl, mapId])
   // mute and the levels reach the DM's ambience at once
   const ambLevels = (p) => { const a = ambRef.current; if (a && !a.paused) rampTo(a, levelOf(p), 150) }
-  // a new pin on this map (the DM revealed it, or the clock moved on) gets a soft cue — not on
-  // opening a map, and not while the player is scrubbing, which has its own sounds
+  // With the DM's cues on: a new pin on this map (the DM revealed it, or the clock moved on) gets a
+  // soft cue — not on opening a map, and not while the player is scrubbing, which has its own sounds
   const revealed = useRef({ mapId: null, viewT: null, ids: null })
   useEffect(() => {
     if (!data?.map || !world) return
@@ -126,17 +129,17 @@ function PlayerView() {
     const ids = new Set((data.placements || []).filter((p) => p.node?.category !== 'party' && (!tl?.enabled || isPresent(p, at))).map((p) => p.id))
     const prev = revealed.current
     if (prev.ids && prev.mapId === data.map.id && prev.viewT === viewT) {
-      for (const id of ids) if (!prev.ids.has(id)) { cue('ui.reveal'); break }
+      if (cuesOn) for (const id of ids) if (!prev.ids.has(id)) { cue('ui.reveal'); break }
     }
     revealed.current = { mapId: data.map.id, viewT, ids }
-  }, [data, world, viewT])
+  }, [data, world, viewT, cuesOn])
   // the era bar: a tick for every step, a bell on crossing into another era, a rush back to now
   const lastEra = useRef(null)
   const eraAt = (t) => (world?.eras || []).find((e) => t >= e.start && t <= e.end)?.name ?? null
   const moveTo = (t) => {
-    if (t == null) { cue('ui.now'); lastEra.current = null } else {
+    if (t == null) { if (cuesOn) cue('ui.now'); lastEra.current = null } else {
       const era = eraAt(t)
-      if (era !== lastEra.current) cue('ui.era'); else cue('ui.scrub', { throttleMs: 60 })
+      if (cuesOn) { if (era !== lastEra.current) cue('ui.era'); else cue('ui.scrub', { throttleMs: 60 }) }
       lastEra.current = era
     }
     setViewT(t)
@@ -373,7 +376,7 @@ function PlayerView() {
             🕓 {viewT != null ? `${momentLabel(viewT, world.eras, tl.unit)} · the past` : momentLabel(tl.current, world.eras, tl.unit)}
           </span>
         )}
-        <SpeakerButton ambience={ambOn} onAmbience={setAmbOn} onLevels={ambLevels} trouble={ambErr} />
+        {soundChosen && <SpeakerButton hasAmbience={!!ambienceUrl || !!bed} hasCues={cuesOn} ambience={ambOn} onAmbience={setAmbOn} onLevels={ambLevels} trouble={ambErr} />}
         {ambienceUrl && <audio ref={ambRef} loop preload="none" src={ambienceUrl} />}
       </div>
 

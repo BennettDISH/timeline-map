@@ -358,6 +358,10 @@ ALTER TABLE worlds ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT
 -- the DM turns it on for the world in Map ▾. A copy of the world keeps the setting.
 ALTER TABLE worlds ADD COLUMN IF NOT EXISTS loose_ends BOOLEAN NOT NULL DEFAULT false;
 
+-- The Player View's stock sound cues (a new pin, the era bar moving) are off until the DM turns
+-- them on for the world, beside the map's ambience in the editor. A copy of the world keeps the setting.
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS sound_cues BOOLEAN NOT NULL DEFAULT false;
+
 CREATE INDEX IF NOT EXISTS idx_nodes_world ON nodes(world_id);
 CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
 CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);

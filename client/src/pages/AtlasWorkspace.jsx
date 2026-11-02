@@ -10,6 +10,7 @@ import Modal from '../components/Modal'
 import forgeService from '../services/forgeService'
 import voiceService from '../services/voiceService'
 import AudioClip from '../components/AudioClip'
+import SoundLibrary from '../components/atlas/SoundLibrary'
 import PartyTrail from '../components/PartyTrail'
 import Regions, { regionIdAt, styleOf, STYLE_KEYS, OUTLINE_PRESETS } from '../components/Regions'
 import { momentLabel, sessionOf, sessionColor, partyNeighbors, spanLabel, sessionLabel, stepTag, sessionNum, latestSession } from '../utils/moment'
@@ -297,15 +298,22 @@ function AtlasWorkspace() {
     const id = map.id // the reply lands on the map it was sent for, not whichever is open by then
     setAmbBusy(true)
     return track(voiceService.setAmbience(id, prompt), 'No sound came back')
-      .then((r) => { setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt } } : d); setFlash({ kind: 'ok', text: 'Ambience ready' }) })
+      .then((r) => { setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: r.url, ambiencePrompt: r.prompt, ambienceBed: null } } : d); setFlash({ kind: 'ok', text: 'Ambience ready' }) })
       .catch(() => {})
       .finally(() => setAmbBusy(false))
   }
   const clearAmbience = () => {
     const id = map.id
     return track(voiceService.clearAmbience(id), "Couldn't remove the ambience")
-      .then(() => setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null } } : d))
+      .then(() => setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceUrl: null, ambiencePrompt: null, ambienceBed: null } } : d))
       .catch(() => {})
+  }
+  // a stock bed from the library for this map, or none (a refused save puts it back)
+  const pickBed = (bed) => {
+    const id = map.id, was = map.ambienceBed ?? null
+    const show = (v) => setMapData((d) => (d && d.map?.id === id) ? { ...d, map: { ...d.map, ambienceBed: v } } : d)
+    show(bed)
+    return track(atlasService.patchMap(id, { ambience_bed: bed }), "Couldn't save the ambience").catch(() => show(was))
   }
   const toggleForge = () => {
     const nv = !forgeOpen
@@ -999,6 +1007,13 @@ function AtlasWorkspace() {
     const ok = await track(atlasService.patchWorld(worldId, { loose_ends: on }), "Couldn't save the Loose ends setting").then(() => true, () => false)
     if (!ok) { setWorld((w) => w && ({ ...w, looseEnds: !on })); return }
     if (on) setFlash({ kind: 'ok', text: railOpen ? 'Loose ends are on: 🧵 under the session notes' : 'Loose ends are on: 🧵 in the map tree (☰)' })
+  }
+  // the stock sound cues are a world setting, off until the DM turns them on (a refused save puts it back)
+  const toggleSoundCues = async () => {
+    const on = !world?.soundCues
+    setWorld((w) => w && ({ ...w, soundCues: on }))
+    const ok = await track(atlasService.patchWorld(worldId, { sound_cues: on }), "Couldn't save the sound cues").then(() => true, () => false)
+    if (!ok) setWorld((w) => w && ({ ...w, soundCues: !on }))
   }
   const enableTimeline = () => {
     // the clock survives being switched off: keep the stored range, unit and canon unless
@@ -2036,19 +2051,24 @@ function AtlasWorkspace() {
                   onChange={(e) => saveMapNote(map.id, e.target.value)}
                   onBlur={flushNote} />
               ) : <div className="muted esmall">Opening…</div>}
-              {voiceOn && voiceMeta.ambience && (
-                <>
-                  <div className="isect">Ambience — players can play it here</div>
-                  <input className="ambin" maxLength={400} value={ambText} onChange={(e) => setAmbText(e.target.value)}
-                    placeholder="the sound of this place — “cold surf on slate, wind through rigging, a far bell”"
-                    disabled={ambBusy}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.repeat && !ambBusy && ambText.trim()) setAmbience(ambText.trim()) }} />
-                  <div className="vrow">
-                    <button className="btn" disabled={ambBusy} onClick={() => { const v = ambText.trim(); if (v) setAmbience(v) }}>{ambBusy ? 'Making…' : '🔊 Make it'}</button>
-                    {map?.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
-                    {map?.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
-                  </div>
-                </>
+              {map && (
+                <SoundLibrary key={map.id} bed={map.ambienceBed || null} own={!!map.ambienceUrl} canRemove={voiceOn && !!voiceMeta.ambience}
+                  onPick={pickBed} cues={!!world?.soundCues} onCues={toggleSoundCues}>
+                  {voiceOn && voiceMeta.ambience && (
+                    <>
+                      <label className="muted esmall" htmlFor={`ambin-${map.id}`}>Or make your own</label>
+                      <input id={`ambin-${map.id}`} className="ambin" maxLength={400} value={ambText} onChange={(e) => setAmbText(e.target.value)}
+                        placeholder="the sound of this place — “cold surf on slate, wind through rigging, a far bell”"
+                        disabled={ambBusy}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.repeat && !ambBusy && ambText.trim()) setAmbience(ambText.trim()) }} />
+                      <div className="vrow">
+                        <button className="btn" disabled={ambBusy} onClick={() => { const v = ambText.trim(); if (v) setAmbience(v) }}>{ambBusy ? 'Making…' : '🔊 Make it'}</button>
+                        {map.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
+                        {map.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" aria-label="Remove this ambience" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
+                      </div>
+                    </>
+                  )}
+                </SoundLibrary>
               )}
               <hr />
               <div className="empty sphint">{isList ? <>Click a row to edit it — or use <b>＋ Add entry</b> to add one.</> : <>Click an entry to edit it — or use <b>＋ Add entry</b>, then click the map.</>}</div>

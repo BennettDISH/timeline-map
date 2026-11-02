@@ -202,7 +202,19 @@ if (cfg?.shareToken && cfg?.token && cfg?.root) {
     const afar = await lastUp();
     step('…and one written in another world does not', foreign && afar[inBody] === after[inBody], `${after[inBody]} → ${afar[inBody]}`);
     if (other) await fetch(`${BASE}/api/worlds/${other}`, { method: 'DELETE', headers: H });
-    const party = (await json(await dm('GET', `/worlds/${cfg.worldId}/nodes`)))?.nodes?.find((x) => x.category === 'party');
+    // a copy of a world keeps its sound: the cues, and each map's stock pick
+    const loud = (await json(await fetch(`${BASE}/api/worlds`, { method: 'POST', headers: H, body: JSON.stringify({ name: `server-probe-sound-${Date.now()}` }) })))?.world?.id;
+    const loudRoot = loud && (await json(await dm('GET', `/worlds/${loud}`)))?.world?.rootMapId;
+    if (loudRoot) {
+      await dm('PATCH', `/worlds/${loud}`, { sound_cues: true });
+      await dm('PATCH', `/maps/${loudRoot}`, { ambience_bed: 'amb.storm' });
+      const copied = (await json(await dm('POST', '/worlds/clone', { source_id: loud, name: `server-probe-sound-copy-${Date.now()}` })))?.worldId;
+      const cw = copied && (await json(await dm('GET', `/worlds/${copied}`)))?.world;
+      const cm = cw?.rootMapId && (await json(await dm('GET', `/maps/${cw.rootMapId}`)))?.map;
+      step("a copy of a world keeps its cues and each map's stock pick", cw?.soundCues === true && cm?.ambienceBed === 'amb.storm', `${cw?.soundCues} ${cm?.ambienceBed}`);
+      for (const wid of [loud, copied]) if (wid) await fetch(`${BASE}/api/worlds/${wid}`, { method: 'DELETE', headers: H });
+    }
+    const party =(await json(await dm('GET', `/worlds/${cfg.worldId}/nodes`)))?.nodes?.find((x) => x.category === 'party');
     if (party) {
       const fact = await json(await dm('POST', `/nodes/${party.id}/facts`, { body: `On the road: @[One](node:${inBody}).`, start_time: null, end_time: null }));
       const walked = await lastUp();
@@ -478,11 +490,24 @@ if (cfg?.paid) {
       lines.slice(0, 2).every((x) => x.status === 200) && [lines[2], amb].every((x) => x.status === 429 && vwant.test(said(x))) && c1.speech - c0.speech === 2 && c1.ambience === c0.ambience,
       `${lines.map((x) => x.status).join('/')} ${amb.status} ${said(amb)} speech ${c1.speech - c0.speech}`);
     await other.call('POST', `/api/voice/nodes/${other.node}/voice`, { voice_id: 'Kore', voice_name: 'Kore' });
+    const stockFirst = await other.call('PATCH', `/api/atlas/maps/${other.root}`, { ambience_bed: 'amb.sea' });
     const oamb = await other.call('POST', `/api/voice/maps/${other.root}/ambience`, { prompt: 'wind in the reeds' });
     const oline = await other.call('POST', `/api/voice/nodes/${other.node}/line`, { text: 'Hello' });
     const av = await allowance(dm, 'voice');
     step('voice has its own ceiling: an ambience fills it, the next line is refused for everyone', oamb.status === 200 && oline.status === 429
       && /^Voice has reached its daily limit for everyone/.test(said(oline)) && av?.used === caps.VOICE_DAILY_CAP && av.left === 0, `${oamb.status} ${said(oamb)} / ${oline.status} ${said(oline)}`);
+    // a map's own ambience and a stock pick: the file a DM paid for is never lost to a pick
+    const mapNow = async () => (await other.call('GET', `/api/atlas/maps/${other.root}`)).body?.map;
+    const made1 = await mapNow();
+    const pickOver = await other.call('PATCH', `/api/atlas/maps/${other.root}`, { ambience_bed: 'amb.forest' });
+    const made2 = await mapNow();
+    step("making an ambience replaces a stock pick, and a pick can't replace that file", stockFirst.status === 200 && !!made1?.ambienceUrl && made1.ambienceBed === null && made1.ambiencePrompt === 'wind in the reeds'
+      && pickOver.status === 409 && made2?.ambienceUrl === made1.ambienceUrl, `${stockFirst.status} ${pickOver.status} ${said(pickOver)}`);
+    const removed = await other.call('DELETE', `/api/voice/maps/${other.root}/ambience`);
+    const made3 = await mapNow();
+    const pickAfter = await other.call('PATCH', `/api/atlas/maps/${other.root}`, { ambience_bed: 'amb.forest' });
+    const made4 = await mapNow();
+    step('…and once it is removed the map is silent until the next pick', removed.status === 200 && !made3?.ambienceUrl && made3?.ambienceBed === null && pickAfter.status === 200 && made4?.ambienceBed === 'amb.forest', `${removed.status} ${pickAfter.status}`);
   } finally {
     for (const [call, wid] of made) await call('DELETE', `/api/worlds/${wid}`);
   }

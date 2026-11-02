@@ -477,18 +477,31 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   mute and levels (`atlas_audio_prefs`), crossfaded beds. Nothing sounds before the page's first
   tap or key (the browsers' rule); a bed asked for before that starts then. A name with no file
   is silence, never an error.
-- **Ambience is on by default** and remembered: `atlas_pv_amb` ('on' until someone turns it off).
-  The speaker button in the Player View's top bar holds Play ambience, Mute and the Ambience and
-  Effects levels. A map the DM made an ambience for (`maps.ambience_url`, above) plays that, in an
-  `<audio>` element (its host sends no CORS headers Web Audio could read), faded in and out and
-  held to the same mute and levels. Every other map is heard as the kind of place its name says:
-  one of seven stock beds (wilds, forest, town, sea, dungeon, mountain, storm) chosen by
-  `client/src/audio/beds.js` from the map's title, then its parents' (the open country when none
-  names a place), and moving between maps crossfades. No saved map changes. Not a column: a DM who
-  wants exact control makes the map an ambience.
-- Cues: `ui.reveal` when a pin newly appears on the map being looked at (the DM revealed it, or
-  the clock moved on; not on opening a map, not while scrubbing), `ui.scrub` for each step of the
-  era bar, `ui.era` on crossing into another era, `ui.now` for ⦿ Now.
+- **Silent until the DM chooses** (`chosenSound` in `audio/names.js`): a map plays nothing and a
+  world has no cues until the DM says so. A silent page shows no speaker, opens no AudioContext and
+  fetches no sound file. Only the DM's own session sets these: `PATCH /maps/:id` and
+  `PATCH /worlds/:id`, 404 for another account, 401 signed out; a share link only reads them.
+- A map's ambience is one of two things, chosen in the map panel. **Its own**: the one the DM made
+  (`maps.ambience_url`, above) plays in an `<audio>` element (its host sends no CORS headers Web
+  Audio could read), faded in and out and held to the same mute and levels. **A stock bed**: one of
+  seven (wilds, forest, town, sea, dungeon, mountain, storm) picked from the library, played in Web
+  Audio, and moving between maps crossfades. A pick is `maps.ambience_prompt = 'stock:amb.forest'`
+  with `ambience_url` NULL (`server/lib/stockBeds.js`), so it is no file to anything that handles
+  one, a world copy and Undo keep it, and the DM's own prompt box never shows the mark. Its own
+  file wins: a pick on such a map is a 409, and only its ✕ removes it, since it cost a generation.
+  Players get a bed by name (`ambienceBed`) and never a prompt.
+- Previews (▶ in the library, `components/atlas/SoundLibrary.jsx`) play on the DM's page only: one
+  `<audio>` element, nothing saved or sent, stopped when the panel closes or the map changes. The
+  Player View has no preview path.
+- The player's own switches stay theirs, on their device: `atlas_pv_amb` ('on' until someone turns
+  it off) and the speaker button in the Player View's top bar, which holds Mute and only what is
+  here: Play ambience and the Ambience level with an ambience, the Effects level with cues.
+- **Cues** are a world setting (`worlds.sound_cues`, off, kept by a world copy), turned on in the
+  map panel: `ui.reveal` when a pin newly appears on the map being looked at (the DM revealed it,
+  or the clock moved on; not on opening a map, not while scrubbing), `ui.scrub` for each step of
+  the era bar, `ui.era` on crossing into another era, `ui.now` for ⦿ Now.
+- Before 2026-11 every map without its own ambience played a bed guessed from its name. That is
+  gone: such a map is silent until the DM picks a bed, and every world's cues start off.
 - The files are on the games' media bucket (`https://media.bennettdishmanmedia.com/atlas/audio/…`,
   hashed and immutable), named in `client/public/audio/manifest.json`; the CSP's `connect-src`
   names that one host (`server/lib/security.js`). Sources, prompts and the steps to make more:

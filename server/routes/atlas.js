@@ -11,6 +11,7 @@ const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const spend = require('../lib/spend');
 const { looseEnds } = require('../lib/looseEnds');
+const { STOCK_BEDS, bedMark, stockBedOf } = require('../lib/stockBeds');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -186,6 +187,7 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     shareToken: w.share_token || null,
     spotlightNodeId: w.spotlight_node_id ?? null,
     looseEnds: !!w.loose_ends,
+    soundCues: !!w.sound_cues,
     timeline: { enabled: w.timeline_enabled, min: w.timeline_min_time, max: w.timeline_max_time,
                 current: w.timeline_current_time, unit: w.timeline_time_unit },
     eras,
@@ -238,6 +240,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
     timeline_time_unit: [(v) => text(v, 50, { required: true }), 'The unit is a word of 1 to 50 characters'],
     timeline_enabled: [bool, 'The timeline is on or off'],
     loose_ends: [bool, 'Loose ends are on or off'],
+    sound_cues: [bool, 'Sound cues are on or off'],
   });
   if (c.bad) return bad(res, c.bad);
   Object.assign(req.body, c.vals);
@@ -271,7 +274,7 @@ router.patch('/worlds/:worldId', wrap(async (req, res) => {
     name: 'name', description: 'description',
     timeline_enabled: 'timeline_enabled', timeline_min_time: 'timeline_min_time',
     timeline_max_time: 'timeline_max_time', timeline_current_time: 'timeline_current_time',
-    timeline_time_unit: 'timeline_time_unit', loose_ends: 'loose_ends',
+    timeline_time_unit: 'timeline_time_unit', loose_ends: 'loose_ends', sound_cues: 'sound_cues',
   };
   const sets = [], vals = []; let i = 1;
   for (const k in cols) if (k in req.body) { sets.push(`${cols[k]}=$${i++}`); vals.push(req.body[k]); }
@@ -331,10 +334,10 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   // the caller's description wins, even an empty one — a template's blurb never lands on their world
   const desc = description === undefined ? src.description : (String(description || '').trim().slice(0, 2000) || null);
   const w = (await client.query(
-    `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, loose_ends)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, loose_ends, sound_cues)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [cleanName, desc, req.user.id, src.timeline_enabled,
-     src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit, !!src.loose_ends])).rows[0];
+     src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit, !!src.loose_ends, !!src.sound_cues])).rows[0];
 
   const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
   const folders = await rowsOfC('SELECT * FROM image_folders WHERE world_id=$1 ORDER BY id', [src.id]);
@@ -562,14 +565,14 @@ router.get('/maps/:mapId', wrap(async (req, res) => {
     map: { id: map.id, worldId: map.world_id, title: map.title, view: map.view, ownerNodeId: map.owner_node_id, imageId: map.image_id,
            beside: !!owner && owner.interior_map_id !== map.id,
            focusStart: map.focus_start, focusEnd: map.focus_end, dmNote: map.dm_note,
-           ambienceUrl: map.ambience_url, ambiencePrompt: map.ambience_prompt,
+           ambienceUrl: map.ambience_url, ambiencePrompt: stockBedOf(map) ? null : map.ambience_prompt, ambienceBed: stockBedOf(map),
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     backdrops: bds.map((b) => ({ id: b.id, imageId: b.image_id, start: b.start_time, end: b.end_time, url: resolveImageUrl(req, b.file_path) })),
     placements, breadcrumb: await breadcrumb(req.params.mapId),
   });
 }));
 
-// PATCH /maps/:mapId — title / view / base art / focus period / DM notes.
+// PATCH /maps/:mapId — title / view / base art / focus period / DM notes / a stock ambience.
 router.patch('/maps/:mapId', wrap(async (req, res) => {
   const wid = await worldIdOfMap(req.params.mapId);
   if (!wid || !(await ownsWorld(wid, req.user.id))) return res.status(404).json({ message: 'Map not found' });
@@ -582,8 +585,16 @@ router.patch('/maps/:mapId', wrap(async (req, res) => {
     dm_note: [long, 'Map notes are text'],
     is_main: [bool, 'A map is a main map or not'],
     tree_parent_id: [idOrNull, 'That map is not in this world'],
+    ambience_bed: [(v) => (v === null ? null : oneOf(v, STOCK_BEDS)), 'That sound is not in the library'],
   });
   if (c.bad) return bad(res, c.bad);
+  if ('ambience_bed' in c.vals) {
+    // a map's own ambience cost a generation: only its ✕ removes it, so a pick is refused and a clear leaves it be
+    const set = await pool.query('UPDATE maps SET ambience_prompt=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND ambience_url IS NULL RETURNING id',
+      [bedMark(c.vals.ambience_bed), req.params.mapId]);
+    if (!set.rows.length && c.vals.ambience_bed) return res.status(409).json({ message: 'This map has its own ambience — remove it first' });
+    delete c.vals.ambience_bed;
+  }
   if (c.vals.image_id != null && !(await imageInWorld(c.vals.image_id, wid))) return badImage(res);
   if (c.vals.tree_parent_id != null) {
     // filed under a map of this world, never under itself or anything filed beneath it

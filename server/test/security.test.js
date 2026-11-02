@@ -188,6 +188,70 @@ test('the security checks', async (t) => {
     assert.deepStrictEqual(await counts(), before, 'a refused request changed something');
   });
 
+  await t.test("a map's sound and a world's cues are the owner's to set, and a share link only reads them", async () => {
+    const link = `/api/share/${TOKEN}`;
+    const heard = async () => {
+      const map = JSON.parse((await ask({}, 'GET', `${link}/maps/${A}`)).body).map;
+      const world = JSON.parse((await ask({}, 'GET', `${link}/world`)).body).world;
+      return { url: map.ambienceUrl, bed: map.ambienceBed, cues: world.soundCues };
+    };
+    const silent = { url: null, bed: null, cues: false };
+    assert.deepStrictEqual(await heard(), silent, 'a map and a world start silent');
+    const pick = ['PATCH', `/api/atlas/maps/${A}`, { ambience_bed: 'amb.sea' }];
+    const cues = ['PATCH', `/api/atlas/worlds/${A}`, { sound_cues: true }];
+
+    // signed out is a 401, another DM and a guest a 404, and a player has no route to these at all
+    for (const [method, url, body] of [pick, cues]) {
+      assert.strictEqual((await ask({}, method, url, body)).status, 401, `signed out: ${url}`);
+      for (const who of [bob, guest]) assert.strictEqual((await ask(who, method, url, body)).status, 404, `not theirs: ${url}`);
+    }
+    for (const [method, p] of [['PATCH', `/maps/${A}`], ['POST', `/maps/${A}`], ['PUT', `/maps/${A}`], ['PATCH', '/world'], ['POST', '/world'], ['PUT', '/world']]) {
+      const r = await ask({}, method, `${link}${p}`, { ambience_bed: 'amb.sea', sound_cues: true });
+      assert.ok(r.status === 404 || r.status === 405, `${method} ${link}${p} answered ${r.status}`);
+    }
+    // the marker route is a player's one write, and it takes neither
+    const marked = await ask({}, 'POST', `${link}/maps/${A}/nodes`, { title: 'Listen', ambience_bed: 'amb.sea', sound_cues: true });
+    assert.strictEqual(marked.status, 201);
+    await pool.query('DELETE FROM nodes WHERE id = $1', [JSON.parse(marked.body).nodeId]);
+    assert.deepStrictEqual(await heard(), silent, 'a refused request changed what players hear');
+
+    // only a name in the library, and only a yes or a no
+    for (const bad of ['amb.nope', 'ui.reveal', 'AMB.SEA', ' amb.sea', 'stock:amb.sea', '../amb.sea', 5, true, {}, ['amb.sea'], '']) {
+      assert.strictEqual((await ask(ann, 'PATCH', `/api/atlas/maps/${A}`, { ambience_bed: bad })).status, 400, JSON.stringify(bad));
+    }
+    assert.strictEqual((await ask(ann, 'PATCH', `/api/atlas/worlds/${A}`, { sound_cues: 'maybe' })).status, 400);
+    assert.deepStrictEqual(await heard(), silent, 'a refused value changed what players hear');
+
+    // the owner sets both; players read them, and no other map or world moves
+    assert.strictEqual((await ask(ann, ...pick)).status, 200);
+    assert.strictEqual((await ask(ann, ...cues)).status, 200);
+    assert.deepStrictEqual(await heard(), { url: null, bed: 'amb.sea', cues: true });
+    const dm = JSON.parse((await ask(ann, 'GET', `/api/atlas/maps/${A}`)).body).map;
+    assert.deepStrictEqual([dm.ambienceBed, dm.ambiencePrompt, dm.ambienceUrl], ['amb.sea', null, null], 'the mark is not a prompt for the DM to read');
+    assert.strictEqual(JSON.parse((await ask(ann, 'GET', `/api/atlas/worlds/${A}`)).body).world.soundCues, true);
+    assert.strictEqual(JSON.parse((await ask(bob, 'GET', `/api/atlas/worlds/${B}`)).body).world.soundCues, false);
+
+    // a clear goes back to silence
+    assert.strictEqual((await ask(ann, 'PATCH', `/api/atlas/maps/${A}`, { ambience_bed: null })).status, 200);
+    assert.strictEqual((await heard()).bed, null);
+
+    // a map with its own ambience keeps playing it: a pick is refused, a clear leaves it, its prompt stays home
+    const own = 'https://r2.stub.invalid/worlds/7777/ambience-7777.mp3';
+    await pool.query('UPDATE maps SET ambience_url = $1, ambience_prompt = $2 WHERE id = $3', [own, 'OWN-PROMPT-TEXT', A]);
+    assert.strictEqual((await ask(ann, ...pick)).status, 409);
+    assert.strictEqual((await ask(ann, 'PATCH', `/api/atlas/maps/${A}`, { ambience_bed: null })).status, 200);
+    const kept = await ask({}, 'GET', `${link}/maps/${A}`);
+    assert.doesNotMatch(kept.body, /OWN-PROMPT-TEXT|stock:/);
+    assert.strictEqual(JSON.parse(kept.body).map.ambienceUrl, own);
+    assert.strictEqual(JSON.parse(kept.body).map.ambienceBed, null);
+    const { rows: [row] } = await pool.query('SELECT ambience_prompt, ambience_url FROM maps WHERE id = $1', [A]);
+    assert.deepStrictEqual(row, { ambience_prompt: 'OWN-PROMPT-TEXT', ambience_url: own });
+
+    await pool.query('UPDATE maps SET ambience_url = NULL, ambience_prompt = NULL WHERE id = $1', [A]);
+    assert.strictEqual((await ask(ann, 'PATCH', `/api/atlas/worlds/${A}`, { sound_cues: false })).status, 200);
+    assert.deepStrictEqual(await heard(), silent);
+  });
+
   await t.test('a share link hands out what players may see and nothing else', async () => {
     const link = `/api/share/${TOKEN}`;
     const secrets = /DM-ONLY-NOTE|MAP-ONLY-NOTE|HIDDEN-BODY|Hidden Vault|stance|share_token|dm_note/;

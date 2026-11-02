@@ -1,7 +1,7 @@
 // The Player View's sound, run locally (no browser audio, no network): the player (levels, a bed
-// crossfading as the map changes, a missing file being silence), which bed a map gets, the manifest
-// the page ships with, and the one CSP line the files need. A stand-in AudioContext records what
-// would have been started.
+// crossfading as the map changes, a missing file being silence), silence until the DM chooses, the
+// stock library's names, the manifest the page ships with, and the one CSP line the files need. A
+// stand-in AudioContext records what would have been started.
 //
 //   node --test server/test/sound.test.js
 const test = require('node:test');
@@ -11,14 +11,14 @@ const path = require('node:path');
 const express = require('express');
 const { pathToFileURL } = require('node:url');
 const { securityHeaders, MEDIA_ORIGIN } = require('../lib/security');
+const { STOCK_BEDS, bedMark, stockBedOf } = require('../lib/stockBeds');
 
 const client = (...p) => path.join(__dirname, '..', '..', 'client', ...p);
 const load = (...p) => import(pathToFileURL(client('src', ...p)).href);
-let audioMod, namesMod, bedsMod, elementMod;
+let audioMod, namesMod, elementMod;
 test.before(async () => {
   audioMod = await load('audio', 'audio.js');
   namesMod = await load('audio', 'names.js');
-  bedsMod = await load('audio', 'beds.js');
   elementMod = await load('audio', 'elementBed.js');
 });
 const manifestOnDisk = () => JSON.parse(fs.readFileSync(client('public', 'audio', 'manifest.json'), 'utf8'));
@@ -67,24 +67,47 @@ test('the media host is allowed to be fetched — connect-src only — on the Pl
   }
 });
 
-test('a map is heard as the kind of place its name says, its parents next, the open country otherwise', () => {
-  const { bedFor, titlesOf, DEFAULT_BED } = bedsMod;
-  const at = (title, crumbs = []) => bedFor(titlesOf({ title }, crumbs.map((t) => ({ title: t }))));
-  assert.strictEqual(at('The Whispering Forest'), 'amb.forest');
-  assert.strictEqual(at('Port Dunmere'), 'amb.sea');
-  assert.strictEqual(at('Harbor Town'), 'amb.sea', 'the sea before the town');
-  assert.strictEqual(at('The Drowned Crypt'), 'amb.dungeon');
-  assert.strictEqual(at('Stormwatch Keep'), 'amb.town', 'a word that only starts with storm is not a storm');
-  assert.strictEqual(at('Tempest over the Strait'), 'amb.storm', 'a storm over the sea is a storm');
-  assert.strictEqual(at('Redstone Pass'), 'amb.mountain');
-  assert.strictEqual(at('Market Square'), 'amb.town');
-  assert.strictEqual(at('Great Hall', ['The World', 'Kingdom of Oss', 'Ironhold Citadel']), 'amb.town', 'the parents answer for a room that names nothing');
-  assert.strictEqual(at('Cellar', ['The World', 'Old Mill']), 'amb.dungeon', 'but the map itself answers first');
-  assert.strictEqual(at('Room 3', ['The Deep Mines']), 'amb.dungeon');
-  assert.strictEqual(at('The Known World', ['The Known World']), DEFAULT_BED);
-  assert.strictEqual(at(''), DEFAULT_BED);
-  assert.strictEqual(bedFor([]), DEFAULT_BED);
-  for (const t of ['Forest', 'Port', 'Crypt', 'Pass', 'Inn', 'Storm']) assert.ok(namesMod.BEDS.includes(at(t)), t);
+test("a player's page sounds only what the DM chose: a map's name picks nothing, and a world's cues start off", () => {
+  const { chosenSound } = namesMod;
+  const off = { url: null, bed: null, cues: false, any: false };
+  assert.deepStrictEqual(chosenSound(null, null), off, 'before anything has loaded');
+  assert.deepStrictEqual(chosenSound({ title: 'The Whispering Forest' }, { name: 'Stormwatch' }), off, 'a name that says forest is still silence');
+  assert.deepStrictEqual(chosenSound({ ambienceUrl: null, ambienceBed: null }, { soundCues: false }), off);
+  assert.deepStrictEqual(chosenSound({ ambienceBed: 'amb.nope' }, {}), off, 'a name not in the library is silence');
+  assert.deepStrictEqual(chosenSound({ ambienceBed: 'ui.reveal' }, {}), off, 'a cue is not a bed');
+  assert.deepStrictEqual(chosenSound({}, { soundCues: 'true' }), off, 'only a real yes turns the cues on');
+  assert.deepStrictEqual(chosenSound({ ambienceBed: 'amb.sea' }, {}), { url: null, bed: 'amb.sea', cues: false, any: true });
+  assert.deepStrictEqual(chosenSound({ ambienceUrl: 'https://m/own.mp3' }, {}), { url: 'https://m/own.mp3', bed: null, cues: false, any: true }, "a DM's own ambience keeps playing");
+  assert.deepStrictEqual(chosenSound({ ambienceUrl: 'https://m/own.mp3', ambienceBed: 'amb.sea' }, {}).bed, null, 'its own file wins');
+  assert.deepStrictEqual(chosenSound({}, { soundCues: true }), { url: null, bed: null, cues: true, any: true });
+});
+
+test('the stock library names the same beds on both sides, each labelled, and a pick is not a file or a prompt', () => {
+  assert.deepStrictEqual([...STOCK_BEDS], [...namesMod.BEDS]);
+  for (const b of namesMod.BEDS) assert.ok(namesMod.BED_LABELS[b], `${b} has a label`);
+  assert.strictEqual(fs.existsSync(client('src', 'audio', 'beds.js')), false, 'the guess from a map name is gone');
+  assert.strictEqual(bedMark('amb.sea'), 'stock:amb.sea');
+  assert.strictEqual(bedMark(null), null);
+  assert.strictEqual(stockBedOf({ ambience_prompt: 'stock:amb.sea', ambience_url: null }), 'amb.sea');
+  for (const row of [
+    { ambience_prompt: null, ambience_url: null },
+    { ambience_prompt: 'rain on the roof', ambience_url: 'https://m/own.mp3' },
+    { ambience_prompt: 'stock:amb.sea', ambience_url: 'https://m/own.mp3' }, // its own file wins
+    { ambience_prompt: 'stock:amb.nope', ambience_url: null },
+    { ambience_prompt: 'stock:', ambience_url: null },
+    null,
+  ]) assert.strictEqual(stockBedOf(row), null, JSON.stringify(row));
+});
+
+test('getting the audio loads nothing: only loadStock points it at the manifest, and only once', async () => {
+  const src = fs.readFileSync(client('src', 'audio', 'index.js'), 'utf8');
+  const getAudio = src.slice(src.indexOf('export function getAudio'), src.indexOf('export function loadStock'));
+  assert.doesNotMatch(getAudio, /\.use\(|\.arm\(|\.unlock\(/, 'a silent page opens no sound and fetches no file');
+  const player = fs.readFileSync(client('src', 'pages', 'PlayerView.jsx'), 'utf8');
+  assert.match(player, /if \(stockChosen\) loadStock\(\)/);
+  assert.doesNotMatch(player, /SoundLibrary|preview/i, 'the Player View has no preview path');
+  for (const name of namesMod.CUES) assert.match(player, new RegExp(`${name.replace('.', '\\.')}`), `${name} is still played`);
+  for (const line of player.split('\n').filter((l) => /\bcue\('/.test(l))) assert.match(line, /cuesOn/, `a cue outside the DM's switch: ${line.trim()}`);
 });
 
 test('a DM-made ambience follows mute and the levels, and fades in and out', (t) => {

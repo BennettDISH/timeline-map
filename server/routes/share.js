@@ -4,6 +4,7 @@ const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { CATEGORIES } = require('../lib/vocab');
 const { mentionIds, mentionsForPlayers } = require('../lib/mentions');
+const { stockBedOf } = require('../lib/stockBeds');
 const router = express.Router();
 
 // The public Player View API (UX-REDESIGN Phase 4's "shareable link"). No auth — the token in
@@ -19,7 +20,7 @@ const notFound = (res) => res.status(404).json({ message: 'Not found' });
 async function worldOf(token) {
   if (!token || token.length < 10) return null;
   const r = await pool.query(
-    `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit, spotlight_node_id
+    `SELECT id, name, root_map_id, timeline_enabled, timeline_current_time, timeline_time_unit, spotlight_node_id, sound_cues
      FROM worlds WHERE share_token = $1`, [token]);
   const w = r.rows[0] || null;
   if (w) w.pending = await pendingForge(w.id);
@@ -297,6 +298,7 @@ router.get('/:token/world', wrap(async (req, res) => {
   }
   res.json({ world: {
     name: w.name, rootMapId: w.root_map_id,
+    soundCues: !!w.sound_cues,
     timeline: { enabled: w.timeline_enabled, current: w.timeline_current_time, unit: w.timeline_time_unit },
     eras,
   } });
@@ -321,7 +323,7 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   const ivs = windowed ? await allowedIntervals(w) : null;
 
   const map = (await pool.query(
-    'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
+    'SELECT m.id, m.title, m.view, m.focus_start, m.focus_end, m.ambience_url, m.ambience_prompt, i.file_path AS backdrop_path FROM maps m LEFT JOIN images i ON m.image_id = i.id WHERE m.id = $1',
     [mapId])).rows[0];
   const pend = w.pending;
   // a standing backdrop set by a pending batch is the DM's preview: players get what it replaced
@@ -442,7 +444,8 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
   res.json({
     map: { id: map.id, title: map.title, view: map.view,
            focusStart: focus[0], focusEnd: focus[1],
-           ambienceUrl: map.ambience_url || null,
+           // what the DM chose for this map: their own file, or a stock bed by name (a typed prompt stays home)
+           ambienceUrl: map.ambience_url || null, ambienceBed: stockBedOf(map),
            backdropUrl: resolveImageUrl(req, map.backdrop_path) },
     ...(windowed ? { backdrops, partyTrail } : {}),
     placements, breadcrumb: crumbOut(breadcrumb),

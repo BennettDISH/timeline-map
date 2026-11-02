@@ -217,7 +217,9 @@ try {
     step('the zoom buttons are not dimmed and show a keyboard focus ring', rest === '1' && ring.on && ring.outline === 'solid 2px', `opacity ${rest}, ${ring.outline}`);
   }
   // the sound panel folds away on a press on a pin, which stops its own press going further
-  {
+  // (a speaker shows only where the DM chose a sound: the local stack's world map has both kinds)
+  const hasSpeaker = (await page.locator('.pview .speaker-btn').count()) > 0;
+  if (hasSpeaker) {
     const pin = page.locator('.pview .pin').first();
     await page.locator('.pview .speaker-btn').click(); await page.waitForTimeout(200);
     const opened = await page.locator('.pview .speaker-panel').count();
@@ -225,16 +227,16 @@ try {
       await pin.click({ force: true }); await page.waitForTimeout(300);
       step('a press on a pin folds the sound panel away', opened === 1 && (await page.locator('.pview .speaker-panel').count()) === 0);
     } else skip('a press on a pin folds the sound panel away', 'no pin on the world map');
-  }
+  } else skip('a press on a pin folds the sound panel away', 'the DM chose no sound for this map');
   // on a phone the speaker wraps along the top bar: its panel stays on the screen wherever it lands
-  {
+  if (hasSpeaker) {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await phone.goto(`${BASE}/p/${TOKEN}`, { waitUntil: 'networkidle', timeout: 90000 });
     await phone.locator('.pview .speaker-btn').click(); await phone.waitForTimeout(200);
     const controls = await phone.locator('.pview .speaker-panel input').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }));
-    step('on a phone every control in the sound panel is on the screen', controls.length === 4 && controls.every(Boolean), `${controls.filter(Boolean).length} of ${controls.length}`);
+    step('on a phone every control in the sound panel is on the screen', controls.length >= 2 && controls.every(Boolean), `${controls.filter(Boolean).length} of ${controls.length}`);
     await phone.close();
-  }
+  } else skip('on a phone every control in the sound panel is on the screen', 'the DM chose no sound for this map');
   // a hidden or missing place under a WORKING link is not a dead link; an unknown token is
   // the public secrecy fixture, where map 61 is a DM-only interior; the local stack names its own
   const FIX = cfg.fixtureToken || 'fx89ef1c8ec74cadc99ae56b256c46b337', HIDDEN = cfg.hiddenMap ?? 61;

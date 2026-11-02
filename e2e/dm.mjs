@@ -643,6 +643,156 @@ try {
     step('…and Esc leaves the text as it was', (await note.inputValue()) === was);
     await page.setViewportSize({ width: 1400, height: 900 });
   }
+  // sound is the DM's choice. The interior starts silent; its sound and the world's cues are put back
+  // afterwards. The sound files are answered here with a tiny WAV, so nothing reaches the media host.
+  {
+    const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
+    const api = (method, path, body) => fetch(`${BASE}/api/atlas/${path}`, { method, headers: J, body: body ? JSON.stringify(body) : undefined });
+    const world0 = (await (await api('GET', `worlds/${cfg.worldId}`)).json()).world;
+    const map0 = (await (await api('GET', `maps/${cfg.interior}`)).json()).map;
+    const TOKEN = cfg.shareToken || world0.shareToken;
+    const pcm = Buffer.alloc(4410); // a tenth of a second of 8-bit silence
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.from(Uint32Array.of(36 + pcm.length).buffer), Buffer.from('WAVEfmt '), Buffer.from(Uint32Array.of(16).buffer),
+      Buffer.from(Uint16Array.of(1, 1).buffer), Buffer.from(Uint32Array.of(44100, 44100).buffer), Buffer.from(Uint16Array.of(1, 8).buffer), Buffer.from('data'), Buffer.from(Uint32Array.of(pcm.length).buffer), pcm]);
+    const answerAudio = (p) => p.route(/\/atlas\/audio\//, (route) => route.fulfill({ status: 200, contentType: 'audio/wav', headers: { 'access-control-allow-origin': '*' }, body: wav }));
+    const playerShare = async () => {
+      const map = (await (await fetch(`${BASE}/api/share/${TOKEN}/maps/${cfg.interior}`)).json()).map, w = (await (await fetch(`${BASE}/api/share/${TOKEN}/world`)).json()).world;
+      return { bed: map.ambienceBed, url: map.ambienceUrl, cues: w.soundCues };
+    };
+    const playerPage = async (viewport = { width: 1280, height: 800 }) => {
+      const p = await browser.newPage({ viewport });
+      const asked = [];
+      p.on('request', (r) => { if (/audio\/manifest\.json|\/atlas\/audio\//.test(r.url())) asked.push(r.url()); });
+      await answerAudio(p);
+      await p.goto(`${BASE}/p/${TOKEN}/m/${cfg.interior}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await p.waitForSelector('.pview', { timeout: 30000 });
+      await p.mouse.click(viewport.width / 2, viewport.height / 2); await p.keyboard.press('Shift'); await p.waitForTimeout(900);
+      return { p, asked };
+    };
+    const lib = page.locator('.soundlib');
+    const row = (label) => lib.locator('.bedrow', { hasText: label });
+    const openPanel = async (pg = page) => {
+      await pg.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.interior}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await pg.waitForSelector('.timebar', { timeout: 30000 });
+      if (!(await pg.locator('.mode button.on', { hasText: 'Edit' }).count())) { await pg.locator('.mode button', { hasText: 'Edit' }).click(); await pg.waitForTimeout(400); }
+      await pg.locator('.soundlib').waitFor({ timeout: 20000 });
+    };
+    let writes = 0;
+    const countWrites = (r) => { if (r.method() !== 'GET' && /\/api\//.test(r.url())) writes++; };
+    try {
+      await api('PATCH', `maps/${cfg.interior}`, { ambience_bed: null });
+      await api('PATCH', `worlds/${cfg.worldId}`, { sound_cues: false });
+      await answerAudio(page);
+      // a silent map and world: nothing to hear, nothing fetched, no speaker
+      if (!map0.ambienceUrl) {
+        const { p, asked } = await playerPage();
+        step('a map with no sound chosen shows players no speaker and fetches no sound', (await p.locator('.pview .speaker-btn').count()) === 0 && asked.length === 0 && (await p.locator('.pview audio').count()) === 0, `${asked.length} fetched`);
+        await p.close();
+      }
+      await openPanel();
+      step('the library offers the seven stock beds, and says the map is silent', (await lib.locator('.bedlist .bedrow').count()) === 7 && /hear nothing/.test(await lib.locator('.bedstate').textContent()), (await lib.locator('.bedstate').textContent()).trim());
+      // keyboard: Tab reaches ▶, Enter previews
+      page.on('request', countWrites);
+      const play = row('Forest').locator('.bedplay');
+      await play.focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+      const audioState = () => lib.locator('audio').evaluate((a) => ({ paused: a.paused, src: a.getAttribute('src') }));
+      const on = await audioState();
+      step('Enter on ▶ previews that bed, with a stop button in its place', /amb\.forest/.test(on.src || '') && (await play.getAttribute('aria-pressed')) === 'true', JSON.stringify(on));
+      step('…with a keyboard ring on it', await play.evaluate((e) => getComputedStyle(e).outlineStyle) === 'solid');
+      const during = await playerShare();
+      step('a preview saves nothing and sends nothing: players still hear nothing', writes === 0 && during.bed === null && !during.cues, `${writes} writes, ${JSON.stringify(during)}`);
+      await row('Sea').locator('.bedplay').click(); await page.waitForTimeout(400);
+      const swapped = await audioState();
+      step('one preview at a time: ▶ on another bed takes over', /amb\.sea/.test(swapped.src || '') && (await play.getAttribute('aria-pressed')) === 'false');
+      await page.locator('.mode button', { hasText: 'Player' }).click(); await page.waitForTimeout(1000);
+      const gone = (await lib.count()) === 0;
+      step('leaving for the 🎭 Player posture ends the preview, and the framed Player View has no sound of its own', gone && (await page.frameLocator('iframe').first().locator('.pview .speaker-btn').count()) === 0, `library open: ${!gone}`);
+      await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(500);
+      page.off('request', countWrites);
+      // a pick: on this map only, heard by players
+      await lib.waitFor({ timeout: 20000 });
+      const use = row('Forest').locator('.beduse');
+      await use.focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(900);
+      const picked = await playerShare();
+      step('Enter on Use picks it for this map, and players get it by name', picked.bed === 'amb.forest' && (await use.getAttribute('aria-pressed')) === 'true' && /Forest/.test(await lib.locator('.bedstate').textContent()), JSON.stringify(picked));
+      const rootShare = (await (await fetch(`${BASE}/api/share/${TOKEN}/maps/${cfg.root}`)).json()).map;
+      step('…and no other map changes', rootShare.ambienceBed !== 'amb.forest', String(rootShare.ambienceBed));
+      {
+        const { p, asked } = await playerPage();
+        step('a player now has a speaker, and the bed is fetched after their first tap', (await p.locator('.pview .speaker-btn').count()) === 1 && asked.some((u) => /amb\.forest/.test(u)), `${asked.length} fetched`);
+        await p.locator('.pview .speaker-btn').click(); await p.waitForTimeout(200);
+        const labels = await p.locator('.pview .speaker-panel .speaker-row span').allTextContents();
+        step('…with Play ambience, Mute and Ambience, and no Effects while the cues are off', labels.join() === 'Play ambience,Mute,Ambience', labels.join());
+        await p.close();
+      }
+      // cues: per world, off until turned on
+      const cueBtn = lib.locator('.bedrow', { hasText: 'era bar' }).locator('.beduse');
+      step('the sound cues start off', (await cueBtn.getAttribute('aria-pressed')) === 'false');
+      await cueBtn.click(); await page.waitForTimeout(900);
+      step('…and the DM turns them on for the world', (await playerShare()).cues === true);
+      {
+        const { p } = await playerPage();
+        await p.locator('.pview .speaker-btn').click(); await p.waitForTimeout(200);
+        const labels = await p.locator('.pview .speaker-panel .speaker-row span').allTextContents();
+        step('…where players get an Effects level', labels.includes('Effects'), labels.join());
+        await p.close();
+      }
+      // a map with its own ambience keeps it: no pick, a word about why, and the player's <audio> holds its file
+      const own = 'https://r2.stub.invalid/worlds/1/ambience-own.mp3';
+      const dmMap = new RegExp(`/api/atlas/maps/${cfg.interior}$`), shareMap = new RegExp(`/api/share/${TOKEN}/maps/${cfg.interior}`);
+      await page.route(dmMap, async (route) => {
+        if (route.request().method() !== 'GET') return route.continue();
+        const r = await route.fetch(), j = await r.json();
+        return route.fulfill({ response: r, json: { ...j, map: { ...j.map, ambienceUrl: own, ambiencePrompt: 'rain', ambienceBed: null } } });
+      });
+      await openPanel();
+      step("a map with its own ambience says so, and the library's Use is shut", /own ambience/.test(await lib.locator('.bedstate').textContent()) && await row('Forest').locator('.beduse').isDisabled());
+      step('…though ▶ still previews', await row('Forest').locator('.bedplay').isEnabled());
+      await page.unroute(dmMap);
+      {
+        const p = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+        await p.route(shareMap, async (route) => { const r = await route.fetch(), j = await r.json(); return route.fulfill({ response: r, json: { ...j, map: { ...j.map, ambienceUrl: own, ambienceBed: null } } }); });
+        await p.route(/r2\.stub\.invalid/, (route) => route.fulfill({ status: 200, contentType: 'audio/wav', body: wav }));
+        await p.goto(`${BASE}/p/${TOKEN}/m/${cfg.interior}`, { waitUntil: 'networkidle', timeout: 90000 });
+        step('…and players keep hearing that file', (await p.locator('.pview audio').first().getAttribute('src').catch(() => null)) === own && (await p.locator('.pview .speaker-btn').count()) === 1);
+        await p.close();
+      }
+      // a phone: the library fits, nothing scrolls sideways, and every word reads
+      const ctxS = await browser.newContext({ viewport: { width: 375, height: 812 } });
+      await ctxS.addInitScript(({ token, user }) => { localStorage.setItem('auth_token', token); localStorage.setItem('user', JSON.stringify(user)); }, { token: cfg.token, user: cfg.user });
+      const ph = await ctxS.newPage();
+      try {
+        await openPanel(ph);
+        await ph.locator('.soundlib .bedrow').first().scrollIntoViewIfNeeded();
+        const fit = await ph.locator('.soundlib .bedrow').evaluateAll((rows) => rows.every((r) => { const b = r.getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && [...r.children].every((c) => { const k = c.getBoundingClientRect(); return k.left >= b.left - 1 && k.right <= b.right + 1; }); }));
+        const sideways = await ph.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+        step('on a phone every row of the library is on the screen, with no sideways scroll', fit && !sideways, `fit ${fit}, sideways ${sideways}`);
+        const small = await ph.locator('.soundlib .btn').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 32).length);
+        step('…and every button there is at least 32px tall', small === 0, `${small} smaller`);
+        const covered = await ph.locator('.soundlib .btn').evaluateAll((els) => els.filter((e) => { e.scrollIntoView({ block: 'start' }); const b = e.getBoundingClientRect(), top = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return !(top && (top === e || e.contains(top))); }).length);
+        step('…and each can be scrolled clear of anything floating over the editor', covered === 0, `${covered} covered`);
+        const contrast = await ph.locator('.soundlib').evaluate((root) => {
+          const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+          const lum = ([r, g, b]) => { const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+          const bgOf = (el) => { let e = el; while (e && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(e).backgroundColor)) e = e.parentElement; return rgb(getComputedStyle(e || document.body).backgroundColor); };
+          let worst = 21, who = '';
+          for (const el of root.querySelectorAll('.bedname,.bedstate,.btn,.isect,.esmall')) {
+            if (el.disabled) continue;
+            const a = lum(rgb(getComputedStyle(el).color)), b = lum(bgOf(el)), r = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            if (r < worst) { worst = r; who = el.className; }
+          }
+          return { worst, who };
+        });
+        step('…and every word there reads at 4.5:1 or better', contrast.worst >= 4.5, `${contrast.worst.toFixed(2)}:1 on ${contrast.who}`);
+        if (process.env.E2E_SHOTS) await ph.locator('.soundlib').screenshot({ path: `${process.env.E2E_SHOTS}/library-phone.png` });
+      } finally { await ctxS.close(); }
+    } finally {
+      page.off('request', countWrites);
+      await page.unroute(/\/atlas\/audio\//).catch(() => {});
+      await api('PATCH', `maps/${cfg.interior}`, { ambience_bed: map0.ambienceBed ?? null });
+      await api('PATCH', `worlds/${cfg.worldId}`, { sound_cues: !!world0.soundCues });
+    }
+  }
   // a phone lands on the map; ☰ opens the tree over it, and Loose ends with it
   {
     const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
