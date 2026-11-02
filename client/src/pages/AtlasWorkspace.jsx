@@ -73,7 +73,7 @@ function AtlasWorkspace() {
     return m === 'player' ? 'player' : m === 'view' ? 'view' : 'edit'
   })
   const [spaceOpen, setSpaceOpen] = useState(false) // phones: the space reader opens on request, not over the map
-  const [nodeDetail, setNodeDetail] = useState({ out: [], in: [], facts: [] }) // the selected node's threads (out/in) and period texts
+  const [nodeDetail, setNodeDetail] = useState({ nodeId: null, out: [], in: [], facts: [] }) // the selected node's threads (out/in) and period texts; nodeId is whose they are, since they stay until the next node's arrive
   const [nodePicker, setNodePicker] = useState(null) // 'link' | 'place' | 'place-here'
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
   const trackRef = useRef(null)                 // the timebar's track, measured so ticks know their pitch
@@ -459,13 +459,14 @@ function AtlasWorkspace() {
   }, [mapId]) // eslint-disable-line
 
   // ---- links ---------------------------------------------------------------------
+  const detailOf = (d) => ({ nodeId: d.node.id, out: d.links, in: d.backlinks, facts: d.facts || [] })
   const reloadNodeDetail = (nodeId) =>
-    atlasService.getNode(nodeId).then((d) => setNodeDetail({ out: d.links, in: d.backlinks, facts: d.facts || [] })).catch(() => {})
+    atlasService.getNode(nodeId).then((d) => setNodeDetail(detailOf(d))).catch(() => {})
   useEffect(() => {
     const fid = sel?.node.id ?? stray?.id
-    if (!fid) { setNodeDetail({ out: [], in: [], facts: [] }); return }
+    if (!fid) { setNodeDetail({ nodeId: null, out: [], in: [], facts: [] }); return }
     let live = true
-    atlasService.getNode(fid).then((d) => { if (live) setNodeDetail({ out: d.links, in: d.backlinks, facts: d.facts || [] }) }).catch(() => {})
+    atlasService.getNode(fid).then((d) => { if (live) setNodeDetail(detailOf(d)) }).catch(() => {})
     return () => { live = false }
   }, [selId, stray?.id]) // eslint-disable-line
   const addLink = async (toId) => {
@@ -2068,7 +2069,7 @@ function AtlasWorkspace() {
               onRemoveImage={() => setNodeImage(fn.id, null, null)}
               timeline={tl} onLifespan={sel ? (which, v) => setLifespan(sel.id, which, v) : undefined}
               worldId={worldId} moment={tl?.enabled ? Math.round(lens) : null} onMention={mentioned} onGoMention={jump} mentionLabel={mentionLabel}
-              facts={nodeDetail.facts} nowT={Math.round(lens)} nowLabel={momentLabel(Math.round(lens), world?.eras, tl?.unit)} eras={world?.eras || []}
+              facts={nodeDetail.facts} factsOf={nodeDetail.nodeId} nowT={Math.round(lens)} nowLabel={momentLabel(Math.round(lens), world?.eras, tl?.unit)} eras={world?.eras || []}
               hiddenHere={sel ? sel.visibility === 'dm' : false} onHideHere={sel ? (h) => setPlacementVis(sel.id, h) : undefined}
               onFootstep={sel && fn.category === 'party' && tl?.enabled ? () => partyMoveHere(sel.x, sel.y) : undefined}
               onFactAdd={() => factAdd(fn.id)}

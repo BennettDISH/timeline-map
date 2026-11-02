@@ -3,13 +3,14 @@ import AudioClip from '../AudioClip'
 import { STYLE_KEYS, STYLE_LABELS } from '../Regions'
 import { CATS, cat } from '../../utils/categories'
 import { spanLabel } from '../../utils/moment'
+import { descriptionWarning } from '../../utils/timeline'
 import { wholeOr, REVERSED, coveringFact, periodBlur } from './helpers'
 import { MentionBox, MentionChips } from './Mentions'
 
 // The editor (the right-hand panel in Edit posture): one selected placement and its node.
 // Every save goes through the callbacks the workspace passes in; this file holds no service calls.
 
-export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, leadsTo, onLeadTo, onImage, onRemoveImage, timeline, eras, onLifespan, facts, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle, worldId, moment, onMention, onGoMention, mentionLabel }) {
+export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRetry, onSave, onCat, onClaim, autoFocusTitle, onTitleFocused, onOpen, onCreate, onRemoveInterior, leadsTo, onLeadTo, onImage, onRemoveImage, timeline, eras, onLifespan, facts, factsOf, nowT, nowLabel, hiddenHere, onHideHere, onFootstep, onFactAdd, onFactPatch, onFactDelete, links, onLink, onUnlink, onLabel, onJump, onVis, onRemoveHere, onPlaceHere, onDelete, spotlit, onSpotlight, onStance, voiceOn, voices, voiceMeta, onVoice, onSay, onClearLine, onReveal, hasOutline, onOutline, onClearOutline, outlineKind, onOutlineKind, outlineStyle, onOutlineStyle, worldId, moment, onMention, onGoMention, mentionLabel }) {
   const seedOf = (pp) => ({ title: pp.node.title, body: pp.node.body || '', note: pp.node.dmNote || '', line: pp.node.voiceLine || '', vstyle: pp.node.voiceStyle || '', start: pp.start ?? '', end: pp.end ?? '' })
   const [title, setTitle] = useState(p.node.title)
   const [body, setBody] = useState(p.node.body || '')
@@ -47,6 +48,10 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
   const providerName = voiceMeta?.provider ? (({ gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' })[voiceMeta.provider] || voiceMeta.provider) : 'this provider'
   // a saved voice the current provider does not list (it was picked under another one)
   const foreignVoice = !!n.voiceId && (voices || []).length > 0 && !(voices || []).some((v) => v.id === n.voiceId)
+  // only with this entry's own periods in hand: until they load, `facts` is still the last entry's
+  const bodyWarn = timeline?.enabled && factsOf === n.id
+    ? descriptionWarning(facts, nowT, timeline.current, (f) => spanLabel(f.start, f.end, eras, timeline.unit))
+    : null
   const timeBlock = timeline?.enabled && !stray ? (
     <>
       <div className="isect">{n.category === 'party' ? 'This footstep' : 'Time'}</div>
@@ -147,8 +152,9 @@ export default function Inspector({ p, stray, partyExists, voicesErr, onVoicesRe
       <div className="isect">Description</div>
       <div className="fld"><label htmlFor={`${fid}-body`}>Description{timeline?.enabled ? ' — the default, when no period below covers the moment' : ''}</label>
         <MentionBox worldId={worldId} exclude={n.id} moment={moment} canThread onPicked={onMention}>
-          <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} placeholder="Type @ to mention another entry" onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
+          <textarea id={`${fid}-body`} data-fld="body" rows="4" value={body} placeholder="Type @ to mention another entry" aria-describedby={bodyWarn ? `${fid}-bodywarn` : undefined} onChange={(e) => { setBody(e.target.value); onSave(n.id, { body: e.target.value }) }} />
         </MentionBox>
+        {bodyWarn && <div id={`${fid}-bodywarn`} className="muted warn bodywarn">{bodyWarn}</div>}
         <MentionChips text={body} onGo={onGoMention} label={mentionLabel} />
       </div>
       <div className="fld dmnotes"><label htmlFor={`${fid}-note`}>🔒 DM notes — players never see this</label>

@@ -1,4 +1,4 @@
-import { pickCovering } from '../../utils/timeline'
+export { coveringFact } from '../../utils/timeline'
 
 // Small helpers shared by the workspace and its panels (no React in here).
 
@@ -36,8 +36,6 @@ export const stackOffsets = (pins) => {
   })
   return out
 }
-// the period text that covers moment t (utils/timeline's rule). A blank period is no story yet.
-export const coveringFact = (facts, t) => pickCovering((facts || []).filter((f) => f.body?.trim()), t)
 export const trunc = (t) => (t && t.length > 18 ? `${t.slice(0, 17)}…` : t)
 
 // the two widths the layout turns on: at or under `phone` the workspace is view-only and the

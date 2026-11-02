@@ -530,6 +530,97 @@ try {
       for (const n of [A, B]) if (n.nodeId) await fetch(`${BASE}/api/atlas/nodes/${n.nodeId}`, { method: 'DELETE', headers: J }).catch(() => {});
     }
   }
+  // the description box warns when a period text hides it, and only then. Two probe entries: one
+  // with periods, one without; the clock is put back and both are removed afterwards.
+  {
+    const J = { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' };
+    const api = (method, path, body) => fetch(`${BASE}/api/atlas/${path}`, { method, headers: J, body: body ? JSON.stringify(body) : undefined });
+    const make = async (title, x) => ({ title, ...(await (await api('POST', `maps/${cfg.root}/nodes`, { title, category: 'place', x, y: 22, body: 'The default text.' })).json()) });
+    const addFact = async (nodeId, body, start_time, end_time) => (await (await api('POST', `nodes/${nodeId}/facts`, { body, start_time, end_time })).json()).id;
+    const tl = (await (await api('GET', `worlds/${cfg.worldId}`)).json()).world.timeline;
+    const t0 = Date.now(), A = await make(`warn-a-${t0}`, 30), B = await make(`warn-b-${t0}`, 36);
+    const warn = page.locator('.insp .bodywarn');
+    const warnText = async () => ((await warn.count()) ? (await warn.textContent()).trim() : null);
+    const open = async (n, pg = page) => {
+      await pg.locator('.gsearch input').fill(n.title); await pg.waitForTimeout(700);
+      await pg.locator('.gresults button', { hasText: n.title }).first().click(); await pg.waitForTimeout(800);
+    };
+    const load = async () => {
+      await page.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+      await page.waitForSelector('.atlas .pin', { timeout: 30000 });
+      if (!(await page.locator('.mode button.on', { hasText: 'Edit' }).count())) { await page.locator('.mode button', { hasText: 'Edit' }).click(); await page.waitForTimeout(400); }
+    };
+    try {
+      if (tl.enabled && tl.current != null && tl.current - tl.min >= 4) {
+        await load();
+        await open(B);
+        step('an entry with no period text shows no warning', (await page.locator('.insp [data-fld=body]').count()) === 1 && (await warnText()) === null, (await warnText()) || '');
+        await addFact(B.nodeId, 'Long ago.', tl.min, tl.min + 1);
+        await addFact(B.nodeId, '', tl.current - 1, null);
+        await load(); await open(B);
+        step('…nor one whose periods are elsewhere on the clock or blank', (await warnText()) === null, (await warnText()) || '');
+        await addFact(A.nodeId, 'Lately.', tl.current - 1, null);
+        await load(); await open(A);
+        const both = await warnText();
+        step('a period text at the lens and canon warns, and names its period', /at this moment and canon \(from .+\)\..*won't show there/.test(both || ''), both || 'no warning');
+        const describedBy = await page.locator('.insp [data-fld=body]').getAttribute('aria-describedby');
+        step('…the box is described by the warning, for the keyboard and a screen reader', !!describedBy && (await warn.getAttribute('id')) === describedBy);
+        // a reader on the DM's desk: enough contrast on the editor's panel
+        const contrast = await warn.evaluate((el) => {
+          const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+          const lum = ([r, g, b]) => { const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+          let bg = el; while (bg && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(bg).backgroundColor)) bg = bg.parentElement;
+          const a = lum(rgb(getComputedStyle(el).color)), b = lum(rgb(getComputedStyle(bg).backgroundColor));
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+        });
+        step('…and reads at 4.5:1 or better on the editor', contrast >= 4.5, `${contrast.toFixed(2)}:1`);
+        // the lens moves off the period: canon still holds it
+        const slider = page.locator('.timebar input[type=range]');
+        await slider.focus(); await page.keyboard.press('Home'); await page.waitForTimeout(400);
+        const canonOnly = await warnText();
+        step('with the lens off the period it warns about canon alone', /at canon \(from .+\)\./.test(canonOnly || '') && !/this moment/.test(canonOnly || ''), canonOnly || 'no warning');
+        await addFact(A.nodeId, 'Long ago.', tl.min, tl.min + 1);
+        await load(); await open(A);
+        await page.locator('.timebar input[type=range]').focus(); await page.keyboard.press('Home'); await page.waitForTimeout(400);
+        const two = await warnText();
+        step('…and with a period at each it names both', /at this moment \(.+\) and canon \(.+\)\./.test(two || ''), two || 'no warning');
+        // a step to an entry with none: nothing flashes while its periods are on their way
+        await load(); await open(A);
+        const slow = `**/api/atlas/nodes/${B.nodeId}`;
+        await page.route(slow, async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });
+        await page.locator('.gsearch input').fill(B.title); await page.waitForTimeout(700);
+        await page.locator('.gresults button', { hasText: B.title }).first().click(); await page.waitForTimeout(500);
+        const during = await warnText(), opened = await page.locator('.insp [data-fld=title]').inputValue();
+        await page.waitForTimeout(1500);
+        await page.unroute(slow);
+        step("…and the last entry's periods never warn on the next one", opened === B.title && during === null && (await warnText()) === null, `${opened}: ${during || 'no warning'}`);
+        // the warning keeps to the editor's width on a phone
+        const ctxW = await browser.newContext({ viewport: { width: 375, height: 812 } });
+        await ctxW.addInitScript(({ token, user }) => { localStorage.setItem('auth_token', token); localStorage.setItem('user', JSON.stringify(user)); }, { token: cfg.token, user: cfg.user });
+        const ph = await ctxW.newPage();
+        try {
+          await ph.goto(`${BASE}/w/${cfg.worldId}/m/${cfg.root}`, { waitUntil: 'networkidle', timeout: 90000 });
+          await ph.waitForSelector('.atlas .pin', { timeout: 30000 });
+          await ph.locator('.mode button', { hasText: 'Edit' }).click(); await ph.waitForTimeout(500);
+          await open(A, ph);
+          const w = ph.locator('.insp .bodywarn');
+          await w.scrollIntoViewIfNeeded().catch(() => {});
+          const box = await w.boundingBox().catch(() => null);
+          const sideways = await ph.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+          step('on a phone the warning stays on the screen, with no sideways scroll', !!box && box.x >= 0 && box.x + box.width <= 375 && !sideways, box ? `${Math.round(box.x)}–${Math.round(box.x + box.width)}px of 375` : 'no warning');
+          if (process.env.E2E_SHOTS) await ph.screenshot({ path: `${process.env.E2E_SHOTS}/warning-phone.png` });
+        } finally { await ctxW.close(); }
+        // the clock off: periods do not apply, so neither does the warning
+        await api('PATCH', `worlds/${cfg.worldId}`, { timeline_enabled: false });
+        await load(); await open(A);
+        step('with the clock off there is no warning', (await page.locator('.insp [data-fld=body]').count()) === 1 && (await warnText()) === null, (await warnText()) || '');
+      } else console.log(`skip the description warning needs a clock with canon at least 4 past its start (world ${cfg.worldId})`);
+    } finally {
+      await page.unroute(`**/api/atlas/nodes/${B.nodeId}`).catch(() => {});
+      await api('PATCH', `worlds/${cfg.worldId}`, { timeline_enabled: tl.enabled }).catch(() => {});
+      for (const n of [A, B]) if (n.nodeId) await api('DELETE', `nodes/${n.nodeId}`).catch(() => {});
+    }
+  }
   // the @ picker under the DM notes runs off a short window: ↑ ↓ bring the highlighted row into view
   {
     await page.setViewportSize({ width: 1280, height: 560 });

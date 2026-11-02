@@ -612,6 +612,11 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
 - Reveal lands where players read: when a period text covers CANON, the note is appended
   to THAT period (the reply carries `factId`), else to the description. The button names its
   target.
+- The description box warns when a period text hides it: with the clock on, a line under the box
+  names the period text covering the lens moment and the one covering canon, and says changes to
+  the description won't show there (`descriptionWarning` in `utils/timeline.js`). A blank period,
+  a period elsewhere on the clock, no periods or the clock off: no line. It is words only: what
+  resolves, what players read and what is saved stay as they are.
 - A name follows its owner while it still matches: an interior named after its node is
   renamed with the node, and the default root map ('<world> — World Map') follows a world
   rename. A space or root the DM named on purpose keeps its own name.

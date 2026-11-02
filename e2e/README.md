@@ -57,6 +57,7 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
 - `server/test/security.test.js` — local, the real `server.js` on PGlite with every outside call stubbed: fleet-kit's security checks walk every route, then ids in a body or a query, what a share link hands out, every spelling of the admin pages, the Player View's frame and widget rules, and a guest's closed paid uses.
 - `server/test/contract.test.js` — local, no database: the Forge validator never throws on malformed entries.
 - `server/test/spend.test.js` — local, no database: who gets which daily cap, how the cap settings are read, and the sentences a refused DM reads.
+- `server/test/description-warning.test.js` — local, no database: when the editor warns that a period text hides the description, and which period it names.
 - `undo.mjs` — API only, on the throwaway world: Undo restores every column (DM note, stance, body, interior notes and focus) and the delete impact tells the truth.
 - `doors.mjs` — API only, on the throwaway world: an entry that leads to a map it does not own (a new map beside the one it stands on, or any map that exists) files that map beside the other in the tree and the crumb, never renames or deletes it, opens to players only through a door they can see, carries the lantern through, and undoes whole; everything it makes is deleted at the end (`E2E_CONFIG` points it at another config, such as a local server's).
 - `dm.mjs` — the DM workspace on a THROWAWAY world: View posture reader, timebar ticks
@@ -70,7 +71,8 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
   posture, Fit swallows its double-click, a pin's right-click menu is its own, Ctrl+Shift+B reaches the
   bug widget from inside the 🎭 frame, the ⚙ timeline panel (Edit only) saves as it goes and holds a
   range that would move canon, an era outside the clock is flagged, a lens outside a map's focus
-  period widens the bar (the clock and the interior's focus period are put back after), ↑ ↓ keep
+  period widens the bar (the clock and the interior's focus period are put back after), the
+  description box warns only when a period text with words in it covers the lens or canon (not with the clock off, not from the last entry's periods, on the screen on a phone), ↑ ↓ keep
   the @ picker's highlighted row in view, and on a phone ☰ opens the tree with Loose ends. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 

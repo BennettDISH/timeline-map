@@ -55,6 +55,8 @@
 .atlas .spacepanel .besiderow{align-items:center;margin:0 0 10px;
   .grow{flex:1;font-size:11.5px}}
 .atlas .btn.lit{color:#d9b64e;border-color:#6b5a2a}
+// a period text hides the description at the lens or at canon (colour: .muted.warn)
+.atlas .muted.bodywarn{margin-top:5px;font-size:12px;font-style:normal;line-height:1.45;overflow-wrap:anywhere}
 .atlas .fld.dmnotes textarea{border-color:#4a3a5a;background:#1d1926}
 .atlas .spacepanel{
   .sptitle{display:flex;align-items:center;gap:8px;margin:2px 0 4px;font-size:16px;
