@@ -28,6 +28,7 @@ import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
 import { ImagePicker, NodePicker, MapPicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
+import { voiceLine } from '../utils/allowance'
 import { clampPct, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
 import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
 import '../styles/atlas.scss'
@@ -2068,6 +2069,10 @@ function AtlasWorkspace() {
                         {map.ambienceUrl && <AudioClip loop src={map.ambienceUrl} />}
                         {map.ambienceUrl && <button className="lx" title="Remove the ambience — its audio is deleted; making it again costs a new generation" aria-label="Remove this ambience" onClick={() => { if (window.confirm('Remove this ambience? Its audio is deleted, and making it again costs a new generation.')) clearAmbience() }}>✕</button>}
                       </div>
+                      {(() => {
+                        const uses = voiceLine(voiceMeta?.allowance)
+                        return uses && <div className={`muted esmall vuses${uses.warn ? ' warn' : ''}`} role="status" title="Each line and each ambience is one recording, counted for your account">{uses.text}</div>
+                      })()}
                     </>
                   )}
                 </SoundLibrary>
