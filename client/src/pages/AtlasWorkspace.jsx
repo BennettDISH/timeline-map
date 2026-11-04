@@ -841,9 +841,12 @@ function AtlasWorkspace() {
     undoable(`The map “${m.title}” removed`, { undoId: r.undoId })
   }
 
-  const factAdd = (nodeId) => once(`fact:${nodeId}`, () => {
+  const factAdd = (nodeId) => once(`fact:${nodeId}`, async () => {
     const cur = mapData?.placements.find((p) => p.node.id === nodeId)?.node
-    const body = resolveFact(nodeDetail.facts, Math.round(lens)) ?? cur?.body ?? ''
+    // right after switching entries the details may still be the last one's: read this one's first
+    const facts = nodeDetail.nodeId === nodeId ? nodeDetail.facts
+      : await atlasService.getNode(nodeId).then((d) => d.facts || []).catch(() => [])
+    const body = resolveFact(facts, Math.round(lens)) ?? cur?.body ?? ''
     return track(atlasService.addFact(nodeId, { body, start_time: Math.round(lens), end_time: null }), "Couldn't add the entry")
       .then(() => reloadNodeDetail(nodeId)).catch(() => {})
   })
