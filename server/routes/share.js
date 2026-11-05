@@ -460,6 +460,17 @@ router.get('/:token/maps/:mapId', wrap(async (req, res) => {
 const markLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40 });
 // the 16 KB body limit for this router is mounted in server.js, ahead of the global parser
 const MARK_CATS = CATEGORIES;
+// The most player markers a world keeps on its maps; the DM's Share panel counts toward it
+// (GET /api/atlas/worlds/:id sends playerMarkers), so it is never the players who find out first.
+const PLAYER_MARKER_CAP = 200;
+// only markers still on a map count: ones the DM took off a map are not "on the map"
+async function playerMarkerCount(worldId) {
+  const r = (await pool.query(
+    `SELECT COUNT(*) FROM nodes n WHERE n.world_id=$1 AND n.visibility='player'
+       AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id = n.id)`, [worldId])).rows[0];
+  return parseInt(r.count, 10);
+}
+const MARKERS_FULL = `This world holds ${PLAYER_MARKER_CAP} player markers, the most it can — ask your DM to clear some away`;
 router.post('/:token/maps/:mapId/nodes', markLimiter, wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
@@ -475,11 +486,7 @@ router.post('/:token/maps/:mapId/nodes', markLimiter, wrap(async (req, res) => {
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 50); // 0 is a valid edge coord
   const x = Math.max(0, Math.min(100, num(req.body.x)));
   const y = Math.max(0, Math.min(100, num(req.body.y)));
-  // only markers still on a map count toward the cap: ones the DM took off a map are not "on the map"
-  const count = (await pool.query(
-    `SELECT COUNT(*) FROM nodes n WHERE n.world_id=$1 AND n.visibility='player'
-       AND EXISTS (SELECT 1 FROM placements p WHERE p.node_id = n.id)`, [w.id])).rows[0];
-  if (parseInt(count.count) >= 200) return res.status(400).json({ message: 'The map is full of markers — ask your DM to tidy up' });
+  if ((await playerMarkerCount(w.id)) >= PLAYER_MARKER_CAP) return res.status(400).json({ message: MARKERS_FULL });
   // one statement: the node and its placement land together or not at all
   const n = (await pool.query(
     `WITH n AS (INSERT INTO nodes (world_id, title, body, category, visibility, author) VALUES ($1,$2,$3,$4,'player',$5) RETURNING id)
@@ -590,3 +597,6 @@ router.get('/:token/nodes/:id/locate', wrap(async (req, res) => {
 module.exports = router;
 module.exports.spotlightTrail = spotlightTrail;
 module.exports.pendingForge = pendingForge;
+module.exports.PLAYER_MARKER_CAP = PLAYER_MARKER_CAP;
+module.exports.playerMarkerCount = playerMarkerCount;
+module.exports.MARKERS_FULL = MARKERS_FULL;

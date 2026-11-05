@@ -34,3 +34,32 @@ export const forgeLine = (a, perMessage = 1) => line(a, {
 
 /** The line in the editor's voice section: a recording is one use, so the count is always worth showing. */
 export const voiceLine = (a) => line(a, { name: 'Voice', showFrom: 0 })
+
+// Kilobytes as a DM reads them, the same as the server's refusal: whole MB from 1 MB, KB under it
+const size = (kb) => (kb >= 1024 ? `${Math.round(kb / 1024)} MB` : `${Math.max(1, Math.round(kb))} KB`)
+
+/**
+ * The line under the image picker's upload button, counted in KB (GET /api/images/allowance): from
+ * about 80% of the day's uploads used, or as soon as everyone's ceiling leaves less than the account's own.
+ */
+export function uploadLine(a) {
+  if (!a || a.limit == null) return null
+  if (a.limit === 0) return { text: "Uploading isn't open to this account", warn: true }
+  const own = Math.max(0, a.limit - a.used)
+  if (own === 0) return { text: `Today's ${size(a.limit)} of uploads are used. They come back at midnight UTC.`, warn: true }
+  const room = a.left ?? own
+  if (room === 0) return { text: 'Uploading has reached its daily limit for everyone. It opens again at midnight UTC.', warn: true }
+  if (room >= own && a.used < a.limit * NEAR) return null
+  return { text: `${size(Math.min(own, room))} of today's ${size(a.limit)} of uploads left. They come back at midnight UTC.`, warn: true }
+}
+
+/**
+ * The Share panel's line on the players' markers (world.playerMarkers, { count, max }): the count from
+ * the first marker, a warning from about 80% of the most a world holds, and at the most what it means.
+ */
+export function markersLine(pm) {
+  if (!pm || !pm.count) return null
+  if (pm.count >= pm.max) return { text: `Players' markers: ${pm.count} of ${pm.max}, the most a world holds. Players can't add more until you remove some.`, warn: true }
+  const near = pm.count >= pm.max * NEAR
+  return { text: `Players' markers: ${pm.count} of ${pm.max}${near ? '. Near the most a world holds: remove some to give players room.' : ''}`, warn: near }
+}

@@ -77,7 +77,9 @@ test("a copy spends its art's bytes from the day's upload allowance, and over it
     assert.strictEqual(counters.get('upload|21'), 600, 'and spent 600 KB of the account\'s 1 MB');
     const second = await copy(21, 'Second copy');
     assert.strictEqual(second.status, 429);
-    assert.match(second.body.message, /^You've used today's 1 MB of uploads/);
+    // 424 KB of the day is still unused: the copy is too big, the day isn't used up
+    assert.strictEqual(second.body.message.split(' — ')[0], "This needs 600 KB, but only 424 KB of today's 1 MB of uploads are left");
+    assert.strictEqual(second.body.allowance.left, 424);
     assert.strictEqual(copying, 1, 'the second copy was never started');
 
     // a guest has its own (here equal) allowance; a world with no art spends nothing

@@ -5,6 +5,7 @@ const { r2Enabled, deleteObject } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { idParam, isId, whole, text } = require('../lib/validate');
 const { ownsWorld, notFound } = require('../lib/route');
+const spend = require('../lib/spend');
 const router = express.Router();
 router.param('id', idParam);
 
@@ -17,6 +18,18 @@ router.use(authenticateToken);
 
 // POST /api/images/upload — the upload lives in image-base64.js (its JSON body is base64)
 router.post('/upload', require('./image-base64').upload);
+
+// GET /api/images/allowance — what is left of today's uploads (lib/spend.js), so the image
+// picker can say so before an upload is refused: { allowance: { limit, used, left, resetsAt } }
+// in KB, limit and left null for an admin (client/src/utils/allowance.js uploadLine)
+router.get('/allowance', async (req, res) => {
+  try {
+    res.json({ allowance: await spend.allowance(req.user, 'upload') });
+  } catch (error) {
+    console.error('Upload allowance error:', error.message);
+    res.status(500).json({ message: "Couldn't read today's uploads" });
+  }
+});
 
 // GET /api/images
 router.get('/', async (req, res) => {

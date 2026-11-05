@@ -4,7 +4,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { r2Enabled, copyObject } = require('../storage');
-const { spotlightTrail, pendingForge } = require('./share');
+const { spotlightTrail, pendingForge, PLAYER_MARKER_CAP, playerMarkerCount } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
 const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
@@ -185,6 +185,8 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   res.json({ world: {
     id: w.id, name: w.name, description: w.description, rootMapId: w.root_map_id,
     shareToken: w.share_token || null,
+    // how full the players' markers are, for the Share panel (share.js refuses at the cap)
+    playerMarkers: { count: await playerMarkerCount(w.id), max: PLAYER_MARKER_CAP },
     spotlightNodeId: w.spotlight_node_id ?? null,
     looseEnds: !!w.loose_ends,
     soundCues: !!w.sound_cues,

@@ -22,9 +22,13 @@ const KINDS = {
   },
   upload: {
     env: 'UPLOAD', defaults: { cap: 250, guest: 25, ceiling: 2000 }, scale: 1024,
-    name: 'Uploading', units: (kb) => `${Math.round(kb / 1024)} MB of uploads`, what: 'images',
+    name: 'Uploading', units: (kb) => `${size(kb)} of uploads`, amount: (kb) => size(kb), what: 'images',
   },
 };
+// Kilobytes as a DM reads them: whole MB from 1 MB, KB under it (never "0 MB")
+function size(kb) {
+  return kb >= 1024 ? `${Math.round(kb / 1024)} MB` : `${Math.max(1, Math.round(kb))} KB`;
+}
 // spend_counters.used is an int: a setting scaled past it would make every upload a 500
 const INT_MAX = 2147483647;
 
@@ -57,11 +61,17 @@ function untilReset(now = new Date()) {
   return `midnight UTC, ${h < 1 ? 'in under an hour' : h === 1 ? 'in about an hour' : `in about ${h} hours`}`;
 }
 
-// The sentence the DM reads when a call is refused.
-function refusalText(kind, scope, limit, now = new Date()) {
+// The sentence the DM reads when a call is refused. `wanted` and `left` say when it was the size
+// of the call that didn't fit (a big world copy with most of the day's uploads still unused),
+// which must not read as "you've used today's".
+function refusalText(kind, scope, limit, now = new Date(), { wanted = 1, left = 0 } = {}) {
   const k = KINDS[kind];
+  const amount = k.amount ?? k.units;
   if (scope === 'closed') return `${k.name} is not open to ${limit === 'guest' ? 'guests — sign in with an account to use it' : 'this account'}`;
   if (scope === 'ceiling') return `${k.name} has reached its daily limit for everyone — it opens again at ${untilReset(now)}`;
+  if (left > 0 && wanted > left) {
+    return `This needs ${amount(wanted)}, but only ${amount(left)} of today's ${k.units(limit)} ${left === 1 ? 'is' : 'are'} left — try something smaller, or again at ${untilReset(now)}`;
+  }
   if (scope === 'guest') return `Guests get ${k.units(limit)} a day, and today's are used — they come back at ${untilReset(now)}`;
   return `You've used today's ${k.units(limit)} (${k.what}) — they come back at ${untilReset(now)}`;
 }
@@ -129,7 +139,7 @@ async function take(user, kind, n = 1, now = new Date()) {
   prune(day);
   if (!refused) return null;
   const { left } = await allowance(user, kind, pool, now);
-  return { scope: refused, left, message: refusalText(kind, refused, refused === 'ceiling' ? ceiling : cap, now) };
+  return { scope: refused, left, message: refusalText(kind, refused, refused === 'ceiling' ? ceiling : cap, now, { wanted: n, left }) };
 }
 
 // Route helper: spends one use, or answers 429 with the sentence and returns false.

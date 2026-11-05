@@ -28,7 +28,7 @@ import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
 import { ImagePicker, NodePicker, MapPicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
-import { voiceLine } from '../utils/allowance'
+import { voiceLine, markersLine } from '../utils/allowance'
 import { clampPct, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
 import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
 import '../styles/atlas.scss'
@@ -1474,6 +1474,10 @@ function AtlasWorkspace() {
                     <button className="tool danger" onClick={() => askShare('off')}>{shareAsk === 'off' ? "Really? Every player's link dies" : 'Turn off'}</button>
                   </div>
                   <div className="muted">{tl?.enabled ? `Players see shared entries at the canon moment (${momentLabel(canon, world?.eras, tl.unit)}). Scrubbing your timeline doesn't move them — “Set canon” does.` : 'Players see every shared entry — with no clock, nothing is hidden by time.'}</div>
+                  {(() => {
+                    const marks = markersLine(world?.playerMarkers)
+                    return marks && <div className={`muted esmall${marks.warn ? ' warn' : ''}`} role="status">{marks.text}</div>
+                  })()}
                 </>
               ) : (
                 <>

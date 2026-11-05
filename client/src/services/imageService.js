@@ -31,6 +31,11 @@ const imageService = {
     if (onProgress) onProgress(100)
     return response.data
   },
+  // today's upload allowance in KB ({ limit, used, left, resetsAt }), or null when it can't be read
+  async getUploadAllowance() {
+    const response = await http.get(`${API_BASE}/allowance`)
+    return response.data?.allowance ?? null
+  },
   // many images at once, one request: file them under a folder (null = Unsorted), or delete them
   async moveImages(ids, folderId) {
     const response = await http.put('/api/images/bulk', { ids, folder_id: folderId })

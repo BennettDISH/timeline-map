@@ -37,6 +37,20 @@ test('each refusal is one plain sentence that says when the uses come back', () 
   for (const s of [refusalText('forge', 'account', 40, at), refusalText('voice', 'ceiling', 9, at)]) assert.ok(!s.endsWith('.'), 'a one-sentence flash has no trailing period');
 });
 
+test('a call too big for what is left says its size and what is left, not "you\'ve used today\'s"', () => {
+  const at = new Date('2026-10-19T19:10:00Z');
+  const MB = 1024;
+  // a world copy of 300 MB of art with 230 MB of the day's 250 still unused
+  assert.strictEqual(refusalText('upload', 'account', 250 * MB, at, { wanted: 300 * MB, left: 230 * MB }),
+    "This needs 300 MB, but only 230 MB of today's 250 MB of uploads are left — try something smaller, or again at midnight UTC, in about 5 hours");
+  // under a megabyte reads in KB, never "0 MB"
+  assert.strictEqual(refusalText('upload', 'guest', MB, at, { wanted: 600, left: 424 }),
+    "This needs 600 KB, but only 424 KB of today's 1 MB of uploads are left — try something smaller, or again at midnight UTC, in about 5 hours");
+  // with nothing left it is the day that's used, as before
+  assert.match(refusalText('upload', 'account', 250 * MB, at, { wanted: 300 * MB, left: 0 }), /^You've used today's 250 MB of uploads \(images\)/);
+  assert.strictEqual(refusalText('upload', 'account', 250 * MB, at), refusalText('upload', 'account', 250 * MB, at, { wanted: 1, left: 0 }));
+});
+
 test('a proposal that wants too many paintings says how many are left', () => {
   const at = new Date('2026-10-19T19:10:00Z');
   assert.strictEqual(paintingsText(1, 3, at), 'this proposal wanted 3 paintings and only 1 Forge use is left today — ask for fewer, or try again after midnight UTC, in about 5 hours');
@@ -52,9 +66,9 @@ test('a proposal that wants too many paintings says how many are left', () => {
   const path = require('node:path');
   const spend = require('../lib/spend');
   const { CAPS } = require('../forge/contract');
-  let forgeLine, voiceLine;
+  let forgeLine, voiceLine, uploadLine, markersLine;
   test.before(async () => {
-    ({ forgeLine, voiceLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
+    ({ forgeLine, voiceLine, uploadLine, markersLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
   });
   const of = (limit, used, left = limit - used) => ({ limit, used, left, resetsAt: '2026-11-03T00:00:00.000Z' });
   const PER = 1 + CAPS.images;
@@ -134,5 +148,35 @@ test('a proposal that wants too many paintings says how many are left', () => {
     assert.deepEqual([guest.limit, guest.used, guest.left], [3, 3, 0], 'a guest gets the guest cap');
     const admin = await spend.allowance({ id: 7, isAdmin: true }, 'forge', db);
     assert.deepEqual([admin.limit, admin.left, admin.used], [null, null, 3]);
+  });
+
+  test("the image picker says what's left of the day's uploads from about 80% used, in MB or KB", () => {
+    const MB = 1024;
+    assert.equal(uploadLine(of(250 * MB, 199 * MB)), null, 'under 80%: nothing');
+    assert.deepEqual(uploadLine(of(250 * MB, 200 * MB)), { text: "50 MB of today's 250 MB of uploads left. They come back at midnight UTC.", warn: true });
+    assert.equal(uploadLine(of(MB, 1000)).text, "24 KB of today's 1 MB of uploads left. They come back at midnight UTC.");
+    assert.deepEqual(uploadLine(of(250 * MB, 250 * MB)), { text: "Today's 250 MB of uploads are used. They come back at midnight UTC.", warn: true });
+    // everyone's ceiling: shown at once, and the count is no more than everyone has left
+    assert.equal(uploadLine({ limit: 250 * MB, used: 0, left: 30 * MB }).text, "30 MB of today's 250 MB of uploads left. They come back at midnight UTC.");
+    assert.match(uploadLine({ limit: 250 * MB, used: 0, left: 0 }).text, /^Uploading has reached its daily limit for everyone/);
+    assert.equal(uploadLine({ limit: null, used: 9, left: null }), null, 'an admin');
+    assert.equal(uploadLine(null), null);
+  });
+
+  test("the Share panel counts the players' markers, and warns from 160 of 200", () => {
+    assert.equal(markersLine({ count: 0, max: 200 }), null);
+    assert.equal(markersLine(undefined), null);
+    assert.deepEqual(markersLine({ count: 12, max: 200 }), { text: "Players' markers: 12 of 200", warn: false });
+    assert.deepEqual(markersLine({ count: 160, max: 200 }), { text: "Players' markers: 160 of 200. Near the most a world holds: remove some to give players room.", warn: true });
+    assert.deepEqual(markersLine({ count: 200, max: 200 }), { text: "Players' markers: 200 of 200, the most a world holds. Players can't add more until you remove some.", warn: true });
+  });
+
+  test("a player who finds the world full is told it's the world's markers, not the map's", () => {
+    const src = require('node:fs').readFileSync(path.join(__dirname, '..', 'routes', 'share.js'), 'utf8');
+    assert.match(src, /const PLAYER_MARKER_CAP = 200;/);
+    assert.match(src, /This world holds \$\{PLAYER_MARKER_CAP\} player markers, the most it can — ask your DM to clear some away/);
+    assert.match(src, /if \(\(await playerMarkerCount\(w\.id\)\) >= PLAYER_MARKER_CAP\) return res\.status\(400\)\.json\(\{ message: MARKERS_FULL \}\);/);
+    assert.match(require('node:fs').readFileSync(path.join(__dirname, '..', 'routes', 'atlas.js'), 'utf8'),
+      /playerMarkers: \{ count: await playerMarkerCount\(w\.id\), max: PLAYER_MARKER_CAP \}/);
   });
 }

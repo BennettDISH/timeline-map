@@ -5,6 +5,7 @@ import imageService from '../../services/imageService'
 import { errText } from '../../services/http'
 import { cat } from '../../utils/categories'
 import { usesOf, describeUse, ACCEPT } from '../../utils/images'
+import { uploadLine } from '../../utils/allowance'
 
 // Upload a new image (to R2 via the existing pipeline), pick an existing one from this
 // world, or — when the Forge is on — paint one for exactly the thing being decorated.
@@ -23,6 +24,10 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
   const [err, setErr] = useState('')
   const [genBusy, setGenBusy] = useState(false)
   const [gGuide, setGGuide] = useState('')
+  // today's uploads, said under the button before one is refused (a failed read just says nothing)
+  const [uploads, setUploads] = useState(null)
+  useEffect(() => { imageService.getUploadAllowance().then(setUploads).catch(() => {}) }, [])
+  const uploadsLeft = uploadLine(uploads)
   useEffect(() => { const t = setTimeout(() => setNeedle(q.trim()), 300); return () => clearTimeout(t) }, [q])
   const runGen = () => {
     if (genBusy || busy) return
@@ -90,6 +95,8 @@ export function ImagePicker({ worldId, hasCurrent, onPick, onClose, generate, on
         )}
         <button type="button" className="btn block" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? 'Uploading…' : '⬆ Upload new image (PNG, JPEG, GIF or WebP, up to 10 MB)'}</button>
         <input ref={fileRef} type="file" accept={ACCEPT} hidden disabled={busy} onChange={(e) => { upload(e.target.files[0]); e.target.value = '' }} />
+        {uploadsLeft && <div className={`muted esmall${uploadsLeft.warn ? ' warn' : ''}`} role="status"
+          title="Uploads and copied worlds count toward your account's day">{uploadsLeft.text}</div>}
         {hasCurrent && <button className="btn block" onClick={() => onPick(null, null)}>{removeLabel}</button>}
         {err && <div className="muted" style={{ color: '#ff9b9b' }}>{err}</div>}
         <input className="nsearch" placeholder="Search the archive…" value={q} onChange={(e) => setQ(e.target.value)} />

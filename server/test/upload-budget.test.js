@@ -75,7 +75,7 @@ test('an account spends its day in kilobytes, and the upload that would pass the
   const before = stored;
   const over = await send('account', png(600));
   assert.strictEqual(over.status, 429);
-  assert.match(over.body.message, /^You've used today's 1 MB of uploads \(images\) — they come back at midnight UTC/);
+  assert.match(over.body.message, /^This needs \d+ KB, but only 424 KB of today's 1 MB of uploads are left — try something smaller, or again at midnight UTC/);
   assert.strictEqual(stored, before, 'nothing was stored');
   assert.strictEqual(counters.get('upload|11'), 600, 'and nothing was counted');
   assert.strictEqual((await send('account', png(300))).status, 200, 'what is left can still be used');
@@ -89,7 +89,8 @@ test('a refused file spends nothing; a guest has its own cap; everyone together 
   assert.strictEqual((await send('guest', png(700))).status, 200);
   const guest = await send('guest', png(400));
   assert.strictEqual(guest.status, 429);
-  assert.match(guest.body.message, /^Guests get 1 MB of uploads a day, and today's are used/);
+  // 324 KB of the guest's 1 MB is still unused: the file is too big, the day isn't used up
+  assert.match(guest.body.message, /^This needs 400 KB, but only 324 KB of today's 1 MB of uploads are left/);
 
   // 900 + 700 so far: the ceiling (2 MB) has 448 KB left for anyone
   const ceiling = await send('other', png(500));
