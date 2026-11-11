@@ -40,12 +40,12 @@ export function goStraightToWaypoint({ ssoEnabled, hold, wantsLocal }) {
 
 /** The server's route to Waypoint, with the page to come back to (the server follows it only
  *  to a path on this site), and for "Switch account" prompt=login (Waypoint asks again instead
- *  of reusing its session). */
+ *  of reusing its session), or for "Create account" prompt=create (its sign-up form). */
 export function signInPath(next = '/', { prompt } = {}) {
   const params = new URLSearchParams()
   const back = safeNext(next)
   if (back !== '/') params.set('next', back)
-  if (prompt === 'login') params.set('prompt', 'login')
+  if (prompt === 'login' || prompt === 'create') params.set('prompt', prompt)
   const qs = params.toString()
   return `/api/auth/sso/login${qs ? `?${qs}` : ''}`
 }

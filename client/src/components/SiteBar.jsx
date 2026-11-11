@@ -32,6 +32,8 @@ function Bar({ next }) {
   const waypoint = config?.ssoEnabled !== false
 
   const signIn = () => (waypoint ? startWaypoint(next) : navigate('/login'))
+  // the bar's "Create account": Waypoint's sign-up form, back to this page (no Waypoint: the form here)
+  const signUp = () => (waypoint ? startWaypoint(next, { prompt: 'create' }) : navigate('/login'))
   const signOut = async () => {
     // a guest's only credential is this browser's session: signing out ends the account
     if (user?.isGuest && !window.confirm(GUEST_WARNING)) return false
@@ -52,5 +54,5 @@ function Bar({ next }) {
   const signOutAll = async () => { if (await signOut() && config?.accountUrl) window.location.assign(logoutAllPath(ARCADE_URL)) }
 
   const account = loading ? undefined : user ? { name: user.isGuest ? 'Guest' : (user.username || 'Account') } : null
-  return <GamesBar account={account} onSignIn={signIn} onSwitch={switchAccount} onSignOut={signOut} onSignOutAll={signOutAll} />
+  return <GamesBar account={account} onSignIn={signIn} onSignUp={signUp} onSwitch={switchAccount} onSignOut={signOut} onSignOutAll={signOutAll} />
 }

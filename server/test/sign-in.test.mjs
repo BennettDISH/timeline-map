@@ -42,6 +42,8 @@ test('leaving for Waypoint goes through the server with the page to come back to
   assert.strictEqual(assigned[2], '/api/auth/sso/login', 'the usual landing needs no next')
   s.startWaypoint('//elsewhere.example/x', { prompt: 'none' })
   assert.strictEqual(assigned[3], '/api/auth/sso/login', 'never a page off this site, and no other prompt')
+  s.startWaypoint('/w/3', { prompt: 'create' })
+  assert.strictEqual(assigned[4], '/api/auth/sso/login?next=%2Fw%2F3&prompt=create', 'the bar\'s Create account: Waypoint\'s sign-up form')
 })
 
 test('a sign-in that came back with an error says why', () => {

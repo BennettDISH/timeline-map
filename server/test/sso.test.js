@@ -90,9 +90,15 @@ test('the sign-in leaves for Waypoint\'s authorize page with a state of the serv
 
 test('"Switch account" passes prompt=login on, and only that', async () => {
   assert.strictEqual((await start('?prompt=login')).url.searchParams.get('prompt'), 'login');
-  for (const p of ['none', 'consent', 'login%20none']) {
+  for (const p of ['none', 'consent', 'login%20none', 'CREATE']) {
     assert.strictEqual((await start(`?prompt=${p}`)).url.searchParams.has('prompt'), false, p);
   }
+});
+
+test('"Create account" passes prompt=create on; the Atlas takes guests, so Waypoint keeps its guest start', async () => {
+  const { url } = await start('?prompt=create');
+  assert.strictEqual(url.searchParams.get('prompt'), 'create');
+  assert.deepStrictEqual([...url.searchParams.keys()].sort(), ['client_id', 'prompt', 'redirect_uri', 'state']);
 });
 
 test('the callback refuses a code without the state it was started with, before asking Waypoint', async () => {
