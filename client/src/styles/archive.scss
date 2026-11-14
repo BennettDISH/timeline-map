@@ -327,3 +327,9 @@
 .arch .lbtitle{cursor:text}
 .arch .lbtitle .lbedit{opacity:.5;font-size:.8em}
 .arch .lbname{font-size:1.05rem;margin-bottom:6px}
+// the name in the viewer is a button that starts the rename (keyboard too), drawn as the heading it sits in
+.arch .lbtitle .lbrename{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:inherit;cursor:text;
+  &:focus-visible{outline:2px solid var(--accent);outline-offset:2px}}
+// what is left of the day's uploads, on its own line under the header's buttons (utils/allowance.js uploadLine)
+.arch .archhead .uplimit{flex-basis:100%;order:6;text-align:right;font-size:12.5px;color:var(--muted);
+  &.warn{color:var(--gold)}}

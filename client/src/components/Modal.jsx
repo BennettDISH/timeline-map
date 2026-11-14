@@ -6,7 +6,7 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 // heading. Only a press AND release on the backdrop closes it: a text selection that ends
 // outside the card never throws away what was typed.
 // `frame` is the card class: 'modal' in the workspace, 'smodal' on the shell pages.
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+export const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function useDialog(box, onClose, { autoFocus = true } = {}) {
   // read at the first render, before the commit: an autoFocus field inside the dialog would

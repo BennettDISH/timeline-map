@@ -63,3 +63,13 @@ export function markersLine(pm) {
   const near = pm.count >= pm.max * NEAR
   return { text: `Players' markers: ${pm.count} of ${pm.max}${near ? '. Near the most a world holds: remove some to give players room.' : ''}`, warn: near }
 }
+
+/**
+ * The Dashboard's line on how many worlds the account holds (GET /api/worlds' `limit`, { count, max }):
+ * nothing until about 80% of the most, then the count, and at the most what it means.
+ */
+export function worldsLine(l) {
+  if (!l || !l.max || l.count < l.max * NEAR) return null
+  if (l.count >= l.max) return { text: `You have ${l.count} of ${l.max} worlds, the most an account holds. Delete one to make room for a new one.`, warn: true }
+  return { text: `You have ${l.count} of ${l.max} worlds.`, warn: true }
+}

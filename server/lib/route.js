@@ -16,4 +16,12 @@ async function ownsWorld(worldId, userId) {
 // it does (403) and never a validation complaint (400).
 const notFound = (res, what = 'Not found') => res.status(404).json({ message: what });
 
-module.exports = { wrap, ownsWorld, notFound };
+// The most worlds one account holds, on every path that makes one (create and copy). The
+// Dashboard says how many there are before the last ones go (GET /api/worlds sends `limit`).
+const MAX_WORLDS = 50;
+const WORLDS_FULL = `You have ${MAX_WORLDS} of ${MAX_WORLDS} worlds, the most an account holds — delete one to make room`;
+async function worldCount(userId) {
+  return (await pool.query('SELECT COUNT(*)::int AS n FROM worlds WHERE created_by=$1', [userId])).rows[0].n;
+}
+
+module.exports = { wrap, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount };

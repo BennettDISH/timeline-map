@@ -256,3 +256,6 @@
 
 // long names wrap and stop at three lines; a single long word breaks instead of overflowing
 .shell .fname, .shell .wname { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+// how many worlds the account holds, from 40 of the 50 it may (utils/allowance.js worldsLine)
+.shell.dash .dlimit { margin: -6px 0 0; font-size: 13px; color: var(--muted); &.warn { color: var(--gold); } }

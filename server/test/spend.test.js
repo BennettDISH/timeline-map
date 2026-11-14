@@ -66,9 +66,9 @@ test('a proposal that wants too many paintings says how many are left', () => {
   const path = require('node:path');
   const spend = require('../lib/spend');
   const { CAPS } = require('../forge/contract');
-  let forgeLine, voiceLine, uploadLine, markersLine;
+  let forgeLine, voiceLine, uploadLine, markersLine, worldsLine;
   test.before(async () => {
-    ({ forgeLine, voiceLine, uploadLine, markersLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
+    ({ forgeLine, voiceLine, uploadLine, markersLine, worldsLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
   });
   const of = (limit, used, left = limit - used) => ({ limit, used, left, resetsAt: '2026-11-03T00:00:00.000Z' });
   const PER = 1 + CAPS.images;
@@ -169,6 +169,13 @@ test('a proposal that wants too many paintings says how many are left', () => {
     assert.deepEqual(markersLine({ count: 12, max: 200 }), { text: "Players' markers: 12 of 200", warn: false });
     assert.deepEqual(markersLine({ count: 160, max: 200 }), { text: "Players' markers: 160 of 200. Near the most a world holds: remove some to give players room.", warn: true });
     assert.deepEqual(markersLine({ count: 200, max: 200 }), { text: "Players' markers: 200 of 200, the most a world holds. Players can't add more until you remove some.", warn: true });
+  });
+
+  test('the Dashboard counts the worlds from 40 of 50, and says what 50 means', () => {
+    assert.equal(worldsLine({ count: 39, max: 50 }), null);
+    assert.equal(worldsLine(undefined), null, 'an older server sends no count');
+    assert.deepEqual(worldsLine({ count: 42, max: 50 }), { text: 'You have 42 of 50 worlds.', warn: true });
+    assert.deepEqual(worldsLine({ count: 50, max: 50 }), { text: 'You have 50 of 50 worlds, the most an account holds. Delete one to make room for a new one.', warn: true });
   });
 
   test("a player who finds the world full is told it's the world's markers, not the map's", () => {

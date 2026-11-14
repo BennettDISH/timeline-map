@@ -945,6 +945,58 @@ try {
     for (const u of [ann, bob, gale]) await u.call('DELETE', `/api/worlds/${u.world}`).catch(() => {});
     await ctl('/reset', {});
   }
+  // the Dashboard and the Archive: a heads-up before the worlds cap and the day's uploads, fields a
+  // screen reader can name, and the image viewer a dialog for the keyboard too
+  {
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => out.errors.push(`pageerror: ${e.message.slice(0, 160)}`));
+    try {
+      await p.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle', timeout: 90000 });
+      await p.locator('.shell.dash .ghostcard').waitFor({ timeout: 30000 });
+      step('with a few worlds the Dashboard says nothing of the cap', (await p.locator('.dlimit').count()) === 0);
+      const list = (url) => url.pathname === '/api/worlds/';
+      await p.route(list, async (route) => { const r = await route.fetch(); await route.fulfill({ json: { ...(await r.json()), limit: { count: 42, max: 50 } } }); });
+      await p.reload({ waitUntil: 'networkidle' });
+      const held = (await p.locator('.dlimit').textContent({ timeout: 20000 }).catch(() => '')).trim();
+      step('…and at 42 of 50 it gives a heads-up', held === 'You have 42 of 50 worlds.', held || 'no line');
+      await p.unroute(list);
+      await p.locator('.shell.dash .ghostcard').click();
+      await p.getByLabel('Name', { exact: true }).fill('label probe');
+      await p.getByLabel('Description (optional)').fill('a description');
+      step("the New world dialog's fields are named by their labels", (await p.getByLabel('Name', { exact: true }).inputValue()) === 'label probe');
+      await p.keyboard.press('Escape');
+
+      // the local stack keeps no art, so the Archive is handed one image to look at, and an allowance 94% used
+      await p.route((url) => url.pathname === '/api/images/allowance', (route) => route.fulfill({ json: { allowance: { limit: 256000, used: 240000, left: 16000, resetsAt: '2030-01-01T00:00:00.000Z' } } }));
+      await p.route((url) => url.pathname === '/api/images/', (route) => route.fulfill({ json: { total: 1, images: [{
+        id: 990001, filename: 'probe.svg', originalName: 'Probe map', filePath: '/compass.svg', fileSize: 1200, mimeType: 'image/svg+xml', altText: null, folderId: null,
+        uploadedAt: '2026-11-01T00:00:00.000Z', usage: { maps: 0, nodes: 0, backdrops: 0, anchor: 0 }, url: '/compass.svg' }] } }));
+      await p.goto(`${BASE}/worlds/${cfg.worldId}/images`, { waitUntil: 'networkidle', timeout: 90000 });
+      const up = (await p.locator('.arch .uplimit').textContent({ timeout: 20000 }).catch(() => '')).trim();
+      step("the Archive says what is left of the day's uploads before one is refused", up === "16 MB of today's 250 MB of uploads left. They come back at midnight UTC.", up || 'no line');
+
+      const inside = () => p.evaluate(() => !!document.activeElement?.closest('.lbframe[role=dialog]'));
+      await p.locator('.arch .tile').first().focus();
+      await p.keyboard.press('Enter');
+      await p.locator('.lbframe[role=dialog]').waitFor({ timeout: 10000 });
+      step('the image viewer is a dialog that takes the focus when it opens', await inside());
+      let stays = true;
+      for (let i = 0; i < 12; i++) { await p.keyboard.press('Tab'); if (!(await inside())) stays = false; }
+      await p.keyboard.press('Shift+Tab'); if (!(await inside())) stays = false;
+      step('…Tab stays inside it', stays);
+      await p.locator('.lbframe .lbrename').focus();
+      await p.keyboard.press('Enter');
+      const renaming = (await p.locator('.lbframe .lbname').count()) === 1;
+      await p.keyboard.press('Escape');
+      await p.waitForTimeout(150);
+      const backOnName = await p.evaluate(() => !!document.activeElement?.classList.contains('lbrename'));
+      step('…its name renames from the keyboard, and Escape there ends only the rename', renaming && backOnName && (await p.locator('.lbframe').count()) === 1, `renaming ${renaming}, focus back ${backOnName}`);
+      await p.keyboard.press('Escape');
+      await p.waitForTimeout(150);
+      const onTile = await p.evaluate(() => !!document.activeElement?.classList.contains('tile'));
+      step('…and Escape closes it, handing the focus back to the tile that opened it', (await p.locator('.lbframe').count()) === 0 && onTile);
+    } finally { await p.close(); }
+  }
   step('no page errors', out.errors.filter((m) => !/404/.test(m)).length === 0, out.errors.filter((m) => !/404/.test(m)).slice(0, 3).join(' | '));
 } catch (e) { step('run completed', false, e.message.slice(0, 200)); }
 await browser.close();

@@ -65,10 +65,18 @@ share link in use). The data is NOT disposable: migrations are additive (`ADD CO
 EXISTS`), never a recreate, and anything destructive gets a snapshot first (`tombstones`, or an
 export like `~/atlas-backups/`). Undo and world clone both insert from ONE column list per
 table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content column there.
-Clones own their art: with R2 on, objects are copied under `worlds/<newId>/` (`copyObject`),
-old base64 rows are lifted into R2, and folders, the lantern and the mind travel too. A world with a
+Clones own their art and audio: with R2 on, every image, voice line and ambience is copied under
+`worlds/<newId>/` (`copyObject`), so clearing a line or an ambience in the copy (which deletes its
+object) never touches the source, nor the source's in the copy; a line or an ambience that can't be
+copied (R2 off, or an address that is not the bucket's) is left out of the copy. Folders (their
+nesting and what is filed in them), the lantern and the mind travel too. A copy that fails partway
+takes back the objects it already copied and gives the day's upload allowance back
+(`server/test/world-copy.test.js`). A world with a
 pending Forge batch is not copied (409) until its cards are kept or unmade: a copy carries no
 cards, so their work would land there as kept work its players see at once.
+**An account holds at most 50 worlds** (`MAX_WORLDS` in `lib/route.js`), made or copied: the 51st
+is a 400 that says so. `GET /api/worlds` sends `limit: {count, max}`, and the Dashboard says "You
+have 42 of 50 worlds." from 40 on, and at 50 what it means.
 Live tables (the 16 `schema.sql` creates; production held the first 15 as of 2026-09-26):
 `users`, `worlds`, `image_folders`, `images`, `maps`, `nodes`, `placements`, `links`, `node_facts`,
 `eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`, and
@@ -419,7 +427,7 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   is one; `upload` — an image upload spends its size (counted in KB; the settings are MB), and a
   world copy spends the sum of the source's image sizes (it copies every object), so R2 (or
   Postgres without it) cannot be filled by one account, a stream of guests, or copy-delete-copy
-  past the 50-worlds backstop. Listing
+  past the 50-worlds cap. Listing
   voices, Keep/Unmake/Allow and the panel's reads are free.
 - Caps by env (whole numbers, a typo keeps the default): `FORGE_DAILY_CAP` 40 per account,
   `FORGE_DAILY_CAP_GUEST` 5 per guest, `FORGE_DAILY_CEILING` 150 for everyone together;
@@ -432,7 +440,9 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   account's own `allowance`, guests' too): under the Forge's message box "N of 40 left today" from
   about 80% used, and as soon as one message may cost more than what is left (`perMessage`: the turn
   plus `CAPS.images` paintings, so a guest's 5 warns from the start); under Say it in the editor's
-  voice section "N of 20 left today", always. The count is this account's `limit - used`; `left` also
+  voice section "N of 20 left today", always; under the image picker's upload button and under the
+  Archive's "Upload images" what is left of the day's uploads, from about 80% used
+  (`GET /api/images/allowance`, read again after each batch). The count is this account's `limit - used`; `left` also
   holds everyone's ceiling, which gets its own words with no number. An admin sees neither. Both read
   today's again after anything that can spend a use.
 - A refused call is a **429** with one sentence that says when the uses come back (midnight UTC),
@@ -662,7 +672,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
 - Players read mentions through `share.js`: one of an entry the threads' rule lets them know
   exists stays a mention without its moment (its link opens that entry's sheet: right there when
   its pin is on the map, else on the map ⌖ would go to), and any other is its bare name, so neither an id nor a moment of a hidden entry leaves the server. The
-  painter reads a mention as its name.
+  painter reads a mention as its name. A hand-typed mention (a player's marker can hold one) of an
+  id no entry can have, past what Postgres holds, is never looked up: players read its name.
 
 ## API conventions
 - Request bodies and query strings are snake_case (`node_id`, `start_time`, `shape_kind`);

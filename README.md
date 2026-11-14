@@ -23,8 +23,8 @@ every rule the code enforces.
 - `server/test/FIXTURE.md` — the production fixture world the secrecy suite reads.
 
 ## Stack
-React 18 + Vite + SASS (`client/`) · Express + Postgres (`server/`) · JWT auth with optional
-server-side Waypoint SSO and guest sign-in · Cloudflare R2 for art (nothing stored in Postgres)
+React 18 + Vite + SASS (`client/`) · Express + Postgres (`server/`) · an httpOnly session cookie
+(fleet-kit) with server-side Waypoint sign-in and guests · Cloudflare R2 for art (nothing stored in Postgres)
 · optional Gemini "Forge" (a per-world mind) and Gemini/OpenAI/ElevenLabs voices.
 
 ## Getting started
@@ -53,7 +53,8 @@ entry, era, image and Forge chat, look-only, and the Railway switches as they st
 
 ## Environment variables
 Names only; `.env.example` explains each.
-- Core: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `NODE_ENV`, `PORT`
+- Core: `DATABASE_URL`, `JWT_SECRET` (signs the session cookie; `SESSION_SECRET` wins when both
+  are set), `NODE_ENV`, `PORT`
 - Waypoint sign-in: `AUTH_SERVICE_URL`, `SSO_CLIENT_ID`, `SSO_CLIENT_SECRET`, `APP_BASE_URL`,
   `ADMIN_CENTRAL_USER_IDS`
 - Guests: `GUEST_RETENTION_DAYS`, `GUEST_CLEANUP_ENABLED`
@@ -72,7 +73,7 @@ Names only; `.env.example` explains each.
 ## Layout
 - `client/src/pages/` — **AtlasWorkspace** (`/w/:worldId/m/:mapId`, the editor), **PlayerView**
   (`/p/:token`, the public read-only share), Dashboard, Archive (the world's images), AdminPanel,
-  Login, AuthCallback, NotFound.
+  Login, NotFound. (Waypoint comes back to the server's `/auth/callback`, not to a page.)
 - `server/routes/` — **atlas** (the whole Atlas API), **share** (the tokened Player View API and
   the secrecy boundary), **forge**, **voice**, worlds, images, image-base64, imageFolders, auth, admin.
 - `server/lib/validate.js` — the one set of input rules every write route uses.

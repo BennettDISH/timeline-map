@@ -4,13 +4,15 @@
 // only rewrites them where text leaves for someone else: players and the painter.
 
 const MENTION = /@\[([^\]\n]{1,255})\]\(node:(\d{1,10})(?:@(-?\d{1,10}))?\)/g;
+const INT_MAX = 2147483647; // the largest id Postgres holds: a longer one names no entry
 
-// every entry named, in order, once each
+// every entry named, in order, once each. Text anyone wrote (a player's marker too) may carry an
+// id no entry can have: it is left out, so it never reaches a query, and players read its name.
 function mentionIds(text) {
   const out = [];
   for (const m of String(text || '').matchAll(MENTION)) {
     const id = Number(m[2]);
-    if (!out.includes(id)) out.push(id);
+    if (id <= INT_MAX && !out.includes(id)) out.push(id);
   }
   return out;
 }

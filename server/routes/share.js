@@ -528,11 +528,12 @@ router.get('/:token/nodes/:id', wrap(async (req, res) => {
   }
   // @-mentions: one of an entry the player may know exists (the threads' rule, below) stays a
   // mention without its moment; any other is its name, so no id or moment of a hidden thing leaves
+  // (one naming an id no entry can have, which only a hand-typed mention holds, is its name too)
   const named = mentionIds(n.body);
-  if (named.length) {
-    const shared = (await pool.query(`SELECT id FROM nodes WHERE id = ANY($1::int[]) AND world_id = $2 AND visibility != 'dm'`, [named, w.id])).rows.map((r) => r.id);
-    n.body = mentionsForPlayers(n.body, await reachableIds(shared, w, t));
-  }
+  const shared = named.length
+    ? (await pool.query(`SELECT id FROM nodes WHERE id = ANY($1::int[]) AND world_id = $2 AND visibility != 'dm'`, [named, w.id])).rows.map((r) => r.id)
+    : [];
+  n.body = mentionsForPlayers(n.body, await reachableIds(shared, w, t));
 
   const linkSql = (dir) => `
     SELECT l.id, l.label, l.${dir === 'out' ? 'to' : 'from'}_node_id AS other, n2.title, n2.category AS other_cat

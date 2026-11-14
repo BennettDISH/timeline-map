@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react'
 import { plural } from '../utils/format'
+import { uploadLine } from '../utils/allowance'
 import { Link, useParams, useNavigate } from 'react-router'
 import TopBar, { Compass } from '../components/TopBar'
 import worldService from '../services/worldService'
@@ -7,7 +8,7 @@ import imageService from '../services/imageService'
 import imageFolderService from '../services/imageFolderService'
 import { errText } from '../services/http'
 import { usesOf, describeUse, ACCEPT } from '../utils/images'
-import Modal from '../components/Modal'
+import Modal, { FOCUSABLE } from '../components/Modal'
 import '../styles/shell.scss'
 import '../styles/archive.scss'
 
@@ -54,6 +55,9 @@ function Archive() {
 
   const [dragging, setDragging] = useState(false)
   const [uploads, setUploads] = useState(null) // { done, total, name, pct, fails }
+  // today's uploads, said under the button before the day's allowance refuses one (a failed read says nothing)
+  const [allowance, setAllowance] = useState(null)
+  const readAllowance = () => imageService.getUploadAllowance().then(setAllowance).catch(() => {})
   const [flash, setFlash] = useState(null)
   const dragDepth = useRef(0)
   const uploadRef = useRef(() => {})
@@ -85,7 +89,7 @@ function Archive() {
       setCounts({ total: r.total ?? 0, unsorted: r.unsorted ?? 0 })
     }).catch((e) => setFoldersErr(errText(e, "Couldn't load the folders")))
   }, [])
-  useEffect(() => { if (world) { setFolderSel('all'); loadFolders(world.id) } }, [world?.id]) // eslint-disable-line
+  useEffect(() => { if (world) { setFolderSel('all'); loadFolders(world.id); readAllowance() } }, [world?.id]) // eslint-disable-line
   // a folder is chosen for the world it belongs to: a switch to another world never queries with it
   const pickFolder = (sel) => { folderWorld.current = world?.id ?? null; setFolderSel(sel) }
 
@@ -152,6 +156,7 @@ function Archive() {
       setUploads((u) => u && ({ ...u, done: i + 1 }))
     }
     setUploads(null)
+    if (files.length) readAllowance() // what is left now
     const added = files.length - failed.length
     const problems = [...failed, ...skipped]
     if (!problems.length) setFlash({ kind: 'ok', text: `${plural(added, 'image')} uploaded` })
@@ -323,6 +328,7 @@ function Archive() {
 
   const selCount = selected.size
   const boxImg = box >= 0 ? images[box] : null
+  const uploadsLeft = uploadLine(allowance)
 
   return (
     <div className="shell arch">
@@ -360,6 +366,8 @@ function Archive() {
         >{selectMode ? 'Done' : 'Select'}</button>
         <button type="button" className="sbtn primary" onClick={() => fileRef.current?.click()}>⬆ Upload images</button>
         <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { doUpload(e.target.files); e.target.value = '' }} />
+        {uploadsLeft && <div className={`uplimit${uploadsLeft.warn ? ' warn' : ''}`} role="status"
+          title="Uploads and copied worlds count toward your account's day">{uploadsLeft.text}</div>}
       </div>
 
       <div className="archmain">
@@ -578,12 +586,13 @@ function FolderModal({ form, parentName, busy, onClose, onSubmit }) {
   const [name, setName] = useState(form.rename ? form.rename.name : '')
   const title = form.rename ? 'Rename folder' : parentName ? `New folder in “${parentName}”` : 'New folder'
   const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(name.trim()) }
+  const id = useId()
   return (
     <Modal frame="smodal" title={title} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
-          <label>Name</label>
-          <input className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)}
+          <label htmlFor={`${id}-name`}>Name</label>
+          <input id={`${id}-name`} className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)}
             placeholder="Region maps, Portraits, Handouts…" maxLength={255} />
         </div>
         <div className="mrow">
@@ -630,9 +639,31 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
   useEffect(() => { setName(img.originalName || ''); setCaption(img.altText || ''); setNaming(false) }, [img.id]) // eslint-disable-line
   const saveName = async () => { const v = name.trim(); setNaming(false); if (!v || v === img.originalName) { setName(img.originalName || ''); return } if (!(await onEdit?.({ original_name: v }))) setName(img.originalName || '') }
   const saveCaption = async () => { const v = caption.trim(); if (v === (img.altText || '')) return; if (!(await onEdit?.({ alt_text: v }))) setCaption(img.altText || '') }
+  // A dialog for the keyboard too: focus moves in when it opens (the name, the first thing in it),
+  // Tab stays inside, and closing hands focus back to the tile that opened it. A rename that ends
+  // gives the focus back to the name.
+  const id = useId()
+  const frame = useRef(null), renameBtn = useRef(null), wasNaming = useRef(false)
+  const [opener] = useState(() => document.activeElement)
+  useEffect(() => {
+    frame.current?.querySelector(FOCUSABLE)?.focus()
+    return () => { if (opener && opener !== document.body && document.contains(opener)) opener.focus() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!naming && wasNaming.current && !frame.current?.contains(document.activeElement)) renameBtn.current?.focus()
+    wasNaming.current = naming
+  }, [naming])
   useEffect(() => {
     const key = (e) => {
       if (blocked) return // a confirm sits on top: Esc is its alone
+      if (e.key === 'Tab') {
+        const f = [...(frame.current?.querySelectorAll(FOCUSABLE) || [])]
+        if (!f.length) return
+        const i = f.indexOf(document.activeElement)
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus() }
+        else if (!e.shiftKey && (i === f.length - 1 || i < 0)) { e.preventDefault(); f[0].focus() }
+        return
+      }
       if (/select|input|textarea/i.test(e.target?.tagName)) return // a field keeps its own keys
       if (e.key === 'Escape') onClose()
       else if (e.key === 'ArrowLeft' && onPrev) onPrev()
@@ -652,15 +683,17 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
   return (
     <div className="modal-back lightbox" onClick={onClose}>
       {onPrev && <button className="lbnav prev" onClick={(e) => { e.stopPropagation(); onPrev() }} title="Previous (←)">‹</button>}
-      <div className="lbframe" onClick={(e) => e.stopPropagation()}>
+      <div ref={frame} className="lbframe" role="dialog" aria-modal="true" aria-label={img.originalName || 'Image'} onClick={(e) => e.stopPropagation()}>
         <div className="lbimg">
           <img src={img.url} alt={img.altText || img.originalName} />
         </div>
         <div className="lbside">
           {naming
-            ? <input className="sinput lbname" autoFocus value={name} maxLength={255} onChange={(e) => setName(e.target.value)}
+            ? <input className="sinput lbname" autoFocus aria-label="Image name" value={name} maxLength={255} onChange={(e) => setName(e.target.value)}
                 onBlur={saveName} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setName(img.originalName || ''); setNaming(false) } }} />
-            : <h3 className="lbtitle" title="Click to rename" onClick={() => onEdit && setNaming(true)}>{img.originalName}{onEdit && <span className="lbedit" aria-hidden="true"> ✎</span>}</h3>}
+            : <h3 className="lbtitle">{onEdit
+              ? <button ref={renameBtn} type="button" className="lbrename" title="Rename" aria-label={`${img.originalName}, rename`} onClick={() => setNaming(true)}>{img.originalName}<span className="lbedit" aria-hidden="true"> ✎</span></button>
+              : img.originalName}</h3>}
           <div className="lbmeta">
             {imageService.formatFileSize(img.fileSize)} · {(img.mimeType || '').replace('image/', '')} ·{' '}
             {new Date(img.uploadedAt).toLocaleDateString()}
@@ -668,17 +701,17 @@ function Lightbox({ img, onClose, onPrev, onNext, folders, onMove, onDelete, onF
           <div className={`lbuse ${uses ? 'live' : ''}`}>{uses > 0 && <span className="inuse-dot">◈</span>}{useLine}</div>
           {onEdit && (
             <div className="fld">
-              <label>Caption — searched, shown to no one else</label>
-              <input className="sinput" value={caption} maxLength={2000} placeholder="a note to find it by…" onChange={(e) => setCaption(e.target.value)}
+              <label htmlFor={`${id}-cap`}>Caption — searched, shown to no one else</label>
+              <input id={`${id}-cap`} className="sinput" value={caption} maxLength={2000} placeholder="a note to find it by…" onChange={(e) => setCaption(e.target.value)}
                 onBlur={saveCaption} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
             </div>
           )}
           <div className="fld">
-            <label>Filed under</label>
+            <label htmlFor={`${id}-dir`}>Filed under</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <select
+                id={`${id}-dir`}
                 className="sselect"
-                aria-label="Filed under"
                 value={pick}
                 onChange={(e) => setPick(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && pick !== cur) { e.preventDefault(); onMove(pick === '' ? null : Number(pick)) } }}

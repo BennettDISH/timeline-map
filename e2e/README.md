@@ -56,6 +56,7 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
 - `server/test/admin.test.js` — local, no database: the admin gate on every admin route, 50 a page, search escaping and filters, and no hash, token or image bytes in any answer whatever the database returns.
 - `server/test/security.test.js` — local, the real `server.js` on PGlite with every outside call stubbed: fleet-kit's security checks walk every route, then ids in a body or a query, what a share link hands out, every spelling of the admin pages, the Player View's frame and widget rules, a guest's closed paid uses, and that a map's sound and a world's cues are the owner's to set (a player, another DM and a guest are refused, and a share link only reads them).
 - `server/test/contract.test.js` — local, no database: the Forge validator never throws on malformed entries.
+- `server/test/world-copy.test.js` — local, the real routes on PGlite with R2 stubbed: a copy keeps the image folders and their filing, owns its art and its voice lines and ambiences (clearing one in the copy deletes only the copy's object), a copy that fails partway takes back its objects and gives the day's uploads back, and an account holds at most 50 worlds, made or copied.
 - `client/src/utils/allowance.js` — what the Forge and the editor's voice section say before a cap (when, the words, an admin, a guest, everyone's ceiling with no number), tested in `server/test/spend.test.js` with that the count is the signed-in account's own, and in `dm.mjs` on the local stack's stubs (the line, its colour, a count falling after a use, a phone).
 - `server/test/spend.test.js` — local, no database: who gets which daily cap, how the cap settings are read, and the sentences a refused DM reads.
 - `server/test/description-warning.test.js` — local, no database: when the editor warns that a period text hides the description, and which period it names.
@@ -74,7 +75,11 @@ checks the same seed against the columns `schema.sql` leaves (`server/test/seed-
   range that would move canon, an era outside the clock is flagged, a lens outside a map's focus
   period widens the bar (the clock and the interior's focus period are put back after), the
   description box warns only when a period text with words in it covers the lens or canon (not with the clock off, not from the last entry's periods, on the screen on a phone), ↑ ↓ keep
-  the @ picker's highlighted row in view, and on a phone ☰ opens the tree with Loose ends. Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
+  the @ picker's highlighted row in view, and on a phone ☰ opens the tree with Loose ends; the
+  Dashboard says "You have 42 of 50 worlds." near the cap and nothing well under it, its New world
+  fields answer to their labels, the Archive says what is left of the day's uploads from about 80%
+  used, and its image viewer is a dialog for the keyboard (focus in, Tab kept inside, the name
+  renames from the keyboard, Escape hands the focus back to the tile). Needs `dm.config.json`: a throwaway account's JWT + user, its world, a root map with
   a party placement, and one interior the party walks into.
 
 `E2E_CONFIG=e2e/local.config.json bash e2e/watch.sh` runs every suite against the local stack (no wait, no token renewal, no live secrecy suite). `E2E_LIVE=1 bash e2e/watch.sh` waits for the live deploy to reach the local HEAD (the `/health` check names the deployed commit) and then runs every suite in order there; `SKIP_WAIT=1` runs them at once. With neither, it stops.

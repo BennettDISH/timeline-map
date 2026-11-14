@@ -1,5 +1,5 @@
 // The fleet's security checks (fleet-kit/test/security) on the Atlas's own routes: the real server.js
-// on a real Postgres in memory (PGlite, the kit's; only this file and the media-host one load it). A
+// on a real Postgres in memory (PGlite, the kit's; only this file, world-copy and media-host load it). A
 // new route has to be public, an admin's, or reach a world through an id named below, or this fails.
 // The Forge and voices are switched on, because with them off all their routes are 404s that prove
 // nothing; every outside call is stubbed, so nothing leaves this machine.
@@ -271,6 +271,12 @@ test('the security checks', async (t) => {
     const { rows: [marker] } = await pool.query('SELECT world_id, visibility, category FROM nodes WHERE id = $1', [JSON.parse(marked.body).nodeId]);
     assert.deepStrictEqual(marker, { world_id: A, visibility: 'player', category: 'note' });
     assert.strictEqual((await ask({}, 'POST', `${link}/maps/${A + 1}/nodes`, { title: 'Nowhere' })).status, 404, 'a map that is not there takes no marker');
+    // a marker whose text names an id no entry can have still opens for everyone, the mention as its name
+    const odd = await ask({}, 'POST', `${link}/maps/${A}/nodes`, { title: 'Odd', body: 'Here be @[dragons](node:9999999999).' });
+    assert.strictEqual(odd.status, 201);
+    const sheet = await ask({}, 'GET', `${link}/nodes/${JSON.parse(odd.body).nodeId}`);
+    assert.strictEqual(sheet.status, 200, sheet.body.slice(0, 120));
+    assert.strictEqual(JSON.parse(sheet.body).node.body, 'Here be dragons.');
 
     // turning sharing off ends the link
     assert.strictEqual((await ask(bob, 'DELETE', `/api/atlas/worlds/${A}/share`)).status, 404);

@@ -142,6 +142,16 @@ async function take(user, kind, n = 1, now = new Date()) {
   return { scope: refused, left, message: refusalText(kind, refused, refused === 'ceiling' ? ceiling : cap, now, { wanted: n, left }) };
 }
 
+// Give back n that take() spent on `day`, when the work it paid for was never done (a world copy
+// that failed partway): the account's row, and everyone's when the call spent the ceiling too
+// (an admin's never did). A count never goes below 0.
+async function refund(user, kind, n, day = today()) {
+  const { admin } = limitsFor(user, kind);
+  await pool.query(
+    'UPDATE spend_counters SET used = GREATEST(0, used - $4) WHERE day = $1::date AND kind = $2 AND user_id = ANY($3::int[])',
+    [day, kind, admin ? [user.id] : [user.id, 0], n]);
+}
+
 // Route helper: spends one use, or answers 429 with the sentence and returns false.
 async function charge(req, res, kind, n = 1) {
   const refusal = await take(req.user, kind, n);
@@ -150,4 +160,4 @@ async function charge(req, res, kind, n = 1) {
   return false;
 }
 
-module.exports = { KINDS, setting, limitsFor, refusalText, paintingsText, untilReset, allowance, take, charge, today };
+module.exports = { KINDS, setting, limitsFor, refusalText, paintingsText, untilReset, allowance, take, charge, refund, today };

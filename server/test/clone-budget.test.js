@@ -1,8 +1,9 @@
 // A world copy spends the upload allowance, run locally (no database, no network): the copy
 // owns its art — every image is copied in storage — so it spends the source's image bytes from
 // the day's upload allowance (lib/spend.js, kind 'upload') before anything is copied, and over
-// it is a 429 with nothing made. The tables are stood in for; the copy itself is stopped at its
-// first write, which is all this needs to know it was let through.
+// it is a 429 with nothing made. The tables are stood in for: the source is its art's size and
+// nothing else, so a copy let through runs to its end with nothing to copy. (A copy that fails
+// partway giving the allowance back runs on a real database in world-copy.test.js.)
 //
 //   node --test server/test/clone-budget.test.js
 const test = require('node:test');
@@ -19,7 +20,7 @@ const USERS = { 21: { id: 21, central_user_id: 5021, is_guest: false }, 22: { id
 let counters = new Map(); // `${kind}|${userId}` -> used
 let snapshot = null;
 let artBytes = 0; // the source world's images, all together
-let copying = 0; // copies that got as far as their first write
+let copying = 0; // copies that were let through (their world row went in)
 pool.query = async (sql, params) => {
   const s = sql.trim();
   if (/INSERT INTO spend_counters/.test(s)) {
@@ -40,10 +41,12 @@ pool.query = async (sql, params) => {
   if (/FROM users WHERE id = \$1/.test(s)) return { rows: [{ ...USERS[params[0]], username: `u${params[0]}`, email: null, role: 'user', token_version: 0, unseen: false }] };
   if (/^SELECT \* FROM worlds WHERE id=\$1/.test(s)) return { rows: [{ id: 7, name: 'The sample world', description: 'A sample', is_template: true, created_by: 99 }] };
   if (/SELECT 1 FROM worlds WHERE name=\$1 AND created_by=\$2/.test(s)) return { rows: [] };
-  if (/SELECT COUNT\(\*\) FROM worlds WHERE created_by=\$1/.test(s)) return { rows: [{ count: '0' }] };
+  if (/SELECT COUNT\(\*\)::int AS n FROM worlds WHERE created_by=\$1/.test(s)) return { rows: [{ n: 0 }] };
   if (/FROM forge_batches/.test(s)) return { rows: [] };
   if (/SUM\(file_size\)/.test(s)) return { rows: [{ bytes: String(artBytes) }] };
-  if (/^INSERT INTO worlds/.test(s)) { copying += 1; throw new Error('stop here: the copy was let through'); }
+  if (/^INSERT INTO worlds/.test(s)) { copying += 1; return { rows: [{ id: 100 + copying }] }; }
+  // past its art's size the source is empty: every loop of the copy finds nothing to copy
+  if (/^SELECT [bfp*.]+ FROM (image_folders|images|maps|nodes|placements|links|eras|map_backdrops|node_facts|world_minds)\b/.test(s)) return { rows: [] };
   throw new Error(`unexpected query: ${s}`);
 };
 pool.connectTx = async () => ({ query: pool.query, release() {} });
@@ -69,10 +72,10 @@ const copy = async (userId, name) => {
 
 test("a copy spends its art's bytes from the day's upload allowance, and over it nothing is made", async () => {
   const error = console.error;
-  console.error = () => {}; // the stopped copies log their stop
+  console.error = () => {}; // a copy that did fail would log why, and the assert says so anyway
   try {
     artBytes = 600 * 1024;
-    assert.notStrictEqual((await copy(21, 'First copy')).status, 429);
+    assert.strictEqual((await copy(21, 'First copy')).status, 201);
     assert.strictEqual(copying, 1, 'the first copy was let through');
     assert.strictEqual(counters.get('upload|21'), 600, 'and spent 600 KB of the account\'s 1 MB');
     const second = await copy(21, 'Second copy');
@@ -86,7 +89,7 @@ test("a copy spends its art's bytes from the day's upload allowance, and over it
     artBytes = 2 * 1024 * 1024;
     assert.strictEqual((await copy(22, 'Too much art')).status, 429);
     artBytes = 0;
-    assert.notStrictEqual((await copy(22, 'No art')).status, 429);
+    assert.strictEqual((await copy(22, 'No art')).status, 201);
     assert.strictEqual(copying, 2);
     assert.strictEqual(counters.get('upload|22'), undefined);
   } finally {

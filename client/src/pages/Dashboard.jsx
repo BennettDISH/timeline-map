@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react'
 import { plural, entries } from '../utils/format'
+import { worldsLine } from '../utils/allowance'
 import { Link, useNavigate, useLocation } from 'react-router'
 import { errText } from '../services/http'
 import Modal from '../components/Modal'
@@ -49,6 +50,7 @@ function WorldBadges({ w }) {
 function Dashboard() {
   const navigate = useNavigate()
   const [worlds, setWorlds] = useState(null) // null while loading
+  const [limit, setLimit] = useState(null) // { count, max }: how many worlds this account holds of the most
   const [modal, setModal] = useState(null) // {kind:'create'|'edit'|'delete', world?}
   const [menuId, setMenuId] = useState(null)
   const [flash, setFlash] = useState(null) // {kind:'ok'|'err', text}
@@ -64,7 +66,7 @@ function Dashboard() {
   const load = () => {
     setLoadError(null)
     return worldService.getWorlds()
-      .then((r) => setWorlds(r.worlds || []))
+      .then((r) => { setWorlds(r.worlds || []); setLimit(r.limit || null) })
       .catch((e) => { setWorlds(null); setLoadError(errText(e, "Couldn't load your worlds")) })
   }
   useEffect(() => { load(); atlasService.getTemplates().then(setTemplates).catch(() => {}) }, [])
@@ -98,6 +100,7 @@ function Dashboard() {
     [worlds] // eslint-disable-line
   )
   const rest = useMemo(() => (worlds || []).filter((w) => w.id !== featured?.id), [worlds, featured])
+  const held = worldsLine(limit) // the heads-up before the most worlds an account holds
 
   const open = (w) => navigate(`/w/${w.id}`)
 
@@ -137,6 +140,7 @@ function Dashboard() {
       await worldService.deleteWorld(world.id)
       worldService.clearLastLocation(world.id)
       setWorlds((ws) => ws.filter((w) => w.id !== world.id))
+      setLimit((l) => l && { ...l, count: Math.max(0, l.count - 1) })
       setModal(null)
       setFlash({ kind: 'ok', text: `“${world.name}” deleted` })
     } catch (e) {
@@ -221,6 +225,7 @@ function Dashboard() {
         {worlds !== null && worlds.length > 0 && (
           <section className="shelf">
             <h3 className="kicker rule">{rest.length ? 'All your worlds' : 'New world'}</h3>
+            {held && <p className={`dlimit${held.warn ? ' warn' : ''}`} role="status">{held.text}</p>}
             <div className="wgrid">
               {rest.map((w) => (
                 <article
@@ -271,6 +276,7 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [useSample, setUseSample] = useState(defaultSample && templates.length > 0)
+  const id = useId()
   // the sample list may arrive after the dialog opened: the default still holds
   useEffect(() => { if (defaultSample && templates.length) setUseSample(true) }, [defaultSample, templates.length])
   const submit = (e) => {
@@ -281,13 +287,13 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
     <Modal frame="smodal" title="New world" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
-          <label>Name</label>
-          <input className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)}
+          <label htmlFor={`${id}-name`}>Name</label>
+          <input id={`${id}-name`} className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)}
             placeholder="The Sunless Reach, Osterra, Vel'Naar…" maxLength={255} />
         </div>
         <div className="fld">
-          <label>Description (optional)</label>
-          <textarea className="stext" value={desc} onChange={(e) => setDesc(e.target.value)}
+          <label htmlFor={`${id}-desc`}>Description (optional)</label>
+          <textarea id={`${id}-desc`} className="stext" value={desc} onChange={(e) => setDesc(e.target.value)}
             placeholder="What this world is about" />
         </div>
         {templates.length > 0 && (
@@ -310,17 +316,18 @@ function CreateModal({ busy, onClose, onSubmit, templates = [], defaultSample = 
 function EditModal({ busy, world, onClose, onSubmit }) {
   const [name, setName] = useState(world.name)
   const [desc, setDesc] = useState(world.description || '')
+  const id = useId()
   const submit = (e) => { e.preventDefault(); if (name.trim()) onSubmit(world, name.trim(), desc.trim() || null) }
   return (
     <Modal frame="smodal" title="Edit world details" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="fld">
-          <label>Name</label>
-          <input className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={255} />
+          <label htmlFor={`${id}-name`}>Name</label>
+          <input id={`${id}-name`} className="sinput" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={255} />
         </div>
         <div className="fld">
-          <label>Description</label>
-          <textarea className="stext" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="(optional)" />
+          <label htmlFor={`${id}-desc`}>Description</label>
+          <textarea id={`${id}-desc`} className="stext" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="(optional)" />
         </div>
         <div className="mrow">
           <button type="button" className="sbtn ghost" onClick={onClose}>Cancel</button>

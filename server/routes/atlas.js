@@ -3,10 +3,10 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
-const { r2Enabled, copyObject } = require('../storage');
+const { r2Enabled, copyObject, deleteObject, keyFromUrl } = require('../storage');
 const { spotlightTrail, pendingForge, PLAYER_MARKER_CAP, playerMarkerCount } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
-const { wrap: wrapWith, ownsWorld, notFound } = require('../lib/route');
+const { wrap: wrapWith, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount } = require('../lib/route');
 const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const spend = require('../lib/spend');
@@ -299,9 +299,11 @@ router.get('/templates', wrap(async (req, res) => {
 
 // POST /worlds/clone — deep-copy a world (a template, or one you own) into a new world the
 // caller owns. Every id is remapped and every content column travels (NODE_COLS/MAP_COLS,
-// folders, the lantern, the Forge mind's style/lore/bible). The clone OWNS its art: with R2
-// on, each object is copied under worlds/<newId>/ (base64 rows are lifted into R2 too), so
-// deleting anything in the source can never break the clone, and vice versa.
+// folders, the lantern, the Forge mind's style/lore/bible). The clone OWNS its art and audio:
+// with R2 on, each image, voice line and ambience is copied under worlds/<newId>/, so deleting
+// anything in the source can never break the clone, and vice versa. A voice line or ambience
+// that can't be copied (R2 off, or an address that is not the bucket's) is left out of the copy.
+const AUDIO_TYPES = { mp3: 'audio/mpeg', wav: 'audio/wav' };
 router.post('/worlds/clone', wrap(async (req, res) => {
   const { source_id, name, description } = req.body;
   if (!isId(source_id)) return res.status(404).json({ message: 'World not found' });
@@ -311,9 +313,8 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   if (cleanName === undefined) return bad(res, 'A world needs a name of 1 to 255 characters');
   if ((await pool.query('SELECT 1 FROM worlds WHERE name=$1 AND created_by=$2', [cleanName, req.user.id])).rows.length)
     return res.status(409).json({ message: 'You already have a world with this name' });
-  // storage-amplification backstop: cloning duplicates base64 art rows per clone
-  const owned = (await pool.query('SELECT COUNT(*) FROM worlds WHERE created_by=$1', [req.user.id])).rows[0];
-  if (parseInt(owned.count) >= 50) return res.status(400).json({ message: 'That is a lot of worlds — delete some first' });
+  // the most worlds an account holds, the same as creating one (lib/route.js)
+  if ((await worldCount(req.user.id)) >= MAX_WORLDS) return res.status(400).json({ message: WORLDS_FULL });
   // a pending Forge batch is only the DM's preview: the copy has no forge_batches rows, so its
   // work would land there as kept work with no card to Unmake, and share.js would no longer
   // hold it back from the copy's players. Settle the cards first.
@@ -324,11 +325,14 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   }
   // the copy owns its art — every image is copied — so it adds the source's image bytes to
   // storage, and spends them from the day's upload allowance as uploading them would
-  // (lib/spend.js): copy, delete, copy again went round the 50-worlds backstop above
+  // (lib/spend.js): copy, delete, copy again went round the 50-worlds backstop above. A copy that
+  // fails partway gives the allowance back and takes back the objects it already copied.
   const art = (await pool.query('SELECT COALESCE(SUM(file_size), 0) AS bytes FROM images WHERE world_id=$1', [src.id])).rows[0];
   const artKb = Math.ceil(Number(art.bytes) / 1024);
+  const chargedOn = spend.today();
   if (artKb > 0 && !(await spend.charge(req, res, 'upload', artKb))) return;
 
+  const copied = []; // the object keys this copy has put in storage so far
   const client = await pool.connectTx();
   try {
   await client.query('BEGIN');
@@ -341,12 +345,23 @@ router.post('/worlds/clone', wrap(async (req, res) => {
     [cleanName, desc, req.user.id, src.timeline_enabled,
      src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit, !!src.loose_ends, !!src.sound_cues])).rows[0];
 
+  // a voice line or an ambience as the copy's own object (null when it can't be copied)
+  const copyAudio = async (url, what) => {
+    const key = r2Enabled ? keyFromUrl(url) : null;
+    if (!key) return null;
+    const ext = key.includes('.') ? key.split('.').pop().toLowerCase() : 'mp3';
+    const dst = `worlds/${w.id}/${what}-clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
+    const out = await copyObject(key, dst, AUDIO_TYPES[ext]);
+    copied.push(dst);
+    return out;
+  };
+
   const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
   const folders = await rowsOfC('SELECT * FROM image_folders WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const f of folders) {
     const r = (await client.query(
-      'INSERT INTO image_folders (name, world_id, created_by, color, icon) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [f.name, w.id, req.user.id, f.color, f.icon])).rows[0];
+      'INSERT INTO image_folders (name, world_id, created_by) VALUES ($1,$2,$3) RETURNING id',
+      [f.name, w.id, req.user.id])).rows[0];
     folderMap.set(f.id, r.id);
   }
   for (const f of folders) if (f.parent_id && folderMap.has(f.parent_id)) {
@@ -362,6 +377,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
     if (r2Enabled && im.storage_key) {
       const key = `worlds/${w.id}/${fname}`;
       filePath = await copyObject(im.storage_key, key, im.mime_type); storageKey = key;
+      copied.push(key);
     }
     const r = (await client.query(
       `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, storage_key, folder_id, created_at)
@@ -373,14 +389,15 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const m of maps) {
     const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'owner_node_id', 'tree_parent_id'), m,
-      { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null });
+      { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null,
+        ambience_url: m.ambience_url ? await copyAudio(m.ambience_url, 'ambience') : null });
     mapMap.set(m.id, r.id);
   }
   const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const n of nodes) {
     const r = await insertRow(client, 'nodes', without(NODE_COLS, 'id', 'created_at', 'updated_at'), n,
       { world_id: w.id, created_by: req.user.id, interior_map_id: null, image_id: n.image_id ? (imgMap.get(n.image_id) || null) : null,
-        pin: n.pin || 'chip', pin_size: n.pin_size || 64 });
+        pin: n.pin || 'chip', pin_size: n.pin_size || 64, voice_url: n.voice_url ? await copyAudio(n.voice_url, 'voice') : null });
     nodeMap.set(n.id, r.id);
   }
   for (const m of maps) if (m.tree_parent_id && mapMap.has(m.tree_parent_id)) {
@@ -433,6 +450,9 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   res.status(201).json({ worldId: w.id });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
+    // nothing of the copy stands: the objects it put go again, and the day's uploads come back
+    for (const key of copied) await deleteObject(key).catch((err) => console.error('R2 cleanup after a failed copy:', err.message));
+    if (artKb > 0) await spend.refund(req.user, 'upload', artKb, chargedOn).catch((err) => console.error('upload refund after a failed copy:', err.message));
     throw e;
   } finally {
     client.release();

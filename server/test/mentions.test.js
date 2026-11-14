@@ -39,6 +39,12 @@ test('players get a mention only of what they may know exists, and never its mom
   assert.strictEqual(mentionsForPlayers(null, new Set()), null);
 });
 
+test('an id no entry can have (past what Postgres holds) is never looked up, and players read its name', () => {
+  const odd = 'Here be @[dragons](node:9999999999) and @[the Mill](node:2147483647).';
+  assert.deepStrictEqual(mentionIds(odd), [2147483647], 'the largest id is still one');
+  assert.strictEqual(mentionsForPlayers(odd, new Set(mentionIds(odd))), 'Here be dragons and @[the Mill](node:2147483647).');
+});
+
 test('the client splits text into words and mentions, and lists each mention once', () => {
   const parts = client.splitMentions(TEXT);
   assert.deepStrictEqual(parts.filter((p) => typeof p !== 'string'), [

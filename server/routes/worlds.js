@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deletePrefix } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { worldName, text, idParam } = require('../lib/validate');
+const { MAX_WORLDS, WORLDS_FULL, worldCount } = require('../lib/route');
 const router = express.Router();
 
 // All world routes require authentication
@@ -50,7 +51,8 @@ router.get('/', async (req, res) => {
                   current: row.timeline_current_time, unit: row.timeline_time_unit }
     }));
 
-    res.json({ worlds });
+    // how many worlds this account holds of the most it may (lib/route.js), for the Dashboard's heads-up
+    res.json({ worlds, limit: { count: worlds.length, max: MAX_WORLDS } });
   } catch (error) {
     console.error('Get worlds error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -75,6 +77,7 @@ router.post('/', async (req, res) => {
     if (existingWorld.rows.length > 0) {
       return res.status(409).json({ message: 'You already have a world with this name' });
     }
+    if ((await worldCount(req.user.id)) >= MAX_WORLDS) return res.status(400).json({ message: WORLDS_FULL });
 
     const result = await pool.query(`
       INSERT INTO worlds (name, description, created_by)
