@@ -106,7 +106,15 @@ app.use((req, res, next) => (isAdminPath(req.path) ? adminGate(req, res, next) :
 // NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".
 const distPath = path.join(__dirname, '../client/dist');
 if (fs.existsSync(path.join(distPath, 'index.html'))) {
-  app.use(express.static(distPath, { index: false }));
+  // Vite names everything under assets/ by its hash, so a new build is a new name: the browser
+  // keeps those a year instead of asking for each bundle again on every visit (max-age=0).
+  const builtAssets = path.join(distPath, 'assets') + path.sep;
+  app.use(express.static(distPath, {
+    index: false,
+    setHeaders: (res, file) => {
+      if (file.startsWith(builtAssets)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  }));
 
   // The internal bug-tracker widget is injected HERE, server-side, into every page except
   // the public Player View (/p/*): anonymous players get neither the reporting UI nor its
