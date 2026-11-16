@@ -30,6 +30,8 @@
     &.sv{color:var(--muted)}
     &.ok{color:#6fcf97;border-color:#2e5738}
     &.bad{color:#ff9b9b;border-color:#5a2a2a}}
+  // how full the world is (utils/allowance.js roomLine): from about 80% of the most it holds
+  .roomchip{font-size:11px;border-radius:999px;padding:2px 9px;border:1px solid #6b5420;color:#e8c26a;white-space:nowrap;cursor:help}
   .gsearch{position:relative;width:200px;flex:none;
     input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--ink);
       padding:4px 12px;font:inherit;font-size:12px}

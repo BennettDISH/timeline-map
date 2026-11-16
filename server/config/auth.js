@@ -120,6 +120,9 @@ const wp = createWaypoint({
   guests: 'allow',
   callbackPath: '/auth/callback',
   signInPage: '/login',
+  // Sign-up is Waypoint's own form (/sso/login?prompt=create): never one here, even if the
+  // kit's password routes are turned on later (routes/auth.js keeps the Atlas's sign-in form)
+  register: false,
   onSignIn: (u) => findOrCreateLocalUser(u),
   publicUser: shape,
   session: {

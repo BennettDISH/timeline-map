@@ -73,3 +73,15 @@ export function worldsLine(l) {
   if (l.count >= l.max) return { text: `You have ${l.count} of ${l.max} worlds, the most an account holds. Delete one to make room for a new one.`, warn: true }
   return { text: `You have ${l.count} of ${l.max} worlds.`, warn: true }
 }
+
+/**
+ * The workspace's heads-up on how full the world is (world.room, and the reply to an add that leaves
+ * it nearly full: { what, count, max } for its fullest kind, the server's lib/room.js): nothing under
+ * about 80% of the most, then the count, and at the most what it means. `short` is the top bar's chip.
+ */
+export function roomLine(r) {
+  if (!r || !r.max || !(r.count >= r.max * NEAR)) return null
+  const n = (v) => Number(v).toLocaleString('en-US')
+  if (r.count >= r.max) return { text: `This world holds ${n(r.count)} of ${n(r.max)} ${r.what}, the most it can. Delete some to make room for more.`, short: `Full: ${n(r.max)} ${r.what}`, warn: true }
+  return { text: `This world holds ${n(r.count)} of ${n(r.max)} ${r.what}, near the most it can.`, short: `${n(r.count)} of ${n(r.max)} ${r.what}`, warn: true }
+}

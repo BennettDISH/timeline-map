@@ -64,7 +64,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `images.js` + `image-base64.js` + `imageFolders.js` (R2-backed image pipeline), `stock.js` +
   `lib/stock.js` (the stock tokens and portraits in `server/stock/library.json`, made by `tools/stock/`;
   a pick copies one into the world),
-  `auth.js` (the Atlas's own password forms, then fleet-kit's sign-in router), `admin.js`, `share.js` (the public Player View API),
+  `auth.js` (the Atlas's own password form, then fleet-kit's sign-in router; sign-up is Waypoint's own form, `prompt=create`), `admin.js`, `share.js` (the public Player View API),
   `forge.js` + `server/forge/` (the mind), `voice.js` + `server/voice/` (voices and ambience),
   `config/auth.js` (fleet-kit's `createWaypoint`, app `atlas`: the users row by central id, the
   `__Host-atlas_session` cookie read against the row, sign-out on every device, the daily renewal
@@ -79,7 +79,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `/auth/callback` and the `/admin` page gate (`server.js`),
   the R2 store under `storage.js` (every call is given up on after 15 s; immutable Cache-Control on every put and copy; `storage.js` keeps
   the public URLs and `R2_LEGACY_PUBLIC_URLS` while stored URLs move to the custom
-  domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list)
+  domain, `scripts/rewrite-media-host.js`, see `docs/R2-SETUP.md`), `lib/validate.js` + `lib/vocab.js` (input rules and the category list), `lib/room.js` (the most one world holds of each kind: every new add path counts against it)
 - Client: `pages/AtlasWorkspace.jsx` (the workspace: state, canvas, timebar, reader, dialogs) with
   its panels in `components/atlas/` (`Inspector`, `ForgePanel`, `MapTree`, `TimelineConfig`,
   `Pickers` = ImagePicker + NodePicker + MapPicker, `DeleteImpact`, and `helpers.js` they share) + `components/MapPlane.jsx` (shared pan/zoom world plane —

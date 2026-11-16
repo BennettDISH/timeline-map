@@ -367,6 +367,8 @@ CREATE INDEX IF NOT EXISTS idx_placements_map ON placements(map_id);
 CREATE INDEX IF NOT EXISTS idx_placements_node ON placements(node_id);
 CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_node_id);
 CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_node_id);
+-- what one world holds is counted on every add (server/lib/room.js), threads by their world
+CREATE INDEX IF NOT EXISTS idx_links_world ON links(world_id);
 CREATE INDEX IF NOT EXISTS idx_maps_owner ON maps(owner_node_id);
 
 -- Retired columns (nothing reads or writes them; production held only defaults). Worlds and

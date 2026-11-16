@@ -91,5 +91,6 @@ in `server/` is the read-only secrecy suite on its own. Details and the config f
 
 ## Sign-in
 "Sign in with Waypoint" is wired entirely server-side (`AUTH_SERVICE_URL`, `SSO_CLIENT_ID`,
-`SSO_CLIENT_SECRET`); the client discovers it through `GET /api/auth/config`. Without those,
-username/password accounts work on their own.
+`SSO_CLIENT_SECRET`); the client discovers it through `GET /api/auth/config`. Making an account
+is Waypoint's own sign-up form ("Create account", `prompt=create`); the Atlas has none of its own.
+Without Waypoint, the accounts already in the local table sign in on their own (the dev mode).

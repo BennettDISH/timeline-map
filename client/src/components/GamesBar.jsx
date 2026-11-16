@@ -44,5 +44,6 @@ export default function GamesBar({ account, onSignIn, onSignUp, onSwitch, onSign
     }
   }, [onSignIn, onSignUp, onSwitch, onSignOut, onSignOutAll])
 
-  return <fleet-topbar ref={bar} home={ARCADE_URL} manual="" no-pad="" />
+  // no onSignUp (no Waypoint to sign up on): the bar offers no Create account
+  return <fleet-topbar ref={bar} home={ARCADE_URL} manual="" no-pad="" signup={onSignUp ? undefined : 'off'} />
 }

@@ -12,6 +12,7 @@ const { storeImage, NO_STORAGE } = require('../lib/storeImage');
 const { r2Enabled } = require('../storage');
 const { generateImage } = require('./gemini');
 const { CATEGORIES: CATS } = require('../lib/vocab');
+const room = require('../lib/room');
 
 const CAPS = { images: 8, maps: 8, nodes: 60, links: 100, eras: 8, backdrops: 10, enrich: 40, enrichMaps: 20, placements: 120, factsPerNode: 12, placementsPerNode: 6, asks: 40 };
 const STANCES = ['friend', 'neutral', 'foe'];
@@ -254,6 +255,23 @@ async function paintAndStore({ worldId, userId, kind, prompt, artStyle, name }) 
 
 // ---- apply -----------------------------------------------------------------------
 
+// What a validated batch adds to the world, counted the way lib/room.js caps it; null when it
+// fits, else the sentence (as the reply's "Nothing was changed: …" reads it). Asked before the
+// paintings are spent (mind.js) and again as the batch lands.
+async function roomForBatch(worldId, batch) {
+  const sum = (list, f) => list.reduce((n, x) => n + f(x), 0);
+  const fit = await room.check(pool, worldId, {
+    nodes: batch.nodes.length,
+    maps: batch.maps.length,
+    placements: sum(batch.nodes, (n) => n.placements.length) + sum(batch.enrich, (en) => en.place.length),
+    facts: sum(batch.nodes, (n) => n.facts.length) + sum(batch.enrich, (en) => en.facts.length),
+    links: batch.links.length,
+    eras: batch.eras.length,
+    backdrops: batch.backdrops.filter((b) => b.start != null).length, // one without a start replaces the base art
+  });
+  return fit.refused ? fit.refused.charAt(0).toLowerCase() + fit.refused.slice(1) : null;
+}
+
 // Land a validated batch. Images are painted and uploaded FIRST (outside the transaction —
 // they're slow and external); every DB row then lands in one transaction. On failure the
 // just-created image rows/objects are cleaned up. Returns { batchId, counts }.
@@ -282,6 +300,8 @@ async function applyBatch({ worldId, userId, batch, artStyle }) {
     const r = await pool.query('SELECT id FROM maps WHERE id = ANY($1) AND world_id=$2', [[...wantMaps], worldId]);
     if (r.rows.length !== wantMaps.size) throw Object.assign(new Error('the batch references maps that are not in this world'), { userMessage: 'the mind pointed at maps that are not in this world — ask again' });
   }
+  const full = await roomForBatch(worldId, batch);
+  if (full) throw Object.assign(new Error('the batch would pass what the world holds'), { userMessage: full });
 
   // Paint. Sequential, not parallel — each painting after the first can only match the
   // anchor once the anchor exists, and the anchor is the first painting.
@@ -676,4 +696,4 @@ async function discardBatch({ worldId, batchId }) {
   return { ok: true, keptImages: keep.size, skipped };
 }
 
-module.exports = { validateBatch, applyBatch, discardBatch, allowAsks, paintAndStore, CAPS };
+module.exports = { validateBatch, applyBatch, roomForBatch, discardBatch, allowAsks, paintAndStore, CAPS };

@@ -25,10 +25,21 @@ export const clearLocalSession = () => {
 // `logout` is in here for the opposite reason to the others: it is the one call that is
 // SUPPOSED to end the session, so a 401/403 from it is expected, not a signal to hard-
 // redirect on top of the sign-out the caller is already performing.
-const CREDENTIAL_URL = /\/auth\/(login|logout|register|guest|sso)/
+const CREDENTIAL_URL = /\/auth\/(login|logout|guest|sso)/
+
+// An add that leaves its world nearly full says so (`room`: { what, count, max }, the server's
+// lib/room.js): the workspace hears it as 'atlas:room' and shows the heads-up, whichever call it was.
+export const ROOM_EVENT = 'atlas:room'
+const heardRoom = (response) => {
+  const r = response?.data?.room
+  if (r && typeof r === 'object' && Number.isFinite(r.count) && Number.isFinite(r.max)) {
+    try { window.dispatchEvent(new CustomEvent(ROOM_EVENT, { detail: r })) } catch (e) { /* ignore */ }
+  }
+  return response
+}
 
 http.interceptors.response.use(
-  (response) => response,
+  heardRoom,
   (error) => {
     const status = error.response?.status
     const url = error.config?.url || ''

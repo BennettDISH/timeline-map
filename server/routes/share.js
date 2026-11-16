@@ -3,8 +3,9 @@ const { rateLimit } = require('fleet-kit/server');
 const pool = require('../config/database');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { CATEGORIES } = require('../lib/vocab');
-const { mentionIds, mentionsForPlayers } = require('../lib/mentions');
+const { mentionIds, mentionsForPlayers, plainMentions } = require('../lib/mentions');
 const { stockBedOf } = require('../lib/stockBeds');
+const room = require('../lib/room');
 const router = express.Router();
 
 // The public Player View API (UX-REDESIGN Phase 4's "shareable link"). No auth — the token in
@@ -471,6 +472,8 @@ async function playerMarkerCount(worldId) {
   return parseInt(r.count, 10);
 }
 const MARKERS_FULL = `This world holds ${PLAYER_MARKER_CAP} player markers, the most it can — ask your DM to clear some away`;
+// the most entries or pins a whole world holds (lib/room.js) counts markers too
+const WORLD_FULL = 'This world is full — ask your DM to make room';
 router.post('/:token/maps/:mapId/nodes', markLimiter, wrap(async (req, res) => {
   const w = await worldOf(req.params.token);
   if (!w) return notFound(res);
@@ -478,15 +481,18 @@ router.post('/:token/maps/:mapId/nodes', markLimiter, wrap(async (req, res) => {
   if (!mapId) return notFound(res);
   const t = await allowedTime(w, null); // markers land at canon reachability
   if (!(await walkUp(mapId, w, t))) return notFound(res);
-  const title = String(req.body.title || '').trim().slice(0, 80);
+  // A player's @-mention is only their words: it lands as the name it shows, so a marker never
+  // jumps into the DM's world and never brings an entry up in the Loose ends list.
+  const title = plainMentions(String(req.body.title || '')).trim().slice(0, 80);
   if (!title) return res.status(400).json({ message: 'A marker needs a name' });
-  const body = String(req.body.body || '').trim().slice(0, 500) || null;
+  const body = plainMentions(String(req.body.body || '')).trim().slice(0, 500) || null;
   const author = String(req.body.author || '').trim().slice(0, 40) || null;
   const category = MARK_CATS.includes(req.body.category) ? req.body.category : 'note';
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 50); // 0 is a valid edge coord
   const x = Math.max(0, Math.min(100, num(req.body.x)));
   const y = Math.max(0, Math.min(100, num(req.body.y)));
   if ((await playerMarkerCount(w.id)) >= PLAYER_MARKER_CAP) return res.status(400).json({ message: MARKERS_FULL });
+  if ((await room.check(pool, w.id, { nodes: 1, placements: 1 })).refused) return res.status(400).json({ message: WORLD_FULL });
   // one statement: the node and its placement land together or not at all
   const n = (await pool.query(
     `WITH n AS (INSERT INTO nodes (world_id, title, body, category, visibility, author) VALUES ($1,$2,$3,$4,'player',$5) RETURNING id)

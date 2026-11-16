@@ -5,7 +5,7 @@
 
 const pool = require('../config/database');
 const { generateJSON } = require('./gemini');
-const { validateBatch, applyBatch, CAPS } = require('./contract');
+const { validateBatch, applyBatch, roomForBatch, CAPS } = require('./contract');
 const { sessionNotes } = require('./notes');
 const spend = require('../lib/spend');
 
@@ -224,11 +224,15 @@ async function converse({ worldId, user, message, context }) {
       resp = await generateJSON({ system, messages });
       errs = resp?.batch ? validateBatch(resp.batch, world) : [];
     }
-    // each painting the proposal asks for is one Forge use, spent before any is painted: a
+    // a proposal that would pass what the world holds (lib/room.js) changes nothing, and spends
+    // no paintings; each painting it asks for is one Forge use, spent before any is painted: a
     // proposal wanting more than is left changes nothing and says so
-    const wanted = resp?.batch && !errs.length ? resp.batch.images.length : 0;
+    const full = resp?.batch && !errs.length ? await roomForBatch(worldId, resp.batch) : null;
+    const wanted = resp?.batch && !errs.length && !full ? resp.batch.images.length : 0;
     const short = wanted ? await spend.take(user, 'forge', wanted) : null;
-    if (short) {
+    if (full) {
+      applyError = full;
+    } else if (short) {
       applyError = spend.paintingsText(short.left, wanted);
     } else if (resp?.batch && !errs.length) {
       try {

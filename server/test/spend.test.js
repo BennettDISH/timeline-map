@@ -66,9 +66,9 @@ test('a proposal that wants too many paintings says how many are left', () => {
   const path = require('node:path');
   const spend = require('../lib/spend');
   const { CAPS } = require('../forge/contract');
-  let forgeLine, voiceLine, uploadLine, markersLine, worldsLine;
+  let forgeLine, voiceLine, uploadLine, markersLine, worldsLine, roomLine;
   test.before(async () => {
-    ({ forgeLine, voiceLine, uploadLine, markersLine, worldsLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
+    ({ forgeLine, voiceLine, uploadLine, markersLine, worldsLine, roomLine } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'client', 'src', 'utils', 'allowance.js')).href));
   });
   const of = (limit, used, left = limit - used) => ({ limit, used, left, resetsAt: '2026-11-03T00:00:00.000Z' });
   const PER = 1 + CAPS.images;
@@ -176,6 +176,16 @@ test('a proposal that wants too many paintings says how many are left', () => {
     assert.equal(worldsLine(undefined), null, 'an older server sends no count');
     assert.deepEqual(worldsLine({ count: 42, max: 50 }), { text: 'You have 42 of 50 worlds.', warn: true });
     assert.deepEqual(worldsLine({ count: 50, max: 50 }), { text: 'You have 50 of 50 worlds, the most an account holds. Delete one to make room for a new one.', warn: true });
+  });
+
+  test("the workspace's top bar says how full the world is from 80% of the most, and what the most means", () => {
+    assert.equal(roomLine(null), null, 'under 80% of everything the server sends none');
+    assert.equal(roomLine({ what: 'entries', count: 3999, max: 5000 }), null);
+    assert.deepEqual(roomLine({ what: 'entries', count: 4012, max: 5000 }),
+      { text: 'This world holds 4,012 of 5,000 entries, near the most it can.', short: '4,012 of 5,000 entries', warn: true });
+    assert.deepEqual(roomLine({ what: 'period texts', count: 5000, max: 5000 }),
+      { text: 'This world holds 5,000 of 5,000 period texts, the most it can. Delete some to make room for more.', short: 'Full: 5,000 period texts', warn: true });
+    assert.equal(roomLine({ what: 'entries', count: 'many', max: 5000 }), null, 'an odd count says nothing');
   });
 
   test("a player who finds the world full is told it's the world's markers, not the map's", () => {

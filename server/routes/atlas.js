@@ -12,6 +12,7 @@ const { CATEGORIES } = require('../lib/vocab');
 const spend = require('../lib/spend');
 const { looseEnds } = require('../lib/looseEnds');
 const { STOCK_BEDS, bedMark, stockBedOf } = require('../lib/stockBeds');
+const room = require('../lib/room');
 const router = express.Router();
 
 // The redesigned "Atlas" API: one world = a graph of typed nodes seen through nested maps,
@@ -35,11 +36,18 @@ const worldIdOfPlacement = async (id) =>
   (await pool.query('SELECT m.world_id FROM placements p JOIN maps m ON p.map_id=m.id WHERE p.id=$1', [id])).rows[0]?.world_id;
 
 // ---- undo: snapshot what a destructive delete removes; restorable for 24 hours ----
+// A world keeps its newest TOMBSTONES_KEPT: each holds a whole snapshot, and add-and-delete
+// over and over would otherwise pile up a day of them. The Recently deleted list shows 100 and
+// Ctrl/⌘+Z reaches 30, so nothing the DM can reach goes.
+const TOMBSTONES_KEPT = 500;
 async function tombstone(worldId, userId, kind, payload) {
   await pool.query(`DELETE FROM tombstones WHERE created_at < NOW() - INTERVAL '24 hours'`);
   const r = await pool.query(
     'INSERT INTO tombstones (world_id, user_id, kind, payload) VALUES ($1,$2,$3,$4) RETURNING id',
     [worldId, userId, kind, JSON.stringify(payload)]);
+  await pool.query(
+    'DELETE FROM tombstones WHERE world_id=$1 AND id NOT IN (SELECT id FROM tombstones WHERE world_id=$1 ORDER BY id DESC LIMIT $2)',
+    [worldId, TOMBSTONES_KEPT]);
   return r.rows[0].id;
 }
 const rowsOf = async (sql, args) => (await pool.query(sql, args)).rows;
@@ -52,6 +60,14 @@ async function imageInWorld(imageId, wid) {
 const badImage = (res) => res.status(400).json({ message: 'Image is not in this world' });
 // ---- input rules: a bad value is a 400 with a plain sentence (server/lib/validate.js) ----
 const bad = (res, message) => res.status(400).json({ message });
+// ---- how much a world holds (lib/room.js): an add past the most is a 400 with its sentence, and
+// the reply to one that leaves the world nearly full carries `room` ({ what, count, max }) ----
+async function fits(res, wid, wants) {
+  const r = await room.check(pool, wid, wants);
+  if (r.refused) { bad(res, r.refused); return null; }
+  return r;
+}
+const roomNote = (fit) => (fit?.near ? { room: fit.near } : {});
 const NODE_CATS = [...CATEGORIES, 'party'];
 const VIS = ['dm', 'shared', 'player'];
 const STANCES = ['friend', 'neutral', 'foe'];
@@ -187,6 +203,8 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
     shareToken: w.share_token || null,
     // how full the players' markers are, for the Share panel (share.js refuses at the cap)
     playerMarkers: { count: await playerMarkerCount(w.id), max: PLAYER_MARKER_CAP },
+    // how full the world is, from about 80% of the most it holds of anything (lib/room.js)
+    room: await room.room(pool, w.id),
     spotlightNodeId: w.spotlight_node_id ?? null,
     looseEnds: !!w.loose_ends,
     soundCues: !!w.sound_cues,
@@ -332,29 +350,53 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   const chargedOn = spend.today();
   if (artKb > 0 && !(await spend.charge(req, res, 'upload', artKb))) return;
 
+  // Storage first, rows second: every object is copied BEFORE the database transaction opens (an
+  // R2 call is slow, a big world has hundreds, and a transaction held open across them kept its
+  // locks and its connection for minutes). The transaction then only inserts rows. The copy's
+  // world id is taken from its sequence up front, so its objects land under worlds/<newId>/,
+  // where deleting the copy finds them. A few copies run at a time (COPY_AT_ONCE).
   const copied = []; // the object keys this copy has put in storage so far
-  const client = await pool.connectTx();
+  const wid = Number((await pool.query(`SELECT nextval(pg_get_serial_sequence('worlds','id')) AS id`)).rows[0].id);
+  let client = null;
   try {
+  const images = await rowsOf('SELECT * FROM images WHERE world_id=$1 ORDER BY id', [src.id]);
+  const maps = await rowsOf('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
+  const nodes = await rowsOf('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
+  const jobs = [];
+  const copyTo = async (key, dst, type) => { const url = await copyObject(key, dst, type); copied.push(dst); return url; };
+  // each image's file in the copy (one with no stored object, the sample's art, keeps its address)
+  const imgFile = new Map();
+  for (const im of images) {
+    const ext = im.filename.includes('.') ? im.filename.split('.').pop() : 'png';
+    const fname = `clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
+    if (r2Enabled && im.storage_key) {
+      const key = `worlds/${wid}/${fname}`;
+      jobs.push(async () => imgFile.set(im.id, { fname, filePath: await copyTo(im.storage_key, key, im.mime_type), storageKey: key }));
+    } else imgFile.set(im.id, { fname, filePath: im.file_path, storageKey: null });
+  }
+  // a voice line or an ambience as the copy's own object (left out when it can't be copied)
+  const audio = new Map();
+  const copyAudio = (slot, url, what) => {
+    const key = url && r2Enabled ? keyFromUrl(url) : null;
+    if (!key) return;
+    const ext = key.includes('.') ? key.split('.').pop().toLowerCase() : 'mp3';
+    const dst = `worlds/${wid}/${what}-clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
+    jobs.push(async () => audio.set(slot, await copyTo(key, dst, AUDIO_TYPES[ext])));
+  };
+  for (const m of maps) copyAudio(`map:${m.id}`, m.ambience_url, 'ambience');
+  for (const n of nodes) copyAudio(`node:${n.id}`, n.voice_url, 'voice');
+  await inTurns(jobs, COPY_AT_ONCE);
+
+  client = await pool.connectTx();
   await client.query('BEGIN');
   const rowsOfC = async (sql, args) => (await client.query(sql, args)).rows;
   // the caller's description wins, even an empty one — a template's blurb never lands on their world
   const desc = description === undefined ? src.description : (String(description || '').trim().slice(0, 2000) || null);
   const w = (await client.query(
-    `INSERT INTO worlds (name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, loose_ends, sound_cues)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [cleanName, desc, req.user.id, src.timeline_enabled,
+    `INSERT INTO worlds (id, name, description, created_by, timeline_enabled, timeline_min_time, timeline_max_time, timeline_current_time, timeline_time_unit, loose_ends, sound_cues)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    [wid, cleanName, desc, req.user.id, src.timeline_enabled,
      src.timeline_min_time, src.timeline_max_time, src.timeline_current_time, src.timeline_time_unit, !!src.loose_ends, !!src.sound_cues])).rows[0];
-
-  // a voice line or an ambience as the copy's own object (null when it can't be copied)
-  const copyAudio = async (url, what) => {
-    const key = r2Enabled ? keyFromUrl(url) : null;
-    if (!key) return null;
-    const ext = key.includes('.') ? key.split('.').pop().toLowerCase() : 'mp3';
-    const dst = `worlds/${w.id}/${what}-clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
-    const out = await copyObject(key, dst, AUDIO_TYPES[ext]);
-    copied.push(dst);
-    return out;
-  };
 
   const imgMap = new Map(); const mapMap = new Map(); const nodeMap = new Map(); const folderMap = new Map();
   const folders = await rowsOfC('SELECT * FROM image_folders WHERE world_id=$1 ORDER BY id', [src.id]);
@@ -370,34 +412,25 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   // every copy runs in id order: the copy's serials keep the source's relative order, so the
   // same placement stays each node's home, the same fact or backdrop wins ties, and players
   // can reach exactly what they could in the source
-  for (const im of await rowsOfC('SELECT * FROM images WHERE world_id=$1 ORDER BY id', [src.id])) {
-    const ext = im.filename.includes('.') ? im.filename.split('.').pop() : 'png';
-    const fname = `clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
-    let filePath = im.file_path, storageKey = null;
-    if (r2Enabled && im.storage_key) {
-      const key = `worlds/${w.id}/${fname}`;
-      filePath = await copyObject(im.storage_key, key, im.mime_type); storageKey = key;
-      copied.push(key);
-    }
+  for (const im of images) {
+    const f = imgFile.get(im.id);
     const r = (await client.query(
       `INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, alt_text, storage_key, folder_id, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11, CURRENT_TIMESTAMP)) RETURNING id`,
-      [fname, im.original_name, filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, storageKey,
+      [f.fname, im.original_name, f.filePath, im.file_size, im.mime_type, w.id, req.user.id, im.alt_text, f.storageKey,
        im.folder_id ? (folderMap.get(im.folder_id) || null) : null, im.created_at || null])).rows[0];
     imgMap.set(im.id, r.id);
   }
-  const maps = await rowsOfC('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const m of maps) {
     const r = await insertRow(client, 'maps', without(MAP_COLS, 'id', 'created_at', 'updated_at', 'owner_node_id', 'tree_parent_id'), m,
       { world_id: w.id, created_by: req.user.id, image_id: m.image_id ? (imgMap.get(m.image_id) || null) : null,
-        ambience_url: m.ambience_url ? await copyAudio(m.ambience_url, 'ambience') : null });
+        ambience_url: audio.get(`map:${m.id}`) ?? null });
     mapMap.set(m.id, r.id);
   }
-  const nodes = await rowsOfC('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
   for (const n of nodes) {
     const r = await insertRow(client, 'nodes', without(NODE_COLS, 'id', 'created_at', 'updated_at'), n,
       { world_id: w.id, created_by: req.user.id, interior_map_id: null, image_id: n.image_id ? (imgMap.get(n.image_id) || null) : null,
-        pin: n.pin || 'chip', pin_size: n.pin_size || 64, voice_url: n.voice_url ? await copyAudio(n.voice_url, 'voice') : null });
+        pin: n.pin || 'chip', pin_size: n.pin_size || 64, voice_url: audio.get(`node:${n.id}`) ?? null });
     nodeMap.set(n.id, r.id);
   }
   for (const m of maps) if (m.tree_parent_id && mapMap.has(m.tree_parent_id)) {
@@ -449,15 +482,29 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   await client.query('COMMIT');
   res.status(201).json({ worldId: w.id });
   } catch (e) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (client) await client.query('ROLLBACK').catch(() => {});
     // nothing of the copy stands: the objects it put go again, and the day's uploads come back
     for (const key of copied) await deleteObject(key).catch((err) => console.error('R2 cleanup after a failed copy:', err.message));
     if (artKb > 0) await spend.refund(req.user, 'upload', artKb, chargedOn).catch((err) => console.error('upload refund after a failed copy:', err.message));
     throw e;
   } finally {
-    client.release();
+    client?.release();
   }
 }));
+// Run async jobs `atOnce` at a time. A failure stops new jobs from starting, waits for the ones
+// already running (so everything they put is in the list the cleanup reads), then throws.
+const COPY_AT_ONCE = 6;
+async function inTurns(jobs, atOnce) {
+  let next = 0, failed = null;
+  const worker = async () => {
+    while (!failed && next < jobs.length) {
+      const job = jobs[next++];
+      try { await job(); } catch (e) { failed = failed || e; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(atOnce, jobs.length) }, worker));
+  if (failed) throw failed;
+}
 
 // GET /worlds/:worldId/maps — flat list for the nesting tree (client builds the tree from parentMapId).
 // POST /worlds/:worldId/tree-order — the DM's order for one set of siblings in the Maps tree:
@@ -534,13 +581,15 @@ router.get('/worlds/:worldId/loose-ends', wrap(async (req, res) => {
   // One query for the whole world, the entries above only, and only the texts holding a mention
   // leave the database. A period text's add or edit stamps its entry's updated_at too. The Party
   // stays out: its period texts pile up under one updated_at, so every footstep would bring up
-  // all they ever mentioned.
+  // all they ever mentioned. A player's marker stays out too: its text is the players' words (a
+  // marker saved since 2026-11 holds no mentions at all, share.js), and a player typing one must
+  // not bring an entry up as if the DM had.
   const mentions = (await pool.query(`
     SELECT n.id, n.updated_at, t.text
     FROM nodes n CROSS JOIN LATERAL (
       SELECT n.body AS text UNION ALL SELECT n.dm_note UNION ALL SELECT f.body FROM node_facts f WHERE f.node_id = n.id
     ) t
-    WHERE n.world_id = $1 AND n.category <> 'party' AND t.text LIKE '%](node:%'`, [wid])).rows;
+    WHERE n.world_id = $1 AND n.category <> 'party' AND n.visibility <> 'player' AND t.text LIKE '%](node:%'`, [wid])).rows;
   res.json({ entries: looseEnds(rows, eras, { clockOn: canon != null, mentions }), now: new Date(w.now).toISOString() });
 }));
 
@@ -646,10 +695,12 @@ router.post('/maps/:mapId/backdrops', wrap(async (req, res) => {
   if (st === undefined || en === undefined) return bad(res, 'A period is whole numbers on the clock');
   if (!ordered(st, en)) return bad(res, 'A period ends after it starts');
   if (!(await imageInWorld(image_id, wid))) return badImage(res);
+  const fit = await fits(res, wid, { backdrops: 1 });
+  if (!fit) return;
   const r = (await pool.query(
     'INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
     [req.params.mapId, Number(image_id), st, en])).rows[0];
-  res.status(201).json({ id: r.id });
+  res.status(201).json({ id: r.id, ...roomNote(fit) });
 }));
 const worldIdOfBackdrop = async (id) =>
   (await pool.query('SELECT m.world_id FROM map_backdrops b JOIN maps m ON b.map_id=m.id WHERE b.id=$1', [id])).rows[0]?.world_id;
@@ -695,6 +746,8 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
   const sh = cleanShape(shape), kind = shapeKind(shape_kind);
   if (sh === undefined) return res.status(400).json({ message: `An outline needs 3 to ${MAX_CORNERS} corners` });
   if (kind === undefined) return res.status(400).json({ message: 'An outline is an area or a button' });
+  const fit = await fits(res, wid, { nodes: 1, placements: 1 });
+  if (!fit) return;
   // born DM-only, like Forge-born nodes: session prep never reaches players until the DM
   // reveals it on purpose (the one exception is a player's own marker, in share.js)
   const n = (await pool.query(
@@ -702,7 +755,7 @@ router.post('/maps/:mapId/nodes', wrap(async (req, res) => {
     [wid, title, category, body, req.user.id, 'dm'])).rows[0];
   const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
     [n.id, req.params.mapId, x, y, shapeParam(sh), kind])).rows[0];
-  res.status(201).json({ nodeId: n.id, placementId: p.id });
+  res.status(201).json({ nodeId: n.id, placementId: p.id, ...roomNote(fit) });
 }));
 
 // POST /maps/:mapId/placements — place an EXISTING node on this map (the Place existing picker).
@@ -727,9 +780,11 @@ router.post('/maps/:mapId/placements', wrap(async (req, res) => {
   const st = whole(req.body.start_time), en = whole(req.body.end_time);
   if (st === undefined || en === undefined) return bad(res, 'A lifespan is whole numbers on the clock');
   if (!ordered(st, en)) return bad(res, 'A lifespan ends after it starts');
+  const fit = await fits(res, wid, { placements: 1 });
+  if (!fit) return;
   const p = (await pool.query('INSERT INTO placements (node_id, map_id, x, y, shape, shape_kind, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
     [Number(node_id), req.params.mapId, x, y, shapeParam(sh), kind, st, en])).rows[0];
-  res.status(201).json({ placementId: p.id });
+  res.status(201).json({ placementId: p.id, ...roomNote(fit) });
 }));
 
 // GET /nodes/:id — full node detail incl. links + backlinks (for the inspector).
@@ -762,11 +817,13 @@ router.post('/nodes/:id/facts', wrap(async (req, res) => {
   if (body === undefined) return bad(res, 'A period text is text');
   if (st === undefined || en === undefined) return bad(res, 'A period is whole numbers on the clock');
   if (!ordered(st, en)) return bad(res, 'A period ends after it starts');
+  const fit = await fits(res, wid, { facts: 1 });
+  if (!fit) return;
   const r = (await pool.query(
     'INSERT INTO node_facts (node_id, body, start_time, end_time) VALUES ($1,$2,$3,$4) RETURNING id',
     [req.params.id, body, st, en])).rows[0];
   await pool.query('UPDATE nodes SET updated_at=CURRENT_TIMESTAMP WHERE id=$1', [req.params.id]); // a period text is work on the entry
-  res.status(201).json({ id: r.id });
+  res.status(201).json({ id: r.id, ...roomNote(fit) });
 }));
 const worldIdOfFact = async (id) =>
   (await pool.query('SELECT n.world_id FROM node_facts f JOIN nodes n ON f.node_id=n.id WHERE f.id=$1', [id])).rows[0]?.world_id;
@@ -959,6 +1016,8 @@ router.post('/nodes/:id/interior', wrap(async (req, res) => {
     if (!b.owner_node_id) return bad(res, 'Nothing stands beside the world map — give the entry an interior map instead');
     owner = b.owner_node_id; filed = b.tree_parent_id; main = b.is_main;
   }
+  const fit = await fits(res, wid, { maps: 1 });
+  if (!fit) return;
   const m = (await pool.query(
     'INSERT INTO maps (title, world_id, view, owner_node_id, tree_parent_id, is_main, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
     [node.title, wid, view, owner, filed, main, req.user.id])).rows[0];
@@ -969,7 +1028,7 @@ router.post('/nodes/:id/interior', wrap(async (req, res) => {
     const cur = (await pool.query('SELECT interior_map_id FROM nodes WHERE id=$1', [req.params.id])).rows[0];
     return res.json({ mapId: cur.interior_map_id });
   }
-  res.status(201).json({ mapId: m.id });
+  res.status(201).json({ mapId: m.id, ...roomNote(fit) });
 }));
 
 // PUT /nodes/:id/leads-to — point a node at a map that already exists (the door to the room
@@ -1098,6 +1157,7 @@ router.post('/undo/:id', wrap(async (req, res) => {
   const client = await pool.connectTx();
   try {
     await client.query('BEGIN');
+    const before = await room.counts(client, t.world_id);
     const exists = async (table, id) =>
       id != null && (await client.query(`SELECT 1 FROM ${table} WHERE id=$1`, [id])).rows.length > 0;
 
@@ -1199,6 +1259,10 @@ router.post('/undo/:id', wrap(async (req, res) => {
       return res.status(400).json({ message: "That can't be undone any more" });
     }
 
+    // what comes back counts as an add would (lib/room.js): delete, add up to the most, then undo
+    // would otherwise grow a world past it, again each round. The tombstone stays for later.
+    const full = await room.over(client, t.world_id, before);
+    if (full) { await client.query('ROLLBACK'); return res.status(409).json({ message: `${full} first, then undo again` }); }
     for (const table of ['nodes', 'maps', 'placements', 'links', 'node_facts', 'map_backdrops']) {
       await client.query(
         `SELECT setval(pg_get_serial_sequence('${table}','id'),
@@ -1267,10 +1331,12 @@ router.post('/worlds/:worldId/eras', wrap(async (req, res) => {
   if (name === undefined) return bad(res, 'An era name is text of up to 120 characters');
   if (st === undefined || en === undefined) return bad(res, 'An era is whole numbers on the clock');
   if (!ordered(st, en)) return bad(res, 'An era ends after it starts');
+  const fit = await fits(res, req.params.worldId, { eras: 1 });
+  if (!fit) return;
   const r = (await pool.query(
     'INSERT INTO eras (world_id, name, start_time, end_time, player_visible) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [req.params.worldId, name || 'An age', st, en, !!req.body.player_visible])).rows[0];
-  res.status(201).json({ id: r.id });
+  res.status(201).json({ id: r.id, ...roomNote(fit) });
 }));
 router.patch('/eras/:id', wrap(async (req, res) => {
   const wid = await worldIdOfEra(req.params.id);
@@ -1310,10 +1376,12 @@ router.post('/links', wrap(async (req, res) => {
   // one thread between two things, whichever end it was made from
   if ((await pool.query('SELECT 1 FROM links WHERE (from_node_id=$1 AND to_node_id=$2) OR (from_node_id=$2 AND to_node_id=$1)', [from_node_id, to_node_id])).rows.length)
     return res.status(409).json({ message: 'Those two are already threaded' });
+  const fit = await fits(res, wid, { links: 1 });
+  if (!fit) return;
   const l = (await pool.query(
     'INSERT INTO links (world_id, from_node_id, to_node_id, label) VALUES ($1,$2,$3,$4) RETURNING id',
     [wid, Number(from_node_id), Number(to_node_id), label || null])).rows[0];
-  res.status(201).json({ id: l.id });
+  res.status(201).json({ id: l.id, ...roomNote(fit) });
 }));
 router.patch('/links/:id', wrap(async (req, res) => {
   const r = (await pool.query('SELECT world_id FROM links WHERE id=$1', [req.params.id])).rows[0];

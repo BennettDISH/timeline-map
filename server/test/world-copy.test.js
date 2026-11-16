@@ -23,7 +23,10 @@ const realFetch = globalThis.fetch; // the test's own calls to the routes, on 12
 globalThis.fetch = async () => { throw new Error('no network in this test'); };
 const sent = [];
 let refuse = null; // (cmd) => true makes the bucket refuse that command
+let openTx = 0; // database transactions open right now (pool.connectTx, below)
+const sentInTx = []; // the storage calls made while one was open
 require('@aws-sdk/client-s3').S3Client.prototype.send = async (cmd) => {
+  if (openTx > 0) sentInTx.push(cmd.constructor.name);
   if (refuse && refuse(cmd)) throw new Error('the bucket refused');
   sent.push(cmd);
   return { Contents: [], IsTruncated: false };
@@ -55,7 +58,17 @@ test.before(async () => {
   db = await createPglite({ name: 'atlas' });
   pool = require('../config/database');
   Object.assign(pool, pglitePool(db));
-  pool.connectTx = pool.connect;
+  // a transaction's client counts itself open from BEGIN to COMMIT or ROLLBACK
+  pool.connectTx = async () => {
+    const c = await pool.connect();
+    const q = c.query;
+    c.query = (sql, ...rest) => {
+      if (typeof sql === 'string' && /^\s*BEGIN/i.test(sql)) openTx += 1;
+      if (typeof sql === 'string' && /^\s*(COMMIT|ROLLBACK)/i.test(sql)) openTx = Math.max(0, openTx - 1);
+      return q(sql, ...rest);
+    };
+    return c;
+  };
   const { failed } = await require('../config/apply-schema').applySchema(pool);
   assert.deepStrictEqual(failed, [], 'schema.sql applies to a fresh database');
   await pool.query(SEED);
@@ -113,6 +126,19 @@ test('a copy keeps the folders and their filing, and owns its art and its audio'
   assert.ok(copies.every((c) => c.Key.startsWith(`worlds/${copy}/`)), 'every object lands under the copy');
   assert.strictEqual(copies.find((c) => c.CopySource.includes('voice')).ContentType, 'audio/mpeg');
   assert.strictEqual(await uploadsUsed(1), 2, "the art's 2 KB are spent from the day's uploads");
+});
+
+test('a copy calls storage only while no database transaction is open', async () => {
+  sentInTx.length = 0;
+  sent.length = 0;
+  const r = await call(1, 'POST', '/api/atlas/worlds/clone', { source_id: SRC, name: 'The quick copy' });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.body));
+  assert.strictEqual(named('CopyObjectCommand').length, 3, 'the image, the ambience and the line were copied');
+  assert.deepStrictEqual(sentInTx, [], 'every object went up before the rows were written');
+  assert.strictEqual(openTx, 0);
+  const [img] = await rows('SELECT storage_key FROM images WHERE world_id=$1', [r.body.worldId]);
+  assert.match(img.storage_key, new RegExp(`^worlds/${r.body.worldId}/`), "the objects sit under the copy's own id");
+  assert.strictEqual((await call(1, 'DELETE', `/api/worlds/${r.body.worldId}`)).status, 200);
 });
 
 test("clearing a copy's line or ambience deletes the copy's audio, never the source's", async () => {

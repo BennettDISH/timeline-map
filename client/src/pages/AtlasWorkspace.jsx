@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMe
 import { useParams, useNavigate, Link } from 'react-router'
 import atlasService from '../services/atlasService'
 import worldService from '../services/worldService'
-import { errText, refused } from '../services/http'
+import { errText, refused, ROOM_EVENT } from '../services/http'
 import MapPlane, { toPlanePct } from '../components/MapPlane'
 import { PinBody, pinClass } from '../components/Pin'
 import { Compass } from '../components/TopBar'
@@ -28,7 +28,7 @@ import TimelineConfig from '../components/atlas/TimelineConfig'
 import Inspector from '../components/atlas/Inspector'
 import { ImagePicker, NodePicker, MapPicker } from '../components/atlas/Pickers'
 import ForgePanel from '../components/atlas/ForgePanel'
-import { voiceLine, markersLine } from '../utils/allowance'
+import { voiceLine, markersLine, roomLine } from '../utils/allowance'
 import { clampPct, wholeOr, periodBlur, REVERSED, keyAct, stackOffsets, coveringFact, trunc, isPhone, BREAKPOINTS } from '../components/atlas/helpers'
 import { readPref, writePref, useFlag, useColumnResize, useDismiss } from '../hooks/prefs'
 import '../styles/atlas.scss'
@@ -38,6 +38,15 @@ function AtlasWorkspace() {
   const navigate = useNavigate()
 
   const [world, setWorld] = useState(null)
+  // how full the world is (the server's lib/room.js): the world's own count as it loads, then the
+  // reply to any add that leaves it nearly full (services/http.js hears those as ROOM_EVENT)
+  const [room, setRoom] = useState(null)
+  useEffect(() => { setRoom(world?.room ?? null) }, [world?.room])
+  useEffect(() => {
+    const heard = (e) => setRoom(e.detail)
+    window.addEventListener(ROOM_EVENT, heard)
+    return () => window.removeEventListener(ROOM_EVENT, heard)
+  }, [])
   const [worldList, setWorldList] = useState(null)
   const [pendingWorld, setPendingWorld] = useState(null) // a world browsed to with the arrow keys, not yet chosen
   const viaKeys = useRef(false) // null until the switcher is first opened
@@ -1452,6 +1461,10 @@ function AtlasWorkspace() {
         </div>
         )}
         {mode === 'edit' && saveChip && <span className={`savechip ${saveChip.c}`}>{saveChip.t}</span>}
+        {mode === 'edit' && (() => {
+          const full = roomLine(room)
+          return full && <span className="roomchip" role="status" title={full.text} aria-label={full.text}>{full.short}</span>
+        })()}
         <div className="mode" title="Edit builds · View reads with DM eyes · Player shows what the share link shows">
           <button className={mode === 'edit' ? 'on' : ''} aria-pressed={mode === 'edit'} onClick={() => switchMode('edit')}>✏ Edit</button>
           <button className={mode === 'view' ? 'on' : ''} aria-pressed={mode === 'view'} onClick={() => switchMode('view')}>👁 View</button>

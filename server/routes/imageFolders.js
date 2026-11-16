@@ -3,6 +3,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { idParam, isId, text } = require('../lib/validate');
 const { ownsWorld, notFound } = require('../lib/route');
+const room = require('../lib/room');
 const router = express.Router();
 router.param('id', idParam);
 
@@ -86,6 +87,9 @@ router.post('/', async (req, res) => {
 
     // one name per level, top level included (the UNIQUE constraint treats NULL parents as all different)
     if (await nameTaken(world_id, parent_id || null, name)) return res.status(409).json({ message: 'A folder with this name already exists here' });
+    // the most folders a world holds (lib/room.js)
+    const fit = await room.check(pool, world_id, { folders: 1 });
+    if (fit.refused) return res.status(400).json({ message: fit.refused });
     // Create the folder
     const result = await pool.query(`
       INSERT INTO image_folders (name, parent_id, world_id, created_by)
@@ -105,7 +109,8 @@ router.post('/', async (req, res) => {
         createdBy: folder.created_by,
         createdAt: folder.created_at,
         imageCount: 0
-      }
+      },
+      ...(fit.near ? { room: fit.near } : {})
     });
     
   } catch (error) {

@@ -32,8 +32,9 @@ function Bar({ next }) {
   const waypoint = config?.ssoEnabled !== false
 
   const signIn = () => (waypoint ? startWaypoint(next) : navigate('/login'))
-  // the bar's "Create account": Waypoint's sign-up form, back to this page (no Waypoint: the form here)
-  const signUp = () => (waypoint ? startWaypoint(next, { prompt: 'create' }) : navigate('/login'))
+  // the bar's "Create account": Waypoint's sign-up form, back to this page. It is the only way to
+  // make an account (the Atlas has no sign-up form of its own), so without Waypoint there is none.
+  const signUp = waypoint ? () => startWaypoint(next, { prompt: 'create' }) : null
   const signOut = async () => {
     // a guest's only credential is this browser's session: signing out ends the account
     if (user?.isGuest && !window.confirm(GUEST_WARNING)) return false

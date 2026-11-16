@@ -15,8 +15,13 @@ which is wrong before changing either.
   to `/login?error=<code>`, which holds the sign-in page. **The session is an httpOnly
   `__Host-atlas_session` cookie**: 30 days, renewed once a day while in use (`/me`, which every
   page load asks), read against the account's row on every request; never a token the page can
-  read. The Atlas's own password forms (`/api/auth/login`, `/register`, behind `?local`) set the
-  same cookie. Authentication context in `client/src/utils/AuthContext.jsx`.
+  read. The Atlas's own password form (`/api/auth/login`, behind `?local`) sets the
+  same cookie. **Making an account is Waypoint's own sign-up form**: the top bar's "Create
+  account", the sign-in page's "Create an account" and the `?local` form's link all go to
+  `/api/auth/sso/login?prompt=create`, which comes straight back signed in, with no recovery-code
+  screen. The Atlas's own sign-up form, its recovery-code screen and `POST /api/auth/register` were
+  retired on 2026-11-16 (the kit's own sign-up stays off: `register: false` in `config/auth.js`);
+  without Waypoint (the dev mode) there is no sign-up and the bar offers none. Authentication context in `client/src/utils/AuthContext.jsx`.
   **Admin is a Waypoint identity**: `ADMIN_CENTRAL_USER_IDS` (unset = central id 1, Bennett;
   explicitly empty = nobody; guests never) — the kit's `isAdmin`, read on every check; the
   local `users.role` grants nothing. The admin's tools are all at `/admin` (the browse of
@@ -69,14 +74,36 @@ Clones own their art and audio: with R2 on, every image, voice line and ambience
 `worlds/<newId>/` (`copyObject`), so clearing a line or an ambience in the copy (which deletes its
 object) never touches the source, nor the source's in the copy; a line or an ambience that can't be
 copied (R2 off, or an address that is not the bucket's) is left out of the copy. Folders (their
-nesting and what is filed in them), the lantern and the mind travel too. A copy that fails partway
-takes back the objects it already copied and gives the day's upload allowance back
-(`server/test/world-copy.test.js`). A world with a
+nesting and what is filed in them), the lantern and the mind travel too. **Storage first, rows
+second**: the copy takes its world id from the sequence up front, copies every object in storage
+(six at a time) BEFORE its database transaction opens, and the transaction then only inserts rows,
+so a big world never holds a transaction (its locks and its connection) open across hundreds of R2
+calls. A copy that fails partway takes back the objects it already copied and gives the day's
+upload allowance back (`server/test/world-copy.test.js`). Copying is API-only
+(`POST /api/atlas/worlds/clone`): the Dashboard starts newcomers from the sample template, and
+there is no "copy my world" button (Bennett's call, 2026-11-16). A world with a
 pending Forge batch is not copied (409) until its cards are kept or unmade: a copy carries no
 cards, so their work would land there as kept work its players see at once.
 **An account holds at most 50 worlds** (`MAX_WORLDS` in `lib/route.js`), made or copied: the 51st
 is a 400 that says so. `GET /api/worlds` sends `limit: {count, max}`, and the Dashboard says "You
 have 42 of 50 worlds." from 40 on, and at 50 what it means.
+**A world holds at most** (`server/lib/room.js`) 5,000 entries, 1,000 maps, 10,000 pins, 10,000
+threads, 5,000 period texts, 500 eras, 500 folders and 2,000 period backdrops. Every path that adds
+one counts: the editor's routes, the Archive's folders, a player's marker (which says only "This
+world is full — ask your DM to make room"), a Forge batch (counted before any painting is spent:
+"Nothing was changed: this world holds …") and ✦ Paint's period art, and an undo (a restore that
+would take a kind past its most is a 409, and the tombstone waits for room; a kind that did not
+grow never refuses one, so a world already past a most can still undo). A copy carries a world
+that already fits. Past the most an add is a 400: "This world holds 5,000 entries, the most a
+world can — delete some to make room". From 80% the DM hears it: the world payload's `room`
+(`{what, count, max}` of the fullest kind, else null) and the reply to any add that leaves the
+world that full (`room` beside the new id, heard by `services/http.js` as `atlas:room`) drive a
+gold chip beside the save chip ("4,012 of 5,000 entries"; at the most "Full: 5,000 entries"),
+its full sentence on hover. The counts are read before the add, so two adds racing for the last
+place may both land: a bound, not an exact count. Images are counted by the day's upload
+allowance instead (the spend guard). A world keeps its newest 500 tombstones (`TOMBSTONES_KEPT`):
+Recently deleted shows 100 and Ctrl/⌘+Z reaches 30, so add-and-delete can't pile up a day of
+snapshots (`server/test/world-room.test.js`).
 Live tables (the 16 `schema.sql` creates; production held the first 15 as of 2026-09-26):
 `users`, `worlds`, `image_folders`, `images`, `maps`, `nodes`, `placements`, `links`, `node_facts`,
 `eras`, `map_backdrops`, `world_minds`, `mind_messages`, `forge_batches`, `tombstones`, and
@@ -314,7 +341,7 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   (`nodes.updated_at`, which a period text's add or edit also stamps), gains a period text, a
   thread or a placement, is @-mentioned in another entry's description, DM note or period text in
   the same world (that entry's `updated_at` stands in for when it was written; its own mention of
-  itself and the Party's text do not count), or is named in a session's prep or recap (the whole
+  itself, the Party's text and a player's marker do not count), or is named in a session's prep or recap (the whole
   title in any case, not inside a longer word, three letters at least; that era's `created_at`
   stands in for when it was played). The Party is never listed, and with the clock on neither is
   an entry whose every placement ended before canon. `GET /worlds/:id/loose-ends` sends every entry with its `lastUp`
@@ -340,9 +367,14 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
 - A share-link holder can drop a marker on the Player View: POST `/:token/maps/:mapId/nodes`
   in `share.js`, visibility FORCED to `'player'`, live for the whole table immediately.
   The server holds the boundary anonymously: `walkUp` gate (no hidden branches), inputs
-  length-capped, a 16 KB body limit mounted ahead of the global parser + 40/hr IP limiter + soft 200/world cap, and it
+  length-capped, a 16 KB body limit mounted ahead of the global parser + 40/hr IP limiter + soft 200/world cap
+  (and the world's own most of entries and pins, Database), and it
   can never forge a `shared`/`dm` tier. `nodes.author` is a self-typed signature — surfaced
   as "a player's marker, signed …", never as verified attribution.
+- **A player's @-mention lands as the name it shows** (2026-11-16): the marker's title and text go
+  through `plainMentions` before they are stored, so a marker never carries a jump link into the
+  DM's world and never brings an entry up in Loose ends. A marker saved before then that still
+  holds one is left as it is, and Loose ends ignores every marker's text.
 - The DM sees `'player'` nodes as dashed green pins; the inspector offers to claim (re-visibility)
   or delete (with undo) them.
 
@@ -678,7 +710,8 @@ and the two areas no pass tested are in `docs/ROADMAP.md`.
 - Players read mentions through `share.js`: one of an entry the threads' rule lets them know
   exists stays a mention without its moment (its link opens that entry's sheet: right there when
   its pin is on the map, else on the map ⌖ would go to), and any other is its bare name, so neither an id nor a moment of a hidden entry leaves the server. The
-  painter reads a mention as its name. A hand-typed mention (a player's marker can hold one) of an
+  painter reads a mention as its name. A hand-typed mention (a player's marker saved before
+  2026-11-16 can hold one; one saved since holds plain names, Player markers) of an
   id no entry can have, past what Postgres holds, is never looked up: players read its name.
 
 ## API conventions

@@ -85,18 +85,6 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const register = async (username, email, password) => {
-    dispatch({ type: 'LOGIN_START' })
-    try {
-      const response = await authService.register(username, email, password)
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } })
-      return response
-    } catch (error) {
-      dispatch({ type: 'LOGIN_ERROR', payload: errText(error, 'Registration failed') })
-      throw error
-    }
-  }
-
   const guestLogin = async () => {
     dispatch({ type: 'LOGIN_START' })
     try {
@@ -123,7 +111,6 @@ export const AuthProvider = ({ children }) => {
     ...state,
     loading: state.initializing, // the guards' name for it
     login,
-    register,
     guestLogin,
     logout,
     clearError,

@@ -9,13 +9,14 @@ ships, delete its line (git keeps the history).
 - A create-world wizard (name → backdrop → land on a real map).
 - Portals: threads that carry a kind or a moment in the UI.
 - A DM-chosen ambience bed per map (Auto, one of the seven, or Silent) in the inspector, beside "Make it": today a map is heard as the kind of place its title says (`client/src/audio/beds.js`), which a wrongly named map gets wrong until the DM makes it an ambience.
+- A "copy my world" button on the Dashboard: the API copy is ready (storage before its transaction since 2026-11-16), but Bennett said not for now (2026-11-16).
 - Copy a world with its pending Forge cards (the batches' ids remapped, so Keep and Unmake work in the copy) instead of refusing the copy until they are settled; a pending card on the sample template blocks newcomers from starting from it today.
 
 ## Planned
 - Guests keep their worlds when they become a real account: Waypoint can claim a guest (keeping its central id, so the worlds would stay theirs), but only from its own account page, which a guest the Atlas made through the proxy never signs into. The Atlas needs a proxy claim endpoint and a button.
 - P112: each lens tick re-renders the whole workspace (about 15 fps scrubbing the crowded root on a 4x-slower CPU). Parked by Bennett on 2026-09-28 until the Atlas is at a good V1; see `docs/cleanup/WP-26-the-party-the-clock-and-a-long-campaign.md`.
 - Show the day's allowance (Forge uses and voice recordings left) in the Forge panel and the voice controls before it runs out; the status routes already send `allowance`. Today the DM learns of the cap only when a call is refused.
-- Upload storage has no per-account ceiling: 10 MB per image, no quota, and no cap on how many worlds `POST /api/worlds` makes (only clones stop at 50).
+- Upload storage has no per-account total: 10 MB per image and the day's upload allowance bound each day, not the sum. (Worlds stop at 50 an account, made or copied, and what one world holds is capped: `lib/room.js`.)
 
 ## Never tested
 - The Player View in real WebKit (every iPhone and iPad browser).

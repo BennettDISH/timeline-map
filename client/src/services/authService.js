@@ -12,14 +12,8 @@ const remember = (user) => {
 // then it is deleted here, so nobody is signed out by the move.
 const OLD_TOKEN = 'auth_token'
 
+// There is no sign-up here: making an account is Waypoint's own form (utils/signIn.js, prompt=create).
 const authService = {
-  // Register new user
-  async register(username, email, password) {
-    const response = await api.post('/api/auth/register', { username, email, password })
-    remember(response.data.user)
-    return response.data
-  },
-
   // Login user
   async login(username, password) {
     const response = await api.post('/api/auth/login', { username, password })

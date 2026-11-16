@@ -15,6 +15,7 @@ const { enabled } = require('../forge/gemini');
 const { converse, ensureMind } = require('../forge/mind');
 const { discardBatch, allowAsks, paintAndStore, CAPS } = require('../forge/contract');
 const spend = require('../lib/spend');
+const room = require('../lib/room');
 const { refuseWithoutStorage } = require('../lib/storeImage');
 const router = express.Router();
 
@@ -259,6 +260,9 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
   // without one it is the base art
   const start = req.body?.start_time == null ? null : whole(req.body.start_time);
   if (start === undefined) return res.status(400).json({ message: 'A period starts at a whole number on the clock' });
+  // a period's art is a new period backdrop: a world that holds the most is told before any painting (lib/room.js)
+  const fit = start == null ? null : await room.check(pool, m.world_id, { backdrops: 1 });
+  if (fit?.refused) return res.status(400).json({ message: fit.refused });
   if (refuseWithoutStorage(res)) return;
   if (!(await spend.charge(req, res, 'forge'))) return;
   const img = await paintAndStore({ worldId: m.world_id, userId: req.user.id, kind: 'backdrop', prompt: start == null ? prompt : `${prompt}. This is how it looks in a later period`, artStyle: mind.art_style, name: `${m.title} — ${start == null ? 'backdrop' : `from ${start}`}` });
@@ -267,7 +271,7 @@ router.post('/maps/:id/backdrop', wrap(async (req, res) => {
     return res.json({ image: { id: img.id, url: img.url } });
   }
   const b = (await pool.query('INSERT INTO map_backdrops (map_id, image_id, start_time, end_time) VALUES ($1,$2,$3,NULL) RETURNING id', [m.id, img.id, start])).rows[0];
-  res.json({ image: { id: img.id, url: img.url }, backdropId: b.id, start });
+  res.json({ image: { id: img.id, url: img.url }, backdropId: b.id, start, ...(fit?.near ? { room: fit.near } : {}) });
 }));
 
 module.exports = router;

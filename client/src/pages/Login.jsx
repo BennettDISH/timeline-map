@@ -72,23 +72,24 @@ function Login() {
         )}
         <div className="login-form">
           <button type="button" className="login-button" onClick={() => startWaypoint(next)} autoFocus>Continue with Waypoint</button>
+          {/* Waypoint's sign-up form, straight back here: the one way to make an account */}
+          <button type="button" className="sso-button" onClick={() => startWaypoint(next, { prompt: 'create' })}>Create an account</button>
         </div>
         <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.75rem', opacity: 0.8 }}>
-          Waypoint is where you sign in, or play as a guest, for every game.
+          Waypoint is where you sign in, make an account, or play as a guest, for every game.
         </p>
       </div>
     </div>
   )
 }
 
-// The Atlas's own forms: a Waypoint password typed here and checked by Waypoint through this
-// server, a sign-up, and a guest of its own. Only with ?local now (or where Waypoint isn't set up).
+// The Atlas's own form: a Waypoint password typed here and checked by Waypoint through this
+// server, and a guest of its own. Only with ?local now (or where Waypoint isn't set up). Making
+// an account is Waypoint's sign-up form (prompt=create, as the top bar's Create account), which
+// comes straight back here: the Atlas's own sign-up and its recovery-code screen are gone.
 function LocalSignIn({ config, next, sessionEnded }) {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
-  const [isRegistering, setIsRegistering] = useState(false)
-  const [formData, setFormData] = useState({ username: '', email: '', password: '' })
-  const [recovery, setRecovery] = useState(null) // the one-time recovery code a new account gets
-  const { login, register, guestLogin, submitting, error, clearError } = useAuth()
+  const { login, guestLogin, submitting, error, clearError } = useAuth()
   const navigate = useNavigate()
   const go = () => navigate(next, { replace: true })
 
@@ -104,6 +105,7 @@ function LocalSignIn({ config, next, sessionEnded }) {
   }
 
   const startSso = () => startWaypoint(next)
+  const startSignUp = () => startWaypoint(next, { prompt: 'create' })
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -117,40 +119,6 @@ function LocalSignIn({ config, next, sessionEnded }) {
     }
   }
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
-    clearError()
-    try {
-      const r = await register(formData.username, formData.email, formData.password)
-      clearHold()
-      if (r?.recoveryCode) setRecovery(r.recoveryCode) // shown once, before moving on
-      else go()
-    } catch (error) {
-      // shown by the context; the sign-up form stays up with what was typed
-    }
-  }
-
-  const toggleMode = () => {
-    setIsRegistering(!isRegistering)
-    clearError()
-    setCredentials({ username: '', password: '' })
-    setFormData({ username: '', email: '', password: '' })
-  }
-
-  if (recovery) {
-    return (
-      <div className="login-page">
-        <div className="login-container">
-          <h1>Your account is made</h1>
-          <p className="login-subtitle">Write this recovery code down — it is shown exactly once.</p>
-          <div className="recovery-code" style={{ fontFamily: 'monospace', fontSize: '1.3rem', letterSpacing: '.08em', padding: '12px', border: '1px dashed currentColor', borderRadius: 8, margin: '12px 0', textAlign: 'center', userSelect: 'all' }}>{recovery}</div>
-          <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>It is the only way back in if you forget your password.{config.accountUrl ? ' Passwords and account details are managed on Waypoint.' : ''}</p>
-          <button type="button" className="login-button" onClick={go}>I have it — open my worlds</button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="login-page">
       <div className="login-container">
@@ -158,96 +126,46 @@ function LocalSignIn({ config, next, sessionEnded }) {
         {sessionEnded && (
           <p className="session-ended" role="status" style={{ color: '#c9a35f', margin: '0 0 12px' }}>Your session ended — sign in again to pick up where you left off. Unsaved edits from the workspace were kept and will be restored.</p>
         )}
-        <p className="login-subtitle">
-          {isRegistering ? 'Create your account' : 'Sign in to your account'}
-        </p>
-        
+        <p className="login-subtitle">Sign in to your account</p>
+
         {error && (
           <div className="error-message" role="alert">
             {error}
           </div>
         )}
 
-        {!isRegistering ? (
-          <form onSubmit={handleLogin} className="login-form">
-            <div className="form-group">
-              <label htmlFor="username">{config.ssoEnabled ? 'Waypoint username or email' : 'Username or Email'}</label>
-              <input
-                type="text"
-                id="username"
-                value={credentials.username}
-                onChange={(e) => setCredentials({...credentials, username: e.target.value})}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                type="password"
-                id="password"
-                value={credentials.password}
-                onChange={(e) => setCredentials({...credentials, password: e.target.value})}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <button type="submit" className="login-button" disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Sign in'}
-            </button>
-            {config.accountUrl && (
-              <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem' }}>
-                <a href={config.accountUrl} target="_blank" rel="noreferrer">Forgot your password?</a> — accounts live on Waypoint.
-              </p>
-            )}
-          </form>
-        ) : (
-          <form onSubmit={handleRegister} className="login-form">
-            <div className="form-group">
-              <label htmlFor="reg-username">Username</label>
-              <input
-                type="text"
-                id="reg-username"
-                value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="reg-email">Email</label>
-              <input
-                type="email"
-                id="reg-email"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="reg-password">Password</label>
-              <input
-                type="password"
-                id="reg-password"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                required
-                disabled={submitting}
-                minLength={6}
-              />
-              <small className="password-hint">At least 6 characters</small>
-            </div>
-            <button type="submit" className="login-button" disabled={submitting}>
-              {submitting ? 'Creating account…' : 'Create account'}
-            </button>
-            {config.ssoEnabled && (
-              <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', opacity: 0.8 }}>
-                This makes a Waypoint account, which also signs you into Bennett's other apps.
-              </p>
-            )}
-          </form>
-        )}
+        <form onSubmit={handleLogin} className="login-form">
+          <div className="form-group">
+            <label htmlFor="username">{config.ssoEnabled ? 'Waypoint username or email' : 'Username or Email'}</label>
+            <input
+              type="text"
+              id="username"
+              value={credentials.username}
+              onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              value={credentials.password}
+              onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+              required
+              disabled={submitting}
+            />
+          </div>
+          <button type="submit" className="login-button" disabled={submitting}>
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+          {config.accountUrl && (
+            <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem' }}>
+              <a href={config.accountUrl} target="_blank" rel="noreferrer">Forgot your password?</a> — accounts live on Waypoint.
+            </p>
+          )}
+        </form>
 
         {config.ssoEnabled && (
           <div className="sso-divider">
@@ -281,23 +199,16 @@ function LocalSignIn({ config, next, sessionEnded }) {
           </>
         )}
 
-        <div className="auth-toggle">
-          {!isRegistering ? (
+        {config.ssoEnabled && (
+          <div className="auth-toggle">
             <p>
               Don't have an account?
-              <button type="button" className="toggle-button" onClick={toggleMode}>
-                Sign up
+              <button type="button" className="toggle-button" onClick={startSignUp}>
+                Create an account
               </button>
             </p>
-          ) : (
-            <p>
-              Already have an account?
-              <button type="button" className="toggle-button" onClick={toggleMode}>
-                Sign in
-              </button>
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
