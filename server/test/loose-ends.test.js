@@ -342,7 +342,8 @@ test('the route reads mentions from the one world asked for, the same entries as
   assert.strictEqual(mentionQueries.length, 1, 'one query however many entries the world holds');
   assert.deepStrictEqual(mentionQueries[0].params, ['9']);
   const { sql } = mentionQueries[0];
-  assert.match(sql, /WHERE n\.world_id = \$1 AND n\.category <> 'party' AND t\.text LIKE '%\]\(node:%'/, 'that world, the entries the list reads, and no other text leaves the database');
+  assert.match(sql, /WHERE n\.world_id = \$1 AND n\.category <> 'party' AND n\.visibility <> 'player' AND t\.text LIKE '%\]\(node:%'/,
+    "that world, the entries the list reads (never a player's marker), and no other text leaves the database");
   for (const text of ['n.body', 'n.dm_note', 'f.body']) assert.ok(sql.includes(text), `reads ${text}`);
   assert.strictEqual(asked.body.entries.find((e) => e.id === 1).lastUp, daysAgo(2).toISOString(), 'the mention brought it up');
 

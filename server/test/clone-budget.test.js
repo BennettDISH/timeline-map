@@ -44,7 +44,9 @@ pool.query = async (sql, params) => {
   if (/SELECT COUNT\(\*\)::int AS n FROM worlds WHERE created_by=\$1/.test(s)) return { rows: [{ n: 0 }] };
   if (/FROM forge_batches/.test(s)) return { rows: [] };
   if (/SUM\(file_size\)/.test(s)) return { rows: [{ bytes: String(artBytes) }] };
-  if (/^INSERT INTO worlds/.test(s)) { copying += 1; return { rows: [{ id: 100 + copying }] }; }
+  // the copy takes its world id up front (its objects go under worlds/<id>/ before the rows do)
+  if (/nextval\(pg_get_serial_sequence\('worlds','id'\)\)/.test(s)) return { rows: [{ id: String(100 + copying + 1) }] };
+  if (/^INSERT INTO worlds/.test(s)) { copying += 1; return { rows: [{ id: params[0] }] }; }
   // past its art's size the source is empty: every loop of the copy finds nothing to copy
   if (/^SELECT [bfp*.]+ FROM (image_folders|images|maps|nodes|placements|links|eras|map_backdrops|node_facts|world_minds)\b/.test(s)) return { rows: [] };
   throw new Error(`unexpected query: ${s}`);
