@@ -2,9 +2,11 @@
 // fresh from schema.sql) with R2 stubbed, so nothing leaves this machine.
 //  - a copy keeps the image folders (their filing, the nesting) and owns its art AND its audio: every
 //    voice line and ambience is copied under the new world's prefix, or left out when it can't be;
-//  - clearing a copy's line or ambience deletes the copy's object, never the source's;
+//  - clearing a copy's line or ambience deletes the copy's object, never the source's, and one that
+//    still names another world's object (a copy from before copies owned their audio) only lets go;
 //  - a copy that fails partway takes back what it put in storage and gives the day's uploads back;
-//  - an account holds at most 50 worlds, made or copied, and GET /api/worlds says how many it has.
+//  - an account holds at most 50 worlds, made or copied, and GET /api/worlds says how many it has;
+//    several made or copied at once never pass it.
 //
 //   node --test server/test/world-copy.test.js
 const test = require('node:test');
@@ -184,4 +186,82 @@ test('an account holds at most 50 worlds, made or copied, and the list says how 
   assert.deepStrictEqual([copied.status, copied.body.message], [400, full]);
   assert.strictEqual(await uploadsUsed(1), used, 'a refused copy spends nothing');
   assert.strictEqual((await call(2, 'POST', '/api/worlds', { name: 'Bob\'s first' })).status, 201, 'the cap is per account');
+});
+
+test("clearing a line or an ambience that names another world's object lets go of it, and leaves the object", async () => {
+  // a copy made before copies owned their audio still names its source's objects
+  const [w] = await rows(`INSERT INTO worlds (name, created_by) VALUES ('An older copy', 2) RETURNING id`);
+  const [m] = await rows(`INSERT INTO maps (title, world_id, created_by, ambience_prompt, ambience_url) VALUES ('Root', $1, 2, 'Wind', $2) RETURNING id`,
+    [w.id, `${R2}/worlds/${SRC}/ambience-${SRC}-1-abc.mp3`]);
+  const [n] = await rows(`INSERT INTO nodes (world_id, title, category, visibility, voice_id, voice_line, voice_url, created_by)
+    VALUES ($1, 'Baron Vex', 'person', 'shared', 'a-voice', 'Thirty gold a head.', $2, 2) RETURNING id`, [w.id, `${R2}/worlds/${SRC}/voice-${SRC}-1-abc.mp3`]);
+  sent.length = 0;
+  assert.strictEqual((await call(2, 'DELETE', `/api/voice/nodes/${n.id}/line`)).status, 200);
+  assert.strictEqual((await call(2, 'DELETE', `/api/voice/maps/${m.id}/ambience`)).status, 200);
+  assert.deepStrictEqual(named('DeleteObjectCommand').map((d) => d.Key), [], "the source's objects stay");
+  const [node] = await rows('SELECT voice_line, voice_url FROM nodes WHERE id=$1', [n.id]);
+  const [map] = await rows('SELECT ambience_prompt, ambience_url FROM maps WHERE id=$1', [m.id]);
+  assert.deepStrictEqual([node.voice_line, node.voice_url, map.ambience_prompt, map.ambience_url], [null, null, null, null], 'the rows let go of them');
+});
+
+// Postgres's lock between two requests, which PGlite (one session, so no isolation) can't show: a
+// transaction's client holds pg_advisory_xact_lock(a, b) until its COMMIT or ROLLBACK while the
+// others wait their turn, and every statement comes back a few ms late, as a networked database's do.
+async function asIfAtOnce(fn) {
+  const held = new Map(); // "a,b" -> settles when its holder's transaction ends
+  const { query, connectTx } = pool;
+  const late = async (...args) => { await new Promise((r) => setTimeout(r, 5)); return query(...args); };
+  pool.query = late;
+  pool.connectTx = async () => {
+    const mine = [];
+    const end = () => mine.splice(0).forEach((free) => free());
+    return {
+      async query(sql, args) {
+        const s = String(sql).trim();
+        if (/pg_advisory_xact_lock/.test(s)) {
+          const k = args.join(',');
+          while (held.has(k)) await held.get(k);
+          let free;
+          held.set(k, new Promise((r) => { free = r; }));
+          mine.push(() => { held.delete(k); free(); });
+          return { rows: [{}], rowCount: 1 };
+        }
+        if (/^(BEGIN|COMMIT|ROLLBACK)\b/i.test(s)) { if (!/^BEGIN/i.test(s)) end(); return { rows: [], rowCount: 0 }; }
+        return late(sql, args);
+      },
+      release: end,
+    };
+  };
+  try { return await fn(); } finally { pool.query = query; pool.connectTx = connectTx; }
+}
+
+test('several worlds made or copied at once never pass the most', async () => {
+  const full = 'You have 50 of 50 worlds, the most an account holds — delete one to make room';
+  const held = async (userId) => Number((await rows('SELECT count(*)::int AS n FROM worlds WHERE created_by=$1', [userId]))[0].n);
+  await pool.query(`INSERT INTO users (id, username, email, password_hash, central_user_id, is_guest) VALUES
+    (3, 'cy', NULL, 'x', 9003, false), (4, 'di', NULL, 'x', 9004, false)`);
+
+  // made: six at once at 49
+  await pool.query(`INSERT INTO worlds (name, created_by) SELECT 'Filler ' || g, 3 FROM generate_series(1, 49) g`);
+  const made = await asIfAtOnce(() => Promise.all([1, 2, 3, 4, 5, 6].map((i) => call(3, 'POST', '/api/worlds', { name: `At once ${i}` }))));
+  assert.deepStrictEqual(made.map((r) => r.status).sort(), [201, 400, 400, 400, 400, 400]);
+  assert.ok(made.filter((r) => r.status === 400).every((r) => r.body.message === full));
+  assert.strictEqual(await held(3), 50);
+
+  // copied: four copies at once of a world with a picture, at 49
+  const [own] = await rows(`INSERT INTO worlds (name, created_by) VALUES ('Mine', 4) RETURNING id`);
+  await pool.query(`INSERT INTO images (filename, original_name, file_path, file_size, mime_type, world_id, uploaded_by, storage_key)
+    VALUES ('img-mine.png', 'a.png', '${R2}/worlds/${own.id}/img-mine.png', 1024, 'image/png', $1, 4, 'worlds/${own.id}/img-mine.png')`, [own.id]);
+  await pool.query(`INSERT INTO worlds (name, created_by) SELECT 'Filler ' || g, 4 FROM generate_series(1, 48) g`);
+  sent.length = 0;
+  const copied = await asIfAtOnce(() => Promise.all([1, 2, 3, 4].map((i) => call(4, 'POST', '/api/atlas/worlds/clone', { source_id: own.id, name: `Copy ${i}` }))));
+  assert.deepStrictEqual(copied.map((r) => r.status).sort(), [201, 400, 400, 400]);
+  assert.ok(copied.filter((r) => r.status === 400).every((r) => r.body.message === full));
+  assert.strictEqual(await held(4), 50);
+  // the refused copies take back what they put in storage, and their day's uploads
+  const kept = (await rows('SELECT storage_key FROM images WHERE world_id <> $1 AND uploaded_by = 4', [own.id])).map((r) => r.storage_key);
+  const put = named('CopyObjectCommand').map((c) => c.Key);
+  assert.strictEqual(put.length, 4);
+  assert.deepStrictEqual(named('DeleteObjectCommand').map((d) => d.Key).sort(), put.filter((k) => !kept.includes(k)).sort());
+  assert.strictEqual(await uploadsUsed(4), 1, 'only the copy that stands spent its KB');
 });

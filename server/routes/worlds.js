@@ -4,7 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { r2Enabled, deletePrefix } = require('../storage');
 const { resolveImageUrl } = require('../utils/imageUrl');
 const { worldName, text, idParam } = require('../lib/validate');
-const { MAX_WORLDS, WORLDS_FULL, worldCount } = require('../lib/route');
+const { MAX_WORLDS, WORLDS_FULL, lockedWorldCount } = require('../lib/route');
 const router = express.Router();
 
 // All world routes require authentication
@@ -68,25 +68,41 @@ router.post('/', async (req, res) => {
     const description = text(req.body?.description, 2000);
     if (description === undefined) return res.status(400).json({ message: 'The description is text' });
 
-    // Check if user already has a world with this name
-    const existingWorld = await pool.query(
-      'SELECT id FROM worlds WHERE name = $1 AND created_by = $2',
-      [name, req.user.id]
-    );
+    // The name and the count are read under this account's lock, in the transaction that adds the
+    // world (lib/route.js): two adds at once take turns, so neither passes the most.
+    const client = await pool.connectTx();
+    let world;
+    try {
+      await client.query('BEGIN');
+      const held = await lockedWorldCount(client, req.user.id);
+      // Check if user already has a world with this name
+      const existingWorld = await client.query(
+        'SELECT id FROM worlds WHERE name = $1 AND created_by = $2',
+        [name, req.user.id]
+      );
+      if (existingWorld.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ message: 'You already have a world with this name' });
+      }
+      if (held >= MAX_WORLDS) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: WORLDS_FULL });
+      }
 
-    if (existingWorld.rows.length > 0) {
-      return res.status(409).json({ message: 'You already have a world with this name' });
+      const result = await client.query(`
+        INSERT INTO worlds (name, description, created_by)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [name, description || null, req.user.id]);
+      await client.query('COMMIT');
+      world = result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
     }
-    if ((await worldCount(req.user.id)) >= MAX_WORLDS) return res.status(400).json({ message: WORLDS_FULL });
 
-    const result = await pool.query(`
-      INSERT INTO worlds (name, description, created_by)
-      VALUES ($1, $2, $3)
-      RETURNING *
-    `, [name, description || null, req.user.id]);
-
-    const world = result.rows[0];
-    
     res.status(201).json({
       world: {
         id: world.id,

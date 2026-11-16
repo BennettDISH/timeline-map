@@ -6,7 +6,7 @@ const { resolveImageUrl } = require('../utils/imageUrl');
 const { r2Enabled, copyObject, deleteObject, keyFromUrl } = require('../storage');
 const { spotlightTrail, pendingForge, PLAYER_MARKER_CAP, playerMarkerCount } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
-const { wrap: wrapWith, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount } = require('../lib/route');
+const { wrap: wrapWith, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount, lockedWorldCount } = require('../lib/route');
 const { MAX_CORNERS, INT_MAX } = require('../lib/validate');
 const { CATEGORIES } = require('../lib/vocab');
 const spend = require('../lib/spend');
@@ -389,6 +389,9 @@ router.post('/worlds/clone', wrap(async (req, res) => {
 
   client = await pool.connectTx();
   await client.query('BEGIN');
+  // counted again under this account's lock (lib/route.js): two copies at once, or a copy beside a
+  // new world, take turns, and the one past the most takes back what it copied (below)
+  if ((await lockedWorldCount(client, req.user.id)) >= MAX_WORLDS) throw Object.assign(new Error(WORLDS_FULL), { worldsFull: true });
   const rowsOfC = async (sql, args) => (await client.query(sql, args)).rows;
   // the caller's description wins, even an empty one — a template's blurb never lands on their world
   const desc = description === undefined ? src.description : (String(description || '').trim().slice(0, 2000) || null);
@@ -486,6 +489,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
     // nothing of the copy stands: the objects it put go again, and the day's uploads come back
     for (const key of copied) await deleteObject(key).catch((err) => console.error('R2 cleanup after a failed copy:', err.message));
     if (artKb > 0) await spend.refund(req.user, 'upload', artKb, chargedOn).catch((err) => console.error('upload refund after a failed copy:', err.message));
+    if (e.worldsFull) return res.status(400).json({ message: WORLDS_FULL });
     throw e;
   } finally {
     client?.release();

@@ -31,6 +31,13 @@ const wrap = wrapWith('voice', "Couldn't make the audio — try again");
 router.param('id', idParam);
 
 const needStorage = (res) => res.status(400).json({ message: 'Audio needs object storage (R2) configured' });
+// The object a cleared line or ambience takes out of storage: only one under this world's own
+// prefix. A copy made before copies owned their audio (2026-11-14) still names its source's
+// object, and clearing it there must leave the source's alone: that row just lets go of it.
+const ownKey = (url, worldId) => {
+  const key = keyFromUrl(url);
+  return key && key.startsWith(`worlds/${worldId}/`) ? key : null;
+};
 
 router.get('/voices', wrap(async (req, res) => {
   res.json({ voices: await voice.listVoices(), ...voice.status() });
@@ -75,7 +82,7 @@ router.delete('/nodes/:id/line', wrap(async (req, res) => {
   const n = (await pool.query('SELECT id, world_id, voice_url FROM nodes WHERE id=$1', [req.params.id])).rows[0];
   if (!n || !(await ownsWorld(n.world_id, req.user.id))) return res.status(404).json({ message: 'Node not found' });
   await pool.query('UPDATE nodes SET voice_line=NULL, voice_url=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [n.id]);
-  const key = keyFromUrl(n.voice_url); // the audio leaves storage with the line
+  const key = ownKey(n.voice_url, n.world_id); // the audio leaves storage with the line
   if (key) { try { await deleteObject(key); } catch (e) { /* best-effort */ } }
   res.json({ ok: true });
 }));
@@ -108,7 +115,7 @@ router.delete('/maps/:id/ambience', wrap(async (req, res) => {
   const m = (await pool.query('SELECT id, world_id, ambience_url FROM maps WHERE id=$1', [req.params.id])).rows[0];
   if (!m || !(await ownsWorld(m.world_id, req.user.id))) return res.status(404).json({ message: 'Map not found' });
   await pool.query('UPDATE maps SET ambience_prompt=NULL, ambience_url=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1', [m.id]);
-  const key = keyFromUrl(m.ambience_url);
+  const key = ownKey(m.ambience_url, m.world_id);
   if (key) { try { await deleteObject(key); } catch (e) { /* best-effort */ } }
   res.json({ ok: true });
 }));

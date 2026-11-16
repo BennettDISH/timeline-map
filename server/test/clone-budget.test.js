@@ -42,6 +42,7 @@ pool.query = async (sql, params) => {
   if (/^SELECT \* FROM worlds WHERE id=\$1/.test(s)) return { rows: [{ id: 7, name: 'The sample world', description: 'A sample', is_template: true, created_by: 99 }] };
   if (/SELECT 1 FROM worlds WHERE name=\$1 AND created_by=\$2/.test(s)) return { rows: [] };
   if (/SELECT COUNT\(\*\)::int AS n FROM worlds WHERE created_by=\$1/.test(s)) return { rows: [{ n: 0 }] };
+  if (/pg_advisory_xact_lock/.test(s)) return { rows: [{}] }; // the account's lock, counted again under it
   if (/FROM forge_batches/.test(s)) return { rows: [] };
   if (/SUM\(file_size\)/.test(s)) return { rows: [{ bytes: String(artBytes) }] };
   // the copy takes its world id up front (its objects go under worlds/<id>/ before the rows do)

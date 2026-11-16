@@ -20,8 +20,16 @@ const notFound = (res, what = 'Not found') => res.status(404).json({ message: wh
 // Dashboard says how many there are before the last ones go (GET /api/worlds sends `limit`).
 const MAX_WORLDS = 50;
 const WORLDS_FULL = `You have ${MAX_WORLDS} of ${MAX_WORLDS} worlds, the most an account holds — delete one to make room`;
-async function worldCount(userId) {
-  return (await pool.query('SELECT COUNT(*)::int AS n FROM worlds WHERE created_by=$1', [userId])).rows[0].n;
+async function worldCount(userId, db = pool) {
+  return (await db.query('SELECT COUNT(*)::int AS n FROM worlds WHERE created_by=$1', [userId])).rows[0].n;
+}
+// Two adds at once (a double click, a copy beside a new world) each counted 49 and both went in.
+// An add counts again inside the transaction that inserts the world, after taking this account's
+// lock, which any other add waits for until that transaction ends. `db` is that transaction's client.
+const WORLDS_LOCK = 1050; // the lock's first key, "an account's worlds"; the second is the account
+async function lockedWorldCount(db, userId) {
+  await db.query('SELECT pg_advisory_xact_lock($1::int, $2::int)', [WORLDS_LOCK, userId]);
+  return worldCount(userId, db);
 }
 
-module.exports = { wrap, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount };
+module.exports = { wrap, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount, lockedWorldCount };
