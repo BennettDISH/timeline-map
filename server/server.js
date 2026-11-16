@@ -1,7 +1,7 @@
 const express = require('express');
 const compression = require('compression');
 const {
-  trustOneProxy, requestLog, sameOriginWrites, rateLimit, health, apiNotFound, errorHandler,
+  trustOneProxy, requestLog, sameOriginWrites, rateLimit, health, apiNotFound, buildFiles, errorHandler,
 } = require('fleet-kit/server');
 const path = require('path');
 const fs = require('fs');
@@ -106,16 +106,6 @@ app.use((req, res, next) => (isAdminPath(req.path) ? adminGate(req, res, next) :
 // NODE_ENV=production on the host doesn't leave every page as a JSON "Route not found".
 const distPath = path.join(__dirname, '../client/dist');
 if (fs.existsSync(path.join(distPath, 'index.html'))) {
-  // Vite names everything under assets/ by its hash, so a new build is a new name: the browser
-  // keeps those a year instead of asking for each bundle again on every visit (max-age=0).
-  const builtAssets = path.join(distPath, 'assets') + path.sep;
-  app.use(express.static(distPath, {
-    index: false,
-    setHeaders: (res, file) => {
-      if (file.startsWith(builtAssets)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    },
-  }));
-
   // The internal bug-tracker widget is injected HERE, server-side, into every page except
   // the public Player View (/p/*): anonymous players get neither the reporting UI nor its
   // key, and the key never ships inside the client bundle.
@@ -124,10 +114,14 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
   const widgetTag = `<script src="https://bug-tracker-production-4ccb.up.railway.app/widget.js" data-api-key="${widgetKey}"></script>`;
   const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
 
-  // SPA fallback: serve index.html for any client-route GET so client-side routes work on
-  // direct navigation / refresh (e.g. /w/:id/m/:id). The API, file-like paths and other
-  // methods fall through to the JSON 404 instead (lib/spa.js).
-  app.use(spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)));
+  // The build (fleet-kit's buildFiles): Vite names everything under assets/ by its hash, so a new
+  // build is a new name and the browser keeps those a year; a missing one is a 404. The other
+  // files (the sounds, the icon, pane-quiet.js) are asked about on each load. The page is never
+  // kept (no-store), so a tab coming back after a deploy can't name bundles that are gone; it is
+  // the SPA fallback's (lib/spa.js): index.html, with the widget, for any client-route GET so
+  // client-side routes work on direct navigation / refresh (e.g. /w/:id/m/:id), while file-like
+  // paths and other methods fall through to the JSON 404 instead.
+  app.use(buildFiles(distPath, { page: spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)) }));
 }
 
 // 404 handler

@@ -15,17 +15,18 @@ function collapseLeadingSlashes(req, res, next) {
 
 const API_PATH = /^\/+api(\/|$)/;
 // the last segment ends in an extension: no client route does (ids are numbers, share tokens
-// are base64url)
+// are base64url). The page's own file, /index.html, is the page.
 const FILE_PATH = /\.[A-Za-z0-9]{1,8}$/;
+const PAGE_FILE = /^\/+index\.html$/i;
 
 function wantsPage(path) {
-  return !API_PATH.test(path) && !FILE_PATH.test(path);
+  return !API_PATH.test(path) && (!FILE_PATH.test(path) || PAGE_FILE.test(path));
 }
 
 // The fallback handler: the page for client routes, next() (the JSON 404) for the rest.
-// `pageFor(req)` picks which copy of index.html this request gets. Mounted with app.use and
-// no path, so it reads the same on every Express: '/{*path}' is Express 5's spelling, and on
-// a stale Express 4 install it matched no client route at all, / included.
+// `pageFor(req)` picks which copy of index.html this request gets. server.js hands it to
+// fleet-kit's buildFiles as the page, which sends it no-store and only for what the build
+// doesn't have; mounted on its own with app.use and no path, it reads the same on every Express.
 function spaFallback(pageFor) {
   return (req, res, next) => {
     if ((req.method !== 'GET' && req.method !== 'HEAD') || !wantsPage(req.path)) return next();

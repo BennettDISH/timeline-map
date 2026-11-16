@@ -5,24 +5,34 @@
 //   node --test server/test/images-serve.test.js
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const express = require('express');
+const { buildFiles } = require('fleet-kit/server');
 const pool = require('../config/database');
 const { collapseLeadingSlashes, spaFallback, wantsPage } = require('../lib/spa');
 
 const PAGE = '<!DOCTYPE html><html><body>app</body></html>';
-let base, server;
+let base, server, dist;
 test.before(async () => {
-  // wired like server.js: the slash rule first, the API, the page fallback, then the JSON 404
+  // wired like server.js: the slash rule first, the API, the build with the page fallback as its
+  // page, then the JSON 404. The build is empty: every file asked for here is one it doesn't have.
+  dist = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-images-serve-'));
   const app = express();
   app.use(collapseLeadingSlashes);
   app.use('/api/images-base64', require('../routes/image-base64'));
   app.get('/api/here', (req, res) => res.json({ here: true }));
-  app.use(spaFallback(() => PAGE));
+  app.use(buildFiles(dist, { page: spaFallback(() => PAGE) }));
   app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
-test.after(() => { server.close(); pool.end().catch(() => {}); });
+test.after(() => {
+  server.close();
+  pool.end().catch(() => {});
+  fs.rmSync(dist, { recursive: true, force: true });
+});
 
 const get = (path) => fetch(base + path, { redirect: 'manual' });
 async function assertJson404(path) {
@@ -50,18 +60,26 @@ test('a file the app does not have is a JSON 404, not the app page', async () =>
   // the R2 key asked of the app's host: what a URL rewritten onto the wrong host looks like
   await assertJson404('/worlds/12/forge-1787698122094-89ea04bc.png');
   await assertJson404('/worlds/12/img-1792187851076-109184844.jpg');
-  await assertJson404('/assets/index-gone.js');
   await assertJson404('/favicon.ico');
+  await assertJson404('/.env');
+  // a bundle the build doesn't have (a tab older than the deploy): the build's plain 404
+  for (const p of ['/assets/index-gone.js', '/ASSETS/index-gone.js']) {
+    const r = await get(p);
+    assert.strictEqual(r.status, 404, p);
+    assert.ok(!/<html/i.test(await r.text()), `${p} answered with HTML`);
+  }
 });
 
-test('client routes still get the page', async () => {
-  for (const p of ['/', '/dashboard', '/w/3/m/7', '/p/fx0123456789abcdef', '/p/Ab-_9xYz0123456789AbCdEfGh/m/12', '/auth/callback?code=a.b', '/worlds/4/images']) {
+test('client routes still get the page, never kept by the browser', async () => {
+  for (const p of ['/', '/index.html', '/dashboard', '/w/3/m/7', '/p/fx0123456789abcdef', '/p/Ab-_9xYz0123456789AbCdEfGh/m/12', '/auth/callback?code=a.b', '/worlds/4/images']) {
     const r = await get(p);
     assert.strictEqual(r.status, 200, p);
     assert.match(r.headers.get('content-type'), /^text\/html/, p);
+    assert.match(r.headers.get('cache-control') || '', /no-store/, p);
     assert.strictEqual(await r.text(), PAGE, p);
   }
   assert.strictEqual(wantsPage('/w/3'), true);
+  assert.strictEqual(wantsPage('/index.html'), true);
   assert.strictEqual(wantsPage('/x.png'), false);
   assert.strictEqual(wantsPage('/api/x'), false);
 });

@@ -144,6 +144,10 @@ test('the security checks', async (t) => {
     // A guest may use everything a DM may, with their paid uses capped (checked below): only the admin's are closed
     guests: { refused: ['/api/admin/*'] },
     headers: { path: '/' },
+    // the build as the kit serves it (buildFiles): /assets a year, the page no-store, a missing file 404
+    build: {},
+    // no /api answer opens itself to another site's page (the Player View is framed, never fetched)
+    cors: {},
   });
   for (const check of checks) await t.test(check.name, check.run);
 

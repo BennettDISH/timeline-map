@@ -7,7 +7,7 @@ which is wrong before changing either.
 
 ## Sign-in, accounts and image storage
 - Sign-in and the session are fleet-kit's (`server/config/auth.js`, vendored as
-  `server/vendor/fleet-kit-1.0.13.tgz`; the server `require`s its CommonJS build). SSO is built
+  `server/vendor/fleet-kit-1.0.14.tgz`; the server `require`s its CommonJS build). SSO is built
   server-side (no VITE_ client vars; configured only when URL + client id + secret all exist):
   `/api/auth/sso/login?next=&prompt=login` keeps the OAuth state in an httpOnly cookie of the
   server's own, Waypoint comes back to `/auth/callback` (the address it has registered), and the
@@ -193,6 +193,12 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
   hands that chord up from the frame on every load (`forwardBugKey`: a cancelable copy on its
   own window, and the frame's key is held back only when the widget took it) — otherwise the
   browser's bookmarks bar gets it.
+- The build goes out through fleet-kit's `buildFiles` (`server.js`, held by the security set's
+  `build` check): the hashed files under `/assets` are kept a year (immutable) and a missing one
+  is a 404; the other built files (sounds, icon, `pane-quiet.js`) are asked about on each load;
+  the page (`/`, `/index.html` and every client route, from the SPA fallback in `lib/spa.js`) is
+  `no-store`, so a tab coming back after a deploy never names bundles that are gone. A file-like
+  path the build doesn't have stays the JSON 404.
 - `/api/share` has its own rate-limit bucket (the whole table shares one venue IP and the
   Player View polls every 45s).
 - **The embed contract**: Spellforge's Map tab frames `/p/*` in an iframe. Only `/p` and
