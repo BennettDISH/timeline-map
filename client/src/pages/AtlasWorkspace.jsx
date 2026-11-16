@@ -39,11 +39,13 @@ function AtlasWorkspace() {
 
   const [world, setWorld] = useState(null)
   // how full the world is (the server's lib/room.js): the world's own count as it loads, then the
-  // reply to any add that leaves it nearly full (services/http.js hears those as ROOM_EVENT)
+  // reply to any add that leaves it nearly full (services/http.js hears those as ROOM_EVENT). A
+  // reply names only what that add touched, so it never hides a fuller kind already shown.
   const [room, setRoom] = useState(null)
   useEffect(() => { setRoom(world?.room ?? null) }, [world?.room])
   useEffect(() => {
-    const heard = (e) => setRoom(e.detail)
+    const share = (r) => (r?.max ? r.count / r.max : 0)
+    const heard = (e) => setRoom((was) => (!was || was.what === e.detail.what || share(e.detail) >= share(was) ? e.detail : was))
     window.addEventListener(ROOM_EVENT, heard)
     return () => window.removeEventListener(ROOM_EVENT, heard)
   }, [])
