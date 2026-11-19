@@ -73,7 +73,11 @@ table (`NODE_COLS`/`MAP_COLS`/`MIND_COLS` in `atlas.js`); add every new content 
 Clones own their art and audio: with R2 on, every image, voice line and ambience is copied under
 `worlds/<newId>/` (`copyObject`), so clearing a line or an ambience in the copy (which deletes its
 object) never touches the source, nor the source's in the copy; a line or an ambience that can't be
-copied (R2 off, or an address that is not the bucket's) is left out of the copy. Folders (their
+copied (R2 off, an address that is not the bucket's, or no object there) is left out of the copy.
+The copy spends what it adds to storage from the day's upload allowance, in KB, before anything is
+copied: its images by their rows' `file_size`, its lines and ambiences by the size the bucket gives
+(`objectSize`, a HEAD each, the rows keep only the address), so copying never stores audio free
+(Bennett's call, 2026-11-18); over what is left it is the allowance's 429 with nothing made. Folders (their
 nesting and what is filed in them), the lantern and the mind travel too. **Storage first, rows
 second**: the copy takes its world id from the sequence up front, copies every object in storage
 (six at a time) BEFORE its database transaction opens, and the transaction then only inserts rows,

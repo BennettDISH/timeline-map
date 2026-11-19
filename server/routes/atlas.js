@@ -3,7 +3,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveImageUrl } = require('../utils/imageUrl');
-const { r2Enabled, copyObject, deleteObject, keyFromUrl } = require('../storage');
+const { r2Enabled, copyObject, deleteObject, keyFromUrl, objectSize } = require('../storage');
 const { spotlightTrail, pendingForge, PLAYER_MARKER_CAP, playerMarkerCount } = require('./share');
 const { isId, whole, text, oneOf, bool, ordered, pct, worldName, cleanBody, idParam } = require('../lib/validate');
 const { wrap: wrapWith, ownsWorld, notFound, MAX_WORLDS, WORLDS_FULL, worldCount, lockedWorldCount } = require('../lib/route');
@@ -341,14 +341,29 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       ? `Keep or Unmake the Forge's cards in “${src.name}” first — a copy would keep their work`
       : 'That world is being changed right now — try again later, or start an empty world' });
   }
-  // the copy owns its art — every image is copied — so it adds the source's image bytes to
-  // storage, and spends them from the day's upload allowance as uploading them would
-  // (lib/spend.js): copy, delete, copy again went round the 50-worlds backstop above. A copy that
-  // fails partway gives the allowance back and takes back the objects it already copied.
+  // the copy owns its art and its audio — every image, voice line and ambience is copied — so it
+  // adds their bytes to storage, and spends them from the day's upload allowance as uploading
+  // them would (lib/spend.js): copy, delete, copy again went round the 50-worlds backstop above.
+  // An image's size is on its row; a line's or an ambience's is asked of the bucket (the rows keep
+  // only its address), and one that is not there is left out of the copy like one that can't be
+  // copied. A copy that fails partway gives the allowance back and takes back the objects it
+  // already copied.
   const art = (await pool.query('SELECT COALESCE(SUM(file_size), 0) AS bytes FROM images WHERE world_id=$1', [src.id])).rows[0];
-  const artKb = Math.ceil(Number(art.bytes) / 1024);
+  const maps = await rowsOf('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
+  const nodes = await rowsOf('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
+  const sounds = []; // { slot, key, what, bytes }: the audio this copy takes its own copy of
+  const sizing = [];
+  const sound = (slot, url, what) => {
+    const key = url && r2Enabled ? keyFromUrl(url) : null;
+    if (key) sizing.push(async () => { const bytes = await objectSize(key); if (bytes !== null) sounds.push({ slot, key, what, bytes: Number(bytes) || 0 }); });
+  };
+  for (const m of maps) sound(`map:${m.id}`, m.ambience_url, 'ambience');
+  for (const n of nodes) sound(`node:${n.id}`, n.voice_url, 'voice');
+  await inTurns(sizing, COPY_AT_ONCE);
+  const audioBytes = sounds.reduce((sum, s) => sum + s.bytes, 0);
+  const chargedKb = Math.ceil((Number(art.bytes) + audioBytes) / 1024);
   const chargedOn = spend.today();
-  if (artKb > 0 && !(await spend.charge(req, res, 'upload', artKb))) return;
+  if (chargedKb > 0 && !(await spend.charge(req, res, 'upload', chargedKb))) return;
 
   // Storage first, rows second: every object is copied BEFORE the database transaction opens (an
   // R2 call is slow, a big world has hundreds, and a transaction held open across them kept its
@@ -360,8 +375,6 @@ router.post('/worlds/clone', wrap(async (req, res) => {
   let client = null;
   try {
   const images = await rowsOf('SELECT * FROM images WHERE world_id=$1 ORDER BY id', [src.id]);
-  const maps = await rowsOf('SELECT * FROM maps WHERE world_id=$1 ORDER BY id', [src.id]);
-  const nodes = await rowsOf('SELECT * FROM nodes WHERE world_id=$1 ORDER BY id', [src.id]);
   const jobs = [];
   const copyTo = async (key, dst, type) => { const url = await copyObject(key, dst, type); copied.push(dst); return url; };
   // each image's file in the copy (one with no stored object, the sample's art, keeps its address)
@@ -374,17 +387,13 @@ router.post('/worlds/clone', wrap(async (req, res) => {
       jobs.push(async () => imgFile.set(im.id, { fname, filePath: await copyTo(im.storage_key, key, im.mime_type), storageKey: key }));
     } else imgFile.set(im.id, { fname, filePath: im.file_path, storageKey: null });
   }
-  // a voice line or an ambience as the copy's own object (left out when it can't be copied)
+  // each voice line and ambience paid for above, as the copy's own object (the rest are left out)
   const audio = new Map();
-  const copyAudio = (slot, url, what) => {
-    const key = url && r2Enabled ? keyFromUrl(url) : null;
-    if (!key) return;
+  for (const { slot, key, what } of sounds) {
     const ext = key.includes('.') ? key.split('.').pop().toLowerCase() : 'mp3';
     const dst = `worlds/${wid}/${what}-clone-${crypto.randomBytes(9).toString('hex')}.${ext}`;
     jobs.push(async () => audio.set(slot, await copyTo(key, dst, AUDIO_TYPES[ext])));
-  };
-  for (const m of maps) copyAudio(`map:${m.id}`, m.ambience_url, 'ambience');
-  for (const n of nodes) copyAudio(`node:${n.id}`, n.voice_url, 'voice');
+  }
   await inTurns(jobs, COPY_AT_ONCE);
 
   client = await pool.connectTx();
@@ -488,7 +497,7 @@ router.post('/worlds/clone', wrap(async (req, res) => {
     if (client) await client.query('ROLLBACK').catch(() => {});
     // nothing of the copy stands: the objects it put go again, and the day's uploads come back
     for (const key of copied) await deleteObject(key).catch((err) => console.error('R2 cleanup after a failed copy:', err.message));
-    if (artKb > 0) await spend.refund(req.user, 'upload', artKb, chargedOn).catch((err) => console.error('upload refund after a failed copy:', err.message));
+    if (chargedKb > 0) await spend.refund(req.user, 'upload', chargedKb, chargedOn).catch((err) => console.error('upload refund after a failed copy:', err.message));
     if (e.worldsFull) return res.status(400).json({ message: WORLDS_FULL });
     throw e;
   } finally {

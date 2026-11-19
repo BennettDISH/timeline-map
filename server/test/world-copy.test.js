@@ -4,6 +4,8 @@
 //    voice line and ambience is copied under the new world's prefix, or left out when it can't be;
 //  - clearing a copy's line or ambience deletes the copy's object, never the source's, and one that
 //    still names another world's object (a copy from before copies owned their audio) only lets go;
+//  - a copy spends its art and its audio from the day's uploads by size (an audio file's size is
+//    asked of the bucket), and a line or ambience whose object is gone is left out, unpaid;
 //  - a copy that fails partway takes back what it put in storage and gives the day's uploads back;
 //  - an account holds at most 50 worlds, made or copied, and GET /api/worlds says how many it has;
 //    several made or copied at once never pass it.
@@ -25,18 +27,27 @@ const realFetch = globalThis.fetch; // the test's own calls to the routes, on 12
 globalThis.fetch = async () => { throw new Error('no network in this test'); };
 const sent = [];
 let refuse = null; // (cmd) => true makes the bucket refuse that command
+// what the bucket says an object weighs (1 KB unless set here), and the keys it has no object for
+const sizes = new Map();
+const gone = new Set();
 let openTx = 0; // database transactions open right now (pool.connectTx, below)
 const sentInTx = []; // the storage calls made while one was open
 require('@aws-sdk/client-s3').S3Client.prototype.send = async (cmd) => {
   if (openTx > 0) sentInTx.push(cmd.constructor.name);
   if (refuse && refuse(cmd)) throw new Error('the bucket refused');
   sent.push(cmd);
+  if (cmd.constructor.name === 'HeadObjectCommand') {
+    if (gone.has(cmd.input.Key)) throw Object.assign(new Error('NotFound'), { name: 'NotFound', $metadata: { httpStatusCode: 404 } });
+    return { ContentLength: sizes.get(cmd.input.Key) ?? 1024, ContentType: 'audio/mpeg' };
+  }
   return { Contents: [], IsTruncated: false };
 };
 const named = (kind) => sent.filter((c) => c.constructor.name === kind).map((c) => c.input);
 
 const R2 = 'https://r2.stub.invalid';
 const SRC = 10;
+const AMBIENCE_KEY = `worlds/${SRC}/ambience-${SRC}-1-abc.mp3`, VOICE_KEY = `worlds/${SRC}/voice-${SRC}-1-abc.mp3`;
+sizes.set(AMBIENCE_KEY, 5 * 1024).set(VOICE_KEY, 3 * 1024);
 const SEED = `
   INSERT INTO users (id, username, email, password_hash, central_user_id, is_guest) VALUES
     (1, 'ann', NULL, 'x', 9001, false), (2, 'bob', NULL, 'x', 9002, false);
@@ -127,7 +138,7 @@ test('a copy keeps the folders and their filing, and owns its art and its audio'
     [`stub/worlds/${SRC}/ambience-${SRC}-1-abc.mp3`, `stub/worlds/${SRC}/img-${SRC}.png`, `stub/worlds/${SRC}/voice-${SRC}-1-abc.mp3`]);
   assert.ok(copies.every((c) => c.Key.startsWith(`worlds/${copy}/`)), 'every object lands under the copy');
   assert.strictEqual(copies.find((c) => c.CopySource.includes('voice')).ContentType, 'audio/mpeg');
-  assert.strictEqual(await uploadsUsed(1), 2, "the art's 2 KB are spent from the day's uploads");
+  assert.strictEqual(await uploadsUsed(1), 10, "the art's 2 KB and the audio's 8 KB are spent from the day's uploads");
 });
 
 test('a copy calls storage only while no database transaction is open', async () => {
@@ -141,6 +152,30 @@ test('a copy calls storage only while no database transaction is open', async ()
   const [img] = await rows('SELECT storage_key FROM images WHERE world_id=$1', [r.body.worldId]);
   assert.match(img.storage_key, new RegExp(`^worlds/${r.body.worldId}/`), "the objects sit under the copy's own id");
   assert.strictEqual((await call(1, 'DELETE', `/api/worlds/${r.body.worldId}`)).status, 200);
+});
+
+test('a line or an ambience whose object is gone is left out of the copy, and not paid for', async () => {
+  const before = await uploadsUsed(1);
+  gone.add(VOICE_KEY);
+  let r;
+  try { r = await call(1, 'POST', '/api/atlas/worlds/clone', { source_id: SRC, name: 'The copy without a voice' }); } finally { gone.delete(VOICE_KEY); }
+  assert.strictEqual(r.status, 201, JSON.stringify(r.body));
+  const [node] = await rows('SELECT voice_line, voice_url FROM nodes WHERE world_id=$1', [r.body.worldId]);
+  assert.deepStrictEqual([node.voice_line, node.voice_url], ['Thirty gold a head.', null]);
+  assert.strictEqual(await uploadsUsed(1) - before, 7, 'the art and the ambience, 2 + 5 KB');
+  assert.strictEqual((await call(1, 'DELETE', `/api/worlds/${r.body.worldId}`)).status, 200);
+});
+
+test("a copy whose audio won't fit what is left of the day's uploads is refused before anything is copied", async () => {
+  const before = { worlds: await worlds(), used: await uploadsUsed(1) };
+  sizes.set(AMBIENCE_KEY, 300 * 1024 * 1024);
+  sent.length = 0;
+  let r;
+  try { r = await call(1, 'POST', '/api/atlas/worlds/clone', { source_id: SRC, name: 'The loud copy' }); } finally { sizes.set(AMBIENCE_KEY, 5 * 1024); }
+  assert.strictEqual(r.status, 429);
+  assert.match(r.body.message, /^This needs 300 MB, but only 250 MB of today's 250 MB of uploads are left/);
+  assert.deepStrictEqual(named('CopyObjectCommand'), [], 'nothing was copied');
+  assert.deepStrictEqual({ worlds: await worlds(), used: await uploadsUsed(1) }, before, 'and nothing spent or made');
 });
 
 test("clearing a copy's line or ambience deletes the copy's audio, never the source's", async () => {
