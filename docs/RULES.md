@@ -7,7 +7,7 @@ which is wrong before changing either.
 
 ## Sign-in, accounts and image storage
 - Sign-in and the session are fleet-kit's (`server/config/auth.js`, vendored as
-  `server/vendor/fleet-kit-1.0.16.tgz`; the server `require`s its CommonJS build). SSO is built
+  `server/vendor/fleet-kit-1.0.18.tgz`; the server `require`s its CommonJS build). SSO is built
   server-side (no VITE_ client vars; configured only when URL + client id + secret all exist):
   `/api/auth/sso/login?next=&prompt=login` keeps the OAuth state in an httpOnly cookie of the
   server's own, Waypoint comes back to `/auth/callback` (the address it has registered), and the
@@ -27,7 +27,16 @@ which is wrong before changing either.
   local `users.role` grants nothing. The admin's tools are all at `/admin` (the browse of
   everything, the Railway switches read-only, the database check); the server decides the page
   before it goes out (signed out → sign in and back, anyone else → a plain 403 "This page is for
-  the site admin.") and refuses every `/api/admin` call to a non-admin (403). `/me` and every
+  the site admin.") and refuses every `/api/admin` call to a non-admin (403). **View as**
+  (fleet-kit's `viewAs`, `config/auth.js`): the Accounts tab on `/admin` has a "View as" button by
+  every account but an admin's, which shows the Atlas the way that account sees it, read-only, for
+  30 minutes or until Exit in the red bar at the top (`/api/auth/view-as.js`, on every page but
+  the Player View). Every write is refused while it is on (403, `code: 'viewing_as'`), the
+  Forge's and the voices' paid calls among them, and the two GETs that write on a world's first
+  open make nothing then (the world map, `routes/atlas.js`; the mind, `routes/forge.js`). The admin
+  pages and `/api/admin` refuse it. The page keeps the admin's own remembered account and last
+  map: while viewing it neither reads nor writes them (`authService.isViewing`).
+  `server/test/view-as.test.js`. `/me` and every
   sign-in return `{role: 'admin'|'dm', isAdmin, isGuest}`. Sign-out POSTs `{}` (a `null` JSON body is a 400 before the route)
   and bumps `token_version`, which ends the session on every device; a sign-out the server could
   not do leaves this browser signed in and says so. `clearLocalSession` in `http.js` also

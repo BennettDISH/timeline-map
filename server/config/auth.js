@@ -152,6 +152,17 @@ const wp = createWaypoint({
       },
     }],
   },
+  // View as (fleet-kit 1.0.18): the site admin picks an account on /admin (the Accounts tab) and
+  // sees the Atlas the way it does, read-only, for 30 minutes or until Exit in the red bar. The
+  // account by its local id, as session.load answers it; the kit itself refuses an admin's row.
+  // Every write is refused by the kit while it is on, the Forge's and the voices' paid calls
+  // too (all POSTs), and the two GETs that write on a first open skip it then (routes/atlas.js,
+  // routes/forge.js). The banner is /api/auth/view-as.js, on every page but the Player View
+  // (server.js).
+  viewAs: {
+    find: (id) => (/^[1-9]\d{0,8}$/.test(String(id)) ? account(Number(id)) : null),
+    name: (u) => u.username,
+  },
 });
 
 module.exports = { wp, account, findOrCreateLocalUser, shape, isAdminPath };

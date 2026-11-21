@@ -56,6 +56,7 @@ function AdminPanel() {
         <div className="admin-container">
           <h1>Admin panel</h1>
           <p>Everything on the Atlas, look-only. Nothing here changes a world.</p>
+          <p className="admin-sub">View as (Accounts) shows the Atlas the way that account sees it, read-only, for 30 minutes or until you press Exit in the red bar.</p>
           <nav className="admin-tabs" aria-label="What to browse">
             {TABS.map((t) => (
               <button key={t.key} className={t.key === tab.key ? 'on' : ''} aria-current={t.key === tab.key ? 'page' : undefined}
@@ -89,7 +90,7 @@ function TabList({ tab, q, page, world, owner, go }) {
       <ListState state={state}>
         {tab.key === 'users' && (
           <table>
-            <thead><tr><th>Account</th><th>Email</th><th>Waypoint id</th><th>Worlds</th><th>Joined</th><th>Last seen</th></tr></thead>
+            <thead><tr><th>Account</th><th>Email</th><th>Waypoint id</th><th>Worlds</th><th>Joined</th><th>Last seen</th><th /></tr></thead>
             <tbody>{items.map((u) => (
               <tr key={u.id}>
                 <td>{u.username} {u.isAdmin && <span className="badge">admin</span>} {u.isGuest && <span className="badge">guest</span>}</td>
@@ -98,6 +99,7 @@ function TabList({ tab, q, page, world, owner, go }) {
                 <td>{u.worlds ? <button className="admin-link" onClick={() => go({ tab: 'worlds', owner: String(u.id), q: '', world: '' })}>{u.worlds}</button> : 0}</td>
                 <td>{when(u.createdAt)}</td>
                 <td>{when(u.lastSeenAt)}</td>
+                <td>{u.isAdmin ? null : <ViewAs account={u} />}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -172,6 +174,31 @@ function TabList({ tab, q, page, world, owner, go }) {
         {tab.key === 'batches' && <Batches items={items} />}
       </ListState>
       <Pager data={state.data} onPage={(p) => go({ page: String(p) })} />
+    </>
+  )
+}
+
+// View as (fleet-kit's): the Atlas the way this account sees it, read-only, for 30 minutes or
+// until Exit in the red bar the page shows. The server says who may start one (the site admin,
+// never as an admin); an admin's row, the admin's own among them, has no button.
+function ViewAs({ account }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const start = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await http.post('/api/auth/view-as', { id: account.id })
+      window.location.assign(r.data?.next || '/')
+    } catch (e) {
+      setBusy(false)
+      setError(errText(e, "Couldn't view as them"))
+    }
+  }
+  return (
+    <>
+      <button className="admin-link" onClick={start} disabled={busy} aria-label={`View as ${account.username}`}>{busy ? 'Opening…' : 'View as'}</button>
+      {error && <div className="admin-error admin-sub">{error}</div>}
     </>
   )
 }

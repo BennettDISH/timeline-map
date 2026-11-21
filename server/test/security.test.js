@@ -148,6 +148,9 @@ test('the security checks', async (t) => {
     build: {},
     // no /api answer opens itself to another site's page (the Player View is framed, never fetched)
     cors: {},
+    // The admin viewing as Ann: only the admin starts it, every write is refused while it's on, and
+    // the view cookie does nothing for anyone else (test/view-as.test.js has the Atlas's side)
+    viewAs: { target: () => 1 },
   });
   for (const check of checks) await t.test(check.name, check.run);
 

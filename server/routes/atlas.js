@@ -187,7 +187,8 @@ router.get('/worlds/:worldId', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
   const w = (await pool.query('SELECT * FROM worlds WHERE id=$1', [worldId])).rows[0];
-  if (!w.root_map_id) {
+  // the site admin viewing as the owner (fleet-kit's View as) only reads: no root map is made then
+  if (!w.root_map_id && !req.viewAs) {
     const m = (await pool.query(
       `INSERT INTO maps (title, world_id, view, created_by) VALUES ($1,$2,'map',$3) RETURNING id`,
       [rootTitle(w.name), worldId, req.user.id])).rows[0];

@@ -112,13 +112,17 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
   const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
   const widgetKey = process.env.BUG_WIDGET_KEY || '74c1c3da43cd9020a09f570d78ab8834b7ff73c59d9586793d9e8119f53f8c2d';
   const widgetTag = `<script src="https://bug-tracker-production-4ccb.up.railway.app/widget.js" data-api-key="${widgetKey}"></script>`;
-  const withWidget = indexHtml.replace('</body>', `${widgetTag}</body>`);
+  // The red "Viewing as" bar while the site admin views as someone (fleet-kit's View as, set up
+  // in config/auth.js); nothing otherwise. Same pages as the widget: a player's page (and the
+  // DM's Player posture, which frames one) never asks.
+  const viewAsTag = '<script src="/api/auth/view-as.js" defer></script>';
+  const withWidget = indexHtml.replace('</body>', `${viewAsTag}${widgetTag}</body>`);
 
   // The build (fleet-kit's buildFiles): Vite names everything under assets/ by its hash, so a new
   // build is a new name and the browser keeps those a year; a missing one is a 404. The other
   // files (the sounds, the icon, pane-quiet.js) are asked about on each load. The page is never
   // kept (no-store), so a tab coming back after a deploy can't name bundles that are gone; it is
-  // the SPA fallback's (lib/spa.js): index.html, with the widget, for any client-route GET so
+  // the SPA fallback's (lib/spa.js): index.html, with the widget and the banner, for any client-route GET so
   // client-side routes work on direct navigation / refresh (e.g. /w/:id/m/:id), while file-like
   // paths and other methods fall through to the JSON 404 instead.
   app.use(buildFiles(distPath, { page: spaFallback((req) => (isPlayerPath(req.path) ? indexHtml : withWidget)) }));

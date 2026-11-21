@@ -7,6 +7,12 @@ const remember = (user) => {
   try { if (user) localStorage.setItem('user', JSON.stringify(user)) } catch (e) { /* a convenience */ }
 }
 
+// While the site admin views as someone (fleet-kit's View as: /me says `viewing`), what this
+// browser remembers stays the admin's own: the account here, and where "/" resumes
+// (worldService), are neither shown nor overwritten until Exit.
+let viewing = false
+export const isViewing = () => viewing
+
 // Until 2026-10 the session was a token kept in localStorage. A page that still holds one hands
 // it to the server once, with its first /me, and the server swaps it for the session cookie;
 // then it is deleted here, so nobody is signed out by the move.
@@ -44,7 +50,8 @@ const authService = {
     try {
       const response = await api.get('/api/auth/me', old ? { headers: { Authorization: `Bearer ${old}` } } : undefined)
       const user = response.data.user || null
-      if (user) remember(user)
+      viewing = Boolean(user && response.data.viewing)
+      if (user && !viewing) remember(user)
       return user
     } finally {
       if (old) { try { localStorage.removeItem(OLD_TOKEN) } catch (e) { /* ignore */ } }

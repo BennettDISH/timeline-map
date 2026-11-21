@@ -46,7 +46,11 @@ router.param('id', idParam);
 router.get('/worlds/:worldId', wrap(async (req, res) => {
   const { worldId } = req.params;
   if (!(await ownsWorld(worldId, req.user.id))) return res.status(404).json({ message: 'World not found' });
-  const mind = await ensureMind(worldId);
+  // the site admin viewing as the owner (fleet-kit's View as) only reads: a world with no mind
+  // yet shows an empty one, and none is made
+  const mind = req.viewAs
+    ? (await pool.query('SELECT * FROM world_minds WHERE world_id=$1', [worldId])).rows[0] || {}
+    : await ensureMind(worldId);
   const messages = (await pool.query(
     'SELECT role, content, batch_id AS "batchId", created_at FROM mind_messages WHERE world_id=$1 ORDER BY id DESC LIMIT 60', [worldId])).rows.reverse();
   const rows = (await pool.query(

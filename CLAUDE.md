@@ -71,7 +71,7 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   that stamps `last_seen_at`, the old-token reader), `middleware/auth.js` (`authenticateToken` =
   the kit's session check, `requireAdmin`), `lib/security.js` (the kit's headers with the Atlas's
   CSP additions and the Player View's embed contract). From fleet-kit (vendored as
-  `server/vendor/fleet-kit-1.0.16.tgz`; the client installs the same file for its top bar; a kit
+  `server/vendor/fleet-kit-1.0.18.tgz`; the client installs the same file for its top bar; a kit
   change is a new kit version, never a re-packed tarball, and never edited here): trust proxy 1,
   the request log (one line per request: id, method, path with no query string and tokens as
   `:token`, status, time; the id is `X-Request-Id` and the error handler logs with it), the
@@ -99,7 +99,13 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `config/auth.js` calls an admin page as the page's router reads it, so `/ADMIN` and `/%61dmin`
   too: signed out → sign in and back, anyone else → a plain 403; `server/test/admin-page.test.js`),
   and every admin API refuses a non-admin with a 403. The "Admin" link
-  (`components/TopBar.jsx`) shows to the admin only.
+  (`components/TopBar.jsx`) shows to the admin only. **View as** (fleet-kit's, `viewAs` in
+  `config/auth.js`): the Accounts tab's button shows the Atlas as that account sees it, read-only
+  for 30 minutes, with the kit's red bar (`/api/auth/view-as.js`, injected in `server.js` with the
+  widget) and Exit; every write is refused (`code: 'viewing_as'`), so a new GET that writes must
+  skip it while `req.viewAs` is set, and the page leaves the admin's own remembered account and
+  last map alone (`authService.isViewing`). `server/test/view-as.test.js`, and `viewAs` in the
+  security test.
 
 ## Key invariants (the whole rule for each is in `docs/RULES.md`)
 - **All secrecy is enforced in `server/routes/share.js`, server-side**: DM-only nodes and

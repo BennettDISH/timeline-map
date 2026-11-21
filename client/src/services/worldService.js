@@ -1,4 +1,5 @@
 import http from './http'
+import { isViewing } from './authService'
 
 const API_BASE = '/api/worlds'
 
@@ -23,8 +24,11 @@ const worldService = {
   },
 
 
-  // Last map the user had open — "/" resumes there on the next visit
+  // Last map the user had open — "/" resumes there on the next visit. It is this browser's
+  // account's: while the admin views as someone it is neither read (the dashboard instead) nor
+  // written, so Exit finds the admin's own still there.
   getLastLocation() {
+    if (isViewing()) return null
     try {
       const loc = JSON.parse(localStorage.getItem('atlas_last_location'))
       return loc && loc.worldId && loc.mapId ? loc : null
@@ -34,6 +38,7 @@ const worldService = {
   },
 
   setLastLocation(worldId, mapId) {
+    if (isViewing()) return
     try {
       localStorage.setItem('atlas_last_location', JSON.stringify({ worldId, mapId }))
     } catch (error) {
