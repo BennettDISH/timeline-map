@@ -33,9 +33,11 @@ const CSP_ADD = {
 
 // Spellforge answers at its railway.app name and at the games' front door; a player on
 // either one opens the Map tab, and a refused frame is a blank tab with no word why.
+// spellforge-next is the Spellforge rebuild's test site, with the same Map tab.
 const DEFAULT_EMBED_ORIGINS = [
   'https://spellforge-production-1695.up.railway.app',
   'https://spellforge.bennettdishman.com',
+  'https://spellforge-next.up.railway.app',
 ];
 const embedOrigins = (env = process.env) => {
   const set = (env.EMBED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);

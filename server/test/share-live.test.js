@@ -265,6 +265,7 @@ test('the Player View may be framed by Spellforge; the DM app may not be framed 
   const pv = await fetch(`${BASE}/p/${TOKEN}`);
   const csp = pv.headers.get('content-security-policy') || '';
   assert.match(csp, /frame-ancestors 'self' https:\/\/spellforge-production-1695\.up\.railway\.app/, 'the Player View allows the Spellforge origin');
+  assert.match(csp, /frame-ancestors [^;]*https:\/\/spellforge-next\.up\.railway\.app/, 'and the Spellforge rebuild\'s test site');
   assert.equal(pv.headers.get('x-frame-options'), null, 'no X-Frame-Options on the Player View (it cannot express an allowlist)');
   const dm = await fetch(`${BASE}/dashboard`);
   assert.match(dm.headers.get('content-security-policy') || '', /frame-ancestors 'self'(;|$)/, 'the DM app keeps frame-ancestors self');

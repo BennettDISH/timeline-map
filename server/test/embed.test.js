@@ -27,11 +27,21 @@ async function headersOf(env, paths) {
 }
 const ancestors = (csp) => (csp.split(';').map((s) => s.trim()).find((s) => s.startsWith('frame-ancestors')) || '').split(/\s+/).slice(1);
 
-test('Spellforge frames the Player View from its railway.app name and from the front door', async () => {
+test('Spellforge frames the Player View from its railway.app name, the front door and the rebuild\'s test site', async () => {
   const h = await headersOf({}, ['/p/tok', '/p', '/p/tok/m/12']);
   for (const [p, { csp, xfo }] of Object.entries(h)) {
-    assert.deepStrictEqual(ancestors(csp), ["'self'", 'https://spellforge-production-1695.up.railway.app', 'https://spellforge.bennettdishman.com'], p);
+    assert.deepStrictEqual(ancestors(csp), ["'self'", 'https://spellforge-production-1695.up.railway.app', 'https://spellforge.bennettdishman.com', 'https://spellforge-next.up.railway.app'], p);
     assert.strictEqual(xfo, null, `${p}: no X-Frame-Options (it cannot express an allowlist)`);
+  }
+});
+
+test('the rebuild\'s test site may frame the Player View and nothing else', async () => {
+  const next = 'https://spellforge-next.up.railway.app';
+  const h = await headersOf({}, ['/p/tok', '/dashboard', '/login', '/w/1']);
+  assert.ok(ancestors(h['/p/tok'].csp).includes(next), 'the Player View lists the test site');
+  for (const p of ['/dashboard', '/login', '/w/1']) {
+    assert.ok(!ancestors(h[p].csp).includes(next), `${p}: the DM app does not`);
+    assert.strictEqual((h[p].xfo || '').toUpperCase(), 'SAMEORIGIN', p);
   }
 });
 
