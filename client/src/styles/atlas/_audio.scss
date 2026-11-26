@@ -23,6 +23,6 @@
   svg{width:18px;height:18px;display:block}}
 .atlas.pview .speaker-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:$z-popover;width:min(240px,calc(100vw - 24px));display:flex;flex-direction:column;gap:9px;padding:11px 12px;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px #0009;font-size:13px}
-.atlas.pview .speaker-row{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:8px;color:var(--ink)
+.atlas.pview .speaker-row{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:8px;color:var(--ink);
   input[type=range]{width:100%;min-width:0;accent-color:#d9b64e}
   input[type=checkbox]{justify-self:start;width:16px;height:16px;accent-color:#d9b64e}}
