@@ -3,6 +3,11 @@
 
 @media (pointer: coarse){ // touch: 44px targets, and inputs that don't make iOS zoom
   .atlas.pview .pin .enter,.atlas.pview .lsrow .enter{min-width:36px;min-height:36px;padding:6px 8px;font-size:18px}
+  // an outlined place's ◎ gets the same 36px target as an invisible square round the glyph, so
+  // its name's pill keeps its size and sits where it always did
+  .atlas.pview .rlabel .enter{position:relative}
+  .atlas.pview .rlabel .enter::after{content:'';position:absolute;left:50%;top:50%;width:36px;height:36px;
+    transform:translate(-50%,-50%);pointer-events:auto}
   .atlas .fstep{width:22px;height:22px;margin:-5px 0 0 -5px}
   .atlas.pview .lrow .lgo,.atlas.pview .rtrail a,.atlas.pview .dmtrail a{display:inline-block;padding:9px 0}
   .atlas.pview .tool,.atlas.pview .btn,.atlas .mp-controls button,.atlas.pview .sclose,.atlas .modal-head button,.atlas .rclose{min-width:44px;min-height:44px}

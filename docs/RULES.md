@@ -526,7 +526,9 @@ everything since is polish, the 2026-09-26 cleanup (`docs/cleanup/`) and the wis
   helmet's CSP carries `media-src 'self' blob: https:` — without it the browser renders the
   player but refuses to load R2 audio.
 - Player View navigation: a persistent ⬆ back button on every interior, crumbs kept
-  visible (scrolling) on phones, and ◎ on pins/list rows is a single-tap "go inside".
+  visible (scrolling) on phones, and ◎ on pins, list rows and an outlined place's name is a
+  single-tap "go inside", a 36px target on touch screens (the name's ◎ by an invisible square,
+  so its label does not grow).
 - **The Player View never strands a player**: only an unknown TOKEN shows "This link isn't
   active" (`DeadLink`, also the `/p/*` route); a hidden/missing/unbuilt map shows "This
   place isn't on your map" with ⬆ back; a failed first load or failed navigation shows a
