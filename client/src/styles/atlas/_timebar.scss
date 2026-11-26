@@ -57,12 +57,15 @@
   // bands on their own line — the slider runs below them, covering nothing
   .erabar{position:static;flex:none;display:flex;align-items:center;gap:12px;
     height:66px;padding:0 14px;background:#0d0f13;border-top:1px solid var(--line)}
+  // each band's name is the longest form its rendered width holds (utils/eraBand.js picks it,
+  // and mirrors the border and paddings here: keep them in step)
   .etrack{flex:1;position:relative;height:100%;
     input[type=range]{position:absolute;left:0;right:0;bottom:8px;width:100%;accent-color:#c9a35f;z-index:2}
     .eseg{position:absolute;top:10px;height:20px;border-radius:5px;background:rgba(201,163,95,.22);
       border:1px solid rgba(201,163,95,.45);pointer-events:none;overflow:hidden;
       em{display:block;padding:0 7px;font-size:10.5px;font-style:normal;line-height:19px;color:#e3cf9c;
-        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}}}
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}
+      em.tight{padding:0 2px;text-align:center}}} // a narrow band's S13 or 13
   // fixed-width zone: the label and the Now button swap content without ever
   // resizing the track under a mid-drag thumb
   .ezone{display:flex;align-items:center;justify-content:flex-end;gap:10px;width:260px;flex:none}

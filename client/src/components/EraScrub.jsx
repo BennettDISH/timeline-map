@@ -1,5 +1,6 @@
 import { momentLabel, sessionNum } from '../utils/moment'
-import React, { useState, useEffect, useMemo } from 'react'
+import { bandLabel, fontOf, textWidth } from '../utils/eraBand'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 
 // The player's window into the past: a scrubber whose reachable range is the union of the
 // DM's player-visible eras, hard-stopped at the canon moment. Dragging snaps to the nearest
@@ -28,6 +29,25 @@ export default function EraScrub({ tl, eras, value, onChange, win = null }) {
   const [typed, setTyped] = useState(null) // string while typing an exact moment
   const unitOne = tl?.unit ? tl.unit.replace(/s$/i, '') : 'moment'
   useEffect(() => { setDv(value == null ? canon : value) }, [value, canon])
+
+  // each band prints the longest name its rendered width holds (utils/eraBand.js): the track's
+  // width and the labels' font are read when it mounts and on every resize, never guessed from
+  // how many eras there are, so a phone goes to S7 early and a desktop keeps whole names
+  const [fit, setFit] = useState({ w: 0, f: null })
+  const ro = useRef(null)
+  const trackRef = useCallback((el) => {
+    ro.current?.disconnect(); ro.current = null
+    if (!el) return
+    const read = () => {
+      const em = el.querySelector('.eseg em'); const f = em ? fontOf(em) : null; const w = el.clientWidth
+      setFit((o) => (o.w === w && o.f?.font === f?.font && o.f?.ls === f?.ls ? o : { w, f }))
+    }
+    read()
+    if (typeof ResizeObserver !== 'undefined') { ro.current = new ResizeObserver(read); ro.current.observe(el) }
+  }, [])
+  const labels = useMemo(() => segs.map((g) => (
+    bandLabel(g.name, sessionNum(g), fit.w * ((g.en - g.s) / span), (s) => textWidth(s, fit.f))
+  )), [segs, span, fit])
 
   if (!tl?.enabled) return null
   if (segs.length === 0 || hi <= lo) {
@@ -72,16 +92,13 @@ export default function EraScrub({ tl, eras, value, onChange, win = null }) {
 
   return (
     <div className="erabar">
-      <div className="etrack">
-        {segs.map((g, i) => {
-          // a crowded bar prints the short form (S12) so every session stays named
-          const n = sessionNum(g); const compact = segs.length > 12 && n != null
-          return (
-            <span key={i} className="eseg" title={g.name} style={{ left: pct(g.s), width: `${((g.en - g.s) / span) * 100}%` }}>
-              <em>{compact ? `S${n}` : g.name}</em>
-            </span>
-          )
-        })}
+      <div className="etrack" ref={trackRef}>
+        {segs.map((g, i) => (
+          <span key={i} className="eseg" title={g.name} style={{ left: pct(g.s), width: `${((g.en - g.s) / span) * 100}%` }}>
+            {/* the em stays when there is no room for a name: its font is what the labels are measured in */}
+            <em className={labels[i]?.tight ? 'tight' : undefined}>{labels[i]?.text}</em>
+          </span>
+        ))}
         <input
           type="range" aria-label="Moment in the revealed past" min={lo} max={hi} value={Math.min(Math.max(dv, lo), hi)}
           onChange={(e) => move(e.target.value)}

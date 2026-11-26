@@ -165,7 +165,9 @@ Live tables (the 16 `schema.sql` creates; production held the first 15 as of 202
 - **One Party per world** is enforced by the API (409 on a second `party` node) and the
   inspector (the ⚑ dot hides once a Party exists; leaving `party` asks first). At campaign
   length: timebar ticks group per SESSION when the pitch drops under 8px, era bands print
-  `S12` past five bands (the players' bar past twelve), the trail breaks between visits,
+  `S12` past five bands (each band on the players' bar prints the longest name its rendered
+  width holds: the whole name, the name before its subtitle, S12, then S12 or 12 with less
+  padding, else none; `utils/eraBand.js`), the trail breaks between visits,
   session colours cycle only over the newest eight (older go grey), the legend counts
   things not placements, and the Party's editor shows its footstep first with the other
   periods folded. **A clock never set stores NULLs** (schema defaults dropped; legacy
