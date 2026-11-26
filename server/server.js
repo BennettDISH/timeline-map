@@ -144,11 +144,23 @@ app.use(errorHandler({
   },
 }));
 
-schemaReady.finally(() => app.listen(PORT, (err) => {
+// A deploy stops this server with SIGTERM: stop taking requests, let those in flight finish, close the
+// pool and exit 0, which Railway doesn't mail as a crash (lib/cleanStop.js). Set up before the schema
+// ensure, so a stop while booting is clean too.
+const { exitCleanlyOn } = require('./lib/cleanStop');
+let server = null;
+exitCleanlyOn(() => new Promise((resolve) => {
+  const endPool = () => pool.end().then(resolve, resolve);
+  if (!server) return endPool();
+  server.close(endPool);
+  server.closeIdleConnections();
+}));
+
+schemaReady.finally(() => { server = app.listen(PORT, (err) => {
   // Express 5 hands a listen error (a port in use) to this callback instead of throwing it
   if (err) throw err;
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) console.error('JWT_SECRET (or SESSION_SECRET) is not set: sign-in is off');
   scheduleGuestSweep(); // after the schema: it reads users.last_seen_at
-}));
+}); });

@@ -40,6 +40,10 @@ and every rule the code enforces), and what is still unbuilt is in `docs/ROADMAP
   `node e2e/seed.mjs` runs it on a fresh in-memory Postgres
 - Use standard commit messages without mentioning AI assistance
 - Railway automatically deploys from the main branch
+- A deploy stops the old server with SIGTERM, and a stop that doesn't exit 0 is mailed as "Deploy crashed".
+  So both start scripts `exec` (root `cd server && exec npm start`, server `exec node server.js`: without
+  it, sh sits between npm and node and dies of the signal), and `server/lib/cleanStop.js` closes the
+  server and the pool and exits 0 (`server/test/clean-stop.test.js` runs `npm start` and signals it)
 - **Always push changes to git when finished with a task** - commit and push automatically after completing work
 - Nothing writes to the live Atlas by default. `npm test` (server/) is the local suites only;
   the API secrecy suite is `npm run test:live` (server/) or `node --test
